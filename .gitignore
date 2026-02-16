@@ -1,12 +1,6 @@
 # macOS
 .DS_Store
-.AppleDouble
-.LSOverride
-Icon
 ._*
-.Spotlight-V100
-.Trashes
-Library
 
 # Environment files
 .env
@@ -25,16 +19,8 @@ Library
 *.crt
 *.cer
 
-# Logs
-*.log
-logs/
-Library/Logs/
-
 # Node/Bun
 node_modules/
-.npm
-.yarn
-.pnp.*
 
 # IDE
 .vscode/
@@ -43,24 +29,8 @@ node_modules/
 *.swo
 *~
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# Build outputs
-dist/
-build/
-out/
-
-# Cache
-.cache/
-*.cache
-
-# Personal/Private data
-private/
-secrets/
-credentials/
+# Stow
+.stow-local-ignore
 
 # PAI Update System (sideloading)
 .claude/pai_updates/

@@ -1,0 +1,282 @@
+[
+  {
+    "timestamp": "2026-02-15T16:00:23.180Z",
+    "type": "hook_file_ref",
+    "description": "References \"EventLogger.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "EventLogger.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:00:23.180Z",
+    "type": "hook_file_ref",
+    "description": "References \"RecoveryJournal.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "RecoveryJournal.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:00:23.180Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:00:23.180Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:00:23.180Z",
+    "type": "system_doc_ref",
+    "description": "References \"SYSTEM/RESPONSEFORMAT.md\" but file does not exist",
+    "doc": "SYSTEM_USER_EXTENDABILITY.md",
+    "reference": "SYSTEM/RESPONSEFORMAT.md"
+  },
+  {
+    "timestamp": "2026-02-15T16:02:43.618Z",
+    "type": "hook_file_ref",
+    "description": "References \"EventLogger.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "EventLogger.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:02:43.618Z",
+    "type": "hook_file_ref",
+    "description": "References \"RecoveryJournal.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "RecoveryJournal.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:02:43.618Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:02:43.618Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:02:43.618Z",
+    "type": "system_doc_ref",
+    "description": "References \"SYSTEM/RESPONSEFORMAT.md\" but file does not exist",
+    "doc": "SYSTEM_USER_EXTENDABILITY.md",
+    "reference": "SYSTEM/RESPONSEFORMAT.md"
+  },
+  {
+    "timestamp": "2026-02-15T16:11:46.958Z",
+    "type": "hook_file_ref",
+    "description": "References \"EventLogger.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "EventLogger.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:11:46.958Z",
+    "type": "hook_file_ref",
+    "description": "References \"RecoveryJournal.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "RecoveryJournal.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:11:46.958Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:11:46.958Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T16:11:46.958Z",
+    "type": "system_doc_ref",
+    "description": "References \"SYSTEM/RESPONSEFORMAT.md\" but file does not exist",
+    "doc": "SYSTEM_USER_EXTENDABILITY.md",
+    "reference": "SYSTEM/RESPONSEFORMAT.md"
+  },
+  {
+    "timestamp": "2026-02-15T18:06:07.260Z",
+    "type": "hook_file_ref",
+    "description": "References \"EventLogger.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "EventLogger.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:06:07.260Z",
+    "type": "hook_file_ref",
+    "description": "References \"RecoveryJournal.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "RecoveryJournal.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:06:07.260Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:06:07.260Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:06:07.260Z",
+    "type": "system_doc_ref",
+    "description": "References \"SYSTEM/RESPONSEFORMAT.md\" but file does not exist",
+    "doc": "SYSTEM_USER_EXTENDABILITY.md",
+    "reference": "SYSTEM/RESPONSEFORMAT.md"
+  },
+  {
+    "timestamp": "2026-02-15T18:08:06.998Z",
+    "type": "hook_file_ref",
+    "description": "References \"EventLogger.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "EventLogger.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:08:06.998Z",
+    "type": "hook_file_ref",
+    "description": "References \"RecoveryJournal.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "RecoveryJournal.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:08:06.998Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:08:06.998Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:08:06.998Z",
+    "type": "system_doc_ref",
+    "description": "References \"SYSTEM/RESPONSEFORMAT.md\" but file does not exist",
+    "doc": "SYSTEM_USER_EXTENDABILITY.md",
+    "reference": "SYSTEM/RESPONSEFORMAT.md"
+  },
+  {
+    "timestamp": "2026-02-15T18:35:46.990Z",
+    "type": "hook_file_ref",
+    "description": "References \"EventLogger.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "EventLogger.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:35:46.990Z",
+    "type": "hook_file_ref",
+    "description": "References \"RecoveryJournal.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "RecoveryJournal.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:35:46.990Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:35:46.990Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:35:46.990Z",
+    "type": "system_doc_ref",
+    "description": "References \"SYSTEM/RESPONSEFORMAT.md\" but file does not exist",
+    "doc": "SYSTEM_USER_EXTENDABILITY.md",
+    "reference": "SYSTEM/RESPONSEFORMAT.md"
+  },
+  {
+    "timestamp": "2026-02-15T18:44:36.943Z",
+    "type": "hook_file_ref",
+    "description": "References \"EventLogger.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "EventLogger.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:44:36.943Z",
+    "type": "hook_file_ref",
+    "description": "References \"RecoveryJournal.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "RecoveryJournal.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:44:36.943Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:44:36.943Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:44:36.943Z",
+    "type": "system_doc_ref",
+    "description": "References \"SYSTEM/RESPONSEFORMAT.md\" but file does not exist",
+    "doc": "SYSTEM_USER_EXTENDABILITY.md",
+    "reference": "SYSTEM/RESPONSEFORMAT.md"
+  },
+  {
+    "timestamp": "2026-02-15T18:49:42.405Z",
+    "type": "hook_file_ref",
+    "description": "References \"EventLogger.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "EventLogger.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:49:42.405Z",
+    "type": "hook_file_ref",
+    "description": "References \"RecoveryJournal.hook.ts\" but file does not exist on disk",
+    "doc": "MEMORYSYSTEM.md",
+    "reference": "RecoveryJournal.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:49:42.405Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:49:42.405Z",
+    "type": "hook_file_ref",
+    "description": "References \"VoiceAndHistoryCapture.hook.ts\" but file does not exist on disk",
+    "doc": "TERMINALTABS.md",
+    "reference": "VoiceAndHistoryCapture.hook.ts"
+  },
+  {
+    "timestamp": "2026-02-15T18:49:42.405Z",
+    "type": "system_doc_ref",
+    "description": "References \"SYSTEM/RESPONSEFORMAT.md\" but file does not exist",
+    "doc": "SYSTEM_USER_EXTENDABILITY.md",
+    "reference": "SYSTEM/RESPONSEFORMAT.md"
+  }
+]

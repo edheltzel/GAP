@@ -1,0 +1,8 @@
+{"timestamp":"2026-02-15T10:07:20-05:00","rating":5,"session_id":"75abfc68-5405-4655-8d9a-97036919f124","source":"implicit","sentiment_summary":"Neutral request for technical information","confidence":0.95}
+{"timestamp":"2026-02-15T11:02:15-05:00","rating":6,"session_id":"75abfc68-5405-4655-8d9a-97036919f124","source":"implicit","sentiment_summary":"Engaged, collaborative update to entrepreneur profile","confidence":0.85}
+{"timestamp":"2026-02-15T11:06:37-05:00","rating":5,"session_id":"75abfc68-5405-4655-8d9a-97036919f124","source":"implicit","sentiment_summary":"Neutral task instruction with clear directives","confidence":0.95}
+{"timestamp":"2026-02-15T12:42:26-05:00","rating":5,"session_id":"75abfc68-5405-4655-8d9a-97036919f124","source":"implicit","sentiment_summary":"Simple directive to continue workflow","confidence":0.95}
+{"timestamp":"2026-02-15T13:07:35-05:00","rating":5,"session_id":"75abfc68-5405-4655-8d9a-97036919f124","source":"implicit","sentiment_summary":"Simple forward-looking question, no sentiment","confidence":0.95}
+{"timestamp":"2026-02-15T13:28:37-05:00","rating":5,"session_id":"75abfc68-5405-4655-8d9a-97036919f124","source":"implicit","sentiment_summary":"Technical planning session, no emotional sentiment","confidence":0.9}
+{"timestamp":"2026-02-15T13:45:58-05:00","rating":6,"session_id":"75abfc68-5405-4655-8d9a-97036919f124","source":"implicit","sentiment_summary":"Satisfied with Atlas catching config mistake","confidence":0.75}
+{"timestamp":"2026-02-15T13:49:49-05:00","rating":5,"session_id":"75abfc68-5405-4655-8d9a-97036919f124","source":"implicit","sentiment_summary":"Technical proposal, no emotion directed at Atlas","confidence":0.85}
