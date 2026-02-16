@@ -712,7 +712,7 @@
 		"name": "Atlas",
 		"fullName": "Atlas — Personal AI",
 		"displayName": "ATLAS",
-		"color": "#3B82F6",
+		"color": "#a48cf2",
 		"voices": {
 			"main": {
 				"voiceId": "lcMyyd2HUfFzxdCaC4Ta",
@@ -768,8 +768,8 @@
 		"_docs": "Autocompact buffer is 16.5%% of context window."
 	},
 	"techStack": {
-		"browser": "Dia",
-		"terminal": "Kitty",
+		"browser": "Google Chrome",
+		"terminal": "Wezterm",
 		"packageManager": "bun",
 		"pythonPackageManager": "uv",
 		"language": "TypeScript",
