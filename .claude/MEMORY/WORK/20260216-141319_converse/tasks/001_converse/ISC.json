@@ -1,0 +1,10 @@
+{
+  "taskId": "001_converse",
+  "status": "PENDING",
+  "effortLevel": "STANDARD",
+  "criteria": [],
+  "antiCriteria": [],
+  "satisfaction": null,
+  "createdAt": "2026-02-16T14:13:19-05:00",
+  "updatedAt": "2026-02-16T14:13:19-05:00"
+}

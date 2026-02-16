@@ -27,9 +27,6 @@ import { handleTabState } from './handlers/TabState';
 import { handleRebuildSkill } from './handlers/RebuildSkill';
 import { handleAlgorithmEnrichment } from './handlers/AlgorithmEnrichment';
 import { handleDocCrossRefIntegrity } from './handlers/DocCrossRefIntegrity';
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
 
 interface HookInput {
   session_id: string;
@@ -39,12 +36,12 @@ interface HookInput {
 
 /**
  * Voice gate: only main terminal sessions get voice.
- * Subagents spawned via Task tool have no kitty-sessions file → voice blocked.
- * One existsSync check. No regex. No transcript parsing.
+ * Subagents spawned via Task tool run in isolated processes without terminal env vars.
+ * Check TERM_PROGRAM to detect a real terminal session (WezTerm, Kitty, iTerm2, etc.).
  */
-function isMainSession(sessionId: string): boolean {
-  const paiDir = process.env.PAI_DIR || join(homedir(), '.claude');
-  return existsSync(join(paiDir, 'MEMORY', 'STATE', 'kitty-sessions', `${sessionId}.json`));
+function isMainSession(_sessionId: string): boolean {
+  const termProgram = process.env.TERM_PROGRAM;
+  return !!termProgram && ['WezTerm', 'kitty', 'iTerm2', 'iTerm.app', 'Apple_Terminal', 'tmux'].includes(termProgram);
 }
 
 async function readStdin(): Promise<HookInput | null> {

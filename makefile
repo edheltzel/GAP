@@ -1,5 +1,5 @@
 STOW_DIR := $(HOME)/Developer
-STOW_PKG := pai-config
+STOW_PKG := atlas-config
 STOW_TARGET := $(HOME)
 STOW_CMD := stow -d $(STOW_DIR) -t $(STOW_TARGET)
 

@@ -1,5 +1,5 @@
 {
-  "active": true,
+  "active": false,
   "sessionId": "75abfc68-5405-4655-8d9a-97036919f124",
   "taskDescription": "Dotfiles Symlink",
   "currentPhase": "COMPLETE",
@@ -113,5 +113,6 @@
       "name": "Dont Session",
       "changedAt": "2026-02-15T18:49:47.406Z"
     }
-  ]
+  ],
+  "completedAt": 1771205384051
 }

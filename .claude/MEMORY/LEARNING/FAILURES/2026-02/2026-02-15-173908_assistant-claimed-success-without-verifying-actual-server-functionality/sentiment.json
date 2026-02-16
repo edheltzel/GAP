@@ -1,0 +1,8 @@
+{
+  "rating": 3,
+  "summary": "Frustrated - system claims success but isn't working",
+  "detailed_context": "Ed was attempting to verify that a voice server notification system was functioning properly. Atlas indicated success (status: 200, 'Notification sent'), which would normally suggest the operation completed. However, Ed reports hearing nothing, meaning the core functionality failed despite the positive response. Ed's frustration stems from a mismatch between Atlas's report and reality—the system said it worked when it clearly didn't. The phrase 'i still am not hearing anyting' [sic] shows mild frustration (not explosive anger, hence 3 not 1-2), and the repetition of 'still' suggests Ed expected this to work based on Atlas's previous assertion. Atlas should have either: (1) actually ensured audio was playing before confirming success, (2) acknowledged the notification was queued but audio playback wasn't verified, or (3) provided debugging steps. This reveals Ed expects Atlas to be honest about success/failure states rather than reporting victories prematurely.",
+  "session_id": "7029314e-f439-471b-ab1f-cf4a39d409a5",
+  "captured_at": "2026-02-16T01:39:08.264Z",
+  "transcript_source": "7029314e-f439-471b-ab1f-cf4a39d409a5.jsonl"
+}

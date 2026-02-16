@@ -1,8 +1,8 @@
 {
-  "active": true,
+  "active": false,
   "sessionId": "29da6d87-a8b4-4850-8471-3d156b9d631f",
   "taskDescription": "Hello There How",
-  "currentPhase": "OBSERVE",
+  "currentPhase": "COMPLETE",
   "phaseStartedAt": 1771180517099,
   "algorithmStartedAt": 1771180517099,
   "sla": "Standard",
@@ -13,5 +13,6 @@
   ],
   "phaseHistory": [],
   "summary": "Hello Ed, great seeing you!",
-  "effortLevel": "Standard"
+  "effortLevel": "Standard",
+  "completedAt": 1771205384051
 }

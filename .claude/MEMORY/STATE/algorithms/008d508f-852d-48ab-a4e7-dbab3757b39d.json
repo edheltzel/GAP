@@ -1,0 +1,53 @@
+{
+  "active": true,
+  "sessionId": "008d508f-852d-48ab-a4e7-dbab3757b39d",
+  "taskDescription": "Lets Session",
+  "currentPhase": "OBSERVE",
+  "phaseStartedAt": 1771281944706,
+  "algorithmStartedAt": 1771281944706,
+  "sla": "Fast",
+  "criteria": [
+    {
+      "id": "C1",
+      "description": "secrets.fish.example no longer tracked by git",
+      "type": "criterion",
+      "status": "pending",
+      "createdInPhase": "OBSERVE"
+    },
+    {
+      "id": "C2",
+      "description": "secrets.fish.example file still exists on disk for reference",
+      "type": "criterion",
+      "status": "pending",
+      "createdInPhase": "OBSERVE"
+    },
+    {
+      "id": "C3",
+      "description": "gitignore covers secrets.fish.example pattern going forward",
+      "type": "criterion",
+      "status": "pending",
+      "createdInPhase": "OBSERVE"
+    },
+    {
+      "id": "A1",
+      "description": "No actual secret values exposed in git history",
+      "type": "anti-criterion",
+      "status": "pending",
+      "createdInPhase": "OBSERVE"
+    }
+  ],
+  "agents": [],
+  "capabilities": [
+    "Task Tool"
+  ],
+  "phaseHistory": [
+    {
+      "phase": "OBSERVE",
+      "startedAt": 1771281944706,
+      "criteriaCount": 0,
+      "agentCount": 0
+    }
+  ],
+  "effortLevel": "Fast",
+  "currentAction": "Remove fish secrets file security issue"
+}

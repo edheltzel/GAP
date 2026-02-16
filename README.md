@@ -1,4 +1,4 @@
-# PAI Config
+# Atlas Config
 
 Personal AI Infrastructure configuration managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
@@ -7,7 +7,7 @@ PAI files live here and get symlinked into `~/.claude/` — keeping PAI config v
 ## Structure
 
 ```
-pai-config/
+atlas-config/
 ├── .claude/           ← PAI config (symlinked into ~/.claude/)
 │   ├── settings.json  ← hooks, identity, statusline config
 │   ├── CLAUDE.md      ← PAI context injection

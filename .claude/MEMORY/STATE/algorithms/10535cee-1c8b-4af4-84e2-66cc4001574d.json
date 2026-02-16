@@ -1,0 +1,54 @@
+{
+  "active": true,
+  "sessionId": "10535cee-1c8b-4af4-84e2-66cc4001574d",
+  "taskDescription": "Atlas Config",
+  "currentPhase": "OBSERVE",
+  "phaseStartedAt": 1771281995122,
+  "algorithmStartedAt": 1771281995122,
+  "sla": "Standard",
+  "criteria": [
+    {
+      "id": "C1",
+      "description": "Makefile STOW_PKG value is atlas-config",
+      "type": "criterion",
+      "status": "pending",
+      "createdInPhase": "OBSERVE"
+    },
+    {
+      "id": "C2",
+      "description": "README references atlas-config not pai-config",
+      "type": "criterion",
+      "status": "pending",
+      "createdInPhase": "OBSERVE"
+    },
+    {
+      "id": "C3",
+      "description": "Directory renamed from pai-config to atlas-config",
+      "type": "criterion",
+      "status": "pending",
+      "createdInPhase": "OBSERVE"
+    },
+    {
+      "id": "C4",
+      "description": "All stow symlinks in ~/.claude point to atlas-config",
+      "type": "criterion",
+      "status": "pending",
+      "createdInPhase": "OBSERVE"
+    },
+    {
+      "id": "A1",
+      "description": "No historical MEMORY files modified during rename",
+      "type": "anti-criterion",
+      "status": "pending",
+      "createdInPhase": "OBSERVE"
+    }
+  ],
+  "agents": [],
+  "capabilities": [
+    "Task Tool"
+  ],
+  "phaseHistory": [],
+  "currentAction": "Analyze impact of renaming pai-config to Atlas",
+  "summary": "Rename is safe — stow re-link, update makefile, update git remote. Two minute job. Watch out for the AI-Atlas name collision.",
+  "effortLevel": "Standard"
+}
