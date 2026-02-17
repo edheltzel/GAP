@@ -32,6 +32,10 @@ node_modules/
 # Stow
 .stow-local-ignore
 
+# PAI runtime memory (recreated dynamically by hooks)
+.claude/MEMORY/**
+!.claude/MEMORY/README.md
+
 # PAI Update System (sideloading)
 .claude/pai_updates/
 .claude/pai_backups/
