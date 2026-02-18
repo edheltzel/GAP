@@ -96,27 +96,8 @@ const settingsPath = getSettingsPath();
       }
     }
 
-    // Run the banner tool
-    const bannerPath = join(paiDir, 'skills/PAI/Tools/Banner.ts');
-    const result = spawnSync('bun', ['run', bannerPath], {
-      encoding: 'utf-8',
-      stdio: ['inherit', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        // Pass through terminal detection env vars
-        COLUMNS: process.env.COLUMNS,
-        KITTY_WINDOW_ID: process.env.KITTY_WINDOW_ID,
-      }
-    });
-
-    if (result.stdout) {
-      console.log(result.stdout);
-    }
-
-    // Voice greeting removed — Banner.ts already displays the catchphrase visually.
-    // Having both caused duplicate "{DA_NAME} here, ready to go" output.
-    // Voice-at-startup should be handled by Banner.ts or a dedicated voice-only mechanism
-    // if re-added, to avoid visual duplication.
+    // Banner display handled by pai.ts (pai CLI path) — not in this hook.
+    // Voice greeting handled by VoiceGreeting.hook.ts (async SessionStart hook).
 
     process.exit(0);
   } catch (error) {

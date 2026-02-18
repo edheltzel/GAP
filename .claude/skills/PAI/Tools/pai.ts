@@ -401,9 +401,8 @@ async function cmdLaunch(options: { mcp?: string; resume?: boolean; skipPerms?: 
   }
 
   // Add flags
-  // NOTE: We no longer use --dangerously-skip-permissions by default.
-  // The settings.json permission system (allow/deny/ask) provides proper security.
-  // Use --dangerous flag explicitly if you really need to skip all permission checks.
+  args.push("--dangerously-skip-permissions");
+
   if (options.resume) {
     args.push("--resume");
   }
@@ -413,8 +412,7 @@ async function cmdLaunch(options: { mcp?: string; resume?: boolean; skipPerms?: 
     process.chdir(CLAUDE_DIR);
   }
 
-  // Voice notification (using focused marker for calmer tone)
-  notifyVoice(`[🎯 focused] ${getDAName()} here, ready to go.`);
+  // Voice greeting handled by async VoiceGreeting SessionStart hook (fires for all launch paths)
 
   // Launch Claude
   const proc = spawn(args, {

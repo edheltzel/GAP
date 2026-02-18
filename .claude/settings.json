@@ -254,6 +254,15 @@
             "command": "${PAI_DIR}/hooks/CheckVersion.hook.ts"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/VoiceGreeting.hook.ts",
+            "async": true
+          }
+        ]
       }
     ],
     "Stop": [
@@ -747,7 +756,7 @@
       "curiosity": 90,
       "playfulness": 45
     },
-    "startupCatchphrase": "Atlas… standing by",
+    "startupCatchphrase": "Atlas, standing by",
     "voiceId": "21m00Tcm4TlvDq8ikWAM"
   },
   "principal": {
@@ -838,14 +847,14 @@
   "counts": {
     "skills": 37,
     "workflows": 162,
-    "hooks": 20,
-    "signals": 23,
+    "hooks": 21,
+    "signals": 55,
     "files": 12,
-    "work": 15,
-    "sessions": 5,
+    "work": 47,
+    "sessions": 6,
     "research": 0,
-    "ratings": 23,
-    "updatedAt": "2026-02-16T22:48:21.671Z"
+    "ratings": 55,
+    "updatedAt": "2026-02-18T00:30:38.966Z"
   },
   "skipDangerousModePermissionPrompt": true
 }
