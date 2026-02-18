@@ -280,6 +280,17 @@
     "type": "command",
     "command": "$PAI_DIR/statusline-command.sh"
   },
+  "enabledPlugins": {
+    "claude-session-driver@superpowers-marketplace": true,
+    "double-shot-latte@superpowers-marketplace": true,
+    "elements-of-style@superpowers-marketplace": true,
+    "episodic-memory@superpowers-marketplace": true,
+    "superpowers@superpowers-marketplace": true,
+    "superpowers-chrome@superpowers-marketplace": true,
+    "superpowers-dev@superpowers-marketplace": true,
+    "superpowers-developing-for-claude-code@superpowers-marketplace": true,
+    "superpowers-lab@superpowers-marketplace": true
+  },
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
@@ -710,6 +721,7 @@
     ]
   },
   "plansDirectory": "~/.claude/Plans/",
+  "skipDangerousModePermissionPrompt": true,
   "teammateMode": "in-process",
   "contextFiles": [
     "skills/PAI/SKILL.md",
@@ -848,13 +860,12 @@
     "skills": 37,
     "workflows": 162,
     "hooks": 21,
-    "signals": 55,
+    "signals": 57,
     "files": 12,
-    "work": 47,
+    "work": 48,
     "sessions": 6,
     "research": 0,
-    "ratings": 55,
-    "updatedAt": "2026-02-18T00:30:38.966Z"
-  },
-  "skipDangerousModePermissionPrompt": true
+    "ratings": 57,
+    "updatedAt": "2026-02-18T12:39:09.529Z"
+  }
 }
