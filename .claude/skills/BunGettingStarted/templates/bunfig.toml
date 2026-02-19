@@ -1,0 +1,88 @@
+# Bun 1.3 Configuration File
+# Documentation: https://bun.sh/docs/runtime/bunfig
+
+[run]
+# Enable hot reloading when files change
+hot = true
+
+# Enable watch mode by default
+watch = true
+
+# Preload files before running your app
+# preload = ["./setup.ts"]
+
+[test]
+# Run tests concurrently by default (for I/O bound tests)
+# concurrentTestGlob = ["**/integration/**/*.test.ts", "**/*-concurrent.test.ts"]
+
+# Seed for reproducing test order
+# seed = 12345
+
+[console]
+# Control how deeply console.log() inspects objects
+depth = 5
+
+[install]
+# Use isolated installs by default (prevents dependency conflicts)
+linker = "isolated"
+
+# Save exact resolutions to bun.lock
+exact = true
+
+# Link workspace packages (set to false in CI)
+linkWorkspacePackages = true
+
+# Minimum release age before allowing package installation (security)
+# minimumReleaseAge = 604800  # 7 days in seconds
+
+# Configure security scanner
+# [install.security]
+# scanner = "@socketsecurity/bun-security-scanner"
+
+[jsx]
+# React JSX transformation
+factory = "React.createElement"
+fragment = "React.Fragment"
+import = "react"
+
+[bundle]
+# Include all dependencies in the bundle
+inline = true
+
+# Split code by route (for large apps)
+# splitting = true
+
+[js]
+# Minify JavaScript in production
+minify = { syntax = true, whitespace = true, identifiers = true }
+
+# Preserve function/class names for debugging
+keepNames = false
+
+# Source maps for debugging
+sourcemap = "external"
+
+[build]
+# Target for builds
+target = "bun"
+
+# Entry points
+# entrypoints = ["./src/server.ts", "./src/client.ts"]
+
+[database]
+# Default database connection (optional, set via DATABASE_URL env var)
+# url = "postgres://localhost/mydb"
+
+[dev]
+# Custom HTTP server for development
+# cmd = ["./scripts/dev-server.sh"]
+
+# Environment variables for development
+[env.development]
+DEBUG = "true"
+NODE_ENV = "development"
+
+# Environment variables for production
+[env.production]
+DEBUG = "false"
+NODE_ENV = "production"

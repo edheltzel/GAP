@@ -1,0 +1,44 @@
+{
+  "name": "bun-fullstack-app",
+  "version": "1.0.0",
+  "description": "Full-stack application built with Bun 1.3",
+  "type": "module",
+  "main": "./src/server.ts",
+  "scripts": {
+    "dev": "bun run --watch --hot src/server.ts",
+    "build": "bun build ./src/server.ts --target=bun --outfile=dist/server.js",
+    "build:compile": "bun build --compile ./src/server.ts --outfile=dist/app",
+    "start": "bun run dist/server.js",
+    "db:init": "bun run db/init.ts",
+    "db:seed": "bun run db/seed.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "lint": "bunx eslint src --ext .ts,.tsx",
+    "type-check": "bunx tsc --noEmit",
+    "format": "bunx prettier --write src",
+    "clean": "rm -rf dist node_modules bun.lock"
+  },
+  "keywords": [
+    "bun",
+    "fullstack",
+    "typescript",
+    "react",
+    "database"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bun-types": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "prettier": "^3.0.0",
+    "eslint": "^8.0.0"
+  },
+  "engines": {
+    "bun": ">=1.3.0"
+  }
+}
