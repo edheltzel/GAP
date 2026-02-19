@@ -30,7 +30,8 @@
       "ExitPlanMode",
       "Task",
       "Skill",
-      "mcp__*"
+      "mcp__*",
+      "mcp__pencil"
     ],
     "deny": [],
     "ask": [
@@ -860,12 +861,12 @@
     "skills": 39,
     "workflows": 164,
     "hooks": 21,
-    "signals": 73,
+    "signals": 74,
     "files": 12,
-    "work": 94,
+    "work": 95,
     "sessions": 7,
     "research": 0,
-    "ratings": 73,
-    "updatedAt": "2026-02-19T16:46:56.564Z"
+    "ratings": 74,
+    "updatedAt": "2026-02-19T16:57:50.888Z"
   }
 }
