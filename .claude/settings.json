@@ -12,6 +12,7 @@
     "commit": "",
     "pr": ""
   },
+  "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
       "Bash",
@@ -734,23 +735,21 @@
     "name": "Atlas",
     "fullName": "Atlas — Personal AI",
     "displayName": "ATLAS",
-    "color": "#a48cf2",
+    "color": "#3B82F6",
     "voices": {
       "main": {
-        "voiceId": "Xb7hH8MSUJpSbSDYk0k2",
-        "voiceName": "Alice",
-        "stability": 0.5,
-        "similarity_boost": 0.75,
-        "style": 0,
-        "speed": 1
+        "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "stability": 0.35,
+        "similarityBoost": 0.8,
+        "style": 0.9,
+        "speed": 1.1
       },
       "algorithm": {
-        "voiceId": "Xb7hH8MSUJpSbSDYk0k2",
-        "voiceName": "Alice",
-        "stability": 0.5,
-        "similarity_boost": 0.75,
-        "style": 0,
-        "speed": 1
+        "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "stability": 0.35,
+        "similarityBoost": 0.8,
+        "style": 0.9,
+        "speed": 1.1
       }
     },
     "personality": {
@@ -858,15 +857,12 @@
     }
   },
   "counts": {
-    "skills": 39,
-    "workflows": 164,
-    "hooks": 21,
-    "signals": 74,
+    "skills": 41,
+    "workflows": 79,
+    "hooks": 39,
+    "signals": 63,
     "files": 12,
-    "work": 95,
-    "sessions": 7,
-    "research": 0,
-    "ratings": 74,
-    "updatedAt": "2026-02-19T16:57:50.888Z"
-  }
+    "updatedAt": "2026-02-20T15:47:33.929Z"
+  },
+  "model": "sonnet"
 }
