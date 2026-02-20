@@ -280,7 +280,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "$PAI_DIR/statusline-command.sh"
+    "command": "$PAI_DIR/statusline-custom.sh"
   },
   "enabledPlugins": {
     "claude-session-driver@superpowers-marketplace": true,
@@ -857,12 +857,16 @@
     }
   },
   "counts": {
-    "skills": 41,
-    "workflows": 79,
-    "hooks": 39,
-    "signals": 63,
+    "skills": 42,
+    "workflows": 166,
+    "hooks": 21,
+    "signals": 88,
     "files": 12,
-    "updatedAt": "2026-02-20T15:47:33.929Z"
+    "work": 150,
+    "sessions": 8,
+    "research": 0,
+    "ratings": 88,
+    "updatedAt": "2026-02-20T17:44:26.800Z"
   },
   "model": "sonnet"
 }
