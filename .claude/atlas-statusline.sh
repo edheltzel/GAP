@@ -304,8 +304,8 @@ SLATE_500='\033[38;2;112;129;208m' # The Old One Purple (muted)
 SLATE_600='\033[38;2;50;52;73m'    # Shallow Depths Grey (separators)
 
 # Semantic colors
-EMERALD='\033[38;2;55;244;153m'   # Great Old One Green (positive/success)
-ROSE='\033[38;2;241;108;117m'     # R'lyeh Red (error/negative)
+EMERALD='\033[38;2;55;244;153m' # Great Old One Green (positive/success)
+ROSE='\033[38;2;241;108;117m'   # R'lyeh Red (error/negative)
 
 # Rating gradient (for get_rating_color)
 RATING_10='\033[38;2;55;244;153m'   # 9-10: Great Old One Green
@@ -317,50 +317,50 @@ RATING_4='\033[38;2;242;101;181m'   # 4: Pustule Pink
 RATING_LOW='\033[38;2;241;108;117m' # 0-3: R'lyeh Red
 
 # Header / Branding (Lovecraft Purple theme)
-GREET_PRIMARY='\033[38;2;164;140;242m'   # Lovecraft Purple
-PAI_SESSION='\033[38;2;242;101;181m'     # Pustule Pink for session name
+GREET_PRIMARY='\033[38;2;164;140;242m' # Lovecraft Purple
+PAI_SESSION='\033[38;2;242;101;181m'   # Pustule Pink for session name
 
 # Model+Skills line (Cyan/Green theme)
-WIELD_ACCENT='\033[38;2;4;209;249m'      # Cyan accent (skills)
-WIELD_WORKFLOWS='\033[38;2;55;244;153m'  # Green for workflows
-WIELD_HOOKS='\033[38;2;242;101;181m'     # Pustule Pink for hooks
-CACHE_ICON='\033[38;2;164;140;242m'      # Lovecraft Purple for cache icon
-CC_ICON='\033[38;2;232;97;32m'           # Anthropic Orange for ✱ CC icon
+WIELD_ACCENT='\033[38;2;4;209;249m'     # Cyan accent (skills)
+WIELD_WORKFLOWS='\033[38;2;55;244;153m' # Green for workflows
+WIELD_HOOKS='\033[38;2;242;101;181m'    # Pustule Pink for hooks
+CACHE_ICON='\033[38;2;164;140;242m'     # Lovecraft Purple for cache icon
+CC_ICON='\033[38;2;232;97;32m'          # Anthropic Orange for ✱ CC icon
 # Nerd font icons — generated via printf to preserve exact UTF-8 bytes
-NF_SKILLS=$(printf '\xf3\xb0\x83\x97')    # nf-md-briefcase_check  U+F00D7
-NF_WORKFLOW=$(printf '\xf3\xb0\x93\xa6')  # nf-md-sync             U+F04E6
+NF_SKILLS=$(printf '\xf3\xb0\x83\x97')   # nf-md-briefcase_check  U+F00D7
+NF_WORKFLOW=$(printf '\xf3\xb0\x93\xa6') # nf-md-sync             U+F04E6
 NF_HOOK=$(printf '\xf3\xb0\x9b\xa2')     # nf-md-hook             U+F06E2
 NF_CACHE=$(printf '\xef\x92\x9b')        # nf-oct-cache           U+F49B
-NF_GAUGE=$(printf '\xf3\xb0\x8a\x9a')   # nf-md-gauge            U+F029A
-NF_HAMMER=$(printf '\xf3\xb0\xa3\xaa')  # nf-md-hammer           U+F08EA  (work)
-NF_WIFI=$(printf '\xf3\xb0\x96\xa9')    # nf-md-wifi             U+F05A9  (signals)
-NF_MESSAGE=$(printf '\xf3\xb0\x8d\xa5') # nf-md-message_outline  U+F0365  (sessions)
-NF_SEARCH=$(printf '\xf3\xb0\x8d\x89')  # nf-md-magnify          U+F0349  (research)
+NF_GAUGE=$(printf '\xf3\xb0\x8a\x9a')    # nf-md-gauge            U+F029A
+NF_HAMMER=$(printf '\xf3\xb0\xa3\xaa')   # nf-md-hammer           U+F08EA  (work)
+NF_WIFI=$(printf '\xf3\xb0\x96\xa9')     # nf-md-wifi             U+F05A9  (signals)
+NF_MESSAGE=$(printf '\xf3\xb0\x8d\xa5')  # nf-md-message_outline  U+F0365  (sessions)
+NF_SEARCH=$(printf '\xf3\xb0\x8d\x89')   # nf-md-magnify          U+F0349  (research)
 
 # Memory counts (Purple theme)
-LEARN_WORK='\033[38;2;4;209;249m'        # Cyan for work
-LEARN_SIGNALS='\033[38;2;241;252;121m'   # Gold of Yuggoth for ratings
-LEARN_RESEARCH='\033[38;2;55;244;153m'   # Green for research
-LEARN_SESSIONS='\033[38;2;242;101;181m'  # Pustule Pink for sessions
+LEARN_WORK='\033[38;2;4;209;249m'       # Cyan for work
+LEARN_SIGNALS='\033[38;2;241;252;121m'  # Gold of Yuggoth for ratings
+LEARN_RESEARCH='\033[38;2;55;244;153m'  # Green for research
+LEARN_SESSIONS='\033[38;2;242;101;181m' # Pustule Pink for sessions
 
 # Learning ratings
-SIGNAL_PERIOD='\033[38;2;164;140;242m'   # Lovecraft Purple (period labels)
-LEARN_LABEL='\033[38;2;55;244;153m'      # Great Old One Green for ★
+SIGNAL_PERIOD='\033[38;2;164;140;242m' # Lovecraft Purple (period labels)
+LEARN_LABEL='\033[38;2;55;244;153m'    # Great Old One Green for ★
 
 # Context bar
-CTX_BUCKET_EMPTY='\033[38;2;50;52;73m'  # Shallow Depths Grey (empty bucket)
+CTX_BUCKET_EMPTY='\033[38;2;50;52;73m' # Shallow Depths Grey (empty bucket)
 
 # Usage (Orange/Yellow theme)
-USAGE_PRIMARY='\033[38;2;247;198;127m'  # Dreaming Orange icon
-USAGE_RESET='\033[38;2;112;129;208m'    # The Old One Purple for reset time
-USAGE_EXTRA='\033[38;2;242;101;181m'    # Pustule Pink for overage
+USAGE_PRIMARY='\033[38;2;247;198;127m' # Dreaming Orange icon
+USAGE_RESET='\033[38;2;112;129;208m'   # The Old One Purple for reset time
+USAGE_EXTRA='\033[38;2;242;101;181m'   # Pustule Pink for overage
 
 # Quote (Yellow/Orange theme)
-QUOTE_PRIMARY='\033[38;2;241;252;121m'  # Gold of Yuggoth
-QUOTE_AUTHOR='\033[38;2;247;198;127m'   # Dreaming Orange
+QUOTE_PRIMARY='\033[38;2;241;252;121m' # Gold of Yuggoth
+QUOTE_AUTHOR='\033[38;2;247;198;127m'  # Dreaming Orange
 
 # PAI Branding
-PAI_A='\033[38;2;164;140;242m'          # Lovecraft Purple
+PAI_A='\033[38;2;164;140;242m' # Lovecraft Purple
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPER FUNCTIONS
@@ -369,17 +369,30 @@ PAI_A='\033[38;2;164;140;242m'          # Lovecraft Purple
 # Get color for rating value (handles "—" for no data)
 get_rating_color() {
   local val="$1"
-  [[ "$val" == "—" || -z "$val" ]] && { echo "$SLATE_400"; return; }
+  [[ "$val" == "—" || -z "$val" ]] && {
+    echo "$SLATE_400"
+    return
+  }
   local rating_int=${val%%.*}
-  [[ ! "$rating_int" =~ ^[0-9]+$ ]] && { echo "$SLATE_400"; return; }
+  [[ ! "$rating_int" =~ ^[0-9]+$ ]] && {
+    echo "$SLATE_400"
+    return
+  }
 
-  if [ "$rating_int" -ge 9 ]; then echo "$RATING_10"
-  elif [ "$rating_int" -ge 8 ]; then echo "$RATING_8"
-  elif [ "$rating_int" -ge 7 ]; then echo "$RATING_7"
-  elif [ "$rating_int" -ge 6 ]; then echo "$RATING_6"
-  elif [ "$rating_int" -ge 5 ]; then echo "$RATING_5"
-  elif [ "$rating_int" -ge 4 ]; then echo "$RATING_4"
-  else echo "$RATING_LOW"
+  if [ "$rating_int" -ge 9 ]; then
+    echo "$RATING_10"
+  elif [ "$rating_int" -ge 8 ]; then
+    echo "$RATING_8"
+  elif [ "$rating_int" -ge 7 ]; then
+    echo "$RATING_7"
+  elif [ "$rating_int" -ge 6 ]; then
+    echo "$RATING_6"
+  elif [ "$rating_int" -ge 5 ]; then
+    echo "$RATING_5"
+  elif [ "$rating_int" -ge 4 ]; then
+    echo "$RATING_4"
+  else
+    echo "$RATING_LOW"
   fi
 }
 
@@ -391,7 +404,7 @@ render_sparkline() {
   [ -z "$vals" ] && return
   local spark="" r idx bar_color
   for r in $(echo "$vals" | tr ',' ' '); do
-    idx=$(( (r - 1) * 7 / 9 ))
+    idx=$(((r - 1) * 7 / 9))
     [ "$idx" -lt 0 ] && idx=0
     [ "$idx" -gt 7 ] && idx=7
     bar_color=$(get_rating_color "$r")
@@ -429,11 +442,16 @@ get_bucket_color() {
 get_cache_color() {
   local pct_int="$1"
   [ -z "$pct_int" ] && pct_int=0
-  if [ "$pct_int" -ge 80 ]; then echo "$EMERALD"
-  elif [ "$pct_int" -ge 60 ]; then echo '\033[38;2;4;209;249m'    # Watery Tomb Blue (cyan)
-  elif [ "$pct_int" -ge 40 ]; then echo '\033[38;2;241;252;121m'  # Gold of Yuggoth (yellow)
-  elif [ "$pct_int" -ge 20 ]; then echo '\033[38;2;247;198;127m'  # Dreaming Orange
-  else echo "$ROSE"
+  if [ "$pct_int" -ge 80 ]; then
+    echo "$EMERALD"
+  elif [ "$pct_int" -ge 60 ]; then
+    echo '\033[38;2;4;209;249m' # Watery Tomb Blue (cyan)
+  elif [ "$pct_int" -ge 40 ]; then
+    echo '\033[38;2;241;252;121m' # Gold of Yuggoth (yellow)
+  elif [ "$pct_int" -ge 20 ]; then
+    echo '\033[38;2;247;198;127m' # Dreaming Orange
+  else
+    echo "$ROSE"
   fi
 }
 
@@ -441,10 +459,14 @@ get_cache_color() {
 get_usage_color() {
   local pct_int=${1%%.*}
   [ -z "$pct_int" ] && pct_int=0
-  if [ "$pct_int" -ge 80 ]; then echo "$ROSE"
-  elif [ "$pct_int" -ge 60 ]; then echo '\033[38;2;251;146;60m'
-  elif [ "$pct_int" -ge 40 ]; then echo '\033[38;2;251;191;36m'
-  else echo "$EMERALD"
+  if [ "$pct_int" -ge 80 ]; then
+    echo "$ROSE"
+  elif [ "$pct_int" -ge 60 ]; then
+    echo '\033[38;2;251;146;60m'
+  elif [ "$pct_int" -ge 40 ]; then
+    echo '\033[38;2;251;191;36m'
+  else
+    echo "$EMERALD"
   fi
 }
 
@@ -473,9 +495,9 @@ render_context_bar_full() {
   local right_len=${#right_str}
   local bar_width=$((term_width - right_len))
   [ "$bar_width" -gt 72 ] && bar_width=72
-  [ "$bar_width" -lt 8 ]  && bar_width=8
+  [ "$bar_width" -lt 8 ] && bar_width=8
   local filled=$((pct * bar_width / 100))
-  [ "$filled" -lt 0 ]            && filled=0
+  [ "$filled" -lt 0 ] && filled=0
   [ "$filled" -gt "$bar_width" ] && filled="$bar_width"
 
   local i=1 color
@@ -649,19 +671,19 @@ case "$MODE" in
 nano)
   printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET}"
   [ -n "$reset_5h_time" ] && printf " ${usage_5h_color}${usage_5h_int}%% ${RESET}${USAGE_RESET}↻${reset_5h_time}${RESET} ${SLATE_600}│${RESET}"
-  printf " ${LEARN_WORK}${NF_HAMMER} Wk:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} Sig:${SLATE_300}${ratings_count}${RESET}\n"
+  printf " ${LEARN_WORK}${NF_HAMMER} W:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} S:${SLATE_300}${ratings_count}${RESET}\n"
   ;;
 micro)
   printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET}"
   [ -n "$reset_5h_time" ] && printf " ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%% ${RESET}${USAGE_RESET}↻${reset_5h_time}${RESET} ${SLATE_600}│${RESET}"
-  printf " ${LEARN_WORK}${NF_HAMMER} Wk:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} Sig:${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}${NF_MESSAGE} S:${SLATE_300}${sessions_count}${RESET}\n"
+  printf " ${LEARN_WORK}${NF_HAMMER} W:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} S:${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}${NF_MESSAGE} H:${SLATE_300}${sessions_count}${RESET}\n"
   ;;
 mini)
   printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET}"
   if [ -n "$reset_5h_time" ]; then
     printf " ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%% ${RESET}${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}│${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%% ${RESET}${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET} ${SLATE_600}│${RESET}"
   fi
-  printf " ${LEARN_WORK}${NF_HAMMER} Wk:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} Sig:${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}${NF_MESSAGE} S:${SLATE_300}${sessions_count}${RESET} ${LEARN_RESEARCH}${NF_SEARCH} R:${SLATE_300}${research_count}${RESET}\n"
+  printf " ${LEARN_WORK}${NF_HAMMER} W:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} S:${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}${NF_MESSAGE} H:${SLATE_300}${sessions_count}${RESET} ${LEARN_RESEARCH}${NF_SEARCH} R:${SLATE_300}${research_count}${RESET}\n"
   ;;
 normal)
   printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET}"
@@ -669,7 +691,7 @@ normal)
     printf " ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%% ${RESET}${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}│${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%% ${RESET}${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET} ${SLATE_600}│${RESET}"
     [ -n "$extra_display" ] && printf " ${USAGE_EXTRA}${extra_display}${RESET} ${SLATE_600}│${RESET}"
   fi
-  printf " ${LEARN_WORK}${NF_HAMMER} Wk:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} Sig:${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}${NF_MESSAGE} S:${SLATE_300}${sessions_count}${RESET} ${LEARN_RESEARCH}${NF_SEARCH} R:${SLATE_300}${research_count}${RESET}\n"
+  printf " ${LEARN_WORK}${NF_HAMMER} W:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} S:${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}${NF_MESSAGE} H:${SLATE_300}${sessions_count}${RESET} ${LEARN_RESEARCH}${NF_SEARCH} R:${SLATE_300}${research_count}${RESET}\n"
   ;;
 esac
 
@@ -686,7 +708,7 @@ micro)
   ctx_bar=$(render_context_bar 5 $display_pct)
   printf "${ctx_bar} ${pct_color}${display_pct}%%${RESET}\n"
   ;;
-mini|normal)
+mini | normal)
   render_context_bar_full "$display_pct"
   ;;
 esac
