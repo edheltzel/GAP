@@ -43,11 +43,13 @@
 
 import { appendFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { inference } from '../skills/PAI/Tools/Inference';
-import { getIdentity, getPrincipal, getPrincipalName } from './lib/identity';
+import { getPrincipalName } from './lib/identity';
 import { getLearningCategory } from './lib/learning-utils';
 import { getISOTimestamp, getPSTComponents } from './lib/time';
 import { captureFailure } from '../skills/PAI/Tools/FailureCapture';
+
+const SENTIMENT_WORKER = join(import.meta.dir, 'workers', 'SentimentWorker.ts');
+const MAX_WORKER_PROCS = 3;
 
 // ── Algorithm Format Reminder (absorbed from AlgorithmEnforcement) ──
 // Output IMMEDIATELY before any async work — this is blocking stdout injection.
@@ -136,136 +138,6 @@ function parseExplicitRating(prompt: string): { rating: number; comment?: string
   }
 
   return { rating, comment };
-}
-
-// ── Implicit Sentiment Analysis ──
-
-const PRINCIPAL_NAME = getPrincipal().name;
-const ASSISTANT_NAME = getIdentity().name;
-
-const SENTIMENT_SYSTEM_PROMPT = `Analyze ${PRINCIPAL_NAME}'s message for emotional sentiment toward ${ASSISTANT_NAME} (the AI assistant).
-
-CONTEXT: This is a personal AI system. ${PRINCIPAL_NAME} is the ONLY user. Never say "users" - always "${PRINCIPAL_NAME}."
-
-OUTPUT FORMAT (JSON only):
-{
-  "rating": <1-10 or null>,
-  "sentiment": "positive" | "negative" | "neutral",
-  "confidence": <0.0-1.0>,
-  "summary": "<brief explanation, 10 words max>",
-  "detailed_context": "<comprehensive analysis for learning, 100-256 words>"
-}
-
-DETAILED_CONTEXT REQUIREMENTS (critical for learning system):
-Write 100-256 words covering:
-1. What ${PRINCIPAL_NAME} was trying to accomplish
-2. What ${ASSISTANT_NAME} did (or failed to do)
-3. Why ${PRINCIPAL_NAME} is frustrated/satisfied (the root cause)
-4. What specific behavior triggered this reaction
-5. What ${ASSISTANT_NAME} should have done differently (for negative) or what worked well (for positive)
-6. Any patterns this reveals about ${PRINCIPAL_NAME}'s expectations
-
-This context will be used retroactively to improve ${ASSISTANT_NAME}, so include enough detail that someone reading it months later can understand exactly what went wrong or right.
-
-RATING SCALE:
-- 1-2: Strong frustration, anger, disappointment with ${ASSISTANT_NAME}
-- 3-4: Mild frustration, dissatisfaction
-- 5: Neutral (no strong sentiment)
-- 6-7: Satisfaction, approval
-- 8-9: Strong approval, impressed
-- 10: Extraordinary enthusiasm, blown away
-
-CRITICAL DISTINCTIONS:
-- Profanity can indicate EITHER frustration OR excitement
-  - "What the fuck?!" + complaint about work = LOW (1-3)
-  - "Holy shit, this is amazing!" = HIGH (9-10)
-- Context is KEY: Is the emotion directed AT ${ASSISTANT_NAME}'s work?
-- Sarcasm: "Oh great, another error" = negative despite "great"
-
-WHEN TO RETURN null FOR RATING:
-- Neutral technical questions ("Can you check the logs?")
-- Simple commands ("Do it", "Yes", "Continue")
-- No emotional indicators present
-- Emotion unrelated to ${ASSISTANT_NAME}'s work
-
-EXAMPLES:
-${PRINCIPAL_NAME}: "What the fuck, why did you delete my file?"
--> {"rating": 1, "sentiment": "negative", "confidence": 0.95, "summary": "Angry about deleted file", "detailed_context": "..."}
-
-${PRINCIPAL_NAME}: "Oh my god, this is fucking incredible, you nailed it!"
--> {"rating": 10, "sentiment": "positive", "confidence": 0.95, "summary": "Extremely impressed with result", "detailed_context": "..."}
-
-${PRINCIPAL_NAME}: "Fix the auth bug"
--> {"rating": null, "sentiment": "neutral", "confidence": 0.9, "summary": "Neutral command, no sentiment", "detailed_context": ""}
-
-${PRINCIPAL_NAME}: "Hmm, that's not quite right"
--> {"rating": 4, "sentiment": "negative", "confidence": 0.6, "summary": "Mild dissatisfaction", "detailed_context": "..."}`;
-
-interface SentimentResult {
-  rating: number | null;
-  sentiment: 'positive' | 'negative' | 'neutral';
-  confidence: number;
-  summary: string;
-  detailed_context: string;
-}
-
-function getRecentContext(transcriptPath: string, maxTurns: number = 3): string {
-  try {
-    if (!transcriptPath || !existsSync(transcriptPath)) return '';
-
-    const content = readFileSync(transcriptPath, 'utf-8');
-    const lines = content.trim().split('\n');
-    const turns: { role: string; text: string }[] = [];
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const entry = JSON.parse(line);
-        if (entry.type === 'user' && entry.message?.content) {
-          let text = '';
-          if (typeof entry.message.content === 'string') {
-            text = entry.message.content;
-          } else if (Array.isArray(entry.message.content)) {
-            text = entry.message.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ');
-          }
-          if (text.trim()) turns.push({ role: 'User', text: text.slice(0, 200) });
-        }
-        if (entry.type === 'assistant' && entry.message?.content) {
-          const text = typeof entry.message.content === 'string'
-            ? entry.message.content
-            : Array.isArray(entry.message.content)
-              ? entry.message.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ')
-              : '';
-          if (text) {
-            const summaryMatch = text.match(/SUMMARY:\s*([^\n]+)/i);
-            turns.push({ role: 'Assistant', text: summaryMatch ? summaryMatch[1] : text.slice(0, 150) });
-          }
-        }
-      } catch {}
-    }
-
-    const recent = turns.slice(-maxTurns);
-    return recent.length > 0 ? recent.map(t => `${t.role}: ${t.text}`).join('\n') : '';
-  } catch { return ''; }
-}
-
-async function analyzeSentiment(prompt: string, context: string): Promise<SentimentResult | null> {
-  const userPrompt = context ? `CONTEXT:\n${context}\n\nCURRENT MESSAGE:\n${prompt}` : prompt;
-
-  const result = await inference({
-    systemPrompt: SENTIMENT_SYSTEM_PROMPT,
-    userPrompt,
-    expectJson: true,
-    timeout: 12000,
-    level: 'fast',
-  });
-
-  if (!result.success || !result.parsed) {
-    console.error(`[RatingCapture] Inference failed: ${result.error}`);
-    return null;
-  }
-
-  return result.parsed as SentimentResult;
 }
 
 // ── Shared: Write Rating ──
@@ -417,64 +289,41 @@ async function main() {
       process.exit(0);
     }
 
-    // ── Path 2: Implicit Sentiment (fire-and-forget) ──
-    // Don't block the prompt — run inference in background
+    // ── Path 2: Implicit Sentiment (detached background worker) ──
+    // Spawn SentimentWorker as detached process and exit immediately.
+    // This reduces UserPromptSubmit overhead from ~1s to <50ms.
     if (prompt.length < MIN_PROMPT_LENGTH) {
       console.error('[RatingCapture] Prompt too short for sentiment, exiting');
       process.exit(0);
     }
 
-    // Await sentiment analysis — must complete before process exits
-    const context = getRecentContext(data.transcript_path);
-    console.error('[RatingCapture] Running implicit sentiment analysis...');
+    // Guard: don't accumulate workers if API is slow (Red Team ISC-A3)
+    try {
+      const check = Bun.spawnSync(['pgrep', '-fc', 'SentimentWorker'], { stdout: 'pipe' });
+      const count = parseInt(new TextDecoder().decode(check.stdout).trim(), 10) || 0;
+      if (count >= MAX_WORKER_PROCS) {
+        console.error(`[RatingCapture] ${count} SentimentWorker procs running, skipping spawn`);
+        process.exit(0);
+      }
+    } catch { /* pgrep unavailable — proceed */ }
+
+    // Serialize payload and spawn detached worker
+    const payload = Buffer.from(JSON.stringify({
+      session_id: data.session_id,
+      prompt,
+      transcript_path: data.transcript_path,
+    })).toString('base64');
 
     try {
-      const sentiment = await analyzeSentiment(prompt, context);
-      if (!sentiment) {
-        console.error('[RatingCapture] Sentiment returned null, exiting');
-        process.exit(0);
-      }
-
-      if (sentiment.rating === null) sentiment.rating = 5;
-      if (sentiment.confidence < MIN_CONFIDENCE) {
-        console.error(`[RatingCapture] Confidence ${sentiment.confidence} below ${MIN_CONFIDENCE}, skipping`);
-        process.exit(0);
-      }
-
-      console.error(`[RatingCapture] Implicit: ${sentiment.rating}/10 (conf: ${sentiment.confidence}) - ${sentiment.summary}`);
-
-      const entry: RatingEntry = {
-        timestamp: getISOTimestamp(),
-        rating: sentiment.rating,
-        session_id: data.session_id,
-        source: 'implicit',
-        sentiment_summary: sentiment.summary,
-        confidence: sentiment.confidence,
-      };
-
-      writeRating(entry);
-      triggerTrending();
-
-      if (sentiment.rating < 6) {
-        captureLowRatingLearning(
-          sentiment.rating,
-          sentiment.summary,
-          sentiment.detailed_context || '',
-          'implicit'
-        );
-
-        if (sentiment.rating <= 3) {
-          await captureFailure({
-            transcriptPath: data.transcript_path,
-            rating: sentiment.rating,
-            sentimentSummary: sentiment.summary,
-            detailedContext: sentiment.detailed_context || '',
-            sessionId: data.session_id,
-          }).catch((err) => console.error(`[RatingCapture] Failure capture error: ${err}`));
-        }
-      }
+      Bun.spawn(['bun', SENTIMENT_WORKER, payload], {
+        stdout: 'ignore',
+        stderr: 'ignore',
+        detached: true,
+        env: { ...process.env },
+      });
+      console.error('[RatingCapture] SentimentWorker spawned (detached)');
     } catch (err) {
-      console.error(`[RatingCapture] Sentiment error: ${err}`);
+      console.error(`[RatingCapture] Failed to spawn worker: ${err}`);
     }
 
     process.exit(0);

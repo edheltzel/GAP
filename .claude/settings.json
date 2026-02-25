@@ -1,12 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "envFile": "~/.claude/.env",
   "env": {
     "PAI_DIR": "/Users/ed/.claude",
     "PROJECTS_DIR": "${PROJECTS_DIR}",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "80000",
     "BASH_DEFAULT_TIMEOUT_MS": "600000",
     "PAI_CONFIG_DIR": "/Users/ed/.config/PAI",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
   },
   "attribution": {
     "commit": "",
@@ -143,6 +145,15 @@
             "command": "${PAI_DIR}/hooks/SkillGuard.hook.ts"
           }
         ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/ModelRouter.hook.ts"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -250,10 +261,15 @@
           {
             "type": "command",
             "command": "${PAI_DIR}/hooks/LoadContext.hook.ts"
-          },
+          }
+        ]
+      },
+      {
+        "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/CheckVersion.hook.ts"
+            "command": "${PAI_DIR}/hooks/CheckVersion.hook.ts",
+            "async": true
           }
         ]
       },
@@ -280,7 +296,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "$PAI_DIR/statusline-custom.sh"
+    "command": "$PAI_DIR/atlas-statusline.sh"
   },
   "enabledPlugins": {
     "claude-session-driver@superpowers-marketplace": true,
@@ -722,7 +738,7 @@
       "Hydrogen-Sonata-playing"
     ]
   },
-  "plansDirectory": "~/.claude/Plans/",
+  "plansDirectory": "./claude/Plans/",
   "skipDangerousModePermissionPrompt": true,
   "teammateMode": "in-process",
   "contextFiles": [
@@ -735,7 +751,7 @@
     "name": "Atlas",
     "fullName": "Atlas — Personal AI",
     "displayName": "ATLAS",
-    "color": "#3B82F6",
+    "color": "#A48CF2",
     "voices": {
       "main": {
         "voiceId": "21m00Tcm4TlvDq8ikWAM",
@@ -857,16 +873,16 @@
     }
   },
   "counts": {
-    "skills": 42,
-    "workflows": 166,
-    "hooks": 21,
-    "signals": 88,
+    "skills": 41,
+    "workflows": 164,
+    "hooks": 22,
+    "signals": 189,
     "files": 12,
-    "work": 150,
-    "sessions": 8,
+    "work": 511,
+    "sessions": 24,
     "research": 0,
-    "ratings": 88,
-    "updatedAt": "2026-02-20T17:44:26.800Z"
+    "ratings": 189,
+    "updatedAt": "2026-02-25T13:43:05.068Z"
   },
-  "model": "sonnet"
+  "model": "opusplan"
 }

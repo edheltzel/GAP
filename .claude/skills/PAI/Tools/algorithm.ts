@@ -48,7 +48,21 @@ const ALGORITHMS_DIR = join(BASE_DIR, "MEMORY", "STATE", "algorithms");
 const SESSION_NAMES_PATH = join(BASE_DIR, "MEMORY", "STATE", "session-names.json");
 const PROJECTS_DIR = process.env.PROJECTS_DIR || join(HOME, "Projects");
 const VOICE_URL = "http://localhost:8888/notify";
-const VOICE_ID = "YOUR_VOICE_ID_HERE";
+
+// Read Atlas voice ID from settings.json — fall back to known Atlas ElevenLabs ID
+function loadAtlasVoiceId(): string {
+  try {
+    const settings = JSON.parse(readFileSync(join(BASE_DIR, "settings.json"), "utf-8"));
+    const voiceId: string =
+      settings.daidentity?.voices?.main?.voiceId ||
+      settings.daidentity?.voiceId ||
+      "";
+    if (voiceId && voiceId !== "YOUR_VOICE_ID_HERE") return voiceId;
+  } catch { /* settings.json unreadable */ }
+  return "21m00Tcm4TlvDq8ikWAM"; // Atlas default (ElevenLabs Rachel)
+}
+
+const VOICE_ID = loadAtlasVoiceId();
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -642,6 +656,7 @@ async function runParallelIteration(
       "--allowedTools", "Edit,Write,Bash,Read,Glob,Grep,WebFetch,WebSearch,NotebookEdit",
     ], {
       cwd: dirname(prdPath),
+      env: { ...process.env, CLAUDE_AGENT_TYPE: "loop-worker" },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -1009,6 +1024,7 @@ async function runLoop(prdPath: string, maxOverride?: number, agentCount: number
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 600_000, // 10 minute timeout per iteration
       cwd: dirname(absPath), // Run from PRD's directory context
+      env: { ...process.env, CLAUDE_AGENT_TYPE: "loop-worker" },
     });
 
     const iterEndTime = Date.now();
@@ -1112,7 +1128,7 @@ function runInteractive(prdPath: string): void {
   ], {
     stdio: "inherit",
     cwd: dirname(absPath),
-    env: { ...process.env, CLAUDECODE: undefined },
+    env: { ...process.env, CLAUDECODE: undefined, CLAUDE_AGENT_TYPE: "loop-worker" },
   });
 
   child.on("exit", (code) => {

@@ -42,7 +42,19 @@ interface SessionNames {
   [sessionId: string]: string;
 }
 
-function readSessionNames(): SessionNames {
+interface CtCacheEntry {
+  checkedAt: number;
+  title: string | null;
+}
+
+interface SessionNamesFile {
+  [sessionId: string]: string;
+  _ctCache?: Record<string, CtCacheEntry>;
+}
+
+const CT_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+function readSessionNames(): SessionNamesFile {
   try {
     if (existsSync(SESSION_NAMES_PATH)) {
       return JSON.parse(readFileSync(SESSION_NAMES_PATH, 'utf-8'));
@@ -53,7 +65,7 @@ function readSessionNames(): SessionNames {
   return {};
 }
 
-function writeSessionNames(names: SessionNames): void {
+function writeSessionNames(names: SessionNamesFile): void {
   const dir = dirname(SESSION_NAMES_PATH);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
@@ -168,10 +180,20 @@ function isNameRelevantToPrompt(name: string, prompt: string): boolean {
  * Check if this session has a customTitle in Claude Code's sessions-index.json.
  * customTitle is set by /rename and is the authoritative session name.
  * NOTE: Claude Code uses lowercase "projects/" dir (not uppercase "Projects/").
+ *
+ * Uses a 60s cache stored in session-names.json under _ctCache to avoid
+ * running grep on every prompt submission.
  */
-function getCustomTitle(sessionId: string): string | null {
+function getCustomTitle(sessionId: string, names: SessionNamesFile): string | null {
+  // Check cache first — skip grep if checked within TTL
+  const cached = names._ctCache?.[sessionId];
+  if (cached && Date.now() - cached.checkedAt < CT_CACHE_TTL_MS) {
+    return cached.title;
+  }
+
+  // Cache miss or stale — run grep
+  let result: string | null = null;
   try {
-    // Search both lowercase (Claude Code native) and uppercase (PAI) project dirs
     const searchDirs = [
       paiPath('projects'),  // Claude Code native (lowercase) — primary
       paiPath('Projects'),  // PAI uppercase — fallback
@@ -193,13 +215,19 @@ function getCustomTitle(sessionId: string): string | null {
 
         const chunk = content.slice(idPos, idPos + 500);
         const match = chunk.match(/"customTitle":\s*"([^"]+)"/);
-        if (match) return match[1];
+        if (match) { result = match[1]; break; }
       }
+      if (result) break;
     }
   } catch (error) {
     console.error('[SessionAutoName] Failed to check customTitle:', error);
   }
-  return null;
+
+  // Write result to cache (including null = "not found")
+  if (!names._ctCache) names._ctCache = {};
+  names._ctCache[sessionId] = { checkedAt: Date.now(), title: result };
+
+  return result;
 }
 
 async function readStdin(): Promise<HookInput | null> {
@@ -242,8 +270,8 @@ async function main() {
   const names = readSessionNames();
 
   // Always check for customTitle from /rename (authoritative source).
-  // This runs on every prompt to catch renames that happen mid-session.
-  const customTitle = getCustomTitle(sessionId);
+  // Uses 60s cache to avoid grep on every prompt submission.
+  const customTitle = getCustomTitle(sessionId, names);
   if (customTitle && names[sessionId] !== customTitle) {
     names[sessionId] = customTitle;
     writeSessionNames(names);

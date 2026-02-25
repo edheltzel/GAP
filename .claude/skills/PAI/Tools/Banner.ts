@@ -1,14 +1,11 @@
 #!/usr/bin/env bun
 
 /**
- * PAI Banner - Dynamic Multi-Design Neofetch Banner
- * Randomly selects from curated designs based on terminal size
- *
- * Large terminals (85+ cols): Navy, Electric, Teal, Ice themes
- * Small terminals (<85 cols): Minimal, Vertical, Wrapping layouts
+ * Atlas Banner — Eldritch Theme + Planet Animation
+ * Uses asciigen.art planet frames when available, falls back to raycast sphere.
  */
 
-import { readdirSync, existsSync, readFileSync } from "fs";
+import { readFileSync } from "fs";
 import { join } from "path";
 import { spawnSync } from "child_process";
 
@@ -22,24 +19,40 @@ const CLAUDE_DIR = join(HOME, ".claude");
 function getTerminalWidth(): number {
   let width: number | null = null;
 
-  const kittyWindowId = process.env.KITTY_WINDOW_ID;
-  if (kittyWindowId) {
+  // WezTerm: query via UNIX socket (works even in subprocesses where /dev/tty is unavailable)
+  const weztermPane = process.env.WEZTERM_PANE;
+  if (weztermPane) {
     try {
-      const result = spawnSync("kitten", ["@", "ls"], { encoding: "utf-8" });
+      const result = spawnSync("wezterm", ["cli", "list", "--format", "json"], {
+        encoding: "utf-8",
+        timeout: 2000,
+      });
       if (result.stdout) {
-        const data = JSON.parse(result.stdout);
-        for (const osWindow of data) {
-          for (const tab of osWindow.tabs) {
-            for (const win of tab.windows) {
-              if (win.id === parseInt(kittyWindowId)) {
-                width = win.columns;
-                break;
+        const panes = JSON.parse(result.stdout) as Array<{ pane_id: number; size: { cols: number } }>;
+        const pane = panes.find(p => p.pane_id === parseInt(weztermPane));
+        if (pane?.size?.cols > 0) width = pane.size.cols;
+      }
+    } catch {}
+  }
+
+  // Kitty fallback
+  if (!width || width <= 0) {
+    const kittyWindowId = process.env.KITTY_WINDOW_ID;
+    if (kittyWindowId) {
+      try {
+        const result = spawnSync("kitten", ["@", "ls"], { encoding: "utf-8" });
+        if (result.stdout) {
+          const data = JSON.parse(result.stdout);
+          for (const osWindow of data) {
+            for (const tab of osWindow.tabs) {
+              for (const win of tab.windows) {
+                if (win.id === parseInt(kittyWindowId)) { width = win.columns; break; }
               }
             }
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
   }
 
   if (!width || width <= 0) {
@@ -73,20 +86,43 @@ function getTerminalWidth(): number {
 // ANSI Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
+const RESET  = "\x1b[0m";
+const BOLD   = "\x1b[1m";
 const ITALIC = "\x1b[3m";
 
 const rgb = (r: number, g: number, b: number) => `\x1b[38;2;${r};${g};${b}m`;
 
-// Sparkline characters
+// Eldritch color palette
+const E = {
+  cyan:   rgb(4,   209, 249),   // #04d1f9 — primary accent
+  green:  rgb(55,  244, 153),   // #37f499 — secondary accent
+  purple: rgb(164, 140, 242),   // #a48cf2 — tertiary accent
+  pink:   rgb(242, 101, 181),   // #f265b5 — pustule pink (hooks)
+  yellow: rgb(241, 252, 121),   // #f1fc79 — gold of yuggoth (signals)
+  red:    rgb(241, 108, 117),   // #f16c75
+  orange: rgb(247, 198, 127),   // #f7c67f
+  fg:     rgb(197, 205, 217),   // #c5cdd9 foreground
+  dim:    rgb(120, 130, 155),   // muted text
+  muted:  rgb(65,  72,  95),    // very muted (borders, separators)
+  mid:    rgb(80,  185, 248),   // purple→cyan blend
+};
+
+// Nerd Font icons — matching atlas-statusline.sh
+const NF = {
+  skills:   "\u{F00D7}", // nf-md-briefcase_check
+  workflow: "\u{F04E6}", // nf-md-sync
+  hook:     "\u{F06E2}", // nf-md-hook
+  wifi:     "\u{F05A9}", // nf-md-wifi (signals)
+};
+
 const SPARK = ["\u2581", "\u2582", "\u2583", "\u2584", "\u2585", "\u2586", "\u2587", "\u2588"];
 
-// Box drawing
 const BOX = {
   tl: "\u256d", tr: "\u256e", bl: "\u2570", br: "\u256f",
-  h: "\u2500", v: "\u2502", dh: "\u2550",
+  h: "\u2500", v: "\u2502",
+};
+const RETICLE = {
+  tl: "\u250F", tr: "\u2513", bl: "\u2517", br: "\u251B", h: "\u2501",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -96,107 +132,51 @@ const BOX = {
 interface SystemStats {
   name: string;
   catchphrase: string;
-  repoUrl: string;
   skills: number;
   workflows: number;
   hooks: number;
   learnings: number;
   userFiles: number;
-  sessions: number;
-  model: string;
-  platform: string;
-  arch: string;
-  ccVersion: string;
   paiVersion: string;
   algorithmVersion: string;
 }
 
 function getStats(): SystemStats {
-  let name = "PAI";
+  let name = "Atlas";
   let paiVersion = "3.0";
-  let algorithmVersion = "0.2";
-  let catchphrase = "{name} here, ready to go";
-  let repoUrl = "github.com/danielmiessler/PAI";
+  let algorithmVersion = "1.2";
+  let catchphrase = "Ready to go";
+
   try {
     const settings = JSON.parse(readFileSync(join(CLAUDE_DIR, "settings.json"), "utf-8"));
-    name = settings.daidentity?.displayName || settings.daidentity?.name || "PAI";
-    paiVersion = settings.pai?.version || "2.0";
+    name = settings.daidentity?.displayName || settings.daidentity?.name || name;
+    paiVersion = settings.pai?.version || paiVersion;
     catchphrase = settings.daidentity?.startupCatchphrase || catchphrase;
-    repoUrl = settings.pai?.repoUrl || repoUrl;
   } catch {}
 
-  // Read algorithm version from LATEST file (single source of truth)
-  try {
-    const latestPath = join(CLAUDE_DIR, "skills/PAI/Components/Algorithm/LATEST");
-    const latestContent = readFileSync(latestPath, "utf-8").trim();
-    // Extract version number (handles "v0.2" or "0.2" format)
-    algorithmVersion = latestContent.replace(/^v/i, "");
-  } catch {}
-
-  // Replace {name} placeholder in catchphrase
   catchphrase = catchphrase.replace(/\{name\}/gi, name);
 
-  // Read counts from settings.json (updated by StopOrchestrator at end of each session)
-  // This is instant - no spawning, no file scanning
-  let skills = 0, workflows = 0, hooks = 0, learnings = 0, userFiles = 0, sessions = 0;
+  try {
+    const latestPath = join(CLAUDE_DIR, "skills/PAI/Components/Algorithm/LATEST");
+    algorithmVersion = readFileSync(latestPath, "utf-8").trim().replace(/^v/i, "");
+  } catch {}
+
+  let skills = 0, workflows = 0, hooks = 0, learnings = 0, userFiles = 0;
 
   try {
     const settings = JSON.parse(readFileSync(join(CLAUDE_DIR, "settings.json"), "utf-8"));
     if (settings.counts) {
-      skills = settings.counts.skills || 0;
+      skills    = settings.counts.skills    || 0;
       workflows = settings.counts.workflows || 0;
-      hooks = settings.counts.hooks || 0;
-      learnings = settings.counts.signals || 0;
-      userFiles = settings.counts.files || 0;
+      hooks     = settings.counts.hooks     || 0;
+      learnings = settings.counts.signals   || 0;
+      userFiles = settings.counts.files     || 0;
     }
   } catch {
-    // Fallback to reasonable defaults if settings.json is missing or malformed
-    skills = 65;
-    workflows = 339;
-    hooks = 18;
-    learnings = 3000;
-    userFiles = 172;
+    skills = 65; workflows = 339; hooks = 18; learnings = 3000; userFiles = 172;
   }
 
-  try {
-    const historyFile = join(CLAUDE_DIR, "history.jsonl");
-    if (existsSync(historyFile)) {
-      const content = readFileSync(historyFile, "utf-8");
-      sessions = content.split("\n").filter(line => line.trim()).length;
-    }
-  } catch {}
-
-  // Get platform info
-  const platform = process.platform === "darwin" ? "macOS" : process.platform;
-  const arch = process.arch;
-
-  // Try to get Claude Code version
-  let ccVersion = "2.0";
-  try {
-    const result = spawnSync("claude", ["--version"], { encoding: "utf-8" });
-    if (result.stdout) {
-      const match = result.stdout.match(/(\d+\.\d+\.\d+)/);
-      if (match) ccVersion = match[1];
-    }
-  } catch {}
-
-  return {
-    name,
-    catchphrase,
-    repoUrl,
-    skills,
-    workflows,
-    hooks,
-    learnings,
-    userFiles,
-    sessions,
-    model: "Opus 4.5",
-    platform,
-    arch,
-    ccVersion,
-    paiVersion,
-    algorithmVersion,
-  };
+  return { name, catchphrase, skills, workflows, hooks, learnings, userFiles, paiVersion, algorithmVersion };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -211,641 +191,280 @@ function padEnd(str: string, width: number): string {
   return str + " ".repeat(Math.max(0, width - visibleLength(str)));
 }
 
-function padStart(str: string, width: number): string {
-  return " ".repeat(Math.max(0, width - visibleLength(str))) + str;
-}
-
 function center(str: string, width: number): string {
   const visible = visibleLength(str);
   const left = Math.floor((width - visible) / 2);
   return " ".repeat(Math.max(0, left)) + str + " ".repeat(Math.max(0, width - visible - left));
 }
 
-function randomHex(len: number = 4): string {
-  return Array.from({ length: len }, () =>
-    Math.floor(Math.random() * 16).toString(16).toUpperCase()
-  ).join("");
-}
-
-function sparkline(length: number, colors?: string[]): string {
+function sparkline(length: number, colors: string[]): string {
   return Array.from({ length }, (_, i) => {
     const level = Math.floor(Math.random() * 8);
-    const color = colors ? colors[i % colors.length] : "";
-    return `${color}${SPARK[level]}${RESET}`;
+    return `${colors[i % colors.length]}${SPARK[level]}${RESET}`;
   }).join("");
 }
 
+function fmtNum(n: number): string {
+  if (n >= 10000) return `${Math.floor(n / 1000)}k`;
+  if (n >= 1000)  return `${Math.floor(n / 100) / 10}k`;
+  return String(n);
+}
+
+// Label padded to 10 visible chars for aligned columns
+const lbl = (text: string) => `${E.dim}${text.padEnd(10)}${RESET}`;
+
 // ═══════════════════════════════════════════════════════════════════════════
-// LARGE TERMINAL DESIGNS (85+ cols)
+// Sphere Renderer (fallback)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Design 13: Navy/Steel Blue Theme - Neofetch style
-function createNavyBanner(stats: SystemStats, width: number): string {
-  const C = {
-    // Logo colors matching reference image
-    navy: rgb(30, 58, 138),       // Dark navy (P column, horizontal bars)
-    medBlue: rgb(59, 130, 246),   // Medium blue (A column, bottom right blocks)
-    lightBlue: rgb(147, 197, 253), // Light blue (I column accent)
-    // Info section colors - blue palette gradient
-    steel: rgb(51, 65, 85),
-    slate: rgb(100, 116, 139),
-    silver: rgb(203, 213, 225),
-    white: rgb(240, 240, 255),
-    muted: rgb(71, 85, 105),
-    // Blue palette for data lines
-    deepNavy: rgb(30, 41, 82),
-    royalBlue: rgb(65, 105, 225),
-    skyBlue: rgb(135, 206, 235),
-    iceBlue: rgb(176, 196, 222),
-    periwinkle: rgb(140, 160, 220),
-    // URL - subtle dark teal (visible but muted)
-    darkTeal: rgb(55, 100, 105),
-  };
+const SPHERE_ROWS = 9;
+const SPHERE_COLS = 20;
 
-  // PAI logo - 2x scale (20 wide × 10 tall), same proportions
-  // Each unit is 4 chars wide, 2 rows tall
-  const B = "\u2588"; // Full block
-  const logo = [
-    // Row 1 (top bar) - 2 rows
-    `${C.navy}${B.repeat(16)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(16)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    // Row 2 (P stem + gap + A upper) - 2 rows
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.navy}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.navy}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    // Row 3 (middle bar) - 2 rows
-    `${C.navy}${B.repeat(16)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(16)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    // Row 4 (P stem + gap + A leg) - 2 rows
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.medBlue}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.medBlue}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    // Row 5 (P stem + gap + A leg) - 2 rows
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.medBlue}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.medBlue}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-  ];
-  const LOGO_WIDTH = 20;
-  const SEPARATOR = `${C.steel}${BOX.v}${RESET}`;
+// Light direction (upper-left-front, normalized)
+const LX = -0.50, LY = -0.35, LZ = 0.79;
 
-  // Info section with Unicode icons - meaningful symbols (10 lines for perfect centering with 10-row logo)
-  const infoLines = [
-    `${C.slate}"${RESET}${C.lightBlue}${stats.catchphrase}${RESET}${C.slate}..."${RESET}`,
-    `${C.steel}${BOX.h.repeat(24)}${RESET}`,
-    `${C.navy}\u2B22${RESET}  ${C.slate}PAI${RESET}       ${C.silver}v${stats.paiVersion}${RESET}`,                            // ⬢ hexagon (tech/AI)
-    `${C.navy}\u2699${RESET}  ${C.slate}Algo${RESET}      ${C.silver}v${stats.algorithmVersion}${RESET}`,                      // ⚙ gear (algorithm)
-    `${C.lightBlue}\u2726${RESET}  ${C.slate}SK${RESET}        ${C.silver}${stats.skills}${RESET}`,             // ✦ four-pointed star (skills)
-    `${C.skyBlue}\u21BB${RESET}  ${C.slate}WF${RESET}        ${C.iceBlue}${stats.workflows}${RESET}`,           // ↻ cycle (workflows)
-    `${C.royalBlue}\u21AA${RESET}  ${C.slate}Hooks${RESET}     ${C.periwinkle}${stats.hooks}${RESET}`,         // ↪ hook arrow
-    `${C.medBlue}\u2726${RESET}  ${C.slate}Signals${RESET}   ${C.skyBlue}${stats.learnings}${RESET}`,          // ✦ star (user sentiment signals)
-    `${C.navy}\u2261${RESET}  ${C.slate}Files${RESET}     ${C.lightBlue}${stats.userFiles}${RESET}`,           // ≡ identical to (files/menu)
-    `${C.steel}${BOX.h.repeat(24)}${RESET}`,
-  ];
+function renderSphere(frame: number): string[] {
+  const cx = (SPHERE_COLS - 1) / 2;
+  const cy = (SPHERE_ROWS - 1) / 2;
+  const xr = SPHERE_COLS / 2;
+  const yr = SPHERE_ROWS / 2;
+  const rot = frame * 0.12;
 
-  // Layout with separator: logo | separator | info
-  const gap = "   "; // Gap before separator
-  const gapAfter = "  "; // Gap after separator
-  const totalContentWidth = LOGO_WIDTH + gap.length + 1 + gapAfter.length + 28;
-  const leftPad = Math.floor((width - totalContentWidth) / 2);
-  const pad = " ".repeat(Math.max(2, leftPad));
-  const emptyLogoSpace = " ".repeat(LOGO_WIDTH);
+  const output: string[] = [];
 
-  // Vertically center logo relative to the full separator height
-  const logoTopPad = Math.ceil((infoLines.length - logo.length) / 2);
+  for (let y = 0; y < SPHERE_ROWS; y++) {
+    let line = "";
+    for (let x = 0; x < SPHERE_COLS; x++) {
+      const nx = (x - cx) / xr;
+      const ny = (y - cy) / yr;
+      const r2 = nx * nx + ny * ny;
 
-  // Reticle corner characters (heavy/thick)
-  const RETICLE = {
-    tl: "\u250F", // ┏
-    tr: "\u2513", // ┓
-    bl: "\u2517", // ┗
-    br: "\u251B", // ┛
-    h: "\u2501",  // ━
-  };
+      if (r2 > 1) {
+        line += " ";
+        continue;
+      }
 
-  // Frame dimensions
-  const frameWidth = 70;
-  const framePad = " ".repeat(Math.floor((width - frameWidth) / 2));
-  const cornerLen = 3; // Length of corner pieces
-  const innerSpace = frameWidth - (cornerLen * 2);
+      const nz = Math.sqrt(1 - r2);
+      const diffuse = Math.max(0, nx * LX + ny * LY + nz * LZ);
+      const lon = Math.atan2(nx, nz) + rot;
+      const lat = Math.asin(Math.max(-1, Math.min(1, ny)));
+      const texVal = Math.sin(lon * 3) * Math.cos(lat * 2.5);
+      const isLand = texVal > 0.18;
+      const brightness = 0.06 + diffuse * 0.82 + (isLand ? 0.12 : 0);
 
-  const lines: string[] = [""];
+      let char: string;
+      let color: string;
 
-  // Top border with full horizontal line and reticle corners
-  const topBorder = `${C.steel}${RETICLE.tl}${RETICLE.h.repeat(frameWidth - 2)}${RETICLE.tr}${RESET}`;
-  lines.push(`${framePad}${topBorder}`);
-  lines.push("");
+      if (brightness < 0.13) {
+        char = "·"; color = E.muted;
+      } else if (brightness < 0.28) {
+        char = ":"; color = E.purple;
+      } else if (brightness < 0.44) {
+        char = "+"; color = isLand ? rgb(90, 190, 130) : rgb(120, 140, 248);
+      } else if (brightness < 0.60) {
+        char = "*"; color = isLand ? E.green : E.mid;
+      } else if (brightness < 0.78) {
+        char = "#"; color = isLand ? E.green : E.cyan;
+      } else {
+        char = "@"; color = E.cyan;
+      }
 
-  // Header: PAI (in logo colors) | Personal AI Infrastructure
-  const paiColored = `${C.navy}P${RESET}${C.medBlue}A${RESET}${C.lightBlue}I${RESET}`;
-  const headerText = `${paiColored} ${C.steel}|${RESET} ${C.slate}Personal AI Infrastructure${RESET}`;
-  const headerLen = 33; // "PAI | Personal AI Infrastructure"
-  const headerPad = " ".repeat(Math.floor((width - headerLen) / 2));
-  lines.push(`${headerPad}${headerText}`);
-  lines.push(""); // Blank line between header and tagline
-
-  // Tagline in light blue with ellipsis
-  const quote = `${ITALIC}${C.lightBlue}"Magnifying human capabilities..."${RESET}`;
-  const quoteLen = 35; // includes ellipsis
-  const quotePad = " ".repeat(Math.floor((width - quoteLen) / 2));
-  lines.push(`${quotePad}${quote}`);
-
-  // Extra space between top text area and main content
-  lines.push("");
-  lines.push("");
-
-  // Main content: logo | separator | info
-  for (let i = 0; i < infoLines.length; i++) {
-    const logoIndex = i - logoTopPad;
-    const logoRow = (logoIndex >= 0 && logoIndex < logo.length) ? logo[logoIndex] : emptyLogoSpace;
-    const infoRow = infoLines[i];
-    lines.push(`${pad}${padEnd(logoRow, LOGO_WIDTH)}${gap}${SEPARATOR}${gapAfter}${infoRow}`);
+      line += `${color}${char}${RESET}`;
+    }
+    output.push(line);
   }
 
-  // Extra space between main content and footer
-  lines.push("");
-  lines.push("");
-
-  // Footer: Unicode symbol + URL in medium blue (A color)
-  const urlLine = `${C.steel}\u2192${RESET} ${C.medBlue}${stats.repoUrl}${RESET}`;
-  const urlLen = stats.repoUrl.length + 3;
-  const urlPad = " ".repeat(Math.floor((width - urlLen) / 2));
-  lines.push(`${urlPad}${urlLine}`);
-  lines.push("");
-
-  // Bottom border with full horizontal line and reticle corners
-  const bottomBorder = `${C.steel}${RETICLE.bl}${RETICLE.h.repeat(frameWidth - 2)}${RETICLE.br}${RESET}`;
-  lines.push(`${framePad}${bottomBorder}`);
-  lines.push("");
-
-  return lines.join("\n");
-}
-
-// Design 14: Electric/Neon Blue Theme
-function createElectricBanner(stats: SystemStats, width: number): string {
-  const P = {
-    logoP: rgb(0, 80, 180),
-    logoA: rgb(0, 191, 255),
-    logoI: rgb(125, 249, 255),
-    electricBlue: rgb(0, 191, 255),
-    neonBlue: rgb(30, 144, 255),
-    ultraBlue: rgb(0, 255, 255),
-    electric: rgb(125, 249, 255),
-    plasma: rgb(0, 150, 255),
-    glow: rgb(100, 200, 255),
-    midBase: rgb(20, 40, 80),
-    active: rgb(0, 255, 136),
-  };
-
-  // PAI logo - matching reference image exactly
-  const B = "\u2588";
-  const logo = [
-    `${P.logoP}${B.repeat(8)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(2)}${RESET}    ${P.logoP}${B.repeat(2)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(8)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(2)}${RESET}    ${P.logoA}${B.repeat(2)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(2)}${RESET}    ${P.logoA}${B.repeat(2)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-  ];
-  const LOGO_WIDTH = 10;
-
-  const hex1 = randomHex(4);
-  const hex2 = randomHex(4);
-  const SYM = { user: "\u25c6", skills: "\u26a1", hooks: "\u2699", learn: "\u25c8", files: "\u25a0", model: "\u25ce", link: "\u21e2", pulse: "\u25cf", target: "\u25ce" };
-
-  const infoLines = [
-    `${P.electricBlue}${SYM.user}${RESET} ${BOLD}${P.electric}${stats.name}${RESET}${P.glow}@${RESET}${P.ultraBlue}pai${RESET} ${P.midBase}[0x${hex1}]${RESET}`,
-    `${P.plasma}${BOX.h.repeat(32)}${RESET}`,
-    `${P.neonBlue}${SYM.target}${RESET} ${P.glow}OS${RESET}         ${P.electric}PAI v${stats.paiVersion}${RESET}`,
-    `${P.neonBlue}${SYM.skills}${RESET} ${P.glow}Skills${RESET}     ${BOLD}${P.electricBlue}${stats.skills}${RESET} ${P.active}${SYM.pulse}${RESET}`,
-    `${P.neonBlue}${SYM.hooks}${RESET} ${P.glow}Hooks${RESET}      ${BOLD}${P.electricBlue}${stats.hooks}${RESET}`,
-    `${P.neonBlue}${SYM.learn}${RESET} ${P.glow}Signals${RESET}    ${BOLD}${P.electricBlue}${stats.learnings}${RESET}`,
-    `${P.neonBlue}${SYM.files}${RESET} ${P.glow}Files${RESET}      ${BOLD}${P.electricBlue}${stats.userFiles}${RESET}`,
-    `${P.neonBlue}${SYM.model}${RESET} ${P.glow}Model${RESET}      ${BOLD}${P.ultraBlue}${stats.model}${RESET}`,
-    `${P.plasma}${BOX.h.repeat(32)}${RESET}`,
-    `${sparkline(24, [P.plasma, P.neonBlue, P.electricBlue, P.electric, P.ultraBlue])}`,
-    `${P.neonBlue}${SYM.link}${RESET} ${P.midBase}${stats.repoUrl}${RESET} ${P.midBase}[0x${hex2}]${RESET}`,
-  ];
-
-  const gap = "   ";
-  const logoTopPad = Math.floor((infoLines.length - logo.length) / 2);
-  const contentWidth = LOGO_WIDTH + 3 + 45;
-  const leftPad = Math.floor((width - contentWidth) / 2);
-  const pad = " ".repeat(Math.max(2, leftPad));
-
-  const lines: string[] = [""];
-  for (let i = 0; i < infoLines.length; i++) {
-    const logoIndex = i - logoTopPad;
-    const logoRow = (logoIndex >= 0 && logoIndex < logo.length) ? logo[logoIndex] : " ".repeat(LOGO_WIDTH);
-    lines.push(`${pad}${padEnd(logoRow, LOGO_WIDTH)}${gap}${infoLines[i]}`);
-  }
-
-  const footerWidth = Math.min(width - 4, 65);
-  const paiText = `${BOLD}${P.logoP}P${RESET}${BOLD}${P.logoA}A${RESET}${BOLD}${P.logoI}I${RESET}`;
-  const footer = `${P.electric}\u26a1${RESET} ${paiText} ${P.plasma}${BOX.v}${RESET} ${ITALIC}${P.glow}Electric Blue Theme${RESET} ${P.electric}\u26a1${RESET}`;
-  lines.push("");
-  lines.push(`${pad}${P.plasma}${BOX.tl}${BOX.h.repeat(footerWidth - 2)}${BOX.tr}${RESET}`);
-  lines.push(`${pad}${P.plasma}${BOX.v}${RESET}${center(footer, footerWidth - 2)}${P.plasma}${BOX.v}${RESET}`);
-  lines.push(`${pad}${P.plasma}${BOX.bl}${BOX.h.repeat(footerWidth - 2)}${BOX.br}${RESET}`);
-  lines.push("");
-
-  return lines.join("\n");
-}
-
-// Design 15: Teal/Aqua Theme
-function createTealBanner(stats: SystemStats, width: number): string {
-  const P = {
-    logoP: rgb(0, 77, 77),
-    logoA: rgb(32, 178, 170),
-    logoI: rgb(127, 255, 212),
-    teal: rgb(0, 128, 128),
-    mediumTeal: rgb(32, 178, 170),
-    aqua: rgb(0, 255, 255),
-    aquamarine: rgb(127, 255, 212),
-    turquoise: rgb(64, 224, 208),
-    paleAqua: rgb(175, 238, 238),
-    midSea: rgb(20, 50, 60),
-    active: rgb(50, 205, 50),
-  };
-
-  const WAVE = ["\u2248", "\u223c", "\u2307", "\u2312"];
-  const wavePattern = (length: number): string => {
-    return Array.from({ length }, (_, i) => {
-      const wave = WAVE[i % WAVE.length];
-      const color = i % 2 === 0 ? P.turquoise : P.aquamarine;
-      return `${color}${wave}${RESET}`;
-    }).join("");
-  };
-
-  // PAI logo - matching reference image exactly
-  const B = "\u2588";
-  const logo = [
-    `${P.logoP}${B.repeat(8)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(2)}${RESET}    ${P.logoP}${B.repeat(2)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(8)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(2)}${RESET}    ${P.logoA}${B.repeat(2)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(2)}${RESET}    ${P.logoA}${B.repeat(2)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-  ];
-  const LOGO_WIDTH = 10;
-
-  const SYM = { user: "\u2756", skills: "\u25c6", hooks: "\u2699", learn: "\u25c7", files: "\u25a2", model: "\u25ce", link: "\u27a4", wave: "\u223c", drop: "\u25cf" };
-
-  const infoLines = [
-    `${P.aquamarine}${SYM.user}${RESET} ${BOLD}${P.turquoise}${stats.name}${RESET}${P.mediumTeal}@${RESET}${P.aqua}pai${RESET}`,
-    `${P.teal}${BOX.h.repeat(28)}${RESET}`,
-    `${P.mediumTeal}${SYM.wave}${RESET} ${P.paleAqua}OS${RESET}         ${P.aquamarine}PAI v${stats.paiVersion}${RESET}`,
-    `${P.mediumTeal}${SYM.skills}${RESET} ${P.paleAqua}Skills${RESET}     ${BOLD}${P.turquoise}${stats.skills}${RESET} ${P.active}${SYM.drop}${RESET}`,
-    `${P.mediumTeal}${SYM.hooks}${RESET} ${P.paleAqua}Hooks${RESET}      ${BOLD}${P.turquoise}${stats.hooks}${RESET}`,
-    `${P.mediumTeal}${SYM.learn}${RESET} ${P.paleAqua}Signals${RESET}    ${BOLD}${P.turquoise}${stats.learnings}${RESET}`,
-    `${P.mediumTeal}${SYM.files}${RESET} ${P.paleAqua}Files${RESET}      ${BOLD}${P.turquoise}${stats.userFiles}${RESET}`,
-    `${P.mediumTeal}${SYM.model}${RESET} ${P.paleAqua}Model${RESET}      ${BOLD}${P.aquamarine}${stats.model}${RESET}`,
-    `${P.teal}${BOX.h.repeat(28)}${RESET}`,
-    `${sparkline(20, [P.logoP, P.teal, P.mediumTeal, P.turquoise, P.aquamarine])}`,
-    `${P.mediumTeal}${SYM.link}${RESET} ${P.midSea}${stats.repoUrl}${RESET}`,
-  ];
-
-  const gap = "   ";
-  const logoTopPad = Math.floor((infoLines.length - logo.length) / 2);
-  const contentWidth = LOGO_WIDTH + 3 + 35;
-  const leftPad = Math.floor((width - contentWidth) / 2);
-  const pad = " ".repeat(Math.max(2, leftPad));
-
-  const lines: string[] = [""];
-  for (let i = 0; i < infoLines.length; i++) {
-    const logoIndex = i - logoTopPad;
-    const logoRow = (logoIndex >= 0 && logoIndex < logo.length) ? logo[logoIndex] : " ".repeat(LOGO_WIDTH);
-    lines.push(`${pad}${padEnd(logoRow, LOGO_WIDTH)}${gap}${infoLines[i]}`);
-  }
-
-  const footerWidth = Math.min(width - 4, 60);
-  const paiText = `${BOLD}${P.logoP}P${RESET}${BOLD}${P.logoA}A${RESET}${BOLD}${P.logoI}I${RESET}`;
-  const waves = wavePattern(3);
-  const footer = `${waves} ${paiText} ${P.teal}${BOX.v}${RESET} ${ITALIC}${P.paleAqua}Teal Aqua Theme${RESET} ${waves}`;
-  lines.push("");
-  lines.push(`${pad}${P.teal}${BOX.tl}${BOX.h.repeat(footerWidth - 2)}${BOX.tr}${RESET}`);
-  lines.push(`${pad}${P.teal}${BOX.v}${RESET}${center(footer, footerWidth - 2)}${P.teal}${BOX.v}${RESET}`);
-  lines.push(`${pad}${P.teal}${BOX.bl}${BOX.h.repeat(footerWidth - 2)}${BOX.br}${RESET}`);
-  lines.push("");
-
-  return lines.join("\n");
-}
-
-// Design 16: Ice/Frost Theme
-function createIceBanner(stats: SystemStats, width: number): string {
-  const P = {
-    logoP: rgb(135, 160, 190),
-    logoA: rgb(173, 216, 230),
-    logoI: rgb(240, 248, 255),
-    deepIce: rgb(176, 196, 222),
-    iceBlue: rgb(173, 216, 230),
-    frost: rgb(200, 230, 255),
-    paleFrost: rgb(220, 240, 255),
-    white: rgb(248, 250, 252),
-    pureWhite: rgb(255, 255, 255),
-    glacierBlue: rgb(135, 206, 235),
-    slateBlue: rgb(106, 135, 165),
-    active: rgb(100, 200, 150),
-  };
-
-  const CRYSTAL = ["\u2727", "\u2728", "\u2729", "\u272a", "\u00b7", "\u2022"];
-  const crystalPattern = (length: number): string => {
-    return Array.from({ length }, (_, i) => {
-      const crystal = CRYSTAL[i % CRYSTAL.length];
-      const color = i % 2 === 0 ? P.frost : P.white;
-      return `${color}${crystal}${RESET}`;
-    }).join(" ");
-  };
-
-  // PAI logo - matching reference image exactly
-  const B = "\u2588";
-  const logo = [
-    `${P.logoP}${B.repeat(8)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(2)}${RESET}    ${P.logoP}${B.repeat(2)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(8)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(2)}${RESET}    ${P.logoA}${B.repeat(2)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-    `${P.logoP}${B.repeat(2)}${RESET}    ${P.logoA}${B.repeat(2)}${RESET}${P.logoI}${B.repeat(2)}${RESET}`,
-  ];
-  const LOGO_WIDTH = 10;
-
-  const SYM = { user: "\u2727", skills: "\u2726", hooks: "\u2699", learn: "\u25c7", files: "\u25a1", model: "\u25cb", link: "\u2192", snow: "\u2022", crystal: "\u2729" };
-
-  const infoLines = [
-    `${P.white}${SYM.user}${RESET} ${BOLD}${P.pureWhite}${stats.name}${RESET}${P.frost}@${RESET}${P.paleFrost}pai${RESET}`,
-    `${P.deepIce}${BOX.h.repeat(28)}${RESET}`,
-    `${P.iceBlue}${SYM.crystal}${RESET} ${P.frost}OS${RESET}         ${P.white}PAI v${stats.paiVersion}${RESET}`,
-    `${P.iceBlue}${SYM.skills}${RESET} ${P.frost}Skills${RESET}     ${BOLD}${P.pureWhite}${stats.skills}${RESET} ${P.active}${SYM.snow}${RESET}`,
-    `${P.iceBlue}${SYM.hooks}${RESET} ${P.frost}Hooks${RESET}      ${BOLD}${P.pureWhite}${stats.hooks}${RESET}`,
-    `${P.iceBlue}${SYM.learn}${RESET} ${P.frost}Signals${RESET}    ${BOLD}${P.pureWhite}${stats.learnings}${RESET}`,
-    `${P.iceBlue}${SYM.files}${RESET} ${P.frost}Files${RESET}      ${BOLD}${P.pureWhite}${stats.userFiles}${RESET}`,
-    `${P.iceBlue}${SYM.model}${RESET} ${P.frost}Model${RESET}      ${BOLD}${P.glacierBlue}${stats.model}${RESET}`,
-    `${P.deepIce}${BOX.h.repeat(28)}${RESET}`,
-    `${sparkline(20, [P.slateBlue, P.deepIce, P.iceBlue, P.frost, P.paleFrost])}`,
-    `${P.iceBlue}${SYM.link}${RESET} ${P.slateBlue}${stats.repoUrl}${RESET}`,
-  ];
-
-  const gap = "   ";
-  const logoTopPad = Math.floor((infoLines.length - logo.length) / 2);
-  const contentWidth = LOGO_WIDTH + 3 + 35;
-  const leftPad = Math.floor((width - contentWidth) / 2);
-  const pad = " ".repeat(Math.max(2, leftPad));
-
-  const lines: string[] = [""];
-  for (let i = 0; i < infoLines.length; i++) {
-    const logoIndex = i - logoTopPad;
-    const logoRow = (logoIndex >= 0 && logoIndex < logo.length) ? logo[logoIndex] : " ".repeat(LOGO_WIDTH);
-    lines.push(`${pad}${padEnd(logoRow, LOGO_WIDTH)}${gap}${infoLines[i]}`);
-  }
-
-  const footerWidth = Math.min(width - 4, 60);
-  const paiText = `${BOLD}${P.logoP}P${RESET}${BOLD}${P.logoA}A${RESET}${BOLD}${P.logoI}I${RESET}`;
-  const crystals = crystalPattern(2);
-  const footer = `${crystals} ${paiText} ${P.deepIce}${BOX.v}${RESET} ${ITALIC}${P.frost}Ice Frost Theme${RESET} ${crystals}`;
-  lines.push("");
-  lines.push(`${pad}${P.deepIce}${BOX.tl}${BOX.h.repeat(footerWidth - 2)}${BOX.tr}${RESET}`);
-  lines.push(`${pad}${P.deepIce}${BOX.v}${RESET}${center(footer, footerWidth - 2)}${P.deepIce}${BOX.v}${RESET}`);
-  lines.push(`${pad}${P.deepIce}${BOX.bl}${BOX.h.repeat(footerWidth - 2)}${BOX.br}${RESET}`);
-  lines.push("");
-
-  return lines.join("\n");
+  return output;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RESPONSIVE NAVY BANNER VARIANTS (progressive compaction)
+// Banner Designs
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Shared Navy color palette for all compact variants
-function getNavyColors() {
-  return {
-    navy: rgb(30, 58, 138),
-    medBlue: rgb(59, 130, 246),
-    lightBlue: rgb(147, 197, 253),
-    steel: rgb(51, 65, 85),
-    slate: rgb(100, 116, 139),
-    silver: rgb(203, 213, 225),
-    iceBlue: rgb(176, 196, 222),
-    periwinkle: rgb(140, 160, 220),
-    skyBlue: rgb(135, 206, 235),
-    royalBlue: rgb(65, 105, 225),
-  };
-}
-
-// Small logo (10x5) for compact layouts
-function getSmallLogo(C: ReturnType<typeof getNavyColors>) {
-  const B = "\u2588";
-  return [
-    `${C.navy}${B.repeat(8)}${RESET}${C.lightBlue}${B.repeat(2)}${RESET}`,
-    `${C.navy}${B.repeat(2)}${RESET}    ${C.navy}${B.repeat(2)}${RESET}${C.lightBlue}${B.repeat(2)}${RESET}`,
-    `${C.navy}${B.repeat(8)}${RESET}${C.lightBlue}${B.repeat(2)}${RESET}`,
-    `${C.navy}${B.repeat(2)}${RESET}    ${C.medBlue}${B.repeat(2)}${RESET}${C.lightBlue}${B.repeat(2)}${RESET}`,
-    `${C.navy}${B.repeat(2)}${RESET}    ${C.medBlue}${B.repeat(2)}${RESET}${C.lightBlue}${B.repeat(2)}${RESET}`,
-  ];
-}
-
-// Medium Banner (70-84 cols) - No border, full content
-function createNavyMediumBanner(stats: SystemStats, width: number): string {
-  const C = getNavyColors();
-  const B = "\u2588";
-
-  // Full logo (20x10)
-  const logo = [
-    `${C.navy}${B.repeat(16)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(16)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.navy}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.navy}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(16)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(16)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.medBlue}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.medBlue}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.medBlue}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-    `${C.navy}${B.repeat(4)}${RESET}        ${C.medBlue}${B.repeat(4)}${RESET}${C.lightBlue}${B.repeat(4)}${RESET}`,
-  ];
-  const LOGO_WIDTH = 20;
-  const SEPARATOR = `${C.steel}${BOX.v}${RESET}`;
+// Full banner with sphere: two-column layout
+function createSphereBanner(stats: SystemStats, width: number, sphere: string[]): string {
+  const SEP = `${E.muted}${BOX.v}${RESET}`;
 
   const infoLines = [
-    `${C.slate}"${RESET}${C.lightBlue}${stats.catchphrase}${RESET}${C.slate}..."${RESET}`,
-    `${C.steel}${BOX.h.repeat(24)}${RESET}`,
-    `${C.navy}\u2B22${RESET}  ${C.slate}PAI${RESET}       ${C.silver}v${stats.paiVersion}${RESET}`,
-    `${C.navy}\u2699${RESET}  ${C.slate}Algo${RESET}      ${C.silver}v${stats.algorithmVersion}${RESET}`,
-    `${C.lightBlue}\u2726${RESET}  ${C.slate}SK${RESET}        ${C.silver}${stats.skills}${RESET}`,
-    `${C.skyBlue}\u21BB${RESET}  ${C.slate}WF${RESET}        ${C.iceBlue}${stats.workflows}${RESET}`,
-    `${C.royalBlue}\u21AA${RESET}  ${C.slate}Hooks${RESET}     ${C.periwinkle}${stats.hooks}${RESET}`,
-    `${C.medBlue}\u2726${RESET}  ${C.slate}Signals${RESET}   ${C.skyBlue}${stats.learnings}${RESET}`,
-    `${C.navy}\u2261${RESET}  ${C.slate}Files${RESET}     ${C.lightBlue}${stats.userFiles}${RESET}`,
-    `${C.steel}${BOX.h.repeat(24)}${RESET}`,
+    `${ITALIC}${E.dim}"${RESET}${ITALIC}${E.cyan}${stats.catchphrase}${RESET}${ITALIC}${E.dim}..."${RESET}`,
+    `${E.muted}${BOX.h.repeat(26)}${RESET}`,
+    `${E.purple}⚙${RESET}  ${lbl("Algo")}${E.fg}v${stats.algorithmVersion}${RESET}`,
+    `${E.cyan}${NF.skills}${RESET}  ${lbl("Skills")}${E.fg}${stats.skills}${RESET}`,
+    `${E.green}${NF.workflow}${RESET}  ${lbl("Work")}${E.fg}${stats.workflows}${RESET}`,
+    `${E.pink}${NF.hook}${RESET}  ${lbl("Hooks")}${E.fg}${stats.hooks}${RESET}`,
+    `${E.yellow}${NF.wifi}${RESET}  ${lbl("Signals")}${E.fg}${stats.learnings}${RESET}`,
+    `${E.green}≡${RESET}  ${lbl("Files")}${E.fg}${stats.userFiles}${RESET}`,
+    `${E.muted}${BOX.h.repeat(26)}${RESET}`,
   ];
 
   const gap = "   ";
   const gapAfter = "  ";
-  const totalContentWidth = LOGO_WIDTH + gap.length + 1 + gapAfter.length + 28;
+  const totalContentWidth = SPHERE_COLS + gap.length + 1 + gapAfter.length + 32;
   const leftPad = Math.floor((width - totalContentWidth) / 2);
-  const pad = " ".repeat(Math.max(1, leftPad));
-  const emptyLogoSpace = " ".repeat(LOGO_WIDTH);
-  const logoTopPad = Math.ceil((infoLines.length - logo.length) / 2);
+  const pad = " ".repeat(Math.max(2, leftPad));
+  const empty = " ".repeat(SPHERE_COLS);
+
+  const logoTopPad = Math.floor((infoLines.length - sphere.length) / 2);
+
+  const frameWidth = 70;
+  const framePad = " ".repeat(Math.max(0, Math.floor((width - frameWidth) / 2)));
 
   const lines: string[] = [""];
-
-  // Header (no border)
-  const paiColored = `${C.navy}P${RESET}${C.medBlue}A${RESET}${C.lightBlue}I${RESET}`;
-  const headerText = `${paiColored} ${C.steel}|${RESET} ${C.slate}Personal AI Infrastructure${RESET}`;
-  const headerPad = " ".repeat(Math.max(0, Math.floor((width - 33) / 2)));
-  lines.push(`${headerPad}${headerText}`);
+  lines.push(`${framePad}${E.muted}${RETICLE.tl}${RETICLE.h.repeat(frameWidth - 2)}${RETICLE.tr}${RESET}`);
   lines.push("");
 
-  // Tagline
-  const quote = `${ITALIC}${C.lightBlue}"Magnifying human capabilities..."${RESET}`;
-  const quotePad = " ".repeat(Math.max(0, Math.floor((width - 35) / 2)));
-  lines.push(`${quotePad}${quote}`);
+  const header = `${E.purple}▲${RESET}  ${BOLD}${E.cyan}${stats.name}${RESET}  ${E.dim}v${stats.paiVersion}${RESET}`;
+  lines.push(center(header, width));
   lines.push("");
 
-  // Main content
   for (let i = 0; i < infoLines.length; i++) {
-    const logoIndex = i - logoTopPad;
-    const logoRow = (logoIndex >= 0 && logoIndex < logo.length) ? logo[logoIndex] : emptyLogoSpace;
-    lines.push(`${pad}${padEnd(logoRow, LOGO_WIDTH)}${gap}${SEPARATOR}${gapAfter}${infoLines[i]}`);
+    const li = i - logoTopPad;
+    const sphereRow = (li >= 0 && li < sphere.length) ? sphere[li] : empty;
+    lines.push(`${pad}${padEnd(sphereRow, SPHERE_COLS)}${gap}${SEP}${gapAfter}${infoLines[i]}`);
   }
 
   lines.push("");
-  const urlLine = `${C.steel}\u2192${RESET} ${C.medBlue}${stats.repoUrl}${RESET}`;
-  const urlPad = " ".repeat(Math.max(0, Math.floor((width - stats.repoUrl.length - 3) / 2)));
-  lines.push(`${urlPad}${urlLine}`);
+  lines.push(`${pad}${sparkline(SPHERE_COLS, [E.purple, E.mid, E.cyan, E.green])}`);
+  lines.push("");
+  lines.push(`${framePad}${E.muted}${RETICLE.bl}${RETICLE.h.repeat(frameWidth - 2)}${RETICLE.br}${RESET}`);
   lines.push("");
 
   return lines.join("\n");
 }
 
-// Compact Banner (55-69 cols) - Small logo, reduced info
-function createNavyCompactBanner(stats: SystemStats, width: number): string {
-  const C = getNavyColors();
-  const logo = getSmallLogo(C);
-  const LOGO_WIDTH = 10;
-  const SEPARATOR = `${C.steel}${BOX.v}${RESET}`;
+// Medium banner (70-84 cols) — info block centered, no animation
+function createMediumBanner(stats: SystemStats, width: number): string {
+  const SEP_LEN = 26;
 
-  // Condensed info (6 lines to match logo height better)
-  // Truncate catchphrase for compact display
-  const shortCatchphrase = stats.catchphrase.length > 20 ? stats.catchphrase.slice(0, 17) + "..." : stats.catchphrase;
   const infoLines = [
-    `${C.slate}"${RESET}${C.lightBlue}${shortCatchphrase}${RESET}${C.slate}"${RESET}`,
-    `${C.steel}${BOX.h.repeat(18)}${RESET}`,
-    `${C.navy}\u2B22${RESET} ${C.slate}PAI${RESET} ${C.silver}v${stats.paiVersion}${RESET} ${C.navy}\u2699${RESET} ${C.silver}v${stats.algorithmVersion}${RESET}`,
-    `${C.lightBlue}\u2726${RESET} ${C.slate}SK${RESET} ${C.silver}${stats.skills}${RESET}  ${C.skyBlue}\u21BB${RESET} ${C.iceBlue}${stats.workflows}${RESET}  ${C.royalBlue}\u21AA${RESET} ${C.periwinkle}${stats.hooks}${RESET}`,
-    `${C.medBlue}\u2726${RESET} ${C.slate}Signals${RESET} ${C.skyBlue}${stats.learnings}${RESET}`,
-    `${C.steel}${BOX.h.repeat(18)}${RESET}`,
+    `${ITALIC}${E.dim}"${RESET}${ITALIC}${E.cyan}${stats.catchphrase}${RESET}${ITALIC}${E.dim}..."${RESET}`,
+    `${E.muted}${BOX.h.repeat(SEP_LEN)}${RESET}`,
+    `${E.purple}⚙${RESET}  ${lbl("Algo")}${E.fg}v${stats.algorithmVersion}${RESET}`,
+    `${E.cyan}${NF.skills}${RESET}  ${lbl("Skills")}${E.fg}${stats.skills}${RESET}`,
+    `${E.green}${NF.workflow}${RESET}  ${lbl("Work")}${E.fg}${stats.workflows}${RESET}`,
+    `${E.pink}${NF.hook}${RESET}  ${lbl("Hooks")}${E.fg}${stats.hooks}${RESET}`,
+    `${E.yellow}${NF.wifi}${RESET}  ${lbl("Signals")}${E.fg}${stats.learnings}${RESET}`,
+    `${E.green}≡${RESET}  ${lbl("Files")}${E.fg}${stats.userFiles}${RESET}`,
+    `${E.muted}${BOX.h.repeat(SEP_LEN)}${RESET}`,
   ];
 
-  const gap = "  ";
-  const gapAfter = " ";
-  const totalContentWidth = LOGO_WIDTH + gap.length + 1 + gapAfter.length + 20;
-  const leftPad = Math.floor((width - totalContentWidth) / 2);
-  const pad = " ".repeat(Math.max(1, leftPad));
-  const emptyLogoSpace = " ".repeat(LOGO_WIDTH);
-  const logoTopPad = Math.floor((infoLines.length - logo.length) / 2);
+  const pad = " ".repeat(Math.max(0, Math.floor((width - SEP_LEN) / 2)));
+  const header = `${E.purple}▲${RESET}  ${BOLD}${E.cyan}${stats.name}${RESET}  ${E.dim}v${stats.paiVersion}${RESET}`;
 
   const lines: string[] = [""];
-
-  // Condensed header
-  const paiColored = `${C.navy}P${RESET}${C.medBlue}A${RESET}${C.lightBlue}I${RESET}`;
-  const headerPad = " ".repeat(Math.max(0, Math.floor((width - 3) / 2)));
-  lines.push(`${headerPad}${paiColored}`);
+  lines.push(center(header, width));
   lines.push("");
-
-  // Main content
-  for (let i = 0; i < infoLines.length; i++) {
-    const logoIndex = i - logoTopPad;
-    const logoRow = (logoIndex >= 0 && logoIndex < logo.length) ? logo[logoIndex] : emptyLogoSpace;
-    lines.push(`${pad}${padEnd(logoRow, LOGO_WIDTH)}${gap}${SEPARATOR}${gapAfter}${infoLines[i]}`);
-  }
+  for (const line of infoLines) lines.push(`${pad}${line}`);
   lines.push("");
-
   return lines.join("\n");
 }
 
-// Minimal Banner (45-54 cols) - Very condensed
-function createNavyMinimalBanner(stats: SystemStats, width: number): string {
-  const C = getNavyColors();
-  const logo = getSmallLogo(C);
-  const LOGO_WIDTH = 10;
+// Compact banner (55-69 cols)
+function createCompactBanner(stats: SystemStats, width: number): string {
+  const SEP_LEN = 22;
+  const shortPhrase = stats.catchphrase.length > 22
+    ? stats.catchphrase.slice(0, 19) + "..."
+    : stats.catchphrase;
 
-  // Minimal info beside logo
   const infoLines = [
-    `${C.lightBlue}${stats.name}${RESET}${C.slate}@pai${RESET}`,
-    `${C.slate}v${stats.paiVersion}${RESET} ${C.navy}\u2699${RESET}${C.silver}v${stats.algorithmVersion}${RESET}`,
-    `${C.steel}${BOX.h.repeat(14)}${RESET}`,
-    `${C.lightBlue}\u2726${RESET}${C.silver}${stats.skills}${RESET} ${C.skyBlue}\u21BB${RESET}${C.iceBlue}${stats.workflows}${RESET} ${C.royalBlue}\u21AA${RESET}${C.periwinkle}${stats.hooks}${RESET}`,
-    ``,
+    `${ITALIC}${E.dim}"${RESET}${ITALIC}${E.cyan}${shortPhrase}${RESET}${ITALIC}${E.dim}"${RESET}`,
+    `${E.muted}${BOX.h.repeat(SEP_LEN)}${RESET}`,
+    `${E.purple}⚙${RESET} ${E.dim}Algo${RESET} ${E.fg}v${stats.algorithmVersion}${RESET}`,
+    `${E.cyan}${NF.skills}${RESET} ${E.dim}Skills${RESET}   ${E.fg}${stats.skills}${RESET}  ${E.green}${NF.workflow}${RESET} ${E.dim}Work${RESET} ${E.fg}${stats.workflows}${RESET}`,
+    `${E.pink}${NF.hook}${RESET} ${E.dim}Hooks${RESET}    ${E.fg}${stats.hooks}${RESET}  ${E.yellow}${NF.wifi}${RESET} ${E.dim}Signals${RESET} ${E.fg}${stats.learnings}${RESET}`,
+    `${E.muted}${BOX.h.repeat(SEP_LEN)}${RESET}`,
   ];
 
-  const gap = " ";
-  const totalContentWidth = LOGO_WIDTH + gap.length + 16;
-  const leftPad = Math.floor((width - totalContentWidth) / 2);
-  const pad = " ".repeat(Math.max(1, leftPad));
+  const pad = " ".repeat(Math.max(1, Math.floor((width - SEP_LEN) / 2)));
+  const header = `${E.purple}▲${RESET}  ${BOLD}${E.cyan}${stats.name}${RESET}  ${E.dim}v${stats.paiVersion}${RESET}`;
 
   const lines: string[] = [""];
-
-  for (let i = 0; i < logo.length; i++) {
-    lines.push(`${pad}${padEnd(logo[i], LOGO_WIDTH)}${gap}${infoLines[i] || ""}`);
-  }
+  lines.push(center(header, width));
   lines.push("");
-
+  for (const line of infoLines) lines.push(`${pad}${line}`);
+  lines.push("");
   return lines.join("\n");
 }
 
-// Ultra-compact Banner (<45 cols) - Text only, vertical
-function createNavyUltraCompactBanner(stats: SystemStats, width: number): string {
-  const C = getNavyColors();
-
-  const paiColored = `${C.navy}P${RESET}${C.medBlue}A${RESET}${C.lightBlue}I${RESET}`;
+// Minimal banner (45-54 cols)
+function createMinimalBanner(stats: SystemStats, width: number): string {
+  const header = `${E.purple}▲${RESET}  ${BOLD}${E.cyan}${stats.name}${RESET}  ${E.dim}v${stats.paiVersion}${RESET}`;
 
   const lines: string[] = [""];
-  lines.push(center(paiColored, width));
-  lines.push(center(`${C.lightBlue}${stats.name}${RESET}${C.slate}@pai v${stats.paiVersion}${RESET} ${C.navy}\u2699${RESET}${C.silver}v${stats.algorithmVersion}${RESET}`, width));
-  lines.push(center(`${C.steel}${BOX.h.repeat(Math.min(20, width - 4))}${RESET}`, width));
-  lines.push(center(`${C.lightBlue}\u2726${RESET}${C.silver}${stats.skills}${RESET} ${C.skyBlue}\u21BB${RESET}${C.iceBlue}${stats.workflows}${RESET} ${C.royalBlue}\u21AA${RESET}${C.periwinkle}${stats.hooks}${RESET}`, width));
+  lines.push(center(header, width));
+  lines.push(center(`${E.purple}⚙${RESET}${E.dim}Algo v${stats.algorithmVersion}${RESET}`, width));
+  lines.push(center(`${E.muted}${BOX.h.repeat(16)}${RESET}`, width));
+  lines.push(center(
+    `${E.cyan}${NF.skills}${RESET}${E.fg}${stats.skills}${RESET} ${E.green}${NF.workflow}${RESET}${E.fg}${stats.workflows}${RESET} ${E.pink}${NF.hook}${RESET}${E.fg}${stats.hooks}${RESET}`,
+    width,
+  ));
   lines.push("");
-
   return lines.join("\n");
+}
+
+// Ultra-compact banner (<45 cols)
+function createUltraCompactBanner(stats: SystemStats, width: number): string {
+  const header = `${E.purple}▲${RESET}  ${BOLD}${E.cyan}${stats.name}${RESET}  ${E.dim}v${stats.paiVersion}${RESET}`;
+
+  const lines: string[] = [""];
+  lines.push(center(header, width));
+  lines.push(center(`${E.purple}⚙${RESET}${E.dim}v${stats.algorithmVersion}${RESET}`, width));
+  lines.push(center(`${E.muted}${BOX.h.repeat(Math.min(16, width - 4))}${RESET}`, width));
+  lines.push(center(
+    `${E.cyan}${NF.skills}${RESET}${E.fg}${stats.skills}${RESET} ${E.green}${NF.workflow}${RESET}${E.fg}${stats.workflows}${RESET} ${E.pink}${NF.hook}${RESET}${E.fg}${stats.hooks}${RESET}`,
+    width,
+  ));
+  lines.push("");
+  return lines.join("\n");
+}
+
+// Route non-full banners
+function createStaticBanner(stats: SystemStats, width: number, design?: string): string {
+  const w = width;
+  if (design === "medium"  || (!design && w >= 70 && w < 85))  return createMediumBanner(stats, w);
+  if (design === "compact" || (!design && w >= 55 && w < 70))  return createCompactBanner(stats, w);
+  if (design === "minimal" || (!design && w >= 45 && w < 55))  return createMinimalBanner(stats, w);
+  if (design === "ultra"   || (!design && w < 45))             return createUltraCompactBanner(stats, w);
+  return createMediumBanner(stats, w);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Main Banner Selection - Width-based routing
+// Animation
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Breakpoints for responsive Navy banner
-const BREAKPOINTS = {
-  FULL: 85,      // Full Navy with border
-  MEDIUM: 70,    // No border, full content
-  COMPACT: 55,   // Small logo, reduced info
-  MINIMAL: 45,   // Very condensed
-  // Below 45: Ultra-compact text only
-};
+const ANIM_FPS = 15;
 
-type DesignName = "navy" | "navy-medium" | "navy-compact" | "navy-minimal" | "navy-ultra" | "electric" | "teal" | "ice";
-const ALL_DESIGNS: DesignName[] = ["navy", "navy-medium", "navy-compact", "navy-minimal", "navy-ultra", "electric", "teal", "ice"];
+async function runAnimation(
+  stats: SystemStats,
+  width: number,
+): Promise<void> {
+  process.on("SIGINT", () => {
+    process.stdout.write("\x1b[?25h\n");
+    process.exit(0);
+  });
 
-function createBanner(forceDesign?: string): string {
-  const width = getTerminalWidth();
-  const stats = getStats();
+  process.stdout.write("\x1b[?25l"); // hide cursor
 
-  // If a specific design is requested (for --design= flag or --test mode)
-  if (forceDesign) {
-    switch (forceDesign) {
-      case "navy": return createNavyBanner(stats, width);
-      case "navy-medium": return createNavyMediumBanner(stats, width);
-      case "navy-compact": return createNavyCompactBanner(stats, width);
-      case "navy-minimal": return createNavyMinimalBanner(stats, width);
-      case "navy-ultra": return createNavyUltraCompactBanner(stats, width);
-      case "electric": return createElectricBanner(stats, width);
-      case "teal": return createTealBanner(stats, width);
-      case "ice": return createIceBanner(stats, width);
+  const frameCount = 48;
+  let prevLines = 0;
+
+  try {
+    for (let f = 0; f < frameCount; f++) {
+      const banner = createSphereBanner(stats, width, renderSphere(f));
+
+      if (f > 0) {
+        process.stdout.write(`\x1b[${prevLines}A\x1b[J`);
+      }
+
+      process.stdout.write(banner);
+      prevLines = (banner.match(/\n/g) ?? []).length;
+
+      if (f < frameCount - 1) {
+        await new Promise(resolve => setTimeout(resolve, Math.floor(1000 / ANIM_FPS)));
+      }
     }
-  }
-
-  // Width-based responsive routing (Navy theme only)
-  if (width >= BREAKPOINTS.FULL) {
-    return createNavyBanner(stats, width);
-  } else if (width >= BREAKPOINTS.MEDIUM) {
-    return createNavyMediumBanner(stats, width);
-  } else if (width >= BREAKPOINTS.COMPACT) {
-    return createNavyCompactBanner(stats, width);
-  } else if (width >= BREAKPOINTS.MINIMAL) {
-    return createNavyMinimalBanner(stats, width);
-  } else {
-    return createNavyUltraCompactBanner(stats, width);
+  } finally {
+    process.stdout.write("\x1b[?25h"); // restore cursor
   }
 }
 
@@ -853,21 +472,36 @@ function createBanner(forceDesign?: string): string {
 // CLI
 // ═══════════════════════════════════════════════════════════════════════════
 
-const args = process.argv.slice(2);
-const testMode = args.includes("--test");
-const designArg = args.find(a => a.startsWith("--design="))?.split("=")[1];
+const BREAKPOINTS = { FULL: 85, MEDIUM: 70, COMPACT: 55, MINIMAL: 45 };
+const ALL_DESIGNS = ["full", "medium", "compact", "minimal", "ultra"] as const;
 
-try {
-  if (testMode) {
-    for (const design of ALL_DESIGNS) {
-      console.log(`\n${"═".repeat(60)}`);
-      console.log(`  DESIGN: ${design.toUpperCase()}`);
-      console.log(`${"═".repeat(60)}`);
-      console.log(createBanner(design));
+const args       = process.argv.slice(2);
+const testMode   = args.includes("--test");
+const staticMode = args.includes("--static");
+const designArg  = args.find(a => a.startsWith("--design="))?.split("=")[1];
+
+const stats = getStats();
+const width = getTerminalWidth();
+
+if (testMode) {
+  for (const design of ALL_DESIGNS) {
+    console.log(`\n${"═".repeat(60)}\n  DESIGN: ${design.toUpperCase()}\n${"═".repeat(60)}`);
+    if (design === "full") {
+      process.stdout.write(createSphereBanner(stats, width, renderSphere(20)));
+    } else {
+      process.stdout.write(createStaticBanner(stats, width, design));
     }
-  } else {
-    console.log(createBanner(designArg));
   }
-} catch (e) {
-  console.error("Banner error:", e);
+} else if (staticMode || designArg) {
+  if (designArg === "full" || (!designArg && width >= BREAKPOINTS.FULL)) {
+    process.stdout.write(createSphereBanner(stats, width, renderSphere(20)));
+  } else {
+    process.stdout.write(createStaticBanner(stats, width, designArg));
+  }
+} else {
+  if (width >= BREAKPOINTS.FULL) {
+    await runAnimation(stats, width);
+  } else {
+    process.stdout.write(createStaticBanner(stats, width));
+  }
 }
