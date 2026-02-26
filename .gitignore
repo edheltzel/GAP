@@ -36,6 +36,9 @@ node_modules/
 .claude/MEMORY/**
 !.claude/MEMORY/README.md
 
+# Atlas plan files (Claude Code plansDirectory)
+.atlas-plans/
+
 # PAI Update System (sideloading)
 .claude/pai_updates/
 .claude/pai_backups/
