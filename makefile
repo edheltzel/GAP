@@ -1,7 +1,7 @@
-STOW_DIR := $(HOME)/Developer
-STOW_PKG := atlas-config
+STOW_DIR := $(CURDIR)
 STOW_TARGET := $(HOME)
 STOW_CMD := stow -d $(STOW_DIR) -t $(STOW_TARGET)
+PKGS := claudecode opencode
 
 YELLOW := \033[33m
 GREEN := \033[32m
@@ -21,29 +21,30 @@ help: ## Show this help message (default)
 
 .PHONY: up update
 up: update
-update: ## Restow PAI config (use after adding/removing files)
-	@$(STOW_CMD) --restow $(STOW_PKG)
-	@echo "$(GREEN)PAI config restowed$(CLR)"
+update: ## Restow all packages (use after adding/removing files)
+	@for pkg in $(PKGS); do $(STOW_CMD) --restow $$pkg; done
+	@echo "$(GREEN)All packages restowed$(CLR)"
 
 .PHONY: link
 link: ## Create symlinks (first time setup)
-	@$(STOW_CMD) $(STOW_PKG)
-	@echo "$(GREEN)PAI config linked to ~/.claude$(CLR)"
+	@for pkg in $(PKGS); do $(STOW_CMD) $$pkg; done
+	@echo "$(GREEN)Packages linked: $(PKGS)$(CLR)"
 
 .PHONY: unlink
-unlink: ## Remove all symlinks from ~/.claude
-	@$(STOW_CMD) --delete $(STOW_PKG)
-	@echo "$(WHITE)PAI symlinks removed$(CLR)"
+unlink: ## Remove all symlinks
+	@for pkg in $(PKGS); do $(STOW_CMD) --delete $$pkg; done
+	@echo "$(WHITE)All package symlinks removed$(CLR)"
 
 .PHONY: status
 status: ## Show what stow would do (dry run)
-	@$(STOW_CMD) --restow -n -v $(STOW_PKG) 2>&1 || true
-	@echo ""
-	@echo "$(CYAN)Symlinks in ~/.claude:$(CLR)"
-	@ls -la $(STOW_TARGET)/.claude/ | grep "^l" | awk '{print "  " $$NF " -> " $$(NF-2)}'
+	@for pkg in $(PKGS); do \
+		echo "$(CYAN)Package: $$pkg$(CLR)"; \
+		$(STOW_CMD) --restow -n -v $$pkg 2>&1 || true; \
+		echo ""; \
+	done
 
 .PHONY: push
-push: ## Commit and push PAI config changes
+push: ## Commit and push config changes
 	@git add -A
 	@git diff --cached --quiet && echo "$(YELLOW)Nothing to commit$(CLR)" || \
-		(git commit -m "Update PAI config" && git push origin master && echo "$(GREEN)Pushed to origin$(CLR)")
+		(git commit -m "Update config" && git push origin master && echo "$(GREEN)Pushed to origin$(CLR)")

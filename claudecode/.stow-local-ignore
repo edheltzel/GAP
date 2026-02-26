@@ -1,0 +1,16 @@
+# Stow defaults (REQUIRED — this file replaces built-in defaults)
+\.git
+\.gitignore
+\.gitmodules
+\.gitattributes
+.+~
+\#.*\#
+
+# macOS
+\.DS_Store
+
+# Dependencies
+node_modules
+
+# Templates (not needed at runtime)
+\.env\.example

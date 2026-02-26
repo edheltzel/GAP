@@ -29,25 +29,28 @@ node_modules/
 *.swo
 *~
 
-# Stow
-.stow-local-ignore
+# Stow (root-level only — per-package .stow-local-ignore files ARE tracked)
+/.stow-local-ignore
 
 # PAI runtime memory (recreated dynamically by hooks)
-.claude/MEMORY/**
-!.claude/MEMORY/README.md
+claudecode/.claude/MEMORY/**
+!claudecode/.claude/MEMORY/README.md
 
 # Atlas plan files (Claude Code plansDirectory)
 .atlas-plans/
 
 # PAI Update System (sideloading)
-.claude/pai_updates/
-.claude/pai_backups/
-.claude/.pai-sync-history
+claudecode/.claude/pai_updates/
+claudecode/.claude/pai_backups/
+claudecode/.claude/.pai-sync-history
 .todos/
 
 # Runtime/sidecar state
 .sidecar/
-.claude/.sidecar/
+claudecode/.claude/.sidecar/
 
 # Compiled app bundles (build from source via MenuBarApp/build.sh)
-.claude/Observability/MenuBarApp/Observability.app/
+claudecode/.claude/Observability/MenuBarApp/Observability.app/
+
+# Superpowers plugin (managed independently by each coding agent)
+opencode/.config/opencode/superpowers/

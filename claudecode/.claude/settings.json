@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
     "PAI_DIR": "/Users/ed/.claude",
-    "PROJECTS_DIR": "${PROJECTS_DIR}",
+    "PROJECTS_DIR": "/Users/ed/Developer",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "80000",
     "BASH_DEFAULT_TIMEOUT_MS": "600000",
     "PAI_CONFIG_DIR": "/Users/ed/.config/PAI",
@@ -69,7 +69,6 @@
     ],
     "defaultMode": "default"
   },
-  "model": "opusplan",
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [],
   "hooks": {
@@ -79,7 +78,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/VoiceGate.hook.ts"
+            "command": "${PAI_DIR}/hooks/VoiceGate.hook.ts",
+            "timeout": 5000
           }
         ]
       },
@@ -88,7 +88,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts"
+            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
+            "timeout": 10000
           }
         ]
       },
@@ -97,7 +98,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts"
+            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
+            "timeout": 10000
           }
         ]
       },
@@ -106,7 +108,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts"
+            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
+            "timeout": 10000
           }
         ]
       },
@@ -115,7 +118,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts"
+            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
+            "timeout": 10000
           }
         ]
       },
@@ -124,7 +128,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/SetQuestionTab.hook.ts"
+            "command": "${PAI_DIR}/hooks/SetQuestionTab.hook.ts",
+            "timeout": 5000
           }
         ]
       },
@@ -133,7 +138,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/AgentExecutionGuard.hook.ts"
+            "command": "${PAI_DIR}/hooks/AgentExecutionGuard.hook.ts",
+            "timeout": 10000
           }
         ]
       },
@@ -142,7 +148,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/SkillGuard.hook.ts"
+            "command": "${PAI_DIR}/hooks/SkillGuard.hook.ts",
+            "timeout": 10000
           }
         ]
       },
@@ -151,7 +158,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/ModelRouter.hook.ts"
+            "command": "${PAI_DIR}/hooks/ModelRouter.hook.ts",
+            "timeout": 10000
           }
         ]
       }
@@ -162,7 +170,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/QuestionAnswered.hook.ts"
+            "command": "${PAI_DIR}/hooks/QuestionAnswered.hook.ts",
+            "timeout": 5000
           }
         ]
       },
@@ -171,7 +180,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts"
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000
           }
         ]
       },
@@ -180,7 +190,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts"
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000
           }
         ]
       },
@@ -189,7 +200,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts"
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000
           }
         ]
       },
@@ -198,7 +210,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts"
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000
           }
         ]
       }
@@ -208,23 +221,28 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/WorkCompletionLearning.hook.ts"
+            "command": "${PAI_DIR}/hooks/WorkCompletionLearning.hook.ts",
+            "timeout": 90000
           },
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/SessionSummary.hook.ts"
+            "command": "${PAI_DIR}/hooks/SessionSummary.hook.ts",
+            "timeout": 90000
           },
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/RelationshipMemory.hook.ts"
+            "command": "${PAI_DIR}/hooks/RelationshipMemory.hook.ts",
+            "timeout": 90000
           },
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/UpdateCounts.hook.ts"
+            "command": "${PAI_DIR}/hooks/UpdateCounts.hook.ts",
+            "timeout": 15000
           },
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/IntegrityCheck.hook.ts"
+            "command": "${PAI_DIR}/hooks/IntegrityCheck.hook.ts",
+            "timeout": 30000
           }
         ]
       }
@@ -234,19 +252,23 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/RatingCapture.hook.ts"
+            "command": "${PAI_DIR}/hooks/RatingCapture.hook.ts",
+            "timeout": 10000
           },
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/AutoWorkCreation.hook.ts"
+            "command": "${PAI_DIR}/hooks/AutoWorkCreation.hook.ts",
+            "timeout": 30000
           },
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/UpdateTabTitle.hook.ts"
+            "command": "${PAI_DIR}/hooks/UpdateTabTitle.hook.ts",
+            "timeout": 5000
           },
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/SessionAutoName.hook.ts"
+            "command": "${PAI_DIR}/hooks/SessionAutoName.hook.ts",
+            "timeout": 10000
           }
         ]
       }
@@ -256,11 +278,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/StartupGreeting.hook.ts"
+            "command": "${PAI_DIR}/hooks/StartupGreeting.hook.ts",
+            "timeout": 30000
           },
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/LoadContext.hook.ts"
+            "command": "${PAI_DIR}/hooks/LoadContext.hook.ts",
+            "timeout": 30000
           }
         ]
       },
@@ -269,6 +293,7 @@
           {
             "type": "command",
             "command": "${PAI_DIR}/hooks/CheckVersion.hook.ts",
+            "timeout": 60000,
             "async": true
           }
         ]
@@ -278,6 +303,7 @@
           {
             "type": "command",
             "command": "${PAI_DIR}/hooks/VoiceGreeting.hook.ts",
+            "timeout": 30000,
             "async": true
           }
         ]
@@ -288,7 +314,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/StopOrchestrator.hook.ts"
+            "command": "${PAI_DIR}/hooks/StopOrchestrator.hook.ts",
+            "timeout": 30000
           }
         ]
       }
@@ -305,10 +332,12 @@
     "episodic-memory@superpowers-marketplace": true,
     "superpowers@superpowers-marketplace": true,
     "superpowers-chrome@superpowers-marketplace": true,
-    "superpowers-dev@superpowers-marketplace": true,
+    "superpowers-dev@superpowers-marketplace": false,
     "superpowers-developing-for-claude-code@superpowers-marketplace": true,
     "superpowers-lab@superpowers-marketplace": true,
-    "claudit@quickstop": true
+    "claudit@quickstop": true,
+    "frontend-design@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true
   },
   "spinnerVerbs": {
     "mode": "replace",
@@ -878,12 +907,12 @@
     "skills": 41,
     "workflows": 164,
     "hooks": 22,
-    "signals": 192,
+    "signals": 212,
     "files": 12,
-    "work": 535,
-    "sessions": 24,
+    "work": 606,
+    "sessions": 27,
     "research": 0,
-    "ratings": 192,
-    "updatedAt": "2026-02-26T16:15:03.266Z"
+    "ratings": 212,
+    "updatedAt": "2026-02-26T22:16:52.710Z"
   }
 }

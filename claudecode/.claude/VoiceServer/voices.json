@@ -211,6 +211,28 @@
 				"voice": "am_michael",
 				"speed": 1.0
 			}
+		},
+		"algorithm": {
+			"description": "The PAI Algorithm - core systematic intelligence, methodical and precise",
+			"catchphrase": "Algorithm initiating.",
+			"elevenlabs": {
+				"voice_id": "Ioq2c1GJee5RyqeoBIH3",
+				"voice_name": "Atlas (Identity)",
+				"stability": 0.8,
+				"similarity_boost": 0.9
+			},
+			"kokoro": {
+				"voice": "af_heart",
+				"speed": 1.0
+			}
+		},
+		"qa-tester": {
+			"description": "Methodical, precise - quality assurance specialist focused on verification",
+			"catchphrase": "QA Tester active. Running verification.",
+			"kokoro": {
+				"voice": "am_adam",
+				"speed": 0.9
+			}
 		}
 	}
 }
