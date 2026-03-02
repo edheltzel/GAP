@@ -904,15 +904,15 @@
     }
   },
   "counts": {
-    "skills": 41,
+    "skills": 42,
     "workflows": 164,
     "hooks": 22,
-    "signals": 215,
+    "signals": 238,
     "files": 12,
-    "work": 613,
+    "work": 727,
     "sessions": 27,
     "research": 0,
-    "ratings": 215,
-    "updatedAt": "2026-02-26T22:55:58.603Z"
+    "ratings": 238,
+    "updatedAt": "2026-03-02T19:27:19.933Z"
   }
 }
