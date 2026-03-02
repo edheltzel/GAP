@@ -1,14 +1,12 @@
 {
 	"$schema": "https://opencode.ai/config.json",
-	"theme": "eldritch-dark",
 	"autoupdate": true,
-	"tui": {},
 	"agent": {
 		"plan": {
-			"model": "google/gemini-3-flash-preview"
+			"model": ""
 		},
 		"build": {
-			"model": "google/gemini-3-pro-preview"
+			"model": ""
 		}
 	},
 	"mcp": {
