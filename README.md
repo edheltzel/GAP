@@ -95,6 +95,7 @@ Tools for creating software, CLIs, skills, and deploying to the cloud.
 | **Browser**     | `/browser`      | Debug-first browser automation with always-on visibility. Console logs, network requests, and error capture. |
 | **Documents**   | `/documents`    | Document processing and transformation.                                                                      |
 | **Remotion**    | `/remotion`     | Programmatic video creation with React. Motion graphics, intros, and rendered video output.                  |
+| **Commit**      | `/commit`       | Conventional Commits workflow with CHANGELOG updates, scopes, breaking changes, and safety rules.            |
 | **Evals**       | `/evals`        | Agent evaluation framework. Tests agent behavior with code-based, model-based, and human graders.            |
 
 ### Content and Creative

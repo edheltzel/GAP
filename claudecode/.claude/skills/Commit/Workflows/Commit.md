@@ -67,17 +67,17 @@ Add a description of the changes under the `## [Unreleased]` section:
 
 ## Step 5: Generate Commit Message
 
-Follow this format:
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
 
 ```
-<type>: <short description>
+<type>[optional scope]: <description>
 
-<optional body explaining what and why>
+[optional body]
 
-Co-Authored-By: Claude <noreply@anthropic.com>
+[optional footer(s)]
 ```
 
-**Types:**
+### Types
 
 | Type | When |
 |------|------|
@@ -88,13 +88,61 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 | `style` | Formatting, whitespace |
 | `test` | Adding or updating tests |
 | `chore` | Maintenance tasks, dependencies |
+| `perf` | Performance improvement |
+| `build` | Build system or dependency changes |
+| `ci` | CI/CD configuration changes |
+| `revert` | Reverts a previous commit |
 
-**Guidelines:**
-- Keep the first line under 72 characters
-- Use imperative mood ("add feature" not "added feature")
+### Scopes (optional)
+
+Add a scope in parentheses for additional context about what changed:
+
+```
+feat(auth): add two-factor authentication
+fix(api): handle rate limit errors
+refactor(db): optimize user query performance
+```
+
+Choose scopes that match the project's architecture — e.g. `auth`, `api`, `ui`, `db`, `config`.
+
+### Description rules
+
+- Use imperative mood: "add" not "added" or "adds"
+- Don't capitalize the first letter
+- No period at the end
+- Keep under 72 characters (ideally under 50)
 - Focus on WHY the change was made, not just WHAT changed
-- Don't include file lists in the message — git tracks that
+- Don't include file lists — git tracks that
 - Match the style of recent commits in the repo when possible
+
+### Body (optional)
+
+Include a body when the change needs explanation:
+
+- Separate from description with a blank line
+- Use imperative mood
+- Wrap at 72 characters
+- Explain non-obvious design decisions, migration notes, or context
+
+### Breaking changes
+
+Mark breaking changes with `!` after the type/scope, or with a `BREAKING CHANGE:` footer:
+
+```
+feat(api)!: change authentication endpoint
+
+BREAKING CHANGE: The /auth endpoint now requires a client_id parameter.
+```
+
+### Issue references (optional)
+
+Link to issues in the footer:
+
+```
+Fixes #123
+Closes #456
+Related to #789
+```
 
 ## Step 6: Create the Commit
 
@@ -102,11 +150,11 @@ Use a HEREDOC for proper formatting:
 
 ```bash
 git commit -m "$(cat <<'EOF'
-type: short description
+type(scope): short description
 
-Optional longer description.
+Optional longer description explaining why.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
+Fixes #123
 EOF
 )"
 ```

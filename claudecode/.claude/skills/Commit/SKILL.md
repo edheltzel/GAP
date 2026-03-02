@@ -5,7 +5,7 @@ description: Generate and create git commits with conventional commit messages a
 
 # Commit
 
-Create well-structured git commits with conventional commit messages that clearly describe changes. Automatically updates CHANGELOG.md and includes Co-Authored-By attribution.
+Create well-structured git commits following the [Conventional Commits](https://www.conventionalcommits.org/) specification. Automatically updates CHANGELOG.md.
 
 ## Customization
 
@@ -46,7 +46,7 @@ User: "Commit these changes"
 -> Checks git status and diff
 -> Analyzes changes for commit type
 -> Updates CHANGELOG.md
--> Creates conventional commit with Co-Authored-By
+-> Creates conventional commit
 ```
 
 **Example 2: Stage and commit everything**
@@ -56,7 +56,7 @@ User: "Save all my work"
 -> Runs git status, stages unstaged changes
 -> Generates appropriate commit message
 -> Updates CHANGELOG.md
--> Commits with full attribution
+-> Commits with conventional message
 ```
 
 **Example 3: Commit with specific message guidance**
@@ -80,3 +80,7 @@ User: "Commit this as a bugfix for the auth timeout"
 | `style` | Formatting, whitespace |
 | `test` | Adding or updating tests |
 | `chore` | Maintenance tasks, dependencies |
+| `perf` | Performance improvement |
+| `build` | Build system or dependency changes |
+| `ci` | CI/CD configuration changes |
+| `revert` | Reverts a previous commit |
