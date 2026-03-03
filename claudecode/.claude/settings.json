@@ -939,13 +939,13 @@
   "counts": {
     "skills": 42,
     "workflows": 164,
-    "hooks": 23,
-    "signals": 245,
+    "hooks": 22,
+    "signals": 244,
     "files": 12,
-    "work": 752,
+    "work": 748,
     "sessions": 27,
     "research": 0,
-    "ratings": 245,
-    "updatedAt": "2026-03-03T09:22:17.582Z"
+    "ratings": 244,
+    "updatedAt": "2026-03-03T00:10:20.064Z"
   }
 }

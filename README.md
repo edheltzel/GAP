@@ -1,16 +1,16 @@
 # Atlas Config
 
-**Atlas - Personal AI Infrastructure (Atlas)** configuration, managed with [GNU Stow](https://www.gnu.org/software/stow/).
+**Atlas - Personal AI Infrastructure (PAI)** configuration, managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
 Atlas is a general problem-solving system that magnifies human capabilities. It wraps Claude Code with a structured algorithm, 37 skills, 20 lifecycle hooks, voice integration, persistent memory, and a multi-agent coordination system.
 
-This repo contains the full Atlas (Atlas) configuration. Files here get symlinked into `~/.claude/` via Stow — keeping everything version-controlled and portable.
+This repo contains the full Atlas (PAI) configuration. Files here get symlinked into `~/.claude/` via Stow — keeping everything version-controlled and portable.
 
 ---
 
 ## What is Atlas?
 
-**Atlas** is the AI assistant identity that runs on Atlas. Think of it as a capable partner — not a tool to be commanded, but a collaborator with broad knowledge, zero ego, and genuine investment in your success.
+**Atlas** is the AI assistant identity that runs on PAI. Think of it as a capable partner — not a tool to be commanded, but a collaborator with broad knowledge, zero ego, and genuine investment in your success.
 
 Atlas operates across four roles simultaneously:
 
@@ -41,7 +41,7 @@ The depth scales dynamically — a quick question gets a lightweight pass, while
 
 ## Skills
 
-Skills are domain-specific capabilities invoked as slash commands. Type `/<skill-name>` in any Claude Code session with Atlas active.
+Skills are domain-specific capabilities invoked as slash commands. Type `/<skill-name>` in any Claude Code session with PAI active.
 
 ### Thinking and Analysis
 
@@ -90,7 +90,7 @@ Tools for creating software, CLIs, skills, and deploying to the cloud.
 | Skill           | Command         | What It Does                                                                                                 |
 | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
 | **CreateCLI**   | `/create-cli`   | Generates TypeScript command-line tools with argument parsing, help text, and proper structure.              |
-| **CreateSkill** | `/create-skill` | Creates and validates new Atlas skills. Generates the full skill directory structure.                          |
+| **CreateSkill** | `/create-skill` | Creates and validates new PAI skills. Generates the full skill directory structure.                          |
 | **Cloudflare**  | `/cloudflare`   | Deploys Cloudflare Workers and Pages projects. Handles configuration, bindings, and deployment.              |
 | **Browser**     | `/browser`      | Debug-first browser automation with always-on visibility. Console logs, network requests, and error capture. |
 | **Documents**   | `/documents`    | Document processing and transformation.                                                                      |
@@ -126,7 +126,7 @@ Tools for managing and improving Atlas itself.
 
 | Skill               | Command             | What It Does                                                                                              |
 | ------------------- | ------------------- | --------------------------------------------------------------------------------------------------------- |
-| **AtlasUpgrade**      | `/pai-upgrade`      | Extracts system improvements from content. Monitors Anthropic ecosystem and YouTube for relevant updates. |
+| **PAIUpgrade**      | `/pai-upgrade`      | Extracts system improvements from content. Monitors Anthropic ecosystem and YouTube for relevant updates. |
 | **Agents**          | `/agents`           | Dynamic agent composition and management. Create custom agent personalities, voices, and specializations. |
 | **KeybindingsHelp** | `/keybindings-help` | Customize Claude Code keyboard shortcuts, chord bindings, and keybindings.json.                           |
 
@@ -136,11 +136,11 @@ Tools for managing and improving Atlas itself.
 
 ```
 atlas-config/
-├── .claude/                  ← Atlas configuration root (symlinked to ~/.claude/)
+├── .claude/                  ← PAI configuration root (symlinked to ~/.claude/)
 │   ├── settings.json         ← Hooks, identity, statusline, permissions
 │   ├── CLAUDE.md             ← Agent context injection
 │   ├── skills/               ← 37 skill modules
-│   │   ├── Atlas/              ← Core algorithm and system docs
+│   │   ├── PAI/              ← Core algorithm and system docs
 │   │   ├── Fabric/           ← 240+ prompt patterns
 │   │   └── ...               ← Domain-specific skills
 │   ├── hooks/                ← 20 lifecycle event handlers
@@ -151,7 +151,7 @@ atlas-config/
 │   │   └── LEARNING/         ← Reflections and learnings
 │   ├── VoiceServer/          ← ElevenLabs TTS service
 │   ├── lib/                  ← Shared TypeScript utilities
-│   └── Atlas-Install/          ← Installer and setup wizard
+│   └── PAI-Install/          ← Installer and setup wizard
 ├── CLAUDE.md                 ← Agent entry point (see below)
 ├── makefile                  ← Stow commands
 └── README.md                 ← This file
