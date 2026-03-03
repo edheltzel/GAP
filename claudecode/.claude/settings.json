@@ -786,21 +786,25 @@
     "voices": {
       "main": {
         "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "voiceName": "Rachel",
         "stability": 0.35,
         "similarityBoost": 0.8,
         "style": 0.9,
-        "speed": 1.1
+        "speed": 1.1,
+        "use_speaker_boost": true
       },
       "algorithm": {
         "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "voiceName": "Rachel",
         "stability": 0.35,
         "similarityBoost": 0.8,
         "style": 0.9,
-        "speed": 1.1
+        "speed": 1.1,
+        "use_speaker_boost": true
       }
     },
     "personality": {
-      "baseVoice": "Describe your DA's voice characteristics here - accent, speech pattern, personality tone",
+      "baseVoice": "",
       "_docs": "Personality traits (0-100) shape HOW emotions are expressed vocally. Same emotion, different expression based on these traits.",
       "enthusiasm": 75,
       "energy": 80,
@@ -831,7 +835,16 @@
   },
   "pai": {
     "repoUrl": "https://github.com/danielmiessler/PAI",
-    "version": "3.0"
+    "version": "3.0",
+    "algorithmVersion": "3.6.0"
+  },
+  "preferences": {
+    "temperatureUnit": "fahrenheit"
+  },
+  "dynamicContext": {
+    "relationshipContext": true,
+    "learningReadback": true,
+    "activeWorkSummary": true
   },
   "contextDisplay": {
     "compactionThreshold": 83,
@@ -907,12 +920,12 @@
     "skills": 42,
     "workflows": 164,
     "hooks": 22,
-    "signals": 238,
+    "signals": 244,
     "files": 12,
-    "work": 727,
+    "work": 748,
     "sessions": 27,
     "research": 0,
-    "ratings": 238,
-    "updatedAt": "2026-03-02T19:27:19.933Z"
+    "ratings": 244,
+    "updatedAt": "2026-03-03T00:10:20.064Z"
   }
 }

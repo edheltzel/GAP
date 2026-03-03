@@ -45,6 +45,7 @@ import { getPaiDir } from "./lib/paths";
 import { recordSessionStart } from "./lib/notifications";
 import { setTabState, readTabState } from "./lib/tab-setter";
 import { getDAName } from "./lib/identity";
+import { loadLearningDigest } from "./lib/learning-readback";
 
 /**
  * Reset tab title to clean state at session start.
@@ -103,7 +104,23 @@ function getCurrentDate(): string {
 
 interface Settings {
 	contextFiles?: string[];
+	dynamicContext?: DynamicContextConfig;
 	[key: string]: unknown;
+}
+
+interface DynamicContextConfig {
+	relationshipContext?: boolean;
+	learningReadback?: boolean;
+	activeWorkSummary?: boolean;
+}
+
+/**
+ * Check if a dynamic context feature is enabled in settings.json.
+ * Defaults to true if the dynamicContext section is missing (opt-out model).
+ */
+function isDynamicEnabled(settings: Settings, feature: keyof DynamicContextConfig): boolean {
+	if (!settings.dynamicContext) return true; // all enabled by default
+	return settings.dynamicContext[feature] !== false;
 }
 
 /**
@@ -658,9 +675,26 @@ async function main() {
 		console.error(`👤 Principal: ${PRINCIPAL_NAME}, DA: ${DA_NAME}`);
 
 		// Load relationship context (lightweight summary)
-		const relationshipContext = loadRelationshipContext(paiDir);
-		if (relationshipContext) {
-			console.error("💕 Loaded relationship context");
+		let relationshipContext: string | null = null;
+		if (isDynamicEnabled(settings, 'relationshipContext')) {
+			relationshipContext = loadRelationshipContext(paiDir);
+			if (relationshipContext) {
+				console.error("💕 Loaded relationship context");
+			}
+		}
+
+		// Load learning readback (algorithm reflections digest)
+		let learningContext = '';
+		if (isDynamicEnabled(settings, 'learningReadback')) {
+			try {
+				const digest = loadLearningDigest(paiDir);
+				if (digest) {
+					learningContext = `\n---\n\n## Learning Readback\n\n${digest}`;
+					console.error("📚 Loaded learning readback digest");
+				}
+			} catch (err) {
+				console.error(`⚠️ Failed to load learning readback: ${err}`);
+			}
 		}
 
 		const message = `<system-reminder>
@@ -683,7 +717,7 @@ The assistant's name is: **${DA_NAME}**
 ---
 
 ${contextContent}
-${relationshipContext ? "\n---\n" + relationshipContext : ""}
+${relationshipContext ? "\n---\n" + relationshipContext : ""}${learningContext}
 ---
 
 This context is now active. Additional context loads dynamically as needed.
@@ -696,7 +730,9 @@ This context is now active. Additional context loads dynamically as needed.
 		console.log("\n✅ PAI Context successfully loaded...");
 
 		// Check for active progress files and display them
-		const activeProgress = await checkActiveProgress(paiDir);
+		const activeProgress = isDynamicEnabled(settings, 'activeWorkSummary')
+			? await checkActiveProgress(paiDir)
+			: null;
 		if (activeProgress) {
 			console.log(activeProgress);
 			console.error("📋 Active work found from previous sessions");
@@ -706,7 +742,8 @@ This context is now active. Additional context loads dynamically as needed.
 		process.exit(0);
 	} catch (error) {
 		console.error("❌ Error in load-pai-context hook:", error);
-		process.exit(1);
+		// Non-fatal: allow session to start even if context loading fails
+		process.exit(0);
 	}
 }
 

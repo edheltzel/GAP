@@ -168,6 +168,20 @@ export function getVoiceId(): string {
 }
 
 /**
+ * Get Algorithm-specific voice config (for phase announcements).
+ * Falls back to main voice if algorithm voice not configured.
+ */
+export function getAlgorithmVoice(): { voiceId: string; voiceName?: string } {
+  const settings = loadSettings();
+  const voices = (settings.daidentity as any)?.voices || {};
+  const algVoice = voices.algorithm || voices.main;
+  return {
+    voiceId: algVoice?.voiceId || getVoiceId(),
+    voiceName: algVoice?.voiceName,
+  };
+}
+
+/**
  * Get the full settings object (for advanced use)
  */
 export function getSettings(): Settings {
