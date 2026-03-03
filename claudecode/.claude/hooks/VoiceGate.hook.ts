@@ -4,7 +4,7 @@
  *
  * PURPOSE:
  * Prevents background agents / subagents from sending voice notifications.
- * Only the main terminal session (identified by having a kitty-sessions file)
+ * Only the main terminal session (identified by absence of CLAUDE_CODE_AGENT_TASK_ID)
  * is allowed to curl the voice server at localhost:8888.
  *
  * ROOT CAUSE THIS FIXES:
@@ -22,10 +22,6 @@
  * PERFORMANCE: <5ms. Fast-path exit for non-voice commands.
  */
 
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
-
 interface HookInput {
   tool_name: string;
   tool_input: {
@@ -34,9 +30,12 @@ interface HookInput {
   session_id: string;
 }
 
-function isMainSession(sessionId: string): boolean {
-  const paiDir = process.env.PAI_DIR || join(homedir(), '.claude');
-  return existsSync(join(paiDir, 'MEMORY', 'STATE', 'kitty-sessions', `${sessionId}.json`));
+function isMainSession(): boolean {
+  // Subagents always have CLAUDE_CODE_AGENT_TASK_ID set by Claude Code.
+  // Main interactive sessions do not. This is reliable regardless of terminal
+  // emulator (works on WezTerm, Kitty, iTerm2, etc.) — unlike the previous
+  // kitty-sessions file check which only worked with Kitty.
+  return !process.env.CLAUDE_CODE_AGENT_TASK_ID;
 }
 
 async function main() {
@@ -71,7 +70,7 @@ async function main() {
   }
 
   // It's a voice curl — check if main session
-  if (isMainSession(input.session_id)) {
+  if (isMainSession()) {
     console.log(JSON.stringify({ continue: true }));
     return;
   }
