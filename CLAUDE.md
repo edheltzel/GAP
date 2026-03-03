@@ -4,33 +4,33 @@
 
 If you are an AI agent working in this repo, read the following files for full system context:
 
-1. **`claudecode/.claude/skills/PAI/SKILL.md`** — The complete PAI system documentation including the Algorithm, capabilities, and execution rules.
+1. **`claudecode/.claude/skills/Atlas/SKILL.md`** — The complete Atlas system documentation including the Algorithm, capabilities, and execution rules.
 2. **`claudecode/.claude/CLAUDE.md`** — Context injection and session initialization.
 3. **`claudecode/.claude/settings.json`** — Identity configuration, hooks, and permissions.
 
 Do not modify files in `claudecode/.claude/MEMORY/` without understanding the memory system (documented in `SKILL.md`).
 
-## Local Modifications (PAIUpdate Protection)
+## Local Modifications (AtlasUpdate Protection)
 
-The following files contain **local customizations** that must NOT be overwritten during a PAI update (`/pai-upgrade`). When pulling upstream PAI changes, preserve these modifications:
+The following files contain **local customizations** that must NOT be overwritten during a Atlas update (`/pai-upgrade`). When pulling upstream Atlas changes, preserve these modifications:
 
 | File                                    | What Was Customized                                                                                                                                                                                                                                                                                                                                   |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `claudecode/.claude/skills/PAI/Tools/Banner.ts`    | Fully rewritten with Eldritch theme. WezTerm-native width detection (`wezterm cli list`). Animated asciigen.art planet frames — **high quality**, downsampled to 1/3 size (14 rows × ~39 cols, ROW_STEP=3 COL_STEP=3), single gray, 50 consecutive frames starting at frame 90 (North America). Falls back to raycast sphere when asciify dir absent. |
-| `claudecode/.claude/skills/PAI/Tools/pai.ts`       | Added `--dangerously-skip-permissions` flag to `cmdLaunch()`. Removed hardcoded voice notification (handled by async hook instead).                                                                                                                                                                                                                   |
+| `claudecode/.claude/skills/Atlas/Tools/Banner.ts`    | Fully rewritten with Eldritch theme. WezTerm-native width detection (`wezterm cli list`). Animated asciigen.art planet frames — **high quality**, downsampled to 1/3 size (14 rows × ~39 cols, ROW_STEP=3 COL_STEP=3), single gray, 50 consecutive frames starting at frame 90 (North America). Falls back to raycast sphere when asciify dir absent. |
+| `claudecode/.claude/skills/Atlas/Tools/pai.ts`       | Added `--dangerously-skip-permissions` flag to `cmdLaunch()`. Removed hardcoded voice notification (handled by async hook instead).                                                                                                                                                                                                                   |
 | `claudecode/.claude/hooks/StartupGreeting.hook.ts` | Removed banner display from hook (banner only shows via `pai.ts` CLI path). Kitty env persistence code is inactive (Ed uses WezTerm).                                                                                                                                                                                                                 |
 | `claudecode/.claude/hooks/VoiceGreeting.hook.ts`   | **New file** — async SessionStart hook that speaks the startup catchphrase for ALL launch paths (`pai`, `atlas`, `claude`).                                                                                                                                                                                                                           |
 | `claudecode/.claude/settings.json`                 | Registered `VoiceGreeting.hook.ts` as an async SessionStart hook in the hooks section. `statusLine.command` points to `atlas-statusline.sh` (not upstream `statusline-command.sh`). `plansDirectory` set to `./.atlas-plans` (project-local, Atlas-branded; avoids tilde-expansion bug).                                                              |
-| `claudecode/.claude/atlas-statusline.sh`           | **User-owned statusline** — full copy of upstream `statusline-command.sh` with color palette remapped to Eldritch theme (`#04d1f9` cyan, `#37f499` green, `#a48cf2` purple). Do NOT overwrite with upstream during PAIUpdate; instead diff and merge the logic sections while keeping the COLOR PALETTE block.                                        |
+| `claudecode/.claude/atlas-statusline.sh`           | **User-owned statusline** — full copy of upstream `statusline-command.sh` with color palette remapped to Eldritch theme (`#04d1f9` cyan, `#37f499` green, `#a48cf2` purple). Do NOT overwrite with upstream during AtlasUpdate; instead diff and merge the logic sections while keeping the COLOR PALETTE block.                                        |
 | `~/.zshrc`                              | Added `atlas` alias alongside `pai` alias.                                                                                                                                                                                                                                                                                                            |
 
-**During PAIUpdate:** If upstream changes touch any of these files, merge carefully — do not blindly replace. The voice greeting architecture depends on the hook being async and `pai.ts` NOT having its own voice call. For `atlas-statusline.sh`: only merge changes to sections OTHER than `# COLOR PALETTE` — that block is intentionally Eldritch-themed.
+**During AtlasUpdate:** If upstream changes touch any of these files, merge carefully — do not blindly replace. The voice greeting architecture depends on the hook being async and `pai.ts` NOT having its own voice call. For `atlas-statusline.sh`: only merge changes to sections OTHER than `# COLOR PALETTE` — that block is intentionally Eldritch-themed.
 
 ## v4.0.3 Integration Decisions (2026-03-02)
 
 ### Algorithm: v3.5.0-atlas adopted (replaces v1.2.0)
 
-- **Component file:** `claudecode/.claude/skills/PAI/Components/Algorithm/v3.5.0-atlas.md`
+- **Component file:** `claudecode/.claude/skills/Atlas/Components/Algorithm/v3.5.0-atlas.md`
 - **LATEST pointer:** Updated to `v3.5.0-atlas`
 - v3.5.0 base with Atlas extensions (Loop Mode, Agent Teams, voice config)
 - v1.2.0 additions (Constraint Fidelity, Specificity Preservation, Coverage Map QG6/QG7) intentionally NOT forward-ported — v3.5.0 replaces them structurally with ISC Splitting Test + Count Gate
@@ -38,9 +38,9 @@ The following files contain **local customizations** that must NOT be overwritte
 ### BuildCLAUDE.ts: DEFERRED
 
 - v4.0.3 generates `CLAUDE.md` dynamically from `CLAUDE.md.template` + `settings.json` variables
-- Atlas uses `contextFiles` array in settings.json + `SKILL.md` (built by RebuildPAI.ts) — functionally equivalent
-- Adopting BuildCLAUDE.ts would require creating an Atlas-specific template, migrating from contextFiles, and maintaining two template systems (RebuildPAI + BuildCLAUDE)
-- **Decision:** Keep current RebuildPAI.ts + contextFiles approach. Revisit if upstream PAI makes BuildCLAUDE.ts the only supported path
+- Atlas uses `contextFiles` array in settings.json + `SKILL.md` (built by RebuildAtlas.ts) — functionally equivalent
+- Adopting BuildCLAUDE.ts would require creating an Atlas-specific template, migrating from contextFiles, and maintaining two template systems (RebuildAtlas + BuildCLAUDE)
+- **Decision:** Keep current RebuildAtlas.ts + contextFiles approach. Revisit if upstream Atlas makes BuildCLAUDE.ts the only supported path
 
 ### NATIVE Mode: ADOPTED (via Algorithm v3.5.0-atlas)
 
@@ -63,4 +63,4 @@ The following files contain **local customizations** that must NOT be overwritte
 
 ## For Humans
 
-See **[README.md](README.md)** for a human-friendly overview of PAI, Atlas, all available skills, and setup instructions.
+See **[README.md](README.md)** for a human-friendly overview of Atlas, Atlas, all available skills, and setup instructions.
