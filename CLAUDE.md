@@ -26,6 +26,41 @@ The following files contain **local customizations** that must NOT be overwritte
 
 **During PAIUpdate:** If upstream changes touch any of these files, merge carefully — do not blindly replace. The voice greeting architecture depends on the hook being async and `pai.ts` NOT having its own voice call. For `atlas-statusline.sh`: only merge changes to sections OTHER than `# COLOR PALETTE` — that block is intentionally Eldritch-themed.
 
+## v4.0.3 Integration Decisions (2026-03-02)
+
+### Algorithm: v3.5.0-atlas adopted (replaces v1.2.0)
+
+- **Component file:** `claudecode/.claude/skills/PAI/Components/Algorithm/v3.5.0-atlas.md`
+- **LATEST pointer:** Updated to `v3.5.0-atlas`
+- v3.5.0 base with Atlas extensions (Loop Mode, Agent Teams, voice config)
+- v1.2.0 additions (Constraint Fidelity, Specificity Preservation, Coverage Map QG6/QG7) intentionally NOT forward-ported — v3.5.0 replaces them structurally with ISC Splitting Test + Count Gate
+
+### BuildCLAUDE.ts: DEFERRED
+
+- v4.0.3 generates `CLAUDE.md` dynamically from `CLAUDE.md.template` + `settings.json` variables
+- Atlas uses `contextFiles` array in settings.json + `SKILL.md` (built by RebuildPAI.ts) — functionally equivalent
+- Adopting BuildCLAUDE.ts would require creating an Atlas-specific template, migrating from contextFiles, and maintaining two template systems (RebuildPAI + BuildCLAUDE)
+- **Decision:** Keep current RebuildPAI.ts + contextFiles approach. Revisit if upstream PAI makes BuildCLAUDE.ts the only supported path
+
+### NATIVE Mode: ADOPTED (via Algorithm v3.5.0-atlas)
+
+- v4.0.3's NATIVE mode for simple tasks (<2min) is included in the v3.5.0-atlas Algorithm component
+- Replaces the old Instant/Fast effort level tiers with a cleaner mode-selection model
+- Mode routing (ALGORITHM vs NATIVE vs MINIMAL) handled within the Algorithm text, not in CLAUDE.md template
+
+### PRDSync.hook.ts: ADOPTED
+
+- Read-only PostToolUse hook that syncs PRD frontmatter to `work.json` for dashboard visibility
+- Triggers on Write/Edit of `PRD.md` files in `MEMORY/WORK/`
+- Registered in settings.json for both Write and Edit matchers
+
+### New lib files added from v4.0.3
+
+- `hooks/lib/hook-io.ts` — Shared stdin/transcript parser for hooks
+- `hooks/lib/prd-utils.ts` — PRD CRUD utilities (frontmatter parsing, work.json sync)
+- `hooks/lib/prd-template.ts` — PRD template generation
+- `hooks/lib/learning-readback.ts` — Algorithm reflection readback for session context
+
 ## For Humans
 
 See **[README.md](README.md)** for a human-friendly overview of PAI, Atlas, all available skills, and setup instructions.
