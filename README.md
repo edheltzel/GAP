@@ -136,7 +136,7 @@ Tools for managing and improving Atlas itself.
 
 ```
 atlas-config/
-├── .claude/                  ← PAI configuration root (symlinked to ~/.claude/)
+├── claudecode/.claude/       ← Stow package → symlinked to ~/.claude/
 │   ├── settings.json         ← Hooks, identity, statusline, permissions
 │   ├── CLAUDE.md             ← Agent context injection
 │   ├── skills/               ← 37 skill modules
@@ -145,15 +145,14 @@ atlas-config/
 │   │   └── ...               ← Domain-specific skills
 │   ├── hooks/                ← 23 lifecycle event handlers
 │   ├── agents/               ← Named agent personas
-│   ├── MEMORY/               ← Persistent memory
-│   │   ├── WORK/             ← Active session data and PRDs
-│   │   ├── STATE/            ← System state
-│   │   └── LEARNING/         ← Reflections and learnings
+│   ├── MEMORY/               ← Persistent memory (gitignored)
 │   ├── VoiceServer/          ← ElevenLabs TTS service
 │   ├── lib/                  ← Shared TypeScript utilities
 │   └── PAI-Install/          ← Installer and setup wizard
-├── CLAUDE.md                 ← Agent entry point (see below)
-├── justfile                  ← Stow commands
+├── opencode/.config/opencode/ ← Stow package → symlinked to ~/.config/opencode/
+├── docs/plans/               ← Implementation and audit plans
+├── CLAUDE.md                 ← Agent entry point
+├── justfile                  ← Stow commands (just link, just up, etc.)
 └── README.md                 ← This file
 ```
 

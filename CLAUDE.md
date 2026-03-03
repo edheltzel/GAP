@@ -56,10 +56,22 @@ The following files contain **local customizations** that must NOT be overwritte
 
 ### New lib files added from v4.0.3
 
-- `hooks/lib/hook-io.ts` — Shared stdin/transcript parser for hooks
 - `hooks/lib/prd-utils.ts` — PRD CRUD utilities (frontmatter parsing, work.json sync)
-- `hooks/lib/prd-template.ts` — PRD template generation
 - `hooks/lib/learning-readback.ts` — Algorithm reflection readback for session context
+
+*Note: `hook-io.ts` and `prd-template.ts` were added but removed in the 2026-03-03 codebase audit — they had zero consumers.*
+
+## Codebase Audit (2026-03-03)
+
+A comprehensive multi-agent audit removed 55 orphaned files (~12,900 lines deleted). Two red team validations confirmed zero false positives. All removed files are backed up in `.audit-backup/` at repo root (gitignored) for rollback.
+
+**Key removals:** `skills/CORE/` (dead directory), 18 orphaned PAI tools/banner prototypes, `lib/migration/` (orphan tree), 3 unwired hook libs, misc dead files.
+
+**Key fixes:** Case-sensitive SKILL.md paths (Aphorisms, BrightData, Sales, USMetrics), `LoadAgentContext.ts` dir casing, settings.json versions, hooks/README.md accuracy.
+
+**Kept (live dependencies):** `IntegrityMaintenance.ts` (subprocess from SystemIntegrity handler), `LoadSkillConfig.ts` (PAIUpgrade workflow).
+
+**Full details:** `docs/plans/2026-03-03-codebase-audit-cleanup.md`, audit reports at `~/.claude/MEMORY/WORK/20260303-042800_codebase-orphan-audit/`
 
 ## For Humans
 
