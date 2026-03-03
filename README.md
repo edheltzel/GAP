@@ -2,7 +2,7 @@
 
 **Atlas - Personal AI Infrastructure (PAI)** configuration, managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
-Atlas is a general problem-solving system that magnifies human capabilities. It wraps Claude Code with a structured algorithm, 37 skills, 20 lifecycle hooks, voice integration, persistent memory, and a multi-agent coordination system.
+Atlas is a general problem-solving system that magnifies human capabilities. It wraps Claude Code with a structured algorithm, 37 skills, 23 lifecycle hooks, voice integration, persistent memory, and a multi-agent coordination system.
 
 This repo contains the full Atlas (PAI) configuration. Files here get symlinked into `~/.claude/` via Stow — keeping everything version-controlled and portable.
 
@@ -143,7 +143,7 @@ atlas-config/
 │   │   ├── PAI/              ← Core algorithm and system docs
 │   │   ├── Fabric/           ← 240+ prompt patterns
 │   │   └── ...               ← Domain-specific skills
-│   ├── hooks/                ← 20 lifecycle event handlers
+│   ├── hooks/                ← 23 lifecycle event handlers
 │   ├── agents/               ← Named agent personas
 │   ├── MEMORY/               ← Persistent memory
 │   │   ├── WORK/             ← Active session data and PRDs
@@ -153,7 +153,7 @@ atlas-config/
 │   ├── lib/                  ← Shared TypeScript utilities
 │   └── PAI-Install/          ← Installer and setup wizard
 ├── CLAUDE.md                 ← Agent entry point (see below)
-├── makefile                  ← Stow commands
+├── justfile                  ← Stow commands
 └── README.md                 ← This file
 ```
 
@@ -175,7 +175,7 @@ git clone <your-repo-url> ~/Developer/atlas-config
 cd ~/Developer/atlas-config
 
 # Symlink Atlas config into ~/.claude/
-make link
+just link
 
 # Run the Atlas installer (first time only)
 bash ~/.claude/install.sh
@@ -188,12 +188,12 @@ pai    # or: atlas (same thing)
 ### Stow Commands
 
 ```sh
-make help      # Show all commands
-make link      # First-time setup — create symlinks
-make up        # Restow after adding/removing files
-make status    # Dry run + show current symlinks
-make unlink    # Remove all symlinks
-make push      # Commit and push changes
+just help      # Show all commands
+just link      # First-time setup — create symlinks
+just up        # Restow after adding/removing files
+just status    # Dry run + show current symlinks
+just unlink    # Remove all symlinks
+just push      # Commit and push changes
 ```
 
 Claude Code runtime files (`debug/`, `todos/`, `projects/`, `history.jsonl`, etc.) stay as real files in `~/.claude/` and are not tracked here.

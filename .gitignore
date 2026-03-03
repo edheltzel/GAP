@@ -57,3 +57,6 @@ claudecode/.claude/Observability/MenuBarApp/Observability.app/
 
 # Superpowers plugin (managed independently by each coding agent)
 opencode/.config/opencode/superpowers/
+
+# Audit backup (orphan files moved during codebase audit, pending deletion)
+.audit-backup/

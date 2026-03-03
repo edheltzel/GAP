@@ -44,21 +44,24 @@ Hooks are TypeScript scripts that execute at specific lifecycle events in Claude
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  SessionStart ──┬──► StartupGreeting (banner + stats)               │
-│                 ├──► LoadContext (PAI skill injection)             │
+│                 ├──► VoiceGreeting (async voice announcement)       │
+│                 ├──► LoadContext (PAI skill injection)              │
 │                 └──► CheckVersion (update notification)             │
 │                                                                     │
 │  UserPromptSubmit ──┬──► RatingCapture (algo reminder + ratings)    │
 │                     ├──► AutoWorkCreation (work directory setup)    │
 │                     ├──► UpdateTabTitle (tab + voice announcement)  │
-│                     ├──► SessionAutoName (session naming)           │
-│                     └──► SessionReactivator (algorithm state)       │
+│                     └──► SessionAutoName (session naming)           │
 │                                                                     │
 │  PreToolUse ──┬──► SecurityValidator (Bash/Edit/Write/Read)         │
+│               ├──► VoiceGate (voice curl gating)                    │
+│               ├──► ModelRouter (model selection)                    │
 │               ├──► SetQuestionTab (AskUserQuestion)                 │
 │               ├──► AgentExecutionGuard (Task)                       │
 │               └──► SkillGuard (Skill)                               │
 │                                                                     │
-│  PostToolUse ──┬──► CriteriaTracker (all tools — phase + criteria)  │
+│  PostToolUse ──┬──► AlgorithmTracker (all tools — phase + criteria)  │
+│                ├──► PRDSync (Write/Edit PRD.md — dashboard sync)     │
 │                └──► QuestionAnswered (AskUserQuestion)               │
 │                                                                     │
 │  Stop ──► StopOrchestrator ──┬──► VoiceNotification                 │
@@ -125,6 +128,7 @@ interface StopPayload extends BasePayload {
 | Hook | Purpose | Blocking | Dependencies |
 |------|---------|----------|--------------|
 | `StartupGreeting.hook.ts` | Display PAI banner with system stats | No | None |
+| `VoiceGreeting.hook.ts` | Async voice announcement on session start | No | Voice Server |
 | `LoadContext.hook.ts` | Inject PAI skill into context | Yes (stdout) | `skills/PAI/SKILL.md` |
 | `CheckVersion.hook.ts` | Notify if CC update available | No | npm registry |
 
@@ -136,13 +140,14 @@ interface StopPayload extends BasePayload {
 | `AutoWorkCreation.hook.ts` | Create/update work directories | No | `MEMORY/STATE/current-work.json` |
 | `UpdateTabTitle.hook.ts` | Set tab title + voice announcement | No | Inference API, Voice Server |
 | `SessionAutoName.hook.ts` | Name session on first prompt | No | Inference API, `session-names.json` |
-| `SessionReactivator.hook.ts` | Reactivate algorithm state on new prompt | No | `lib/algorithm-state.ts` |
 
 ### PreToolUse Hooks
 
 | Hook | Purpose | Blocking | Dependencies |
 |------|---------|----------|--------------|
 | `SecurityValidator.hook.ts` | Validate Bash/Edit/Write/Read | Yes (decision) | `patterns.yaml`, `MEMORY/SECURITY/` |
+| `VoiceGate.hook.ts` | Gate voice curls to primary agent only | Yes (decision) | None |
+| `ModelRouter.hook.ts` | Route model selection per context | Yes (decision) | None |
 | `SetQuestionTab.hook.ts` | Set teal tab for questions | No | Kitty terminal |
 | `AgentExecutionGuard.hook.ts` | Guard agent spawning (Task tool) | Yes (decision) | None |
 | `SkillGuard.hook.ts` | Prevent erroneous skill invocations | Yes (decision) | None |
@@ -151,7 +156,8 @@ interface StopPayload extends BasePayload {
 
 | Hook | Purpose | Blocking | Dependencies |
 |------|---------|----------|--------------|
-| `CriteriaTracker.hook.ts` | Real-time phase tracking + ISC criteria tracking | No | `lib/algorithm-state.ts` |
+| `AlgorithmTracker.hook.ts` | Real-time phase tracking + ISC criteria tracking | No | `lib/algorithm-state.ts` |
+| `PRDSync.hook.ts` | Sync PRD frontmatter + criteria to work.json | No | `lib/prd-utils.ts` |
 | `QuestionAnswered.hook.ts` | Reset tab state after question answered | No | Kitty terminal |
 
 ### Stop Hooks
@@ -480,4 +486,4 @@ Use this checklist when adding or modifying hooks:
 ---
 
 *Last updated: 2026-02-09*
-*Hooks count: 20 | Events: 6 | Shared libs: 10*
+*Hooks count: 23 | Events: 6 | Shared libs: 9*

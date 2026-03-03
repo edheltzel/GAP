@@ -68,7 +68,7 @@ Running the **WorkflowName** workflow in the **USMetrics** skill to ACTION...
 
 **Execution:**
 ```bash
-bun ~/.claude/skills/USMetrics/Tools/update-substrate-metrics.ts
+bun ~/.claude/skills/USMetrics/Tools/UpdateSubstrateMetrics.ts
 ```
 
 **Outputs:**
@@ -124,9 +124,9 @@ For live data fetching:
 
 | Tool | Purpose |
 |------|---------|
-| `tools/update-substrate-metrics.ts` | **Primary** - Fetch all metrics, update Substrate files |
-| `tools/fetch-fred-series.ts` | Fetch historical data from FRED API |
-| `tools/GenerateAnalysis.ts` | Generate analysis report from Substrate data |
+| `Tools/UpdateSubstrateMetrics.ts` | **Primary** - Fetch all metrics, update Substrate files |
+| `Tools/FetchFredSeries.ts` | Fetch historical data from FRED API |
+| `Tools/GenerateAnalysis.ts` | Generate analysis report from Substrate data |
 
 ## Example Usage
 

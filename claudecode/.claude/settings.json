@@ -855,8 +855,8 @@
   },
   "pai": {
     "repoUrl": "https://github.com/danielmiessler/PAI",
-    "version": "3.0",
-    "algorithmVersion": "3.6.0"
+    "version": "4.0.3",
+    "algorithmVersion": "3.5.0"
   },
   "preferences": {
     "temperatureUnit": "fahrenheit"
@@ -940,12 +940,12 @@
     "skills": 42,
     "workflows": 164,
     "hooks": 23,
-    "signals": 250,
+    "signals": 267,
     "files": 12,
-    "work": 769,
-    "sessions": 27,
+    "work": 853,
+    "sessions": 28,
     "research": 0,
-    "ratings": 250,
-    "updatedAt": "2026-03-03T15:02:41.783Z"
+    "ratings": 267,
+    "updatedAt": "2026-03-03T20:32:14.160Z"
   }
 }

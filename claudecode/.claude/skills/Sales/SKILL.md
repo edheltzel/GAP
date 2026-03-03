@@ -62,16 +62,16 @@ SALES-READY OUTPUT
 
 ## Workflows
 
-### Full Sales Package → `Workflows/Create-sales-package.md`
+### Full Sales Package → `Workflows/CreateSalesPackage.md`
 **The complete pipeline.** Takes product docs and produces:
 - Sales narrative (story explanation)
 - Visual asset (charcoal sketch)
 - Key talking points
 
-### Sales Narrative Only → `Workflows/Create-narrative.md`
+### Sales Narrative Only → `Workflows/CreateNarrative.md`
 **Just the story.** Converts technical docs into compelling narrative.
 
-### Visual Asset Only → `Workflows/Create-visual.md`
+### Visual Asset Only → `Workflows/CreateVisual.md`
 **Just the visual.** Creates charcoal sketch art for existing narrative.
 
 ---

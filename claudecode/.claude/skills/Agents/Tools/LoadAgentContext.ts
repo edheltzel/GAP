@@ -26,7 +26,7 @@ export class AgentContextLoader {
 
   constructor() {
     this.claudeHome = join(homedir(), ".claude");
-    this.agentsDir = join(this.claudeHome, "Skills", "Agents");
+    this.agentsDir = join(this.claudeHome, "skills", "Agents");
   }
 
   /**
