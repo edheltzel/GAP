@@ -36,6 +36,9 @@ node_modules/
 claudecode/.claude/MEMORY/**
 !claudecode/.claude/MEMORY/README.md
 
+# Claude Code worktrees (auto-generated per-project)
+.claude/worktrees/
+
 # Atlas plan files (Claude Code plansDirectory)
 .atlas-plans/
 
