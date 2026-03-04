@@ -338,6 +338,15 @@
             "timeout": 30000
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/SessionExtract.ts",
+            "timeout": 30000
+          }
+        ]
       }
     ]
   },
