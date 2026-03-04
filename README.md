@@ -145,7 +145,7 @@ atlas-config/
 │   │   └── ...               ← Domain-specific skills
 │   ├── hooks/                ← 23 lifecycle event handlers
 │   ├── agents/               ← Named agent personas
-│   ├── MEMORY/               ← Persistent memory (gitignored)
+│   ├── MEMORY/               ← Persistent memory (gitignored, PAI subdirs + Recall flat files)
 │   ├── VoiceServer/          ← ElevenLabs TTS service
 │   ├── lib/                  ← Shared TypeScript utilities
 │   └── PAI-Install/          ← Installer and setup wizard
@@ -205,6 +205,6 @@ Claude Code runtime files (`debug/`, `todos/`, `projects/`, `history.jsonl`, etc
 2. **Claude hooks fire** — context loads, capabilities are assessed, the algorithm format is enforced.
 3. **The Algorithm runs** — your request is decomposed into testable criteria, work is planned and executed, results are verified against those criteria.
 4. **Skills are invoked** as needed — research agents fan out, browser automation verifies UI, security tools probe for vulnerabilities, creative tools generate content.
-5. **Memory persists** — session context, learning, and work products survive across sessions via PRD files and the memory system.
+5. **Memory persists** — session context, learning, and work products survive across sessions via PRD files, the MEMORY filesystem, and Recall (SQLite + FTS5 persistent memory with MCP tools for search and retrieval).
 6. **Voice announces** phase transitions and results (if configured with ElevenLabs), and voice mode with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) and [Whisper by OpenAI](https://huggingface.co/openai/whisper-small), for full conversations. A startup voice greeting fires for all launch paths via an async SessionStart hook.
    The result: structured, verifiable, high-quality output that improves with every interaction.
