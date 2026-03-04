@@ -1,13 +1,13 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
-    "PAI_DIR": "/Users/ed/.claude",
-    "PROJECTS_DIR": "/Users/ed/Developer",
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "80000",
     "BASH_DEFAULT_TIMEOUT_MS": "600000",
-    "PAI_CONFIG_DIR": "/Users/ed/.config/PAI",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "80000",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
+    "PAI_CONFIG_DIR": "/Users/ed/.config/PAI",
+    "PAI_DIR": "/Users/ed/.claude",
+    "PROJECTS_DIR": "/Users/ed/Developer"
   },
   "attribution": {
     "commit": "",
@@ -72,6 +72,89 @@
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [],
   "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.kanban-code/hook.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/QuestionAnswered.hook.ts",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "TaskCreate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/PRDSync.hook.ts",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/PRDSync.hook.ts",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -164,78 +247,6 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "AskUserQuestion",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/QuestionAnswered.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "TaskCreate",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "TaskUpdate",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/PRDSync.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/PRDSync.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
     "SessionEnd": [
       {
         "hooks": [
@@ -263,32 +274,10 @@
             "type": "command",
             "command": "${PAI_DIR}/hooks/IntegrityCheck.hook.ts",
             "timeout": 30000
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/RatingCapture.hook.ts",
-            "timeout": 10000
           },
           {
             "type": "command",
-            "command": "${PAI_DIR}/hooks/AutoWorkCreation.hook.ts",
-            "timeout": 30000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/UpdateTabTitle.hook.ts",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SessionAutoName.hook.ts",
-            "timeout": 10000
+            "command": "/Users/ed/.kanban-code/hook.sh"
           }
         ]
       }
@@ -305,6 +294,10 @@
             "type": "command",
             "command": "${PAI_DIR}/hooks/LoadContext.hook.ts",
             "timeout": 30000
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.kanban-code/hook.sh"
           }
         ]
       },
@@ -336,6 +329,40 @@
             "type": "command",
             "command": "${PAI_DIR}/hooks/StopOrchestrator.hook.ts",
             "timeout": 30000
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.kanban-code/hook.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/RatingCapture.hook.ts",
+            "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/AutoWorkCreation.hook.ts",
+            "timeout": 30000
+          },
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/UpdateTabTitle.hook.ts",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/SessionAutoName.hook.ts",
+            "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.kanban-code/hook.sh"
           }
         ]
       },
@@ -356,16 +383,16 @@
   },
   "enabledPlugins": {
     "claude-session-driver@superpowers-marketplace": true,
+    "claudit@quickstop": true,
     "double-shot-latte@superpowers-marketplace": true,
     "elements-of-style@superpowers-marketplace": true,
     "episodic-memory@superpowers-marketplace": true,
-    "superpowers@superpowers-marketplace": true,
+    "frontend-design@claude-plugins-official": true,
     "superpowers-chrome@superpowers-marketplace": true,
     "superpowers-dev@superpowers-marketplace": false,
     "superpowers-developing-for-claude-code@superpowers-marketplace": true,
     "superpowers-lab@superpowers-marketplace": true,
-    "claudit@quickstop": true,
-    "frontend-design@claude-plugins-official": true,
+    "superpowers@superpowers-marketplace": true,
     "ui-ux-pro-max@ui-ux-pro-max-skill": true
   },
   "spinnerVerbs": {
@@ -799,139 +826,112 @@
   },
   "plansDirectory": "./.atlas-plans",
   "skipDangerousModePermissionPrompt": true,
-  "envFile": "~/.claude/.env",
-  "teammateMode": "in-process",
+  "_docs": {
+    "_env": {
+      "BASH_DEFAULT_TIMEOUT_MS": "Default timeout for bash commands in milliseconds.",
+      "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "Maximum tokens for Claude responses. Higher values allow longer outputs but cost more.",
+      "PAI_DIR": "Root directory for your PAI installation (~/.claude). Skills, hooks, memory live here.",
+      "PROJECTS_DIR": "Base directory for projects. Use ${PROJECTS_DIR}/PAI for PAI repo, ${PROJECTS_DIR}/fabric for fabric, etc."
+    },
+    "_migration": "Identity configuration moved from DAIDENTITY.md to settings.json. The daidentity and principal sections replace the old env.DA and env.PRINCIPAL patterns. All hooks now read from settings.json via the centralized identity module (hooks/lib/identity.ts).",
+    "_overview": "SETTINGS.JSON - Central configuration for the PAI system. This file is the SINGLE SOURCE OF TRUTH for all identity, environment, permissions, hooks, and notification configuration. The install wizard populates this file during setup.",
+    "_sections": {
+      "daidentity": "Digital Assistant identity (name, displayName, fullName, color, voiceId). Read by hooks via hooks/lib/identity.ts. Configure your AI's persona here.",
+      "env": "Environment variables available to all hooks and tools via process.env",
+      "hooks": "Hook configuration for all lifecycle events",
+      "notifications": "Multi-channel notification routing (ntfy, Discord, Twilio)",
+      "permissions": "Tool permission configuration (allow, deny, ask lists)",
+      "principal": "Principal (owner) identity (name, pronunciation, timezone). The human using the PAI system.",
+      "statusLine": "Status line command configuration"
+    }
+  },
+  "contextDisplay": {
+    "_docs": "Autocompact buffer is 16.5%% of context window.",
+    "compactionThreshold": 83
+  },
   "contextFiles": [
     "skills/PAI/SKILL.md",
     "skills/PAI/AISTEERINGRULES.md",
     "skills/PAI/USER/AISTEERINGRULES.md",
     "skills/PAI/USER/DAIDENTITY.md"
   ],
+  "counts": {
+    "skills": 42,
+    "workflows": 164,
+    "hooks": 23,
+    "signals": 299,
+    "files": 12,
+    "work": 970,
+    "sessions": 32,
+    "research": 0,
+    "ratings": 299,
+    "updatedAt": "2026-03-04T22:59:28.990Z"
+  },
   "daidentity": {
-    "name": "Atlas",
-    "fullName": "Atlas — Personal AI",
-    "displayName": "ATLAS",
     "color": "#A48CF2",
-    "voices": {
-      "main": {
-        "voiceId": "21m00Tcm4TlvDq8ikWAM",
-        "voiceName": "Rachel",
-        "stability": 0.35,
-        "similarityBoost": 0.8,
-        "style": 0.9,
-        "speed": 1.1,
-        "use_speaker_boost": true
-      },
-      "algorithm": {
-        "voiceId": "21m00Tcm4TlvDq8ikWAM",
-        "voiceName": "Rachel",
-        "stability": 0.35,
-        "similarityBoost": 0.8,
-        "style": 0.9,
-        "speed": 1.1,
-        "use_speaker_boost": true
-      }
-    },
+    "displayName": "ATLAS",
+    "fullName": "Atlas — Personal AI",
+    "name": "Atlas",
     "personality": {
-      "baseVoice": "",
       "_docs": "Personality traits (0-100) shape HOW emotions are expressed vocally. Same emotion, different expression based on these traits.",
-      "enthusiasm": 75,
-      "energy": 80,
-      "expressiveness": 85,
-      "resilience": 85,
+      "baseVoice": "",
       "composure": 70,
-      "optimism": 75,
-      "warmth": 70,
-      "formality": 30,
-      "directness": 80,
-      "precision": 95,
       "curiosity": 90,
-      "playfulness": 45
+      "directness": 80,
+      "energy": 80,
+      "enthusiasm": 75,
+      "expressiveness": 85,
+      "formality": 30,
+      "optimism": 75,
+      "playfulness": 45,
+      "precision": 95,
+      "resilience": 85,
+      "warmth": 70
     },
     "startupCatchphrase": "Atlas, standing by",
-    "voiceId": "21m00Tcm4TlvDq8ikWAM"
-  },
-  "principal": {
-    "name": "Ed",
-    "pronunciation": "{PRINCIPAL.PRONUNCIATION}",
-    "timezone": "America/New_York",
-    "voiceClone": {
-      "_docs": "Principal's ElevenLabs voice clone for narration, audiobooks, and content read in their voice",
-      "voiceId": "YOUR_VOICE_ID_HERE",
-      "voiceName": "{PRINCIPAL.NAME}",
-      "provider": "elevenlabs"
+    "voiceId": "21m00Tcm4TlvDq8ikWAM",
+    "voices": {
+      "algorithm": {
+        "similarityBoost": 0.8,
+        "speed": 1.1,
+        "stability": 0.35,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "voiceName": "Rachel"
+      },
+      "main": {
+        "similarityBoost": 0.8,
+        "speed": 1.1,
+        "stability": 0.35,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "voiceName": "Rachel"
+      }
     }
-  },
-  "pai": {
-    "repoUrl": "https://github.com/danielmiessler/PAI",
-    "version": "4.0.3",
-    "algorithmVersion": "3.5.0"
-  },
-  "preferences": {
-    "temperatureUnit": "fahrenheit"
   },
   "dynamicContext": {
-    "relationshipContext": true,
+    "activeWorkSummary": true,
     "learningReadback": true,
-    "activeWorkSummary": true
+    "relationshipContext": true
   },
-  "contextDisplay": {
-    "compactionThreshold": 83,
-    "_docs": "Autocompact buffer is 16.5%% of context window."
-  },
-  "techStack": {
-    "browser": "Google Chrome",
-    "terminal": "Wezterm",
-    "packageManager": "bun",
-    "pythonPackageManager": "uv",
-    "language": "TypeScript",
-    "devServerPort": 5173
-  },
-  "_docs": {
-    "_overview": "SETTINGS.JSON - Central configuration for the PAI system. This file is the SINGLE SOURCE OF TRUTH for all identity, environment, permissions, hooks, and notification configuration. The install wizard populates this file during setup.",
-    "_sections": {
-      "daidentity": "Digital Assistant identity (name, displayName, fullName, color, voiceId). Read by hooks via hooks/lib/identity.ts. Configure your AI's persona here.",
-      "principal": "Principal (owner) identity (name, pronunciation, timezone). The human using the PAI system.",
-      "env": "Environment variables available to all hooks and tools via process.env",
-      "permissions": "Tool permission configuration (allow, deny, ask lists)",
-      "hooks": "Hook configuration for all lifecycle events",
-      "notifications": "Multi-channel notification routing (ntfy, Discord, Twilio)",
-      "statusLine": "Status line command configuration"
-    },
-    "_migration": "Identity configuration moved from DAIDENTITY.md to settings.json. The daidentity and principal sections replace the old env.DA and env.PRINCIPAL patterns. All hooks now read from settings.json via the centralized identity module (hooks/lib/identity.ts).",
-    "_env": {
-      "PAI_DIR": "Root directory for your PAI installation (~/.claude). Skills, hooks, memory live here.",
-      "PROJECTS_DIR": "Base directory for projects. Use ${PROJECTS_DIR}/PAI for PAI repo, ${PROJECTS_DIR}/fabric for fabric, etc.",
-      "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "Maximum tokens for Claude responses. Higher values allow longer outputs but cost more.",
-      "BASH_DEFAULT_TIMEOUT_MS": "Default timeout for bash commands in milliseconds."
-    }
-  },
+  "envFile": "~/.claude/.env",
   "feedbackSurveyState": {
     "lastShownTime": 1735430400000
   },
   "max_tokens": 16000,
   "notifications": {
-    "ntfy": {
-      "enabled": true,
-      "topic": "${NTFY_TOPIC}",
-      "server": "ntfy.sh"
-    },
     "discord": {
       "enabled": true,
       "webhook": "${DISCORD_WEBHOOK}"
     },
-    "twilio": {
+    "ntfy": {
       "enabled": true,
-      "toNumber": "${TWILIO_TO_NUMBER}"
-    },
-    "thresholds": {
-      "longTaskMinutes": 5
+      "server": "ntfy.sh",
+      "topic": "${NTFY_TOPIC}"
     },
     "routing": {
-      "taskComplete": [],
-      "longTask": [
-        "ntfy"
-      ],
       "backgroundAgent": [
         "ntfy"
       ],
@@ -939,22 +939,58 @@
         "ntfy",
         "discord"
       ],
+      "longTask": [
+        "ntfy"
+      ],
       "security": [
         "ntfy",
         "discord"
-      ]
+      ],
+      "taskComplete": []
+    },
+    "thresholds": {
+      "longTaskMinutes": 5
+    },
+    "twilio": {
+      "enabled": true,
+      "toNumber": "${TWILIO_TO_NUMBER}"
     }
   },
-  "counts": {
-    "skills": 42,
-    "workflows": 164,
-    "hooks": 23,
-    "signals": 267,
-    "files": 12,
-    "work": 853,
-    "sessions": 28,
-    "research": 0,
-    "ratings": 267,
-    "updatedAt": "2026-03-03T20:32:14.160Z"
+  "pai": {
+    "algorithmVersion": "3.5.0",
+    "repoUrl": "https://github.com/danielmiessler/PAI",
+    "version": "4.0.3"
+  },
+  "preferences": {
+    "temperatureUnit": "fahrenheit"
+  },
+  "principal": {
+    "name": "Ed",
+    "pronunciation": "{PRINCIPAL.PRONUNCIATION}",
+    "timezone": "America/New_York",
+    "voiceClone": {
+      "_docs": "Principal's ElevenLabs voice clone for narration, audiobooks, and content read in their voice",
+      "provider": "elevenlabs",
+      "voiceId": "YOUR_VOICE_ID_HERE",
+      "voiceName": "{PRINCIPAL.NAME}"
+    }
+  },
+  "teammateMode": "in-process",
+  "techStack": {
+    "browser": "Google Chrome",
+    "devServerPort": 5173,
+    "language": "TypeScript",
+    "packageManager": "bun",
+    "pythonPackageManager": "uv",
+    "terminal": "Wezterm"
+  },
+  "mcpServers": {
+    "delphi": {
+      "command": "npx",
+      "args": [
+        "delphi",
+        "mcp"
+      ]
+    }
   }
 }
