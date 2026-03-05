@@ -315,19 +315,18 @@ interface WorkSession {
 /**
  * Scan recent WORK/ directories (last 48h) for active sessions.
  * Only reads the most recent 20 dirs (sorted by timestamp in dirname).
- * C5: Uses active-sessions.json cache invalidated by current-work.json mtime.
+ * C5: Uses active-sessions.json cache invalidated by WORK/ directory mtime.
  */
 function getRecentWorkSessions(paiDir: string): WorkSession[] {
 	const workDir = join(paiDir, "MEMORY", "WORK");
 	if (!existsSync(workDir)) return [];
 
-	// C5: Check cache — valid if newer than current-work.json
-	const currentWorkPath = join(paiDir, 'MEMORY', 'STATE', 'current-work.json');
+	// C5: Check cache — valid if newer than WORK/ directory mtime
 	try {
 		if (existsSync(ACTIVE_SESSIONS_CACHE_PATH)) {
 			const cacheMtime = statSync(ACTIVE_SESSIONS_CACHE_PATH).mtimeMs;
-			const currentWorkMtime = existsSync(currentWorkPath) ? statSync(currentWorkPath).mtimeMs : 0;
-			if (cacheMtime > currentWorkMtime) {
+			const workDirMtime = statSync(workDir).mtimeMs;
+			if (cacheMtime > workDirMtime) {
 				const cached = JSON.parse(readFileSync(ACTIVE_SESSIONS_CACHE_PATH, 'utf-8'));
 				if (Array.isArray(cached.sessions)) return cached.sessions as WorkSession[];
 			}
