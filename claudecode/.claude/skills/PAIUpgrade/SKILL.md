@@ -94,9 +94,9 @@ The output has THREE major sections:
 
 Everything interesting we found, ranked by how compelling it is for PAI. This is the "what's out there" overview.
 
-| # | Discovery | Source | Why It's Interesting | PAI Relevance |
-|---|-----------|--------|---------------------|---------------|
-| 1 | [Name of thing found] | [GitHub release / YouTube video / Docs / Blog] | [1-2 sentences: what makes this cool or notable] | [1 sentence: how it maps to PAI] |
+| # | Discovery | Source | Verified In | Why It's Interesting | PAI Relevance |
+|---|-----------|--------|-------------|---------------------|---------------|
+| 1 | [Name of thing found] | [GitHub release / YouTube video / Docs / Blog] | ✅ Docs / ⚠️ Changelog only | [1-2 sentences: what makes this cool or notable] | [1 sentence: how it maps to PAI] |
 | 2 | ... | ... | ... | ... |
 | ... | ... | ... | ... | ... |
 
@@ -150,6 +150,7 @@ Full extracted techniques for reference. Each recommendation above maps to one o
 
 #### [N]. [Feature/Change Name]
 **Source:** GitHub claude-code v2.1.16, commit abc123
+**Verified In:** ✅ Docs / ✅ Release Notes / ⚠️ Changelog only
 **Priority:** 🔴 CRITICAL | 🟠 HIGH | 🟡 MEDIUM | 🟢 LOW
 
 **What It Is (16-32 words):**
@@ -177,6 +178,7 @@ Full extracted techniques for reference. Each recommendation above maps to one o
 
 #### [N]. [Specific Technique Name]
 **Source:** R Amjad - "Video Title" @ 12:34
+**Verified In:** ✅ Docs / ⚠️ Unverified (third-party claim)
 **Priority:** 🔴 CRITICAL | 🟠 HIGH | 🟡 MEDIUM | 🟢 LOW
 
 **What It Is (16-32 words):**
@@ -198,6 +200,7 @@ Full extracted techniques for reference. Each recommendation above maps to one o
 
 #### [N]. [Specific Capability/Pattern]
 **Source:** Claude Docs - Tool Use section, updated 2026-01-20
+**Verified In:** ✅ Docs
 **Priority:** 🔴 CRITICAL | 🟠 HIGH | 🟡 MEDIUM | 🟢 LOW
 
 **What It Is (16-32 words):**
@@ -268,14 +271,31 @@ Full extracted techniques for reference. Each recommendation above maps to one o
 - ❌ "Consider looking into this"
 - ❌ Vague summaries without specific techniques
 - ❌ Links without extracted content
+- ❌ Claiming a feature exists without citing the specific source where you found it
 
 **Source Type Labels:**
 | Label | Meaning |
 |-------|---------|
 | `GitHub: claude-code vX.Y.Z` | Specific version release notes |
+| `Changelog: claude-code vX.Y.Z` | Cached changelog entry (may not be in official docs yet) |
 | `YouTube: Creator @ MM:SS` | Video with timestamp |
-| `Docs: Section Name` | Documentation section |
+| `Docs: Section Name` | Official documentation section |
 | `Blog: Post Title` | Blog post |
+
+**Source Verification (MANDATORY):**
+
+Every technique MUST include a `**Verified In:**` field showing where the claim was independently confirmed. Use these status labels:
+
+| Status | Meaning |
+|--------|---------|
+| `✅ Docs` | Confirmed in official docs.claude.com documentation |
+| `✅ Release Notes` | Confirmed in `gh release view` output |
+| `✅ Changelog` | Found in cached changelog (`~/.claude/cache/changelog.md`) |
+| `✅ Code` | Verified by reading Claude Code source or testing locally |
+| `⚠️ Changelog only` | In changelog but NOT yet in official docs — may be unreleased or docs-lagging |
+| `⚠️ Unverified` | Claimed by a third-party source but not independently confirmed |
+
+**Cross-reference rule:** If a feature appears in the changelog but NOT in official docs, flag it as `⚠️ Changelog only` and note the discrepancy. Do not present changelog-only features as confirmed documentation.
 
 ---
 
@@ -426,11 +446,12 @@ Generate the prioritized recommendations report (see format above).
 
 1. **Extract, Don't Summarize:** Pull specific techniques from content, never just link to sources
 2. **Quote the Source:** Show actual code, documentation quotes, or transcript excerpts
-3. **PAI-Contextualized:** Every technique maps to a specific PAI file, skill, or component
-4. **Explain "Why You":** Use phrases like "This helps because your [X] currently [Y]"
-5. **TELOS-Connected:** Reference user's goals and challenges when explaining relevance
-6. **Skip Boldly:** If content has no extractable technique, skip it entirely
-7. **Implementation-Ready:** Provide actual code changes, not vague recommendations
+3. **Verify Before Claiming:** Every technique must have a `Verified In` field. Cross-reference changelog claims against official docs. Flag discrepancies with ⚠️
+4. **PAI-Contextualized:** Every technique maps to a specific PAI file, skill, or component
+5. **Explain "Why You":** Use phrases like "This helps because your [X] currently [Y]"
+6. **TELOS-Connected:** Reference user's goals and challenges when explaining relevance
+7. **Skip Boldly:** If content has no extractable technique, skip it entirely
+8. **Implementation-Ready:** Provide actual code changes, not vague recommendations
 
 ---
 
@@ -480,6 +501,7 @@ These output patterns are **FAILURES**. If you produce these, you have not compl
 | "Several videos covered AI agents" | Count without content | "[N] videos skipped - no extractable techniques" |
 | "This helps because it improves things" | Vague benefit, no word count | "How It Helps PAI (16-32 words): Our SecurityValidator currently only blocks commands. This technique enables injecting reasoning context before tool execution, making security decisions more nuanced." |
 | "A new hook feature" | No description of what it IS | "What It Is (16-32 words): PreToolUse hooks can return additionalContext that gets injected into the model's context before execution, enabling reasoning-based decisions rather than binary blocks." |
+| "Added InstructionsLoaded hook event" with no verification | Changelog claim presented as confirmed feature — may not be in official docs yet | "Added InstructionsLoaded hook event **Verified In:** ⚠️ Changelog only — not yet in official docs" |
 | "Top 3 Actions" or flat recommendation list | No priority tiers — everything looks equally important | Recommendations section with 🔴 CRITICAL / 🟠 HIGH / 🟡 MEDIUM / 🟢 LOW tiers, each with PAI Relevance column |
 | Recommendations at the bottom of the report | Actionable items buried after technique dump | 🔥 Recommendations section appears FIRST, technique details are reference material below |
 
