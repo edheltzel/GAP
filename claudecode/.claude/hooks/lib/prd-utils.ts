@@ -58,7 +58,7 @@ export function writeFrontmatterField(content: string, field: string, value: str
 }
 
 export function countCriteria(content: string): { checked: number; total: number } {
-  const criteriaMatch = content.match(/## Criteria\n([\s\S]*?)(?=\n## |\n---|\Z)/);
+  const criteriaMatch = content.match(/## Criteria\n([\s\S]*?)(?=\n## |\n---|$)/);
   if (!criteriaMatch) return { checked: 0, total: 0 };
   const lines = criteriaMatch[1].split('\n').filter(l => l.match(/^- \[[ x]\]/));
   const checked = lines.filter(l => l.startsWith('- [x]')).length;
@@ -73,7 +73,7 @@ export interface CriterionEntry {
 }
 
 export function parseCriteriaList(content: string): CriterionEntry[] {
-  const criteriaMatch = content.match(/## Criteria\n([\s\S]*?)(?=\n## |\n---|\Z)/);
+  const criteriaMatch = content.match(/## Criteria\n([\s\S]*?)(?=\n## |\n---|$)/);
   if (!criteriaMatch) return [];
   return criteriaMatch[1].split('\n')
     .filter(l => l.match(/^- \[[ x]\]/))
