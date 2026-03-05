@@ -45,7 +45,7 @@ import { getPaiDir } from "./lib/paths";
 import { recordSessionStart } from "./lib/notifications";
 import { setTabState, readTabState } from "./lib/tab-setter";
 import { getDAName } from "./lib/identity";
-import { loadLearningDigest } from "./lib/learning-readback";
+import { loadLearningDigest, loadWisdomFrames, loadFailurePatterns } from "./lib/learning-readback";
 
 /**
  * Reset tab title to clean state at session start.
@@ -694,6 +694,24 @@ async function main() {
 				}
 			} catch (err) {
 				console.error(`⚠️ Failed to load learning readback: ${err}`);
+			}
+			try {
+				const wisdom = loadWisdomFrames(paiDir);
+				if (wisdom) {
+					learningContext += `\n\n${wisdom}`;
+					console.error("🧠 Loaded wisdom frames");
+				}
+			} catch (err) {
+				console.error(`⚠️ Failed to load wisdom frames: ${err}`);
+			}
+			try {
+				const failures = loadFailurePatterns(paiDir);
+				if (failures) {
+					learningContext += `\n\n${failures}`;
+					console.error("⚠️ Loaded failure patterns");
+				}
+			} catch (err) {
+				console.error(`⚠️ Failed to load failure patterns: ${err}`);
 			}
 		}
 
