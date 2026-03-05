@@ -33,7 +33,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
 
 Intelligent prompt pattern system providing 240+ specialized patterns for content analysis, extraction, summarization, threat modeling, and transformation.
 
-**Patterns Location:** `~/.claude/skills/Fabric/Patterns/`
+**Patterns Location:** `${CLAUDE_SKILL_DIR}/Patterns/`
 
 ---
 
@@ -171,10 +171,10 @@ Each pattern's `system.md` contains the full prompt that defines:
 
 | Path | Purpose |
 |------|---------|
-| `~/.claude/skills/Fabric/Patterns/` | Local pattern storage (240+) |
-| `~/.claude/skills/Fabric/PatternCatalog.md` | Full pattern documentation |
-| `~/.claude/skills/Fabric/Workflows/` | Execution workflows |
-| `~/.claude/skills/Fabric/Tools/` | CLI utilities |
+| `${CLAUDE_SKILL_DIR}/Patterns/` | Local pattern storage (240+) |
+| `${CLAUDE_SKILL_DIR}/PatternCatalog.md` | Full pattern documentation |
+| `${CLAUDE_SKILL_DIR}/Workflows/` | Execution workflows |
+| `${CLAUDE_SKILL_DIR}/Tools/` | CLI utilities |
 
 ---
 

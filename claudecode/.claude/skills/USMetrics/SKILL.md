@@ -68,7 +68,7 @@ Running the **WorkflowName** workflow in the **USMetrics** skill to ACTION...
 
 **Execution:**
 ```bash
-bun ~/.claude/skills/USMetrics/Tools/UpdateSubstrateMetrics.ts
+bun ${CLAUDE_SKILL_DIR}/Tools/UpdateSubstrateMetrics.ts
 ```
 
 **Outputs:**

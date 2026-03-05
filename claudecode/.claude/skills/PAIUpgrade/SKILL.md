@@ -364,7 +364,7 @@ From PROJECTS and recent work, identify:
 ## Thread 2: Source Collection (3 parallel agents)
 
 ### Agent 1: Anthropic Sources
-Run: bun ~/.claude/skills/PAIUpgrade/Tools/Anthropic.ts
+Run: bun ${CLAUDE_SKILL_DIR}/Tools/Anthropic.ts
 Check all 30+ official sources for updates
 
 ### Agent 2: YouTube Channels

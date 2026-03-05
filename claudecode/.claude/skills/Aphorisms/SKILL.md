@@ -40,22 +40,22 @@ Running the **WorkflowName** workflow in the **Aphorisms** skill to ACTION...
 
 **When user requests finding perfect aphorism for newsletter content:**
 Examples: "find aphorism for this newsletter", "find quote for this content", "what aphorism fits this", "suggest quote for newsletter", "match aphorism to this article", "perfect quote for this", "aphorism recommendation"
-→ **READ:** ~/.claude/skills/Aphorisms/Workflows/FindAphorism.md
+→ **READ:** ${CLAUDE_SKILL_DIR}/Workflows/FindAphorism.md
 → **EXECUTE:** Analyze content themes and recommend matching aphorism from database
 
 **When user requests adding new aphorism to database:**
 Examples: "add this quote", "add aphorism", "save this quote", "add to aphorism database", "new aphorism", "store this quote", "include this in collection"
-→ **READ:** ~/.claude/skills/Aphorisms/Workflows/AddAphorism.md
+→ **READ:** ${CLAUDE_SKILL_DIR}/Workflows/AddAphorism.md
 → **EXECUTE:** Add new aphorism with proper metadata and theme tagging
 
 **When user requests researching specific thinker's quotes:**
 Examples: "research Hitchens quotes", "find Feynman aphorisms", "what did Spinoza say about", "get quotes from Sam Harris", "research David Deutsch wisdom", "thinker quotes on [topic]"
-→ **READ:** ~/.claude/skills/Aphorisms/Workflows/ResearchThinker.md
+→ **READ:** ${CLAUDE_SKILL_DIR}/Workflows/ResearchThinker.md
 → **EXECUTE:** Research thinker's relevant quotes and add to database
 
 **When user requests searching aphorisms by theme or keyword:**
 Examples: "search aphorisms about resilience", "find quotes on learning", "aphorisms about stoicism", "quotes matching [keyword]", "show me quotes about [theme]", "what aphorisms do we have on"
-→ **READ:** ~/.claude/skills/Aphorisms/Workflows/SearchAphorisms.md
+→ **READ:** ${CLAUDE_SKILL_DIR}/Workflows/SearchAphorisms.md
 → **EXECUTE:** Search database by theme, keyword, or author
 
 ---
@@ -138,7 +138,7 @@ Aphorisms categorized by themes matching user content:
 
 ## Database Structure
 
-**Location:** `~/.claude/skills/Aphorisms/Database/aphorisms.md`
+**Location:** `${CLAUDE_SKILL_DIR}/Database/aphorisms.md`
 
 **Current Collections:**
 1. **Initial Collection (Rahil Arora)** - 15 curated quotes covering core themes
@@ -359,7 +359,7 @@ All five thinkers align with TELOS themes of **wisdom, rationality, truth-seekin
 - "Search aphorisms about [theme]" → Theme-based search
 
 **Database Location:**
-`~/.claude/skills/Aphorisms/Database/aphorisms.md`
+`${CLAUDE_SKILL_DIR}/Database/aphorisms.md`
 
 **Current Collection Size:**
 - 15 initial quotes (Rahil Arora collection)

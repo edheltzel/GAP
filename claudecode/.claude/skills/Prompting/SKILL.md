@@ -63,7 +63,7 @@ Complete prompt engineering documentation based on:
 
 ```typescript
 // skills/Agents/Tools/AgentFactory.ts
-import { renderTemplate } from '~/.claude/skills/Prompting/Tools/RenderTemplate.ts';
+import { renderTemplate } from '${CLAUDE_SKILL_DIR}/Tools/RenderTemplate.ts';
 
 const prompt = renderTemplate('Primitives/Briefing.hbs', {
   briefing: { type: 'research' },

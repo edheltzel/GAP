@@ -72,7 +72,7 @@ Direct TypeScript access to the 9 most popular Apify actors without MCP overhead
 ### Basic Usage Pattern
 
 ```typescript
-import { scrapeInstagramProfile, searchGoogleMaps } from '~/.claude/skills/Apify/actors'
+import { scrapeInstagramProfile, searchGoogleMaps } from '${CLAUDE_SKILL_DIR}/actors'
 
 // 1. Call the actor wrapper
 const profile = await scrapeInstagramProfile({
@@ -93,7 +93,7 @@ console.log(viral) // ~10 posts instead of 50
 
 **Instagram - Track engagement:**
 ```typescript
-import { scrapeInstagramProfile, scrapeInstagramPosts } from '~/.claude/skills/Apify/actors'
+import { scrapeInstagramProfile, scrapeInstagramPosts } from '${CLAUDE_SKILL_DIR}/actors'
 
 // Get profile with recent posts
 const profile = await scrapeInstagramProfile({
@@ -116,7 +116,7 @@ const topRecent = profile.latestPosts
 
 **LinkedIn - Job search:**
 ```typescript
-import { searchLinkedInJobs } from '~/.claude/skills/Apify/actors'
+import { searchLinkedInJobs } from '${CLAUDE_SKILL_DIR}/actors'
 
 const jobs = await searchLinkedInJobs({
   keywords: 'AI engineer',
@@ -134,7 +134,7 @@ const topJobs = jobs.filter(j =>
 
 **TikTok - Trend analysis:**
 ```typescript
-import { scrapeTikTokHashtag } from '~/.claude/skills/Apify/actors'
+import { scrapeTikTokHashtag } from '${CLAUDE_SKILL_DIR}/actors'
 
 const videos = await scrapeTikTokHashtag({
   hashtag: 'ai',
@@ -152,7 +152,7 @@ const viral = videos
 
 **Google Maps - Local business leads:**
 ```typescript
-import { searchGoogleMaps } from '~/.claude/skills/Apify/actors'
+import { searchGoogleMaps } from '${CLAUDE_SKILL_DIR}/actors'
 
 // Search with contact info extraction
 const places = await searchGoogleMaps({
@@ -186,7 +186,7 @@ console.log(`Found ${qualifiedLeads.length} qualified leads`)
 
 **Google Maps - Review sentiment analysis:**
 ```typescript
-import { scrapeGoogleMapsReviews } from '~/.claude/skills/Apify/actors'
+import { scrapeGoogleMapsReviews } from '${CLAUDE_SKILL_DIR}/actors'
 
 const reviews = await scrapeGoogleMapsReviews({
   placeUrl: 'https://maps.google.com/maps?cid=12345',
@@ -212,7 +212,7 @@ const complaints = recentNegative.map(r => r.text)
 
 **Amazon - Price monitoring:**
 ```typescript
-import { scrapeAmazonProduct } from '~/.claude/skills/Apify/actors'
+import { scrapeAmazonProduct } from '${CLAUDE_SKILL_DIR}/actors'
 
 const product = await scrapeAmazonProduct({
   productUrl: 'https://www.amazon.com/dp/B08L5VT894',
@@ -239,7 +239,7 @@ console.log(`Recent issues: ${recentNegative?.length} complaints`)
 
 **Any Website - Custom extraction:**
 ```typescript
-import { scrapeWebsite } from '~/.claude/skills/Apify/actors'
+import { scrapeWebsite } from '${CLAUDE_SKILL_DIR}/actors'
 
 const products = await scrapeWebsite({
   startUrls: ['https://example.com/products'],
@@ -276,7 +276,7 @@ import {
   scrapeInstagramHashtag,
   scrapeTikTokHashtag,
   searchYouTube
-} from '~/.claude/skills/Apify/actors'
+} from '${CLAUDE_SKILL_DIR}/actors'
 
 // Run all platforms in parallel
 const [instagramPosts, tiktokVideos, youtubeVideos] = await Promise.all([
@@ -298,7 +298,7 @@ console.log(`Found ${allViral.length} viral posts across 3 platforms`)
 ### Pattern 2: Lead Enrichment Pipeline
 
 ```typescript
-import { searchGoogleMaps, scrapeLinkedInProfile } from '~/.claude/skills/Apify/actors'
+import { searchGoogleMaps, scrapeLinkedInProfile } from '${CLAUDE_SKILL_DIR}/actors'
 
 // 1. Find businesses on Google Maps
 const restaurants = await searchGoogleMaps({
@@ -331,7 +331,7 @@ import {
   scrapeInstagramProfile,
   scrapeYouTubeChannel,
   scrapeTikTokProfile
-} from '~/.claude/skills/Apify/actors'
+} from '${CLAUDE_SKILL_DIR}/actors'
 
 async function analyzeCompetitor(username: string) {
   // Gather data from all platforms

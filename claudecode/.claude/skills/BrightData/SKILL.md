@@ -43,7 +43,7 @@ Running the **WorkflowName** workflow in the **Brightdata** skill to ACTION...
 
 **When user requests scraping/fetching URL content:**
 Examples: "scrape this URL", "fetch this page", "get content from [URL]", "pull content from this site", "retrieve [URL]", "can't access this site", "this site is blocking me", "use Bright Data to fetch"
-→ **READ:** ~/.claude/skills/BrightData/Workflows/FourTierScrape.md
+→ **READ:** ${CLAUDE_SKILL_DIR}/Workflows/FourTierScrape.md
 → **EXECUTE:** Four-tier progressive scraping workflow (WebFetch → Curl → Browser Automation → Bright Data MCP)
 
 ---

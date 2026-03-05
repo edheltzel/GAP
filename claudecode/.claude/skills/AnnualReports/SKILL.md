@@ -46,13 +46,13 @@ Aggregates and analyzes annual security reports from 570+ sources across the cyb
 
 ```bash
 # Update sources from GitHub
-bun run ~/.claude/skills/AnnualReports/Tools/UpdateSources.ts
+bun run ${CLAUDE_SKILL_DIR}/Tools/UpdateSources.ts
 
 # List all sources
-bun run ~/.claude/skills/AnnualReports/Tools/ListSources.ts [category]
+bun run ${CLAUDE_SKILL_DIR}/Tools/ListSources.ts [category]
 
 # Fetch a specific report
-bun run ~/.claude/skills/AnnualReports/Tools/FetchReport.ts <vendor> <report-name>
+bun run ${CLAUDE_SKILL_DIR}/Tools/FetchReport.ts <vendor> <report-name>
 ```
 
 ## Categories

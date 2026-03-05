@@ -168,7 +168,7 @@ Within each category, rank items by:
 ### Step 1: Check State
 ```bash
 # Read last check timestamp
-cat ~/.claude/skills/SECUpdates/State/last-check.json
+cat ${CLAUDE_SKILL_DIR}/State/last-check.json
 ```
 
 ### Step 2: Fetch Sources (Parallel)

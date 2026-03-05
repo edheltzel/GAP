@@ -146,18 +146,18 @@ The Agents skill is a complete agent composition and management system:
 
 ```bash
 # Compose and use immediately
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --task "Review security"
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --traits "security,skeptical,thorough"
+bun run ${CLAUDE_SKILL_DIR}/Tools/ComposeAgent.ts --task "Review security"
+bun run ${CLAUDE_SKILL_DIR}/Tools/ComposeAgent.ts --traits "security,skeptical,thorough"
 
 # Persistent custom agents
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --task "Security review" --save
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --list-saved
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --load "security-expert-skeptical-thorough"
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --delete "security-expert-skeptical-thorough"
+bun run ${CLAUDE_SKILL_DIR}/Tools/ComposeAgent.ts --task "Security review" --save
+bun run ${CLAUDE_SKILL_DIR}/Tools/ComposeAgent.ts --list-saved
+bun run ${CLAUDE_SKILL_DIR}/Tools/ComposeAgent.ts --load "security-expert-skeptical-thorough"
+bun run ${CLAUDE_SKILL_DIR}/Tools/ComposeAgent.ts --delete "security-expert-skeptical-thorough"
 
 # Other options
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --list
-bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --output json
+bun run ${CLAUDE_SKILL_DIR}/Tools/ComposeAgent.ts --list
+bun run ${CLAUDE_SKILL_DIR}/Tools/ComposeAgent.ts --output json
 ```
 
 **JSON output includes:**

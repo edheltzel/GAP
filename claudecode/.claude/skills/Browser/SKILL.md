@@ -61,7 +61,7 @@ open -a "$BROWSER" "<url>"  # BROWSER from tech stack prefs
 
 ```bash
 # Navigate with full diagnostics (PRIMARY COMMAND)
-bun run ~/.claude/skills/Browser/Tools/Browse.ts https://example.com
+bun run ${CLAUDE_SKILL_DIR}/Tools/Browse.ts https://example.com
 
 # Output:
 # 📸 Screenshot: /tmp/browse-1704614400.png
@@ -209,7 +209,7 @@ Session auto-closes after 30 minutes of inactivity:
 
 ### CLI Tool
 
-**Location:** `~/.claude/skills/Browser/Tools/Browse.ts`
+**Location:** `${CLAUDE_SKILL_DIR}/Tools/Browse.ts`
 
 | Command | Description |
 |---------|-------------|
@@ -232,7 +232,7 @@ Session auto-closes after 30 minutes of inactivity:
 
 ### Server Endpoints
 
-**Location:** `~/.claude/skills/Browser/Tools/BrowserSession.ts`
+**Location:** `${CLAUDE_SKILL_DIR}/Tools/BrowserSession.ts`
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -255,7 +255,7 @@ Session auto-closes after 30 minutes of inactivity:
 For complex automation, use the TypeScript API directly:
 
 ```typescript
-import { PlaywrightBrowser } from '~/.claude/skills/Browser/index.ts'
+import { PlaywrightBrowser } from '${CLAUDE_SKILL_DIR}/index.ts'
 
 const browser = new PlaywrightBrowser()
 await browser.launch({ headless: true })
