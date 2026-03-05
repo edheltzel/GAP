@@ -520,69 +520,32 @@ render_context_bar_full() {
 session_display=""
 [ -n "$SESSION_LABEL" ] && session_display=$(echo "$SESSION_LABEL" | tr '[:lower:]' '[:upper:]')
 
+# Build version suffix: model + CC version
+ver_suffix=""
+ver_suffix_plain=""
+ver_suffix="${PAI_A}${model_name_short}${RESET}"
+ver_suffix_plain="${model_name_short}"
+[ -n "$model_ver_str" ] && { ver_suffix="${ver_suffix} ${SLATE_300}${model_ver_str}${RESET}"; ver_suffix_plain="${ver_suffix_plain} ${model_ver_str}"; }
+[ -n "$cc_version" ] && { ver_suffix="${ver_suffix} ${SLATE_600}│${RESET} ${CC_ICON}✱ ${SLATE_300}${cc_version}${RESET}"; ver_suffix_plain="${ver_suffix_plain} | ${cc_version}"; }
+
 case "$MODE" in
 nano)
-  printf "${SLATE_600}── │${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}│ ──────────────────────${RESET}\n"
+  printf "${SLATE_600}── │${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}│${RESET} ${ver_suffix}\n"
   ;;
 *)
   if [ -n "$session_display" ]; then
-    local_left="── │ ▲ Atlas v${PAI_VERSION} │"
+    local_left="── │ ▲ Atlas v${PAI_VERSION} │ ${ver_suffix_plain} │"
     local_left_len=${#local_left}
     local_right_len=${#session_display}
     local_fill=$((72 - local_left_len - local_right_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${SLATE_600}── │${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}│ ${local_dashes}${RESET} ${PAI_SESSION}${session_display}${RESET}\n"
+    printf "${SLATE_600}── │${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}│${RESET} ${ver_suffix} ${SLATE_600}│ ${local_dashes}${RESET} ${PAI_SESSION}${session_display}${RESET}\n"
   else
-    printf "${SLATE_600}── │${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}│ ──────────────────────────────────────────────────────────${RESET}\n"
+    printf "${SLATE_600}── │${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}│${RESET} ${ver_suffix} ${SLATE_600}│ ──────────────────────────────────${RESET}\n"
   fi
   ;;
 esac
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# LINE 1: MODEL + CC VERSION + SKILLS
-# ═══════════════════════════════════════════════════════════════════════════════
-
-case "$MODE" in
-nano)
-  printf "${PAI_A}${model_name_short}${RESET}"
-  [ -n "$model_ver_str" ] && printf " ${SLATE_300}${model_ver_str}${RESET}"
-  printf "\n"
-  ;;
-micro)
-  printf "${SLATE_400}🤖${RESET} ${PAI_A}${model_name_short}${RESET}"
-  [ -n "$model_ver_str" ] && printf " ${SLATE_300}${model_ver_str}${RESET}"
-  printf " ${SLATE_600}│${RESET} ${WIELD_ACCENT}${NF_SKILLS} S:${SLATE_300}${skills_count}${RESET}"
-  if [ "$cache_total" -gt 0 ]; then
-    cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
-  fi
-  printf "\n"
-  ;;
-mini)
-  printf "${SLATE_400}🤖${RESET} ${PAI_A}${model_name_short}${RESET}"
-  [ -n "$model_ver_str" ] && printf " ${SLATE_300}${model_ver_str}${RESET}"
-  [ -n "$cc_version" ] && printf " ${SLATE_600}│${RESET} ${CC_ICON}✱ ${SLATE_300}${cc_version}${RESET}"
-  printf " ${SLATE_600}│${RESET} ${WIELD_ACCENT}${NF_SKILLS} S:${SLATE_300}${skills_count}${RESET}  ${WIELD_WORKFLOWS}${NF_WORKFLOW} W:${SLATE_300}${workflows_count}${RESET}"
-  if [ "$cache_total" -gt 0 ]; then
-    cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
-  fi
-  printf "\n"
-  ;;
-normal)
-  printf "${SLATE_400}🤖${RESET} ${PAI_A}${model_name_short}${RESET}"
-  [ -n "$model_ver_str" ] && printf " ${SLATE_300}${model_ver_str}${RESET}"
-  [ -n "$cc_version" ] && printf " ${SLATE_600}│${RESET} ${CC_ICON}✱ ${SLATE_300}${cc_version}${RESET}"
-  printf " ${SLATE_600}│${RESET} ${WIELD_ACCENT}${NF_SKILLS} S:${SLATE_300}${skills_count}${RESET}  ${WIELD_WORKFLOWS}${NF_WORKFLOW} W:${SLATE_300}${workflows_count}${RESET}  ${WIELD_HOOKS}${NF_HOOK} H:${SLATE_300}${hooks_count}${RESET}"
-  if [ "$cache_total" -gt 0 ]; then
-    cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
-  fi
-  printf "\n"
-  ;;
-esac
-printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 2: USAGE + MEMORY
@@ -666,149 +629,55 @@ print(f\"clock_7d='{clock_time(r7d, 'weekly')}'\")
   fi
 fi
 
-# Usage + memory (no context bar — that's on its own line below)
+# Usage + context bar + cache
 case "$MODE" in
 nano)
-  printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET}"
-  [ -n "$reset_5h_time" ] && printf " ${usage_5h_color}${usage_5h_int}%% ${RESET}${USAGE_RESET}↻${reset_5h_time}${RESET} ${SLATE_600}│${RESET}"
-  printf " ${LEARN_WORK}${NF_HAMMER} W:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} S:${SLATE_300}${ratings_count}${RESET}\n"
+  [ -n "$reset_5h_time" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
+  ctx_bar=$(render_context_bar 6 $display_pct)
+  printf " ${SLATE_600}│${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  if [ "$cache_total" -gt 0 ]; then
+    cache_num_color=$(get_cache_color "$cache_hit_rate")
+    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
+  fi
+  printf "\n"
   ;;
 micro)
-  printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET}"
-  [ -n "$reset_5h_time" ] && printf " ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%% ${RESET}${USAGE_RESET}↻${reset_5h_time}${RESET} ${SLATE_600}│${RESET}"
-  printf " ${LEARN_WORK}${NF_HAMMER} W:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} S:${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}${NF_MESSAGE} H:${SLATE_300}${sessions_count}${RESET}\n"
+  [ -n "$reset_5h_time" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
+  ctx_bar=$(render_context_bar 8 $display_pct)
+  printf " ${SLATE_600}│${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  if [ "$cache_total" -gt 0 ]; then
+    cache_num_color=$(get_cache_color "$cache_hit_rate")
+    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
+  fi
+  printf "\n"
   ;;
 mini)
-  printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET}"
   if [ -n "$reset_5h_time" ]; then
-    printf " ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%% ${RESET}${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}│${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%% ${RESET}${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET} ${SLATE_600}│${RESET}"
+    printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}│${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
   fi
-  printf " ${LEARN_WORK}${NF_HAMMER} W:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} S:${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}${NF_MESSAGE} H:${SLATE_300}${sessions_count}${RESET} ${LEARN_RESEARCH}${NF_SEARCH} R:${SLATE_300}${research_count}${RESET}\n"
+  ctx_bar=$(render_context_bar 16 $display_pct)
+  printf " ${SLATE_600}│${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  if [ "$cache_total" -gt 0 ]; then
+    cache_num_color=$(get_cache_color "$cache_hit_rate")
+    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
+  fi
+  printf "\n"
   ;;
 normal)
-  printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET}"
   if [ -n "$reset_5h_time" ]; then
-    printf " ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%% ${RESET}${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}│${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%% ${RESET}${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET} ${SLATE_600}│${RESET}"
-    [ -n "$extra_display" ] && printf " ${USAGE_EXTRA}${extra_display}${RESET} ${SLATE_600}│${RESET}"
+    printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}│${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
+    [ -n "$extra_display" ] && printf " ${SLATE_600}│${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
   fi
-  printf " ${LEARN_WORK}${NF_HAMMER} W:${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}${NF_WIFI} S:${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}${NF_MESSAGE} H:${SLATE_300}${sessions_count}${RESET} ${LEARN_RESEARCH}${NF_SEARCH} R:${SLATE_300}${research_count}${RESET}\n"
+  ctx_bar=$(render_context_bar 24 $display_pct)
+  printf " ${SLATE_600}│${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  if [ "$cache_total" -gt 0 ]; then
+    cache_num_color=$(get_cache_color "$cache_hit_rate")
+    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
+  fi
+  printf "\n"
   ;;
 esac
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# LINE 3: CONTEXT BAR (full-width for mini/normal, compact for nano/micro)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-case "$MODE" in
-nano)
-  ctx_bar=$(render_context_bar 4 $display_pct)
-  printf "${ctx_bar} ${pct_color}${display_pct}%%${RESET}\n"
-  ;;
-micro)
-  ctx_bar=$(render_context_bar 5 $display_pct)
-  printf "${ctx_bar} ${pct_color}${display_pct}%%${RESET}\n"
-  ;;
-mini | normal)
-  render_context_bar_full "$display_pct"
-  ;;
-esac
-
-printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# LINE 4: LEARNING RATINGS
-# ═══════════════════════════════════════════════════════════════════════════════
-
-if [ -f "$RATINGS_FILE" ] && [ -s "$RATINGS_FILE" ]; then
-  now=$(date +%s)
-
-  cache_valid=false
-  if [ -f "$LEARNING_CACHE" ]; then
-    cache_mtime=$(stat -f %m "$LEARNING_CACHE" 2>/dev/null || echo 0)
-    ratings_mtime=$(stat -f %m "$RATINGS_FILE" 2>/dev/null || echo 0)
-    cache_age=$((now - cache_mtime))
-    [ "$cache_mtime" -gt "$ratings_mtime" ] && [ "$cache_age" -lt "$LEARNING_CACHE_TTL" ] && cache_valid=true
-  fi
-
-  if [ "$cache_valid" = true ]; then
-    source "$LEARNING_CACHE"
-  else
-    eval "$(grep '^{' "$RATINGS_FILE" | jq -rs --argjson now "$now" '
-      def to_epoch:
-        (capture("(?<sign>[-+])(?<h>[0-9]{2}):(?<m>[0-9]{2})$") // {sign: "+", h: "00", m: "00"}) as $tz |
-        gsub("[-+][0-9]{2}:[0-9]{2}$"; "Z") | gsub("\\.[0-9]+"; "") | fromdateiso8601 |
-        . + (if $tz.sign == "-" then 1 else -1 end) * (($tz.h | tonumber) * 3600 + ($tz.m | tonumber) * 60);
-
-      [.[] | select(.rating != null) | . + {epoch: (.timestamp | to_epoch)}] |
-
-      ($now - 900) as $q15_start | ($now - 3600) as $hour_start | ($now - 86400) as $today_start |
-      ($now - 604800) as $week_start | ($now - 2592000) as $month_start |
-
-      (map(select(.epoch >= $q15_start) | .rating) | if length > 0 then (add / length | . * 10 | floor / 10 | tostring) else "—" end) as $q15_avg |
-      (map(select(.epoch >= $hour_start) | .rating) | if length > 0 then (add / length | . * 10 | floor / 10 | tostring) else "—" end) as $hour_avg |
-      (map(select(.epoch >= $today_start) | .rating) | if length > 0 then (add / length | . * 10 | floor / 10 | tostring) else "—" end) as $today_avg |
-      (map(select(.epoch >= $week_start) | .rating) | if length > 0 then (add / length | . * 10 | floor / 10 | tostring) else "—" end) as $week_avg |
-      (map(select(.epoch >= $month_start) | .rating) | if length > 0 then (add / length | . * 10 | floor / 10 | tostring) else "—" end) as $month_avg |
-      length as $total |
-      (last | .rating | tostring) as $latest |
-
-      (map(select(.epoch >= $q15_start) | .rating | round) | if length > 5 then .[-5:] else . end | map(tostring) | join(",")) as $q15_spark |
-      (map(select(.epoch >= $hour_start) | .rating | round) | if length > 5 then .[-5:] else . end | map(tostring) | join(",")) as $hour_spark |
-      (map(select(.epoch >= $today_start) | .rating | round) | if length > 5 then .[-5:] else . end | map(tostring) | join(",")) as $today_spark |
-      (map(select(.epoch >= $week_start) | .rating | round) | if length > 5 then .[-5:] else . end | map(tostring) | join(",")) as $week_spark |
-      (map(select(.epoch >= $month_start) | .rating | round) | if length > 5 then .[-5:] else . end | map(tostring) | join(",")) as $month_spark |
-
-      "q15_avg=\($q15_avg | @sh)\nhour_avg=\($hour_avg | @sh)\ntoday_avg=\($today_avg | @sh)\n" +
-      "week_avg=\($week_avg | @sh)\nmonth_avg=\($month_avg | @sh)\nlatest=\($latest | @sh)\ntotal_count=\($total)\n" +
-      "q15_spark=\($q15_spark | @sh)\nhour_spark=\($hour_spark | @sh)\ntoday_spark=\($today_spark | @sh)\n" +
-      "week_spark=\($week_spark | @sh)\nmonth_spark=\($month_spark | @sh)"
-    ' 2>/dev/null)"
-
-    cat >"$LEARNING_CACHE" <<CACHE_EOF
-q15_avg='$q15_avg'
-hour_avg='$hour_avg'
-today_avg='$today_avg'
-week_avg='$week_avg'
-month_avg='$month_avg'
-latest='$latest'
-total_count=$total_count
-q15_spark='$q15_spark'
-hour_spark='$hour_spark'
-today_spark='$today_spark'
-week_spark='$week_spark'
-month_spark='$month_spark'
-CACHE_EOF
-  fi
-
-  if [ "${total_count:-0}" -gt 0 ] 2>/dev/null; then
-    Q15_COLOR=$(get_rating_color "${q15_avg:-5}")
-    HOUR_COLOR=$(get_rating_color "${hour_avg:-5}")
-    TODAY_COLOR=$(get_rating_color "${today_avg:-5}")
-    WEEK_COLOR=$(get_rating_color "${week_avg:-5}")
-    MONTH_COLOR=$(get_rating_color "${month_avg:-5}")
-
-    q15_bar=$(render_sparkline "${q15_spark:-}")
-    hour_bar=$(render_sparkline "${hour_spark:-}")
-    today_bar=$(render_sparkline "${today_spark:-}")
-    week_bar=$(render_sparkline "${week_spark:-}")
-    month_bar=$(render_sparkline "${month_spark:-}")
-
-    case "$MODE" in
-    nano)
-      printf "${LEARN_LABEL}★${RESET} ${SIGNAL_PERIOD}1d:${RESET}${TODAY_COLOR}${today_avg}${RESET} ${today_bar}\n"
-      ;;
-    micro)
-      printf "${LEARN_LABEL}★${RESET} ${SIGNAL_PERIOD}1h:${RESET}${HOUR_COLOR}${hour_avg}${RESET} ${hour_bar} ${SIGNAL_PERIOD}1d:${RESET}${TODAY_COLOR}${today_avg}${RESET} ${today_bar} ${SIGNAL_PERIOD}1w:${RESET}${WEEK_COLOR}${week_avg}${RESET} ${week_bar}\n"
-      ;;
-    mini)
-      printf "${LEARN_LABEL}★${RESET} ${SIGNAL_PERIOD}1h:${RESET}${HOUR_COLOR}${hour_avg}${RESET} ${hour_bar} ${SIGNAL_PERIOD}1d:${RESET}${TODAY_COLOR}${today_avg}${RESET} ${today_bar} ${SIGNAL_PERIOD}1w:${RESET}${WEEK_COLOR}${week_avg}${RESET} ${week_bar} ${SIGNAL_PERIOD}1mo:${RESET}${MONTH_COLOR}${month_avg}${RESET} ${month_bar}\n"
-      ;;
-    normal)
-      printf "${LEARN_LABEL}★${RESET} ${SIGNAL_PERIOD}15m:${RESET}${Q15_COLOR}${q15_avg}${RESET} ${q15_bar} ${SIGNAL_PERIOD}1h:${RESET}${HOUR_COLOR}${hour_avg}${RESET} ${hour_bar} ${SIGNAL_PERIOD}1d:${RESET}${TODAY_COLOR}${today_avg}${RESET} ${today_bar} ${SIGNAL_PERIOD}1w:${RESET}${WEEK_COLOR}${week_avg}${RESET} ${week_bar} ${SIGNAL_PERIOD}1mo:${RESET}${MONTH_COLOR}${month_avg}${RESET} ${month_bar}\n"
-      ;;
-    esac
-  fi
-fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 5: QUOTE (normal mode only)
