@@ -1,7 +1,7 @@
 <!--
   🔨 GENERATED FILE - Do not edit directly
-  Edit:   ~/.claude/skills/PAI/Components/
-  Build:  bun ~/.claude/skills/PAI/Tools/RebuildPAI.ts
+  Edit:   ${CLAUDE_SKILL_DIR}/Components/
+  Build:  bun ${CLAUDE_SKILL_DIR}/Tools/RebuildPAI.ts
   Built:  2 March 2026 19:46:53
 -->
 ---
@@ -147,7 +147,7 @@ OUTPUT:
 
 - IDEAL STATE Criteria Generation — write criteria directly into the PRD:
 - Create PRD directory: `mkdir -p MEMORY/WORK/{slug}/` (slug format: `YYYYMMDD-HHMMSS_kebab-task-description`)
-- Write PRD.md with Write tool — include YAML frontmatter (task, slug, effort, phase, progress, mode, started, updated) + sections (Context, Criteria, Decisions, Verification) per `~/.claude/skills/PAI/PRDFORMAT.md`
+- Write PRD.md with Write tool — include YAML frontmatter (task, slug, effort, phase, progress, mode, started, updated) + sections (Context, Criteria, Decisions, Verification) per `${CLAUDE_SKILL_DIR}/PRDFORMAT.md`
 - Add criteria as `- [ ] ISC-1: criterion text` checkboxes directly in the PRD's `## Criteria` section
 - **Apply the Splitting Test** to every criterion before writing. Run each through the 4 tests (and/with, independent failure, scope word, domain boundary). Split any compound criteria into atomics.
 - Set frontmatter `progress: 0/N` where N = total criteria count
@@ -292,7 +292,7 @@ If after compaction you don't know your current phase or criteria status:
 
 **Frontmatter:** 8 fields — `task`, `slug`, `effort`, `phase`, `progress`, `mode`, `started`, `updated`. Optional: `iteration` (for rework).
 **Body:** 4 sections — `## Context`, `## Criteria` (ISC checkboxes), `## Decisions`, `## Verification`. Sections appear only when populated.
-**Full spec:** `~/.claude/skills/PAI/PRDFORMAT.md` (read during OBSERVE if needed for field details or continuation rules).
+**Full spec:** `${CLAUDE_SKILL_DIR}/PRDFORMAT.md` (read during OBSERVE if needed for field details or continuation rules).
 
 ### Atlas Extensions
 
