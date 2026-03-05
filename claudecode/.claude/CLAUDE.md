@@ -11,11 +11,12 @@ Your entire work history is in `~/.claude/memory.db`.
 
 ### MCP Server Tools
 
-When recall-memory MCP is configured, you have access to:
+> **Note:** These tools require the `lmf-memory` MCP server to be loaded.
+> If unavailable, use `mem` CLI commands below as fallback.
 
 | Tool | Usage |
 |------|-------|
-| `context_for_agent` | **MANDATORY before Task tool.** Hybrid search for agent context |
+| `context_for_agent` | Hybrid search for agent context |
 | `memory_search` | Keyword search (FTS5) - USE before asking user to repeat |
 | `memory_hybrid_search` | Natural language search (FTS5 + semantic + RRF fusion) |
 | `memory_recall` | Recent LoA entries, decisions, breadcrumbs |
@@ -23,11 +24,15 @@ When recall-memory MCP is configured, you have access to:
 | `loa_show` | View full LoA entry |
 | `memory_stats` | Database statistics |
 
-### LAW: Agent Context
+### Recommended: Agent Context
 
-**Before spawning any agent (Task tool), MUST call `context_for_agent` first.**
+**Before spawning any agent (Task tool), search for relevant context using `context_for_agent` (if available) or `mem` CLI.**
 
-If it recommends Brave search, call `mcp__brave-search__brave_web_search` and include results in agent prompt.
+If MCP tools aren't loaded, use:
+```bash
+mem "relevant query" -k
+```
+and include results in the agent prompt.
 
 ### CLI Commands
 
