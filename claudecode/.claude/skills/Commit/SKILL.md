@@ -1,6 +1,8 @@
 ---
 name: Commit
 description: Generate and create git commits with conventional commit messages and CHANGELOG updates. USE WHEN commit, save work, commit changes, commit message, git commit.
+compatibility:
+  claude_code: ">=2.0.0"
 ---
 
 # Commit

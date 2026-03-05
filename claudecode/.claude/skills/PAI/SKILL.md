@@ -1,12 +1,14 @@
 <!--
   🔨 GENERATED FILE - Do not edit directly
-  Edit:   ${CLAUDE_SKILL_DIR}/Components/
-  Build:  bun ${CLAUDE_SKILL_DIR}/Tools/RebuildPAI.ts
-  Built:  2 March 2026 19:46:53
+  Edit:   ~/.claude/skills/PAI/Components/
+  Build:  bun ~/.claude/skills/PAI/Tools/RebuildPAI.ts
+  Built:  5 March 2026 14:22:59
 -->
 ---
 name: PAI
 description: Personal AI Infrastructure core. The authoritative reference for how PAI works.
+compatibility:
+  claude_code: ">=2.1.69"
 ---
 
 # Intro to PAI
@@ -147,7 +149,7 @@ OUTPUT:
 
 - IDEAL STATE Criteria Generation — write criteria directly into the PRD:
 - Create PRD directory: `mkdir -p MEMORY/WORK/{slug}/` (slug format: `YYYYMMDD-HHMMSS_kebab-task-description`)
-- Write PRD.md with Write tool — include YAML frontmatter (task, slug, effort, phase, progress, mode, started, updated) + sections (Context, Criteria, Decisions, Verification) per `${CLAUDE_SKILL_DIR}/PRDFORMAT.md`
+- Write PRD.md with Write tool — include YAML frontmatter (task, slug, effort, phase, progress, mode, started, updated) + sections (Context, Criteria, Decisions, Verification) per `~/.claude/skills/PAI/PRDFORMAT.md`
 - Add criteria as `- [ ] ISC-1: criterion text` checkboxes directly in the PRD's `## Criteria` section
 - **Apply the Splitting Test** to every criterion before writing. Run each through the 4 tests (and/with, independent failure, scope word, domain boundary). Split any compound criteria into atomics.
 - Set frontmatter `progress: 0/N` where N = total criteria count
@@ -197,6 +199,8 @@ OUTPUT:
 🏹 CAPABILITIES SELECTED:
  🏹 [12-24 words on why only those CAPABILITIES were selected]
 
+- **VERIFY LOAD-BEARING ASSUMPTIONS:** If any ISC criterion depends on a technical assumption (e.g., sequential execution, dominant cost source, feature availability), test that assumption empirically with a quick check (2-10 seconds) before building ISC around it. Unverified assumptions are the #1 cause of wasted criteria.
+- **DISAMBIGUATION (conditional):** If the user's request contains terms that could map to 2+ distinct systems or interpretations, fire `AskUserQuestion` before deep investigation. Do not guess — clarify.
 - If any CAPABILITIES were selected for use in the OBSERVE phase, execute them now and update the ISC criteria in the PRD with the results
 
 ━━━ 🧠 THINK ━━━ 2/7
@@ -236,6 +240,7 @@ OUTPUT:
 **FIRST ACTION:** Voice announce `"Entering the Execute phase."`, then Edit PRD frontmatter `phase: execute, updated: {timestamp}`. Perform the work.
 
 — Execute the work.
+- **Test each change individually before batching.** After each independent edit (hook, file, config), run its verification command before moving to the next. Do not batch multiple changes and test at the end — interdependencies surface too late.
 - As each criterion is satisfied, IMMEDIATELY edit the PRD directly: change `- [ ]` to `- [x]`, update frontmatter `progress:` field. Do NOT wait for VERIFY — update the moment a criterion passes. This is the AI's responsibility — no hook will do it for you.
 
 ━━━ ✅ VERIFY ━━━ 6/7
@@ -292,7 +297,7 @@ If after compaction you don't know your current phase or criteria status:
 
 **Frontmatter:** 8 fields — `task`, `slug`, `effort`, `phase`, `progress`, `mode`, `started`, `updated`. Optional: `iteration` (for rework).
 **Body:** 4 sections — `## Context`, `## Criteria` (ISC checkboxes), `## Decisions`, `## Verification`. Sections appear only when populated.
-**Full spec:** `${CLAUDE_SKILL_DIR}/PRDFORMAT.md` (read during OBSERVE if needed for field details or continuation rules).
+**Full spec:** `~/.claude/skills/PAI/PRDFORMAT.md` (read during OBSERVE if needed for field details or continuation rules).
 
 ### Atlas Extensions
 
