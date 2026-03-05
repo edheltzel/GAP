@@ -104,7 +104,7 @@ Evidence for each criterion. Written during VERIFY phase.
 ~/.claude/MEMORY/WORK/{slug}/PRD.md
 ```
 
-Directory created with `mkdir -p MEMORY/WORK/{slug}/` during OBSERVE.
+Directory created with `mkdir -p ~/.claude/MEMORY/WORK/{slug}/` during OBSERVE.
 
 ## Continuation / Rework
 

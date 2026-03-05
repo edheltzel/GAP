@@ -52,8 +52,9 @@ import { writeFileSync, existsSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { getISOTimestamp } from './lib/time';
 import { setTabState, cleanupKittySession } from './lib/tab-setter';
+import { getMemoryDir } from './lib/paths';
 
-const MEMORY_DIR = join(process.env.HOME!, '.claude', 'MEMORY');
+const MEMORY_DIR = getMemoryDir();
 const STATE_DIR = join(MEMORY_DIR, 'STATE');
 const CURRENT_WORK_FILE = join(STATE_DIR, 'current-work.json');
 const WORK_DIR = join(MEMORY_DIR, 'WORK');
