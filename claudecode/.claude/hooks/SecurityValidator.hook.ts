@@ -76,6 +76,8 @@ import { paiPath } from './lib/paths';
 interface SecurityEvent {
   timestamp: string;
   session_id: string;
+  agent_id?: string;
+  agent_type?: string;
   event_type: 'block' | 'confirm' | 'alert' | 'allow';
   tool: string;
   category: 'bash_command' | 'path_access';
@@ -140,6 +142,8 @@ function logSecurityEvent(event: SecurityEvent): void {
 
 interface HookInput {
   session_id: string;
+  agent_id?: string;
+  agent_type?: string;
   tool_name: string;
   tool_input: Record<string, unknown> | string;
 }
@@ -291,7 +295,11 @@ function matchesPathPattern(filePath: string, pattern: string): boolean {
 // Bash Command Validation
 // ========================================
 
-function validateBashCommand(command: string): { action: 'allow' | 'block' | 'confirm' | 'alert'; reason?: string } {
+function isSubagent(input: HookInput): boolean {
+  return !!(input.agent_id && input.agent_type);
+}
+
+function validateBashCommand(command: string, input: HookInput): { action: 'allow' | 'block' | 'confirm' | 'alert'; reason?: string } {
   const patterns = loadPatterns();
 
   // Check blocked patterns (hard block)
@@ -311,6 +319,10 @@ function validateBashCommand(command: string): { action: 'allow' | 'block' | 'co
   // Check alert patterns (log but allow)
   for (const p of patterns.bash.alert) {
     if (matchesPattern(command, p.pattern)) {
+      // Subagents: escalate alerts to confirms (less user oversight)
+      if (isSubagent(input)) {
+        return { action: 'confirm', reason: `[subagent:${input.agent_type}] ${p.reason}` };
+      }
       return { action: 'alert', reason: p.reason };
     }
   }
@@ -378,13 +390,15 @@ function handleBash(input: HookInput): void {
     return;
   }
 
-  const result = validateBashCommand(command);
+  const result = validateBashCommand(command, input);
 
   switch (result.action) {
     case 'block':
       logSecurityEvent({
         timestamp: new Date().toISOString(),
         session_id: input.session_id,
+        agent_id: input.agent_id,
+        agent_type: input.agent_type,
         event_type: 'block',
         tool: 'Bash',
         category: 'bash_command',
@@ -401,6 +415,8 @@ function handleBash(input: HookInput): void {
       logSecurityEvent({
         timestamp: new Date().toISOString(),
         session_id: input.session_id,
+        agent_id: input.agent_id,
+        agent_type: input.agent_type,
         event_type: 'confirm',
         tool: 'Bash',
         category: 'bash_command',
@@ -418,6 +434,8 @@ function handleBash(input: HookInput): void {
       logSecurityEvent({
         timestamp: new Date().toISOString(),
         session_id: input.session_id,
+        agent_id: input.agent_id,
+        agent_type: input.agent_type,
         event_type: 'alert',
         tool: 'Bash',
         category: 'bash_command',
@@ -452,6 +470,8 @@ function handleEdit(input: HookInput): void {
       logSecurityEvent({
         timestamp: new Date().toISOString(),
         session_id: input.session_id,
+        agent_id: input.agent_id,
+        agent_type: input.agent_type,
         event_type: 'block',
         tool: 'Edit',
         category: 'path_access',
@@ -468,6 +488,8 @@ function handleEdit(input: HookInput): void {
       logSecurityEvent({
         timestamp: new Date().toISOString(),
         session_id: input.session_id,
+        agent_id: input.agent_id,
+        agent_type: input.agent_type,
         event_type: 'confirm',
         tool: 'Edit',
         category: 'path_access',
@@ -503,6 +525,8 @@ function handleWrite(input: HookInput): void {
       logSecurityEvent({
         timestamp: new Date().toISOString(),
         session_id: input.session_id,
+        agent_id: input.agent_id,
+        agent_type: input.agent_type,
         event_type: 'block',
         tool: 'Write',
         category: 'path_access',
@@ -519,6 +543,8 @@ function handleWrite(input: HookInput): void {
       logSecurityEvent({
         timestamp: new Date().toISOString(),
         session_id: input.session_id,
+        agent_id: input.agent_id,
+        agent_type: input.agent_type,
         event_type: 'confirm',
         tool: 'Write',
         category: 'path_access',
@@ -554,6 +580,8 @@ function handleRead(input: HookInput): void {
       logSecurityEvent({
         timestamp: new Date().toISOString(),
         session_id: input.session_id,
+        agent_id: input.agent_id,
+        agent_type: input.agent_type,
         event_type: 'block',
         tool: 'Read',
         category: 'path_access',

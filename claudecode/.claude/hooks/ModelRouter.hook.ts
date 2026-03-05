@@ -44,6 +44,8 @@ interface AlgorithmState {
 
 interface HookInput {
   session_id?: string;
+  agent_id?: string;
+  agent_type?: string;
   tool_name: string;
   tool_input: {
     subagent_type?: string;
@@ -96,6 +98,16 @@ async function main() {
     // Skip fast-tier agent types
     const agentType = tool_input.subagent_type || '';
     if (SKIP_TYPES.includes(agentType)) process.exit(0);
+
+    // Subagents spawning further agents: default to sonnet (prevent opus cascades)
+    if (data.agent_id && data.agent_type) {
+      console.log(`<system-reminder>
+MODEL ROUTER — Caller is subagent (type: ${data.agent_type}, id: ${data.agent_id})
+Recommended model: **sonnet** — subagents should not cascade to opus.
+Set model: "sonnet" in this Task call.
+</system-reminder>`);
+      process.exit(0);
+    }
 
     // Read current algorithm phase
     const state = readAlgorithmState(session_id);
