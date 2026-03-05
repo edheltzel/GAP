@@ -3,8 +3,11 @@
 // Used by: PRDSync.hook.ts (PostToolUse), PRDStateSync.hook.ts (Stop)
 //
 // Functions:
-//   findLatestPRD() -- scan MEMORY/WORK/[slug]/PRD.md by mtime
-//   parseFrontmatter() -- extract YAML frontmatter to object
+//   findLatestWorkFile() -- scan MEMORY/WORK/[slug]/{PRD.md,META.yaml} by mtime
+//   findLatestPRD() -- legacy alias for findLatestWorkFile()
+//   parseFrontmatter() -- extract YAML frontmatter (--- delimited) to object
+//   parseRawYaml() -- parse raw key: value YAML (no --- delimiters, e.g. META.yaml)
+//   parseWorkFile() -- auto-detect format and parse either PRD.md or META.yaml
 //   writeFrontmatterField() -- update single field in existing frontmatter
 //   countCriteria() -- count checked/unchecked in Criteria section
 //   syncToWorkJson() -- upsert session into work.json from frontmatter
@@ -16,19 +19,25 @@ import { paiPath } from './paths';
 export const WORK_DIR = paiPath('MEMORY', 'WORK');
 export const WORK_JSON = paiPath('MEMORY', 'STATE', 'work.json');
 
-export function findLatestPRD(): string | null {
+export function findLatestWorkFile(): string | null {
   if (!existsSync(WORK_DIR)) return null;
   let latest: string | null = null;
   let latestMtime = 0;
   for (const dir of readdirSync(WORK_DIR)) {
-    const prd = join(WORK_DIR, dir, 'PRD.md');
-    try {
-      const s = statSync(prd);
-      if (s.mtimeMs > latestMtime) { latestMtime = s.mtimeMs; latest = prd; }
-    } catch {}
+    // Check both PRD.md and META.yaml; pick whichever is newer
+    for (const candidate of ['PRD.md', 'META.yaml']) {
+      const filePath = join(WORK_DIR, dir, candidate);
+      try {
+        const s = statSync(filePath);
+        if (s.mtimeMs > latestMtime) { latestMtime = s.mtimeMs; latest = filePath; }
+      } catch {}
+    }
   }
   return latest;
 }
+
+/** @deprecated Use findLatestWorkFile instead */
+export const findLatestPRD = findLatestWorkFile;
 
 export function parseFrontmatter(content: string): Record<string, string> | null {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
@@ -39,6 +48,42 @@ export function parseFrontmatter(content: string): Record<string, string> | null
     if (idx > 0) fm[line.slice(0, idx).trim()] = line.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
   }
   return fm;
+}
+
+/**
+ * parseRawYaml — parse raw key: value YAML with no --- delimiters.
+ * Used for META.yaml files which are plain YAML (not fenced frontmatter).
+ * Returns null if no valid key: value pairs are found.
+ */
+export function parseRawYaml(content: string): Record<string, string> | null {
+  const fm: Record<string, string> = {};
+  let found = false;
+  for (const line of content.split('\n')) {
+    // Skip blank lines and comment lines
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const idx = line.indexOf(':');
+    if (idx > 0) {
+      const key = line.slice(0, idx).trim();
+      const value = line.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
+      fm[key] = value;
+      found = true;
+    }
+  }
+  return found ? fm : null;
+}
+
+/**
+ * parseWorkFile — auto-detect format and parse either PRD.md or META.yaml.
+ * PRD.md uses --- fenced frontmatter; META.yaml uses raw key: value YAML.
+ * Falls back to raw YAML parsing if frontmatter delimiters are absent.
+ */
+export function parseWorkFile(content: string, filePath: string): Record<string, string> | null {
+  if (filePath.endsWith('META.yaml')) {
+    // META.yaml may optionally have --- delimiters; try frontmatter first, then raw
+    return parseFrontmatter(content) ?? parseRawYaml(content);
+  }
+  // PRD.md always uses --- frontmatter
+  return parseFrontmatter(content);
 }
 
 export function writeFrontmatterField(content: string, field: string, value: string): string {

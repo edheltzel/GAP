@@ -13,7 +13,7 @@
 
 import { readFileSync, existsSync } from 'fs';
 import {
-  parseFrontmatter,
+  parseWorkFile,
   syncToWorkJson,
   readRegistry,
 } from './lib/prd-utils';
@@ -30,9 +30,12 @@ try {
 const toolInput = input.tool_input || {};
 
 async function main() {
-  // Only trigger for PRD.md files in MEMORY/WORK/
+  // Trigger for PRD.md or META.yaml files inside MEMORY/WORK/
   const filePath = toolInput.file_path || '';
-  if (!filePath.includes('MEMORY/WORK/') || !filePath.endsWith('PRD.md')) return;
+  const isWorkFile =
+    filePath.includes('MEMORY/WORK/') &&
+    (filePath.endsWith('PRD.md') || filePath.endsWith('META.yaml'));
+  if (!isWorkFile) return;
 
   // Use the actual file path that was just written/edited, not findLatestPRD()
   // findLatestPRD() scans all PRDs by mtime and can return the wrong file
@@ -41,7 +44,7 @@ async function main() {
   if (!existsSync(prdPath)) return;
 
   const content = readFileSync(prdPath, 'utf-8');
-  const fm = parseFrontmatter(content);
+  const fm = parseWorkFile(content, prdPath);
   if (!fm) return;
 
   // Check existing phase before sync to detect phase changes
