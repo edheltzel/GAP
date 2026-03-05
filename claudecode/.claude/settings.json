@@ -14,6 +14,7 @@
     "pr": ""
   },
   "includeCoAuthoredBy": false,
+  "includeGitInstructions": false,
   "permissions": {
     "allow": [
       "Bash",
@@ -318,6 +319,17 @@
             "command": "${PAI_DIR}/hooks/VoiceGreeting.hook.ts",
             "timeout": 30000,
             "async": true
+          }
+        ]
+      }
+    ],
+    "InstructionsLoaded": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/InstructionsLoaded.hook.ts",
+            "timeout": 5000
           }
         ]
       }
@@ -858,14 +870,14 @@
   "counts": {
     "skills": 43,
     "workflows": 165,
-    "hooks": 23,
-    "signals": 303,
+    "hooks": 24,
+    "signals": 313,
     "files": 12,
-    "work": 981,
-    "sessions": 32,
+    "work": 1060,
+    "sessions": 33,
     "research": 0,
-    "ratings": 303,
-    "updatedAt": "2026-03-05T09:18:10.927Z"
+    "ratings": 313,
+    "updatedAt": "2026-03-05T20:21:57.234Z"
   },
   "daidentity": {
     "color": "#A48CF2",
