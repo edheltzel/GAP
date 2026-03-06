@@ -7,6 +7,7 @@
     "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
     "PAI_CONFIG_DIR": "/Users/ed/.config/PAI",
     "PAI_DIR": "/Users/ed/.claude",
+    "ENABLE_TOOL_SEARCH": "auto",
     "PROJECTS_DIR": "/Users/ed/Developer"
   },
   "attribution": {
@@ -33,8 +34,7 @@
       "ExitPlanMode",
       "Task",
       "Skill",
-      "mcp__*",
-      "mcp__pencil"
+      "mcp__*"
     ],
     "deny": [],
     "ask": [
@@ -347,6 +347,15 @@
             "command": "/Users/ed/.kanban-code/hook.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/SessionExtract.ts",
+            "timeout": 30000
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -377,15 +386,6 @@
             "command": "/Users/ed/.kanban-code/hook.sh"
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SessionExtract.ts",
-            "timeout": 30000
-          }
-        ]
       }
     ]
   },
@@ -405,7 +405,15 @@
     "superpowers-developing-for-claude-code@superpowers-marketplace": true,
     "superpowers-lab@superpowers-marketplace": true,
     "superpowers@superpowers-marketplace": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "playground@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true
   },
   "spinnerVerbs": {
     "mode": "replace",
@@ -871,13 +879,13 @@
     "skills": 43,
     "workflows": 165,
     "hooks": 24,
-    "signals": 317,
+    "signals": 323,
     "files": 12,
-    "work": 1090,
-    "sessions": 33,
+    "work": 1114,
+    "sessions": 34,
     "research": 0,
-    "ratings": 317,
-    "updatedAt": "2026-03-05T22:11:21.606Z"
+    "ratings": 323,
+    "updatedAt": "2026-03-06T16:04:01.493Z"
   },
   "daidentity": {
     "color": "#A48CF2",
