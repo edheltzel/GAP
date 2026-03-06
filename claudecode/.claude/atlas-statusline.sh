@@ -526,23 +526,27 @@ ver_suffix_plain=""
 ver_suffix="${PAI_A}${model_name_short}${RESET}"
 ver_suffix_plain="${model_name_short}"
 [ -n "$model_ver_str" ] && { ver_suffix="${ver_suffix} ${SLATE_300}${model_ver_str}${RESET}"; ver_suffix_plain="${ver_suffix_plain} ${model_ver_str}"; }
-[ -n "$cc_version" ] && { ver_suffix="${ver_suffix} ${SLATE_600}│${RESET} ${CC_ICON}✱ ${SLATE_300}${cc_version}${RESET}"; ver_suffix_plain="${ver_suffix_plain} | ${cc_version}"; }
+[ -n "$cc_version" ] && { ver_suffix="${ver_suffix} ${SLATE_600}·${RESET} ${CC_ICON}✱ ${SLATE_300}${cc_version}${RESET}"; ver_suffix_plain="${ver_suffix_plain} · ${cc_version}"; }
 
 case "$MODE" in
 nano)
-  printf "${SLATE_600}── │${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}│${RESET} ${ver_suffix}\n"
+  printf "${SLATE_600}── ·${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
   ;;
 *)
   if [ -n "$session_display" ]; then
-    local_left="── │ ▲ Atlas v${PAI_VERSION} │ ${ver_suffix_plain} │"
+    local_left="── · ▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${session_display} "
     local_left_len=${#local_left}
-    local_right_len=${#session_display}
-    local_fill=$((72 - local_left_len - local_right_len))
+    local_fill=$((72 - local_left_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${SLATE_600}── │${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}│${RESET} ${ver_suffix} ${SLATE_600}│ ${local_dashes}${RESET} ${PAI_SESSION}${session_display}${RESET}\n"
+    printf "${SLATE_600}── ·${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
   else
-    printf "${SLATE_600}── │${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}│${RESET} ${ver_suffix} ${SLATE_600}│ ──────────────────────────────────${RESET}\n"
+    local_left="── · ▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} "
+    local_left_len=${#local_left}
+    local_fill=$((72 - local_left_len))
+    [ "$local_fill" -lt 2 ] && local_fill=2
+    local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
+    printf "${SLATE_600}── ·${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}${local_dashes}${RESET}\n"
   fi
   ;;
 esac
@@ -634,45 +638,45 @@ case "$MODE" in
 nano)
   [ -n "$reset_5h_time" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
   ctx_bar=$(render_context_bar 6 $display_pct)
-  printf " ${SLATE_600}│${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  printf " ${SLATE_600}·${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
   if [ "$cache_total" -gt 0 ]; then
     cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
+    printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
   fi
   printf "\n"
   ;;
 micro)
   [ -n "$reset_5h_time" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
   ctx_bar=$(render_context_bar 8 $display_pct)
-  printf " ${SLATE_600}│${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  printf " ${SLATE_600}·${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
   if [ "$cache_total" -gt 0 ]; then
     cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
+    printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
   fi
   printf "\n"
   ;;
 mini)
   if [ -n "$reset_5h_time" ]; then
-    printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}│${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
+    printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
   fi
   ctx_bar=$(render_context_bar 16 $display_pct)
-  printf " ${SLATE_600}│${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  printf " ${SLATE_600}·${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
   if [ "$cache_total" -gt 0 ]; then
     cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
+    printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
   fi
   printf "\n"
   ;;
 normal)
   if [ -n "$reset_5h_time" ]; then
-    printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}│${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
-    [ -n "$extra_display" ] && printf " ${SLATE_600}│${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
+    printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
+    [ -n "$extra_display" ] && printf " ${SLATE_600}·${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
   fi
   ctx_bar=$(render_context_bar 24 $display_pct)
-  printf " ${SLATE_600}│${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  printf " ${SLATE_600}·${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
   if [ "$cache_total" -gt 0 ]; then
     cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}│${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
+    printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
   fi
   printf "\n"
   ;;
@@ -684,8 +688,6 @@ esac
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if [ "$MODE" = "normal" ]; then
-  printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
-
   if [ -f "$QUOTE_CACHE" ]; then
     IFS='|' read -r quote_text quote_author <"$QUOTE_CACHE"
     author_suffix="\" —${quote_author}"
