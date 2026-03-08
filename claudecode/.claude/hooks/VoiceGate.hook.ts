@@ -71,12 +71,14 @@ async function main() {
 
   // It's a voice curl — check if main session
   if (isMainSession()) {
+    console.error('[VoiceGate] pass: main-session voice curl');
     console.log(JSON.stringify({ continue: true }));
     return;
   }
 
-  // Subagent trying to send voice → block silently
-  // Return a fake success so the agent thinks it worked and moves on
+  // Subagent trying to send voice → block
+  const taskId = process.env.CLAUDE_CODE_AGENT_TASK_ID || 'unknown';
+  console.error(`[VoiceGate] block: subagent voice curl (task_id: ${taskId})`);
   console.log(JSON.stringify({
     decision: "block",
     reason: "Voice notifications are only sent from the main session. Subagent voice curls are suppressed."

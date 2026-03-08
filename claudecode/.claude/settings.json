@@ -313,6 +313,7 @@
         ]
       },
       {
+        "matcher": "startup",
         "hooks": [
           {
             "type": "command",
@@ -345,15 +346,6 @@
           {
             "type": "command",
             "command": "/Users/ed/.kanban-code/hook.sh"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SessionExtract.ts",
-            "timeout": 30000
           }
         ]
       }
@@ -879,13 +871,13 @@
     "skills": 43,
     "workflows": 165,
     "hooks": 24,
-    "signals": 323,
-    "files": 12,
-    "work": 1114,
-    "sessions": 34,
+    "signals": 347,
+    "files": 31,
+    "work": 1233,
+    "sessions": 41,
     "research": 0,
-    "ratings": 323,
-    "updatedAt": "2026-03-06T16:04:01.493Z"
+    "ratings": 347,
+    "updatedAt": "2026-03-08T13:12:19.321Z"
   },
   "daidentity": {
     "color": "#A48CF2",
