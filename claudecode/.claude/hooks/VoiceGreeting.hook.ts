@@ -13,14 +13,13 @@
  *
  * SIDE EFFECTS:
  * - Sends HTTP request to voice server (fire-and-forget)
- * - Writes a 0-byte flag file to MEMORY/STATE/voice-greeted/{session_id}
- *   to prevent double-fire within the same session.
- *
  * SUBAGENT DETECTION (layered):
+ * 0. CLAUDE_CODE_AGENT_TASK_ID is set → skip (Task tool subagents)
  * 1. CLAUDE_AGENT_TYPE === "loop-worker" → skip (algorithm.ts workers)
  * 2. CLAUDE_PROJECT_DIR contains /.claude/Agents/ → skip
- * 3. CLAUDE_AGENT_TYPE is a named agent (Intern, Engineer, etc.) → agent voice
- * 4. session_id flag file already exists → skip (dedup within same session)
+ * 3. Source check via stdin JSON — only greet when source="startup",
+ *    skip compact/resume/clear (Claude Code re-fires SessionStart on compaction)
+ * 4. CLAUDE_AGENT_TYPE is a named agent (Intern, Engineer, etc.) → agent voice
  *
  * PERFORMANCE:
  * - Async: Yes (runs in background, doesn't block startup)
@@ -28,20 +27,29 @@
  */
 
 import { existsSync, mkdirSync, readFileSync } from 'fs';
+import { spawnSync } from 'child_process';
 import { join } from 'path';
 
 const CLAUDE_DIR = join(process.env.HOME!, '.claude');
+
+// ── Layer 0: Skip Task tool subagents ────────────────────────────────────────
+if (process.env.CLAUDE_CODE_AGENT_TASK_ID) {
+  console.error(`[VoiceGreeting] skip: task-agent (${process.env.CLAUDE_CODE_AGENT_TASK_ID})`);
+  process.exit(0);
+}
 
 // ── Layer 1: Skip loop-workers (algorithm.ts spawned workers) ─────────────────
 const agentType = process.env.CLAUDE_AGENT_TYPE;
 
 if (agentType === 'loop-worker') {
+  console.error('[VoiceGreeting] skip: loop-worker');
   process.exit(0);
 }
 
 // ── Layer 2: Skip for Agents/ path-based subagents ────────────────────────────
 const claudeProjectDir = process.env.CLAUDE_PROJECT_DIR || '';
 if (claudeProjectDir.includes('/.claude/Agents/')) {
+  console.error(`[VoiceGreeting] skip: agents-path (${claudeProjectDir})`);
   process.exit(0);
 }
 
@@ -54,36 +62,73 @@ const NAMED_AGENT_TYPES = [
 
 const isNamedAgent = agentType != null && NAMED_AGENT_TYPES.includes(agentType);
 
-// ── Read session_id from stdin (Claude Code passes hook input as JSON) ────────
-let sessionId: string | null = null;
-try {
-  const stdinText = await Bun.stdin.text();
-  if (stdinText.trim()) {
-    const hookInput = JSON.parse(stdinText);
-    sessionId = hookInput.session_id ?? null;
+// ── Layer 3: Source check + PID dedup ────────────────────────────────────────
+// Claude Code passes { source } in stdin JSON. For async hooks, stdin may be
+// empty, so we also track the Claude Code ancestor PID to dedup across
+// compaction re-fires within the same session.
+function getClaudeAncestorPid(): string {
+  try {
+    const shellPpid = process.ppid;
+    const result = spawnSync('ps', ['-o', 'ppid=', '-p', String(shellPpid)], { encoding: 'utf-8' });
+    return result.stdout?.trim() || `ppid-${shellPpid}`;
+  } catch {
+    return `ppid-${process.ppid}`;
   }
-} catch {
-  // stdin parse failed — proceed without session_id (no dedup, still greet)
 }
 
-// ── Layer 3: Session dedup — only announce once per session_id ────────────────
-// Writes a 0-byte flag file before fetching to close the race window.
-if (sessionId) {
-  const greetedDir = join(CLAUDE_DIR, 'MEMORY', 'STATE', 'voice-greeted');
-  const flagFile = join(greetedDir, sessionId);
-
-  if (await Bun.file(flagFile).exists()) {
-    process.exit(0); // Already greeted this session
+let hookSource = 'unknown';
+try {
+  const reader = Bun.stdin.stream().getReader();
+  let raw = '';
+  const read = (async () => {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      raw += new TextDecoder().decode(value, { stream: true });
+    }
+  })();
+  await Promise.race([read, new Promise<void>(r => setTimeout(r, 1000))]);
+  if (raw.trim()) {
+    const input = JSON.parse(raw);
+    hookSource = input.source || 'unknown';
   }
+} catch {
+  // stdin parse failed — expected for async hooks
+}
 
-  try {
-    if (!existsSync(greetedDir)) mkdirSync(greetedDir, { recursive: true });
-    // Write flag BEFORE the voice fetch — prevents a second fire from sneaking through
-    // during the async fetch (which can take 100ms+ for TTS)
-    await Bun.write(flagFile, '');
-  } catch {
-    // Non-fatal — flag write failed, still play greeting
+console.error(`[VoiceGreeting] source="${hookSource}", pid=${process.pid}`);
+
+// If we got a valid source and it's not startup, skip
+if (hookSource !== 'startup' && hookSource !== 'unknown') {
+  console.error(`[VoiceGreeting] skip: source="${hookSource}" (not startup)`);
+  process.exit(0);
+}
+
+// For async hooks where stdin fails (source=unknown), use PID-based dedup.
+// The Claude Code process PID stays the same across compactions.
+const flagFile = join(CLAUDE_DIR, 'MEMORY', 'STATE', 'voice-greeted-pid');
+const claudePid = getClaudeAncestorPid();
+
+try {
+  if (existsSync(flagFile)) {
+    const lastPid = readFileSync(flagFile, 'utf-8').trim();
+    if (lastPid === claudePid) {
+      console.error(`[VoiceGreeting] skip: already greeted for pid ${claudePid}`);
+      process.exit(0);
+    }
   }
+} catch {
+  // Flag read failed — proceed with greeting
+}
+
+// Write PID flag before speaking
+try {
+  const stateDir = join(CLAUDE_DIR, 'MEMORY', 'STATE');
+  if (!existsSync(stateDir)) mkdirSync(stateDir, { recursive: true });
+  await Bun.write(flagFile, claudePid);
+  console.error(`[VoiceGreeting] greeting pid ${claudePid} (first for this session)`);
+} catch (err) {
+  console.error(`[VoiceGreeting] flag write failed: ${err}`);
 }
 
 // ── Parse simple YAML frontmatter from an agent .md file ──────────────────────
@@ -162,8 +207,8 @@ if (isNamedAgent && agentType) {
     try {
       const agentContent = readFileSync(agentFile, 'utf-8');
       fm = parseAgentFrontmatter(agentContent);
-    } catch {
-      // Agent file not found — still announce with Atlas fallback voice
+    } catch (err) {
+      console.error(`[VoiceGreeting] agent_file_fail: ${agentType} - ${err}`);
     }
 
     // Resolve voice ID: use agent's own if real, else fall back to Atlas
@@ -191,13 +236,16 @@ if (isNamedAgent && agentType) {
     if (voiceId) body.voice_id = voiceId;
     if (voice_settings) body.voice_settings = voice_settings;
 
-    await fetch('http://localhost:8888/notify', {
+    console.error(`[VoiceGreeting] speaking: "${message}" (agent: ${agentType})`);
+    const t0 = Date.now();
+    const resp = await fetch('http://localhost:8888/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-  } catch {
-    // Voice server not running — silent fail
+    console.error(`[VoiceGreeting] fetch_ok: ${resp.status} in ${Date.now() - t0}ms`);
+  } catch (err) {
+    console.error(`[VoiceGreeting] agent_voice_fail: ${err}`);
   }
 
   process.exit(0);
@@ -240,11 +288,14 @@ try {
       }
     : { message: catchphrase, play: true };
 
-  await fetch(url, {
+  console.error(`[VoiceGreeting] speaking: "${catchphrase}" via ${url}`);
+  const t0 = Date.now();
+  const resp = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-} catch {
-  // Voice server not running or settings unreadable — silent fail
+  console.error(`[VoiceGreeting] fetch_ok: ${resp.status} in ${Date.now() - t0}ms`);
+} catch (err) {
+  console.error(`[VoiceGreeting] atlas_voice_fail: ${err}`);
 }

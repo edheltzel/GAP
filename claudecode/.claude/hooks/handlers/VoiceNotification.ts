@@ -101,7 +101,10 @@ async function sendNotification(payload: ElevenLabsNotificationPayload, sessionI
   };
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout - voice shouldn't block Stop hook
+  const timeout = setTimeout(() => controller.abort(), 12000); // 12s: TTS gen (2-5s) + playback (3-6s) + margin
+
+  const fetchStart = Date.now();
+  console.error(`[Voice] fetch_start: "${payload.message.slice(0, 60)}..." (${payload.message.length} chars)`);
 
   try {
     // Use ElevenLabs voice server /notify endpoint
@@ -112,8 +115,9 @@ async function sendNotification(payload: ElevenLabsNotificationPayload, sessionI
       signal: controller.signal,
     });
 
+    const fetchMs = Date.now() - fetchStart;
     if (!response.ok) {
-      console.error('[Voice] Server error:', response.statusText);
+      console.error(`[Voice] fetch_fail: ${response.status} ${response.statusText} in ${fetchMs}ms`);
       logVoiceEvent({
         ...baseEvent,
         event_type: 'failed',
@@ -121,6 +125,7 @@ async function sendNotification(payload: ElevenLabsNotificationPayload, sessionI
         error: response.statusText,
       });
     } else {
+      console.error(`[Voice] fetch_ok: ${response.status} in ${fetchMs}ms`);
       logVoiceEvent({
         ...baseEvent,
         event_type: 'sent',
@@ -128,7 +133,9 @@ async function sendNotification(payload: ElevenLabsNotificationPayload, sessionI
       });
     }
   } catch (error) {
-    console.error('[Voice] Failed to send:', error);
+    const fetchMs = Date.now() - fetchStart;
+    const isAbort = error instanceof Error && error.name === 'AbortError';
+    console.error(`[Voice] fetch_${isAbort ? 'abort' : 'fail'}: ${error} (${fetchMs}ms)`);
     logVoiceEvent({
       ...baseEvent,
       event_type: 'failed',
@@ -156,6 +163,24 @@ export async function handleVoice(parsed: ParsedTranscript, sessionId: string): 
   if (!voiceCompletion || voiceCompletion.length < 5) {
     console.error('[Voice] Skipping - message too short or empty');
     return;
+  }
+
+  // Skip startup catchphrase — already spoken by VoiceGreeting.hook.ts at SessionStart.
+  // Without this, the AI's first 🗣️ line echoing the greeting causes a double-fire.
+  try {
+    const settingsPath = join(process.env.HOME!, '.claude', 'settings.json');
+    const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+    const catchphrase = settings.daidentity?.startupCatchphrase || '';
+    if (catchphrase) {
+      const normalized = voiceCompletion.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+      const catchNormalized = catchphrase.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+      if (normalized === catchNormalized || normalized.includes(catchNormalized)) {
+        console.error(`[Voice] Skipping - matches startup catchphrase: "${catchphrase}"`);
+        return;
+      }
+    }
+  } catch {
+    // Settings read failed — continue with voice notification
   }
 
   // Get voice settings from DA identity in settings.json
