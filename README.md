@@ -2,7 +2,7 @@
 
 **Atlas - Personal AI Infrastructure (PAI)** configuration, managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
-Atlas is a general problem-solving system that magnifies human capabilities. It wraps Claude Code with a structured algorithm, 37 skills, 23 lifecycle hooks, voice integration, persistent memory, and a multi-agent coordination system.
+Atlas is a general problem-solving system that magnifies human capabilities. It wraps Claude Code with a structured algorithm, 43 skills, 24 lifecycle hooks, voice integration, persistent memory, and a multi-agent coordination system.
 
 This repo contains the full Atlas (PAI) configuration. Files here get symlinked into `~/.claude/` via Stow — keeping everything version-controlled and portable.
 
@@ -97,6 +97,7 @@ Tools for creating software, CLIs, skills, and deploying to the cloud.
 | **Remotion**    | `/remotion`     | Programmatic video creation with React. Motion graphics, intros, and rendered video output.                  |
 | **Commit**      | `/commit`       | Conventional Commits workflow with CHANGELOG updates, scopes, breaking changes, and safety rules.            |
 | **Evals**       | `/evals`        | Agent evaluation framework. Tests agent behavior with code-based, model-based, and human graders.            |
+| **BunGettingStarted** | `/bun-getting-started` | Comprehensive Bun 1.3+ guidance: setup, HRM, database config, full-stack best practices.          |
 
 ### Content and Creative
 
@@ -108,7 +109,8 @@ Tools for generating written, visual, and structured content.
 | **WriteStory** | `/write-story` | Layered fiction writing using storytelling science. Story bibles, character arcs, worldbuilding, prose. |
 | **Fabric**     | `/fabric`      | 240+ specialized prompt patterns for content analysis, extraction, and transformation.                  |
 | **Prompting**  | `/prompting`   | Meta-prompting system for dynamic prompt generation using templates, standards, and patterns.           |
-| **Aphorisms**  | `/aphorisms`   | Aphorism and quote management.                                                                          |
+| **Aphorisms**  | `/aphorisms`   | Aphorism and quote management.                                                                         |
+| **Humanizer**  | `/humanizer`   | Removes signs of AI-generated writing. Makes text sound natural and human.                             |
 
 ### Life and Business
 
@@ -126,9 +128,11 @@ Tools for managing and improving Atlas itself.
 
 | Skill               | Command             | What It Does                                                                                              |
 | ------------------- | ------------------- | --------------------------------------------------------------------------------------------------------- |
-| **PAIUpgrade**      | `/pai-upgrade`      | Extracts system improvements from content. Monitors Anthropic ecosystem and YouTube for relevant updates. |
-| **Agents**          | `/agents`           | Dynamic agent composition and management. Create custom agent personalities, voices, and specializations. |
-| **KeybindingsHelp** | `/keybindings-help` | Customize Claude Code keyboard shortcuts, chord bindings, and keybindings.json.                           |
+| **PAIUpgrade**      | `/pai-upgrade`      | Extracts system improvements from content. Monitors Anthropic ecosystem and YouTube for relevant updates.  |
+| **Agents**          | `/agents`           | Dynamic agent composition and management. Create custom agent personalities, voices, and specializations.  |
+| **Observability**   | `/observability`    | Real-time Claude Code session monitoring dashboard. Start, stop, and view agent activity.                  |
+| **UpdateDocs**      | `/update-docs`      | Scans git history, updates README.md and CLAUDE.md to reflect current project state.                       |
+| **KeybindingsHelp** | `/keybindings-help` | Customize Claude Code keyboard shortcuts, chord bindings, and keybindings.json.                            |
 
 ---
 
@@ -139,14 +143,14 @@ atlas-config/
 ├── claudecode/.claude/       ← Stow package → symlinked to ~/.claude/
 │   ├── settings.json         ← Hooks, identity, statusline, permissions
 │   ├── CLAUDE.md             ← Agent context injection
-│   ├── skills/               ← 37 skill modules
+│   ├── skills/               ← 43 skill modules
 │   │   ├── PAI/              ← Core algorithm and system docs
 │   │   ├── Fabric/           ← 240+ prompt patterns
 │   │   └── ...               ← Domain-specific skills
-│   ├── hooks/                ← 23 lifecycle event handlers
+│   ├── hooks/                ← 24 lifecycle event handlers
 │   ├── agents/               ← Named agent personas
-│   ├── MEMORY/               ← Persistent memory (gitignored, PAI subdirs + Recall flat files)
-│   ├── VoiceServer/          ← ElevenLabs TTS service
+│   ├── MEMORY/               ← Persistent memory (gitignored, PAI subdirs)
+│   ├── VoiceServer/          ← Multi-provider TTS (Kokoro, ElevenLabs, macOS say)
 │   ├── lib/                  ← Shared TypeScript utilities
 │   └── PAI-Install/          ← Installer and setup wizard
 ├── opencode/.config/opencode/ ← Stow package → symlinked to ~/.config/opencode/
@@ -205,6 +209,6 @@ Claude Code runtime files (`debug/`, `todos/`, `projects/`, `history.jsonl`, etc
 2. **Claude hooks fire** — context loads, capabilities are assessed, the algorithm format is enforced.
 3. **The Algorithm runs** — your request is decomposed into testable criteria, work is planned and executed, results are verified against those criteria.
 4. **Skills are invoked** as needed — research agents fan out, browser automation verifies UI, security tools probe for vulnerabilities, creative tools generate content.
-5. **Memory persists** — session context, learning, and work products survive across sessions via PRD files, the MEMORY filesystem, and Recall (SQLite + FTS5 persistent memory with MCP tools for search and retrieval).
-6. **Voice announces** phase transitions and results (if configured with ElevenLabs), and voice mode with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) and [Whisper by OpenAI](https://huggingface.co/openai/whisper-small), for full conversations. A startup voice greeting fires for all launch paths via an async SessionStart hook.
+5. **Memory persists** — session context, learning, and work products survive across sessions via PRD files and the MEMORY filesystem.
+6. **Voice announces** phase transitions and results via multi-provider TTS ([Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) local, ElevenLabs cloud, macOS say fallback). Full voice conversations use Kokoro + [Whisper](https://huggingface.co/openai/whisper-small). A startup greeting fires once per session via a `startup`-matched SessionStart hook.
    The result: structured, verifiable, high-quality output that improves with every interaction.
