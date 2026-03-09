@@ -79,7 +79,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh"
+            "command": "/Users/ed/.kanban-code/hook.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -278,7 +279,8 @@
           },
           {
             "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh"
+            "command": "/Users/ed/.kanban-code/hook.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -298,7 +300,8 @@
           },
           {
             "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh"
+            "command": "/Users/ed/.kanban-code/hook.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -345,7 +348,8 @@
           },
           {
             "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh"
+            "command": "/Users/ed/.kanban-code/hook.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -375,7 +379,8 @@
           },
           {
             "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh"
+            "command": "/Users/ed/.kanban-code/hook.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -868,16 +873,16 @@
     "skills/PAI/USER/DAIDENTITY.md"
   ],
   "counts": {
-    "skills": 43,
-    "workflows": 165,
-    "hooks": 24,
-    "signals": 347,
+    "skills": 0,
+    "workflows": 0,
+    "hooks": 0,
+    "signals": 354,
     "files": 31,
-    "work": 1233,
-    "sessions": 41,
+    "work": 1270,
+    "sessions": 42,
     "research": 0,
-    "ratings": 347,
-    "updatedAt": "2026-03-08T13:12:19.321Z"
+    "ratings": 354,
+    "updatedAt": "2026-03-09T15:19:19.487Z"
   },
   "daidentity": {
     "color": "#A48CF2",
