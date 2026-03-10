@@ -885,13 +885,13 @@
     "skills": 0,
     "workflows": 0,
     "hooks": 2,
-    "signals": 367,
+    "signals": 476,
     "files": 31,
-    "work": 1339,
-    "sessions": 42,
+    "work": 2053,
+    "sessions": 43,
     "research": 0,
-    "ratings": 367,
-    "updatedAt": "2026-03-10T12:51:37.431Z"
+    "ratings": 476,
+    "updatedAt": "2026-03-10T14:46:25.485Z"
   },
   "daidentity": {
     "color": "#A48CF2",

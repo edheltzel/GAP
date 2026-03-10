@@ -12,6 +12,17 @@ Do not modify files in `claudecode/.claude/MEMORY/` without understanding the me
 
 For PAI upgrade guidance, local modifications table, v4.0.3 integration decisions, and codebase audit history, see [`docs/pai-update-guide.md`](docs/pai-update-guide.md).
 
+## Hook System
+
+The hook system is documented in [`claudecode/.claude/hooks/README.md`](claudecode/.claude/hooks/README.md). Key references:
+
+- **Hook registry**: 23 stowed hooks + 2 non-stowed + 1 external, across 8 lifecycle events
+- **Event-to-hook mapping**: Exact mapping from `settings.json` with matchers, timeouts, and async flags
+- **Debugging**: Structured logging via `hookLog()` writes to `~/.claude/MEMORY/HOOKS/hook-debug.jsonl`
+- **Critical behavior**: `claude -p` (pipe mode) does NOT execute hooks — binary-level suppression
+
+When modifying hooks, follow the update protocol in the hooks README (update header docs, README tables, and inter-hook dependencies).
+
 ## For Humans
 
 See **[README.md](README.md)** for a human-friendly overview of PAI, Atlas, all available skills, and setup instructions.

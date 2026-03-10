@@ -30,6 +30,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { join } from 'path';
+import { hookLog } from './lib/hook-logger';
 
 const CLAUDE_DIR = join(process.env.HOME!, '.claude');
 
@@ -38,12 +39,14 @@ const CLAUDE_DIR = join(process.env.HOME!, '.claude');
 // PAI_SUPPRESS_VOICE=true to prevent duplicate voice greetings. This takes precedence
 // over all other checks.
 if (process.env.PAI_SUPPRESS_VOICE === 'true') {
+  hookLog('VoiceGreeting', 'SessionStart', 'skip: PAI_SUPPRESS_VOICE=true');
   console.error('[VoiceGreeting] skip: programmatic suppression (PAI_SUPPRESS_VOICE=true)');
   process.exit(0);
 }
 
 // ── Layer 1: Skip Task tool subagents ────────────────────────────────────────
 if (process.env.CLAUDE_CODE_AGENT_TASK_ID) {
+  hookLog('VoiceGreeting', 'SessionStart', 'skip: task-agent', { taskId: process.env.CLAUDE_CODE_AGENT_TASK_ID });
   console.error(`[VoiceGreeting] skip: task-agent (${process.env.CLAUDE_CODE_AGENT_TASK_ID})`);
   process.exit(0);
 }
@@ -106,6 +109,7 @@ try {
   // stdin parse failed — expected for async hooks
 }
 
+hookLog('VoiceGreeting', 'SessionStart', `source="${hookSource}"`, { pid: process.pid, claudePid: getClaudeAncestorPid() });
 console.error(`[VoiceGreeting] source="${hookSource}", pid=${process.pid}`);
 
 // If we got a valid source and it's not startup, skip
@@ -298,6 +302,7 @@ try {
       }
     : { message: catchphrase, play: true };
 
+  hookLog('VoiceGreeting', 'SessionStart', `speaking: "${catchphrase}"`, { url, pid: process.pid });
   console.error(`[VoiceGreeting] speaking: "${catchphrase}" via ${url}`);
   const t0 = Date.now();
   const resp = await fetch(url, {
