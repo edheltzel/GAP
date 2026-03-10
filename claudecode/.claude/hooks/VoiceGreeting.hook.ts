@@ -14,12 +14,13 @@
  * SIDE EFFECTS:
  * - Sends HTTP request to voice server (fire-and-forget)
  * SUBAGENT DETECTION (layered):
- * 0. CLAUDE_CODE_AGENT_TASK_ID is set → skip (Task tool subagents)
- * 1. CLAUDE_AGENT_TYPE === "loop-worker" → skip (algorithm.ts workers)
- * 2. CLAUDE_PROJECT_DIR contains /.claude/Agents/ → skip
- * 3. Source check via stdin JSON — only greet when source="startup",
+ * 0. PAI_SUPPRESS_VOICE=true → skip (programmatic claude spawning, e.g., SessionExtract)
+ * 1. CLAUDE_CODE_AGENT_TASK_ID is set → skip (Task tool subagents)
+ * 2. CLAUDE_AGENT_TYPE === "loop-worker" → skip (algorithm.ts workers)
+ * 3. CLAUDE_PROJECT_DIR contains /.claude/Agents/ → skip
+ * 4. Source check via stdin JSON — only greet when source="startup",
  *    skip compact/resume/clear (Claude Code re-fires SessionStart on compaction)
- * 4. CLAUDE_AGENT_TYPE is a named agent (Intern, Engineer, etc.) → agent voice
+ * 5. CLAUDE_AGENT_TYPE is a named agent (Intern, Engineer, etc.) → agent voice
  *
  * PERFORMANCE:
  * - Async: Yes (runs in background, doesn't block startup)
@@ -32,13 +33,22 @@ import { join } from 'path';
 
 const CLAUDE_DIR = join(process.env.HOME!, '.claude');
 
-// ── Layer 0: Skip Task tool subagents ────────────────────────────────────────
+// ── Layer 0: Programmatic voice suppression (e.g., SessionExtract.ts spawned claude) ───
+// When a hook spawns a new Claude Code process programmatically, it should set
+// PAI_SUPPRESS_VOICE=true to prevent duplicate voice greetings. This takes precedence
+// over all other checks.
+if (process.env.PAI_SUPPRESS_VOICE === 'true') {
+  console.error('[VoiceGreeting] skip: programmatic suppression (PAI_SUPPRESS_VOICE=true)');
+  process.exit(0);
+}
+
+// ── Layer 1: Skip Task tool subagents ────────────────────────────────────────
 if (process.env.CLAUDE_CODE_AGENT_TASK_ID) {
   console.error(`[VoiceGreeting] skip: task-agent (${process.env.CLAUDE_CODE_AGENT_TASK_ID})`);
   process.exit(0);
 }
 
-// ── Layer 1: Skip loop-workers (algorithm.ts spawned workers) ─────────────────
+// ── Layer 2: Skip loop-workers (algorithm.ts spawned workers) ─────────────────
 const agentType = process.env.CLAUDE_AGENT_TYPE;
 
 if (agentType === 'loop-worker') {
@@ -46,7 +56,7 @@ if (agentType === 'loop-worker') {
   process.exit(0);
 }
 
-// ── Layer 2: Skip for Agents/ path-based subagents ────────────────────────────
+// ── Layer 3: Skip for Agents/ path-based subagents ────────────────────────────
 const claudeProjectDir = process.env.CLAUDE_PROJECT_DIR || '';
 if (claudeProjectDir.includes('/.claude/Agents/')) {
   console.error(`[VoiceGreeting] skip: agents-path (${claudeProjectDir})`);
@@ -62,7 +72,7 @@ const NAMED_AGENT_TYPES = [
 
 const isNamedAgent = agentType != null && NAMED_AGENT_TYPES.includes(agentType);
 
-// ── Layer 3: Source check + PID dedup ────────────────────────────────────────
+// ── Layer 4: Source check + PID dedup ────────────────────────────────────────
 // Claude Code passes { source } in stdin JSON. For async hooks, stdin may be
 // empty, so we also track the Claude Code ancestor PID to dedup across
 // compaction re-fires within the same session.
