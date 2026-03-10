@@ -20,7 +20,7 @@
  *   - Silently swallows errors to never crash the calling hook
  */
 
-import { appendFileSync, existsSync, mkdirSync } from 'fs';
+import { appendFileSync, mkdirSync } from 'fs';
 import { paiPath } from './paths';
 
 const HOOKS_LOG_DIR = paiPath('MEMORY', 'HOOKS');
@@ -33,7 +33,7 @@ interface HookLogEntry {
   hook: string;
   event: string;
   msg: string;
-  meta?: Record<string, unknown>;
+  meta?: Record<string, string | number | boolean | null>;
 }
 
 /**
@@ -44,12 +44,10 @@ interface HookLogEntry {
  * @param msg - Human-readable message describing what happened
  * @param meta - Optional key-value metadata (pid, source, voiceId, etc.)
  */
-export function hookLog(hook: string, event: string, msg: string, meta?: Record<string, unknown>): void {
+export function hookLog(hook: string, event: string, msg: string, meta?: Record<string, string | number | boolean | null>): void {
   try {
     if (!dirEnsured) {
-      if (!existsSync(HOOKS_LOG_DIR)) {
-        mkdirSync(HOOKS_LOG_DIR, { recursive: true });
-      }
+      mkdirSync(HOOKS_LOG_DIR, { recursive: true });
       dirEnsured = true;
     }
 
@@ -59,7 +57,7 @@ export function hookLog(hook: string, event: string, msg: string, meta?: Record<
       event,
       msg,
     };
-    if (meta && Object.keys(meta).length > 0) {
+    if (meta) {
       entry.meta = meta;
     }
 
