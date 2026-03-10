@@ -352,6 +352,15 @@
             "timeout": 5000
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionExtract.ts"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -875,14 +884,14 @@
   "counts": {
     "skills": 0,
     "workflows": 0,
-    "hooks": 0,
-    "signals": 356,
+    "hooks": 2,
+    "signals": 358,
     "files": 31,
-    "work": 1281,
+    "work": 1287,
     "sessions": 42,
     "research": 0,
-    "ratings": 356,
-    "updatedAt": "2026-03-09T18:25:14.953Z"
+    "ratings": 358,
+    "updatedAt": "2026-03-09T21:06:25.117Z"
   },
   "daidentity": {
     "color": "#A48CF2",
