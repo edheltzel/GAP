@@ -400,17 +400,8 @@
     "command": "$PAI_DIR/atlas-statusline.sh"
   },
   "enabledPlugins": {
-    "claude-session-driver@superpowers-marketplace": true,
     "claudit@quickstop": true,
-    "double-shot-latte@superpowers-marketplace": true,
-    "elements-of-style@superpowers-marketplace": true,
-    "episodic-memory@superpowers-marketplace": true,
     "frontend-design@claude-plugins-official": true,
-    "superpowers-chrome@superpowers-marketplace": true,
-    "superpowers-dev@superpowers-marketplace": false,
-    "superpowers-developing-for-claude-code@superpowers-marketplace": true,
-    "superpowers-lab@superpowers-marketplace": true,
-    "superpowers@superpowers-marketplace": true,
     "ui-ux-pro-max@ui-ux-pro-max-skill": true,
     "playground@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
@@ -419,7 +410,8 @@
     "security-guidance@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
     "explanatory-output-style@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true
+    "skill-creator@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
   },
   "spinnerVerbs": {
     "mode": "replace",
@@ -885,13 +877,13 @@
     "skills": 0,
     "workflows": 0,
     "hooks": 2,
-    "signals": 498,
+    "signals": 581,
     "files": 31,
-    "work": 2250,
-    "sessions": 43,
+    "work": 2845,
+    "sessions": 49,
     "research": 0,
-    "ratings": 498,
-    "updatedAt": "2026-03-10T17:34:33.962Z"
+    "ratings": 581,
+    "updatedAt": "2026-03-12T20:53:03.213Z"
   },
   "daidentity": {
     "color": "#A48CF2",

@@ -18,8 +18,8 @@
  * 1. CLAUDE_CODE_AGENT_TASK_ID is set → skip (Task tool subagents)
  * 2. CLAUDE_AGENT_TYPE === "loop-worker" → skip (algorithm.ts workers)
  * 3. CLAUDE_PROJECT_DIR contains /.claude/Agents/ → skip
- * 4. Source check via stdin JSON — only greet when source="startup",
- *    skip compact/resume/clear (Claude Code re-fires SessionStart on compaction)
+ * 4. Source check via stdin JSON — ONLY greet when source="startup" is confirmed.
+ *    If stdin parsing fails (source="unknown"), we do NOT greet (safe default).
  * 5. CLAUDE_AGENT_TYPE is a named agent (Intern, Engineer, etc.) → agent voice
  *
  * PERFORMANCE:
@@ -27,8 +27,7 @@
  * - Uses Bun.file().json() for native file reads (faster than readFileSync + JSON.parse)
  */
 
-import { existsSync, mkdirSync, readFileSync } from 'fs';
-import { spawnSync } from 'child_process';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 import { hookLog } from './lib/hook-logger';
 
@@ -75,20 +74,10 @@ const NAMED_AGENT_TYPES = [
 
 const isNamedAgent = agentType != null && NAMED_AGENT_TYPES.includes(agentType);
 
-// ── Layer 4: Source check + PID dedup ────────────────────────────────────────
-// Claude Code passes { source } in stdin JSON. For async hooks, stdin may be
-// empty, so we also track the Claude Code ancestor PID to dedup across
-// compaction re-fires within the same session.
-function getClaudeAncestorPid(): string {
-  try {
-    const shellPpid = process.ppid;
-    const result = spawnSync('ps', ['-o', 'ppid=', '-p', String(shellPpid)], { encoding: 'utf-8' });
-    return result.stdout?.trim() || `ppid-${shellPpid}`;
-  } catch {
-    return `ppid-${process.ppid}`;
-  }
-}
-
+// ── Layer 4: Source check (confirmed startup only) ───────────────────────────
+// Claude Code passes { source } in stdin JSON. Only greet when source is
+// confirmed as "startup". If stdin parsing fails (async hook timeout),
+// source stays "unknown" and we skip — false silence beats duplicate greetings.
 let hookSource = 'unknown';
 try {
   const reader = Bun.stdin.stream().getReader();
@@ -109,40 +98,17 @@ try {
   // stdin parse failed — expected for async hooks
 }
 
-hookLog('VoiceGreeting', 'SessionStart', `source="${hookSource}"`, { pid: process.pid, claudePid: getClaudeAncestorPid() });
+hookLog('VoiceGreeting', 'SessionStart', `source="${hookSource}"`, { pid: process.pid });
 console.error(`[VoiceGreeting] source="${hookSource}", pid=${process.pid}`);
 
-// If we got a valid source and it's not startup, skip
-if (hookSource !== 'startup' && hookSource !== 'unknown') {
-  console.error(`[VoiceGreeting] skip: source="${hookSource}" (not startup)`);
+// Only greet on confirmed startup — never on unknown source.
+// The settings.json matcher already filters to "startup" events, but async hooks
+// may fail to parse stdin (1s timeout), leaving source as "unknown". In that case,
+// we DON'T greet — false silence is better than duplicate greetings.
+if (hookSource !== 'startup') {
+  hookLog('VoiceGreeting', 'SessionStart', `skip: source="${hookSource}" (not startup)`);
+  console.error(`[VoiceGreeting] skip: source="${hookSource}" (only greeting on confirmed startup)`);
   process.exit(0);
-}
-
-// For async hooks where stdin fails (source=unknown), use PID-based dedup.
-// The Claude Code process PID stays the same across compactions.
-const flagFile = join(CLAUDE_DIR, 'MEMORY', 'STATE', 'voice-greeted-pid');
-const claudePid = getClaudeAncestorPid();
-
-try {
-  if (existsSync(flagFile)) {
-    const lastPid = readFileSync(flagFile, 'utf-8').trim();
-    if (lastPid === claudePid) {
-      console.error(`[VoiceGreeting] skip: already greeted for pid ${claudePid}`);
-      process.exit(0);
-    }
-  }
-} catch {
-  // Flag read failed — proceed with greeting
-}
-
-// Write PID flag before speaking
-try {
-  const stateDir = join(CLAUDE_DIR, 'MEMORY', 'STATE');
-  if (!existsSync(stateDir)) mkdirSync(stateDir, { recursive: true });
-  await Bun.write(flagFile, claudePid);
-  console.error(`[VoiceGreeting] greeting pid ${claudePid} (first for this session)`);
-} catch (err) {
-  console.error(`[VoiceGreeting] flag write failed: ${err}`);
 }
 
 // ── Parse simple YAML frontmatter from an agent .md file ──────────────────────

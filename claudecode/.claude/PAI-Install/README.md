@@ -190,7 +190,7 @@ Client                          Server
 
 PAI ships a complete `settings.json` template in the release repository. This template includes:
 
-- **Hooks** — 20+ event hooks for session management, security, voice, etc.
+- **Hooks** — 26 event hooks (23 stowed + 2 non-stowed + 1 external) for session management, security, voice, etc.
 - **Status line** — Terminal status bar configuration
 - **Spinner verbs** — Activity indicator messages
 - **Context files** — Files loaded into Claude Code context

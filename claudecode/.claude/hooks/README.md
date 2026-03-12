@@ -290,8 +290,8 @@ These hooks live directly at `~/.claude/hooks/` and are NOT managed by GNU Stow 
 - **Event**: Stop
 - **Purpose**: Extracts session context using `claude -p --model haiku` for persistent memory
 - **Behavior**: Spawns a background child process that calls `claude -p` to summarize the session transcript
-- **Key detail**: Sets `PAI_SUPPRESS_VOICE=true` and `CLAUDECODE=''` in spawned process env
-- **Note**: `claude -p` (pipe mode) fires SessionStart events but Claude Code suppresses hook execution in pipe mode at the binary level — hooks do NOT run. The env var is belt-and-suspenders.
+- **Key detail**: Sets `PAI_SUPPRESS_VOICE=true`, `CLAUDECODE=''`, and `SESSION_EXTRACT_ACTIVE=true` in spawned process env
+- **Note**: `claude -p` **DOES** execute hooks and spawn MCP servers (see [Claude Code Hook Behavior](#claude-code-hook-behavior)). The `SESSION_EXTRACT_ACTIVE` env var is the recursion guard that prevents infinite Stop hook chains.
 
 ### BatchExtract.ts (standalone script)
 
@@ -318,6 +318,8 @@ These hooks live directly at `~/.claude/hooks/` and are NOT managed by GNU Stow 
 ## Inter-Hook Dependencies
 
 ### Voice System Flow
+
+> See [VoiceServer/README.md](../VoiceServer/README.md) for the server's own documentation (API, providers, config, agent integration).
 
 ```
 SessionStart (source="startup")
@@ -546,28 +548,24 @@ Hooks are configured in `settings.json` under the `hooks` key. See [Complete Eve
 
 Critical runtime behaviors that affect hook design:
 
-### Pipe Mode (`claude -p`) Does NOT Run Hooks
+### Pipe Mode (`claude -p`) DOES Run Hooks and MCP Servers
 
-**Confirmed empirically**: When Claude Code runs in pipe mode (`claude -p`), the binary fires the `SessionStart` event internally but returns **0 hook matchers** — no hooks execute. This is binary-level suppression, not configurable. Debug logs show:
+> **⚠️ Corrected 2026-03-10**: Earlier documentation claimed `claude -p` suppressed hooks at the binary level. This was **wrong** — empirically confirmed via process tree analysis that `claude -p` spawns MCP servers (voicemode, episodic-memory, superpowers-chrome) and fires Stop hooks (including SessionExtract and double-shot-latte).
 
-```
-[DEBUG] Getting matching hook commands for SessionStart with query: startup
-[DEBUG] Found 0 hook matchers in settings
-[DEBUG] Matched 0 unique hooks for query "startup" (0 before deduplication)
-```
+**Evidence**: SessionExtract.ts spawns `claude -p --model haiku`. That process spawns child MCP servers and fires Stop hooks on exit, creating a recursive process bomb when combined with double-shot-latte's continuation judge.
 
-Interactive sessions show `Found 6-12 hook matchers` and execute hooks normally.
-
-**Implication**: Scripts that spawn `claude -p` (like SessionExtract.ts) do NOT trigger VoiceGreeting or any other hooks via their pipe-mode calls. The `PAI_SUPPRESS_VOICE` env var in SessionExtract is belt-and-suspenders for future-proofing.
+**Fix applied**: SessionExtract.ts now sets `SESSION_EXTRACT_ACTIVE=true` in the env when spawning `claude -p`. The recursion guard at the top of SessionExtract exits immediately when this env var is detected, breaking the infinite loop.
 
 ### Subagent Hook Inheritance
 
-| Spawn Method | Hooks Run? | Why |
-|-------------|-----------|------|
-| `claude -p` (pipe mode) | **No** | Binary suppresses hook matchers |
-| Task tool (subagent) | **Yes** | Full Claude Code process, has `CLAUDE_CODE_AGENT_TASK_ID` |
-| Agent Teams (`SendMessage`) | **Yes** | Full process, has team context |
-| `claude --print` (plugin `double-shot-latte`) | **No** | Same pipe-mode suppression |
+| Spawn Method | Hooks Run? | MCP Servers? | Why |
+|-------------|-----------|-------------|------|
+| `claude -p` (pipe mode) | **Yes** | **Yes** | Full process with hooks and MCP servers |
+| `claude --print` | **Yes** | **Yes** | Full process with hooks and MCP servers |
+| Task tool (subagent) | **Yes** | **Yes** | Full Claude Code process, has `CLAUDE_CODE_AGENT_TASK_ID` |
+| Agent Teams (`SendMessage`) | **Yes** | **Yes** | Full process, has team context |
+
+**Critical implication**: Any hook that spawns `claude -p` or `claude --print` must include a recursion guard to prevent infinite Stop hook chains. Use environment variables (e.g., `SESSION_EXTRACT_ACTIVE`) to detect and break recursive invocations.
 
 ### Context Compaction Re-fires
 

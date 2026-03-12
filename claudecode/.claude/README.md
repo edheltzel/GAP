@@ -1,6 +1,6 @@
 # PAI — Personal AI Infrastructure
 
-> **PAI 3.0 Alpha** — Under active development.
+> **PAI 4.0.3** — Algorithm v3.5.0-atlas
 
 ## Install
 
@@ -8,7 +8,7 @@
 bash ~/.claude/install.sh
 ```
 
-That's it. The script installs Bun (if needed), then walks you through setup:
+The script installs Bun (if needed), then walks you through setup:
 
 - Your name and AI assistant name
 - ElevenLabs voice configuration (optional)
@@ -22,20 +22,19 @@ source ~/.zshrc
 pai
 ```
 
-The `pai` command displays the PAI banner, announces your AI's startup catchphrase via voice, and launches Claude Code with full PAI infrastructure.
-
 ## What's Inside
 
 | Directory | Purpose |
 |-----------|---------|
-| `skills/` | Skill modules (PAI core + domain skills) |
-| `hooks/` | Lifecycle event handlers (20 hooks) |
+| `skills/` | Skill modules (PAI core + 43 domain skills) |
+| `hooks/` | Lifecycle event handlers (23 stowed + 2 non-stowed + 1 external) |
 | `agents/` | Named agent configurations |
-| `VoiceServer/` | ElevenLabs TTS service |
-| `MEMORY/` | Session history and learnings |
+| `VoiceServer/` | Multi-provider TTS server ([docs](VoiceServer/README.md)) |
+| `MEMORY/` | Session history, learnings, and state |
 
 ## Documentation
 
-- **[INSTALL.md](INSTALL.md)** — Detailed installation guide
+- **[VoiceServer/README.md](VoiceServer/README.md)** — Voice server architecture, API, and integration guide
+- **[hooks/README.md](hooks/README.md)** — Hook system reference (23 stowed hooks, 8 lifecycle events)
 - **[skills/PAI/SKILL.md](skills/PAI/SKILL.md)** — Full system documentation
 - **[github.com/danielmiessler/PAI](https://github.com/danielmiessler/PAI)** — Source repository

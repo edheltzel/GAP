@@ -1,9 +1,0 @@
-{
-  "lastChangelogVersion": "0.57.1",
-  "defaultProvider": "opencode",
-  "defaultModel": "gemini-3.1-pro",
-  "packages": [
-    "git:github.com/tmustier/pi-extensions"
-  ],
-  "theme": "dark"
-}

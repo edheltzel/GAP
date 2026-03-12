@@ -210,5 +210,6 @@ Claude Code runtime files (`debug/`, `todos/`, `projects/`, `history.jsonl`, etc
 3. **The Algorithm runs** — your request is decomposed into testable criteria, work is planned and executed, results are verified against those criteria.
 4. **Skills are invoked** as needed — research agents fan out, browser automation verifies UI, security tools probe for vulnerabilities, creative tools generate content.
 5. **Memory persists** — session context, learning, and work products survive across sessions via PRD files and the MEMORY filesystem.
-6. **Voice announces** phase transitions and results via multi-provider TTS ([Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) local, ElevenLabs cloud, macOS say fallback). Full voice conversations use Kokoro + [Whisper](https://huggingface.co/openai/whisper-small). A startup greeting fires once per session via a `startup`-matched SessionStart hook.
-   The result: structured, verifiable, high-quality output that improves with every interaction.
+6. **Voice announces** phase transitions and results via the [VoiceServer](claudecode/.claude/VoiceServer/README.md) — a multi-provider TTS server on port 8888 with automatic fallback ([Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) local → ElevenLabs cloud → macOS say), circuit breakers, 13 emotional presets, pronunciation preprocessing, and 15 named agent voices. Full voice conversations use Kokoro + [Whisper](https://huggingface.co/openai/whisper-small). VoiceServer is **agent-agnostic** — any coding agent that can POST JSON can use it.
+
+The result: structured, verifiable, high-quality output that improves with every interaction.

@@ -1,0 +1,19 @@
+{
+  "lastChangelogVersion": "0.57.1",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "glm-5",
+  "extensions": [
+    "~/.pi/agent/git/github.com/noahsaso/my-pi/extensions"
+  ],
+  "skills": [
+    "~/.pi/agent/git/github.com/noahsaso/my-pi/skills",
+    "~/.pi/agent/git/github.com/noahsaso/my-pi/skills/superpowers"
+  ],
+  "packages": [
+    "git:github.com/tmustier/pi-extensions",
+    "git/github.com/nicobailon/visual-explainer",
+    "npm:pi-pai-lite",
+    "~/.pi/agent/git/github.com/noahsaso/my-pi/extensions/pi-remote/packages/remote"
+  ],
+  "theme": "oh-p-dark"
+}

@@ -19,9 +19,18 @@ The hook system is documented in [`claudecode/.claude/hooks/README.md`](claudeco
 - **Hook registry**: 23 stowed hooks + 2 non-stowed + 1 external, across 8 lifecycle events
 - **Event-to-hook mapping**: Exact mapping from `settings.json` with matchers, timeouts, and async flags
 - **Debugging**: Structured logging via `hookLog()` writes to `~/.claude/MEMORY/HOOKS/hook-debug.jsonl`
-- **Critical behavior**: `claude -p` (pipe mode) does NOT execute hooks — binary-level suppression
+- **Critical behavior**: `claude -p` (pipe mode) DOES execute hooks and spawn MCP servers — hooks that spawn `claude -p` must include recursion guards (e.g., `SESSION_EXTRACT_ACTIVE` env var)
 
 When modifying hooks, follow the update protocol in the hooks README (update header docs, README tables, and inter-hook dependencies).
+
+## Voice System
+
+The VoiceServer is documented in [`claudecode/.claude/VoiceServer/README.md`](claudecode/.claude/VoiceServer/README.md). Key references:
+
+- **API**: POST `/notify` on port 8888 — any process that can POST JSON can use it
+- **Providers**: Kokoro (local) → ElevenLabs (cloud) → macOS say (fallback)
+- **Config**: `voices.json` (providers, agent voices), `pronunciations.json` (TTS overrides)
+- **Agent-agnostic**: No coding-agent-specific code in the server — integration is consumer-side
 
 ## For Humans
 
