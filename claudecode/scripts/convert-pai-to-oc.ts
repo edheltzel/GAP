@@ -54,6 +54,11 @@ function processFileContent(content: string): string {
   result = result.replace(/\.claude\/skills\//g, ".config/opencode/skills/");
   result = result.replace(/\.claude\/custom-agents/g, ".config/opencode/custom-agents");
   result = result.replace(/\.claude\/settings\.json/g, ".config/opencode/settings.json");
+  
+  result = result.replace(/curl[^\n]*localhost:8888[^\n]*\\\n/g, "");
+  result = result.replace(/curl[^\n]*localhost:8888[^\n]*\n/g, "");
+  result = result.replace(/```bash\n\s*curl[^\n]*localhost:8888[\s\S]*?```\n?/g, "");
+  
   return result;
 }
 
@@ -121,7 +126,7 @@ async function convertSingleSkill(
   await mkdir(destDir, { recursive: true });
   await writeFile(destFile, converted);
 
-  const subdirs = ["Tools", "templates", "schemas", "examples"];
+  const subdirs = ["Tools", "templates", "schemas", "examples", "Workflows"];
   for (const sub of subdirs) {
     const subPath = join(skillDir, sub);
     if (existsSync(subPath)) {
@@ -145,6 +150,17 @@ async function convertSingleSkill(
           console.log(`  Converted sub-skill: ${entry.name}/`);
         }
       }
+    }
+  }
+
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.endsWith(".md") && entry.name !== "SKILL.md") {
+      const srcPath = join(skillDir, entry.name);
+      const destPath = join(destDir, entry.name);
+      const content = await readFile(srcPath, "utf-8");
+      const processed = processFileContent(content);
+      await writeFile(destPath, processed);
+      console.log(`  Copied context file: ${entry.name}`);
     }
   }
 
