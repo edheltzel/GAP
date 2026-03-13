@@ -30,8 +30,8 @@ The most powerful critique is usually ONE core issue:
 | **Pentesters** | 8 | Adversarial thinking |
 | **Interns** | 8 | Fresh perspectives |
 
-Each agent type brings unique attack angles - see `Workflows/ParallelAnalysis.md` for full roster.
+Each agent type brings unique attack angles - see `agents.md` for full roster and prompt templates.
 
 ---
 
-**Last Updated:** 2025-12-20
+**Last Updated:** 2025-03-12

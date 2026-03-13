@@ -1,49 +1,15 @@
 ---
-name: RedTeam
-description: Adversarial analysis with 32 agents. USE WHEN red team, attack idea, counterarguments, critique, stress test. SkillSearch('redteam') for docs.
+name: red-team
+description: Use when red team analysis, attack ideas, find counterarguments, critique proposals, stress-test plans, or need adversarial analysis from 32 expert perspectives.
 ---
-
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.claude/skills/PAI/USER/SKILLCUSTOMIZATIONS/RedTeam/`
-
-If this directory exists, load and apply any PREFERENCES.md, configurations, or resources found there. These override default behavior. If the directory does not exist, proceed with skill defaults.
-
-
-## 🚨 MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
-
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
-
-1. **Send voice notification**:
-   ```bash
-   curl -s -X POST http://localhost:8888/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the RedTeam skill to ACTION"}' \
-     > /dev/null 2>&1 &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **WorkflowName** workflow in the **RedTeam** skill to ACTION...
-   ```
-
-**This is not optional. Execute this curl command immediately upon skill invocation.**
 
 # RedTeam Skill
 
 Military-grade adversarial analysis using parallel agent deployment. Breaks arguments into atomic components, attacks from 32 expert perspectives (engineers, architects, pentesters, interns), synthesizes findings, and produces devastating counter-arguments with steelman representations.
 
-
 ## Workflow Routing
 
 Route to the appropriate workflow based on the request.
-
-**When executing a workflow, output this notification directly:**
-
-```
-Running the **WorkflowName** workflow in the **RedTeam** skill to ACTION...
-```
 
 | Trigger | Workflow |
 |---------|----------|
@@ -71,7 +37,9 @@ Running the **WorkflowName** workflow in the **RedTeam** skill to ACTION...
 ## Context Files
 
 - `Philosophy.md` - Core philosophy, success criteria, agent types
-- `Integration.md` - Skill integration, FirstPrinciples usage, output format
+- `Integration.md` - Skill integration, think tool usage, output format
+- `Workflows/ParallelAnalysis.md` - Full 5-phase protocol
+- `Workflows/AdversarialValidation.md` - Battle of bots pattern
 
 ---
 
@@ -100,4 +68,21 @@ User: "battle of bots - which approach is better for this feature?"
 
 ---
 
-**Last Updated:** 2025-12-20
+## Execution Pattern
+
+When this skill is invoked:
+
+1. **Send notification** using the `notify` tool:
+   ```
+   notify(message="Running the [WorkflowName] workflow in the RedTeam skill to [action]", title="RedTeam")
+   ```
+
+2. **Route to workflow** based on request type:
+   - Existing content to stress-test → ParallelAnalysis.md
+   - New content via competition → AdversarialValidation.md
+
+3. **Read the workflow file** and follow its protocol
+
+---
+
+**Last Updated:** 2025-03-12

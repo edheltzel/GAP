@@ -1,12 +1,11 @@
 # Adversarial Validation Pattern (Battle of Bots)
 
-## Voice Notification
+## Notification
 
-```bash
-curl -s -X POST http://localhost:8888/notify \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Running the AdversarialValidation workflow in the RedTeam skill to validate decisions"}' \
-  > /dev/null 2>&1 &
+When starting this workflow, send a notification:
+
+```
+notify(message="Running the AdversarialValidation workflow in the RedTeam skill to validate decisions", title="RedTeam")
 ```
 
 Running the **AdversarialValidation** workflow in the **RedTeam** skill to validate decisions...
@@ -28,10 +27,22 @@ Running the **AdversarialValidation** workflow in the **RedTeam** skill to valid
 
 ### Round 1: Competing Proposals
 
-Launch 2-3 specialized agents to produce competing solutions from different perspectives:
+Use the `subagent` tool to launch 2-3 specialized agents to produce competing solutions from different perspectives:
 
+```json
+{
+  "agentScope": "both",
+  "tasks": [
+    { "agent": "worker", "task": "[Proposal A prompt with persona]" },
+    { "agent": "worker", "task": "[Proposal B prompt with persona]" },
+    { "agent": "worker", "task": "[Proposal C prompt with persona]" }
+  ]
+}
 ```
-<instructions>
+
+**Agent Prompt Template:**
+
+```markdown
 ADVERSARIAL VALIDATION - ROUND 1 (COMPETING PROPOSALS):
 
 You are [PERSONA]. Generate your best solution to this problem.
@@ -43,7 +54,6 @@ Your perspective emphasizes:
 
 Produce a complete solution that optimizes for YOUR priorities.
 Be specific and detailed - this will be compared against other proposals.
-</instructions>
 
 [Problem/Task description]
 ```
@@ -69,8 +79,7 @@ Be specific and detailed - this will be compared against other proposals.
 
 A critic agent reads ALL proposals and "brutally critiques" each:
 
-```
-<instructions>
+```markdown
 ADVERSARIAL VALIDATION - ROUND 2 (BRUTAL CRITIQUE):
 
 You are the Harsh Critic. You have received [N] proposals for [problem].
@@ -94,7 +103,6 @@ For EACH proposal:
    - Why?
 
 Be harsh but fair. The goal is truth, not destruction.
-</instructions>
 
 [Proposals from Round 1]
 ```
@@ -103,8 +111,7 @@ Be harsh but fair. The goal is truth, not destruction.
 
 The original agents read the critique and collaborate on a final solution:
 
-```
-<instructions>
+```markdown
 ADVERSARIAL VALIDATION - ROUND 3 (COLLABORATIVE SYNTHESIS):
 
 You are [PERSONA]. You've seen the Critic's brutal assessment.
@@ -117,7 +124,6 @@ Working with your fellow agents, produce a SINGLE UNIFIED solution that:
 
 This is not compromise - it's synthesis. The final output should be BETTER
 than any individual proposal, not just a blend.
-</instructions>
 
 [Original proposals + Critic's assessment]
 ```
@@ -126,10 +132,9 @@ than any individual proposal, not just a blend.
 
 ## Complete Adversarial Validation Template
 
-For a single-prompt execution:
+For a single-prompt execution within a subagent:
 
-```
-<instructions>
+```markdown
 ADVERSARIAL VALIDATION - FULL PROTOCOL:
 
 ROUND 1 - COMPETING PROPOSALS:
@@ -159,26 +164,25 @@ OUTPUT:
 - Brief summary of the three proposals
 - Key critique points
 - Final synthesized recommendation with clear rationale
-</instructions>
 
 [Problem/Task to validate]
 ```
 
 ---
 
-## Integration with Existing RedTeam
+## Integration with ParallelAnalysis
 
 **Relationship to 32-Agent Protocol:**
-- The 32-agent parallel analysis (parallelAnalysis.md) is for DEPTH - attacking one argument from 32 perspectives
+- The 32-agent parallel analysis (ParallelAnalysis.md) is for DEPTH - attacking one argument from 32 perspectives
 - Adversarial Validation is for SYNTHESIS - producing better output through competition and refinement
 
 **When to Use Which:**
-- **32-Agent Protocol:** "Red team this argument/idea" - stress-test existing content
-- **Adversarial Validation:** "Help me design/decide/create X" - produce new content through adversarial refinement
+- **ParallelAnalysis:** "Red team this argument/idea" - stress-test existing content
+- **AdversarialValidation:** "Help me design/decide/create X" - produce new content through adversarial refinement
 
 **Combining Both:**
 1. Use Adversarial Validation to produce initial solution
-2. Use 32-Agent Protocol to stress-test the synthesized result
+2. Use ParallelAnalysis to stress-test the synthesized result
 3. Iterate if critical flaws found
 
 ---
@@ -248,8 +252,42 @@ Start with A's JWT approach (pragmatic), add B's short-lived tokens (15 min) and
 
 ---
 
-**Related Workflows:**
-- `parallelAnalysis.md` - For stress-testing existing arguments
-- `Tree-of-thought.md` (PAI) - For exploring branches before committing
+## Subagent Dispatch Example
 
-**Last Updated:** 2025-11-27
+```json
+{
+  "agentScope": "both",
+  "tasks": [
+    {
+      "agent": "worker",
+      "task": "ADVERSARIAL VALIDATION ROUND 1 - PROPOSAL A (Pragmatist):\n\nYou prioritize ease of implementation and quick wins.\n\n[problem description]\n\nGenerate a complete, defensible solution."
+    },
+    {
+      "agent": "worker",
+      "task": "ADVERSARIAL VALIDATION ROUND 1 - PROPOSAL B (Idealist):\n\nYou prioritize best practices and long-term quality.\n\n[problem description]\n\nGenerate a complete, defensible solution."
+    },
+    {
+      "agent": "worker",
+      "task": "ADVERSARIAL VALIDATION ROUND 1 - PROPOSAL C (Skeptic):\n\nYou prioritize risk reduction and failure prevention.\n\n[problem description]\n\nGenerate a complete, defensible solution."
+    }
+  ]
+}
+```
+
+After all proposals return, dispatch the critic:
+
+```json
+{
+  "agent": "worker",
+  "task": "ADVERSARIAL VALIDATION ROUND 2 - BRUTAL CRITIQUE:\n\nYou are a harsh but fair critic...\n\n[all proposals]\n\nEvaluate each proposal..."
+}
+```
+
+Then dispatch synthesis agents with the critique context.
+
+---
+
+**Related Workflows:**
+- `ParallelAnalysis.md` - For stress-testing existing arguments
+
+**Last Updated:** 2025-03-12

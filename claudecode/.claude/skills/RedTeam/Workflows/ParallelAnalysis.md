@@ -1,12 +1,11 @@
 # Red Team Parallel Analysis Workflow
 
-## Voice Notification
+## Notification
 
-```bash
-curl -s -X POST http://localhost:8888/notify \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Running the ParallelAnalysis workflow in the RedTeam skill to red team arguments"}' \
-  > /dev/null 2>&1 &
+When starting this workflow, send a notification:
+
+```
+notify(message="Running the ParallelAnalysis workflow in the RedTeam skill to red team arguments", title="RedTeam")
 ```
 
 Running the **ParallelAnalysis** workflow in the **RedTeam** skill to red team arguments...
@@ -22,13 +21,13 @@ Military-grade adversarial analysis using parallel agent deployment. Breaks argu
 ## The Five Phases
 
 ### PHASE 1: DECOMPOSITION
-Break the argument into 24 atomic claims using storyexplanation methodology.
+Break the argument into 24 atomic claims using first-principles methodology.
 
 ### PHASE 2: PARALLEL ANALYSIS
 Launch 32 specialized agents (8 each: engineers, architects, pentesters, interns) with unique personalities to examine BOTH strengths AND weaknesses from their perspective.
 
 ### PHASE 3: SYNTHESIS
-Collect all 32 analyses and identify convergent insights (both supporting and opposing).
+Collect all analyses and identify convergent insights (both supporting and opposing).
 
 ### PHASE 4: STEELMAN
 Produce an 8-point story explanation (12-16 words each) representing the STRONGEST possible version of the original argument.
@@ -40,11 +39,12 @@ Produce an 8-point story explanation (12-16 words each) representing the stronge
 
 ## PHASE 1: Decomposition Protocol
 
-### Step 1.0: First Principles Deconstruction (NEW)
-**Before traditional decomposition, invoke FirstPrinciples/Deconstruct:**
+### Step 1.0: First Principles Deconstruction
+
+**Use the `think` tool with first_principles mode:**
 
 ```
-→ FirstPrinciples/Deconstruct on the argument
+think(problem="[THE ARGUMENT]", mode="first_principles")
 ```
 
 This surfaces:
@@ -62,7 +62,8 @@ Read the content and identify:
 - The logical chain (A → B → C → conclusion)
 
 ### Step 1.2: Break Into 24 Atomic Pieces
-Using storyexplanation methodology, decompose the argument into exactly 24 discrete claims:
+
+Using systematic decomposition, break the argument into exactly 24 discrete claims:
 
 ```
 CLAIM 1: [First atomic claim from the argument]
@@ -80,12 +81,21 @@ Each claim should be:
 
 ## PHASE 2: Parallel Agent Deployment
 
-### Launch Protocol
-Deploy 32 agents in a SINGLE message with multiple Task tool calls. Each agent receives:
-1. The full original argument
-2. The 24-claim decomposition
-3. Their specific personality and attack angle
-4. Instructions to return a focused critique
+### Dispatch Protocol
+
+Use the `subagent` tool to dispatch all 32 agents in parallel. Create a task for each agent with their specific personality and attack angle.
+
+**Subagent Configuration:**
+```json
+{
+  "agentScope": "both",
+  "tasks": [
+    { "agent": "worker", "task": "[EN-1 prompt]" },
+    { "agent": "worker", "task": "[EN-2 prompt]" },
+    // ... all32 agents
+  ]
+}
+```
 
 ### Agent Roster: 8 Engineers
 
@@ -123,7 +133,7 @@ Each focuses on **adversarial and security thinking**:
 
 | Agent | Personality | Attack Angle |
 |-------|-------------|--------------|
-| PT-1 | **The Red Team Lead** - Thinks like an attacker 24/7. | "Here's how I'd exploit this logic." |
+| PT-1 | **The Red Team Lead** - Thinks like an attacker24/7. | "Here's how I'd exploit this logic." |
 | PT-2 | **The Assumption Breaker** - Finds the weak link in the chain. | "This depends on X, and X is false." |
 | PT-3 | **The Game Theorist** - Models rational adversaries. | "A smart opponent would simply..." |
 | PT-4 | **The Social Engineer** - Knows humans are the weak point. | "People will route around this because..." |
@@ -151,7 +161,7 @@ Each brings **fresh eyes and unconventional perspectives**:
 
 Each agent receives this prompt (customized with their personality):
 
-```
+```markdown
 # BALANCED ANALYSIS - [AGENT ID]: [PERSONALITY NAME]
 
 You are [PERSONALITY DESCRIPTION]. Your perspective is: "[PERSPECTIVE]"
@@ -200,7 +210,7 @@ Your job is balanced analysis from your unique perspective.
 ## PHASE 3: Synthesis Protocol
 
 ### Step 3.1: Collect All 32 Analyses
-Wait for all agents to complete. Compile their outputs.
+Compile all agent outputs.
 
 ### Step 3.2: Identify Convergent STRENGTHS
 Look for supporting points that multiple agents independently identified:
@@ -248,7 +258,7 @@ If the author had made their case PERFECTLY, what would it look like?
 
 ### Step 4.3: Output Format (8 points, 12-16 words each)
 
-```
+```markdown
 # STEELMAN
 
 **The Position (Best Version):** [One sentence - the strongest formulation]
@@ -280,10 +290,13 @@ If the author had made their case PERFECTLY, what would it look like?
 
 ### First Principles Analysis
 
-Before finalizing the counter-argument, **invoke FirstPrinciples/Challenge:**
+**Use the `think` tool with first_principles mode to classify constraints:**
 
 ```
-→ FirstPrinciples/Challenge on all stated constraints and assumptions
+think(
+  problem="[All stated constraints and assumptions from the argument]",
+  mode="first_principles"
+)
 ```
 
 This classifies every constraint as:
@@ -302,7 +315,7 @@ Then apply these additional checks:
 - Predictive ("X will lead to Y")
 - Normative ("We should/shouldn't do X")
 
-**Step 2: Surface hidden assumptions (from FirstPrinciples/Challenge output):**
+**Step 2: Surface hidden assumptions (from think output):**
 - What must be true for this argument to work?
 - What does the author take for granted?
 - What evidence is assumed but not provided?
@@ -327,7 +340,7 @@ Then apply these additional checks:
 
 The final output must be exactly 8 numbered points, each 12-16 words:
 
-```
+```markdown
 # RED TEAM VERDICT
 
 **The Position:** [One sentence summary of what was red-teamed]
@@ -374,7 +387,7 @@ The 8-point sequence should:
 
 ```
 □ PHASE 1: Decomposition
-  □ Invoke FirstPrinciples/Deconstruct on the argument (NEW)
+  □ Use think tool with first_principles mode on the argument
   □ Read and understand the full argument
   □ Extract central thesis
   □ Identify supporting claims
@@ -383,7 +396,7 @@ The 8-point sequence should:
 
 □ PHASE 2: Parallel Analysis
   □ Prepare 32 agent prompts with unique personalities
-  □ Launch ALL 32 agents in a SINGLE message (parallel)
+  □ Launch ALL 32 agents via subagent tasks array (parallel)
   □ Each agent: engineer, architect, pentester, or intern type
   □ Each agent examines BOTH strengths AND weaknesses
   □ Wait for all agents to complete
@@ -403,7 +416,7 @@ The 8-point sequence should:
   □ Present the STRONGEST case FOR the argument
 
 □ PHASE 5: Counter-Argument
-  □ Invoke FirstPrinciples/Challenge on all constraints (NEW)
+  □ Use think tool with first_principles mode on all constraints
   □ Classify constraints as HARD/SOFT/ASSUMPTION
   □ Apply first-principles analysis (claim type, assumptions, precedent, validity)
   □ Draft 8-point counter-argument
@@ -451,17 +464,16 @@ The 8-point sequence should:
 ## Integration Notes
 
 **This workflow requires:**
-- Task tool for launching parallel agents
-- Ability to launch 32+ agents simultaneously
+- `subagent` tool for launching parallel agents
+- Ability to dispatch 32+ tasks simultaneously
 - Synthesis capability to process multiple agent outputs
-- **FirstPrinciples skill** for Deconstruct (Phase 1) and Challenge (Phase 5)
+- `think` tool with `first_principles` mode for Phase 1 and Phase 5
 
 **Pairs well with:**
-- `FirstPrinciples/Deconstruct` - breaks argument into fundamental parts (Phase 1)
-- `FirstPrinciples/Challenge` - classifies constraints as HARD/SOFT/ASSUMPTION (Phase 5)
-- `storyexplanation` skill for initial decomposition
-- `extractalpha` for finding highest-signal critiques
-- `research` skill for finding counterexamples and precedents
+- `think` tool with `first_principles` mode - breaks argument into fundamental parts (Phase 1)
+- `think` tool with `red_team` mode - additional adversarial perspective
+- `brainstorming` skill - for initial decomposition
+- `web-search` skill - for finding counterexamples and precedents
 
 **Time estimate:**
 - Phase 1: 2-3 minutes (decomposition)
@@ -472,4 +484,4 @@ The 8-point sequence should:
 
 ---
 
-**Last Updated:** 2025-11-24
+**Last Updated:** 2025-03-12
