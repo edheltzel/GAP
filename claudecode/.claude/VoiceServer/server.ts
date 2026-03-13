@@ -91,6 +91,49 @@ interface VoicesConfig {
 }
 
 // =============================================================================
+// Structured Logging
+// =============================================================================
+
+// TODO: Add session ID support for Pi (pi-agent) and OpenCode agents.
+// Currently only Claude Code sessions pass session_id. When Pi and OpenCode
+// adapters are built, they should include their session IDs in the POST body
+// as `session_id` (e.g., Pi's session hash, OpenCode's session identifier).
+// The log format below is ready to accept them — just needs the caller to send it.
+
+let requestCounter = 0;
+
+function logTimestamp(): string {
+  return new Date().toISOString();
+}
+
+function generateRequestId(): string {
+  return `req-${++requestCounter}-${Date.now().toString(36)}`;
+}
+
+interface LogContext {
+  requestId?: string;
+  sessionId?: string;
+  source?: string;  // 'claude-code' | 'pi' | 'opencode' | unknown
+}
+
+function log(level: 'info' | 'warn' | 'error', message: string, ctx?: LogContext): void {
+  const ts = logTimestamp();
+  const prefix = ctx?.requestId ? `[${ctx.requestId}]` : '';
+  const session = ctx?.sessionId ? ` session=${ctx.sessionId}` : '';
+  const source = ctx?.source ? ` source=${ctx.source}` : '';
+  const meta = `${prefix}${session}${source}`;
+  const line = `${ts} ${level.toUpperCase()} ${meta ? meta + ' ' : ''}${message}`;
+
+  if (level === 'error') {
+    console.error(line);
+  } else if (level === 'warn') {
+    console.warn(line);
+  } else {
+    console.log(line);
+  }
+}
+
+// =============================================================================
 // Configuration Loading
 // =============================================================================
 
@@ -338,7 +381,7 @@ function recordProviderSuccess(provider: string): void {
 
   breaker.failures = 0;
   if (breaker.isOpen) {
-    console.log(`🟢 Circuit CLOSED - ${provider} recovered`);
+    log('info', `🟢 Circuit CLOSED - ${provider} recovered`);
     breaker.isOpen = false;
   }
 }
@@ -352,7 +395,7 @@ function recordProviderFailure(provider: string): void {
 
   if (breaker.failures >= CIRCUIT_BREAKER_THRESHOLD && !breaker.isOpen) {
     breaker.isOpen = true;
-    console.warn(`🔴 Circuit OPEN - ${provider} disabled, using fallback`);
+    log('warn', `🔴 Circuit OPEN - ${provider} disabled, using fallback`);
   }
 }
 
@@ -361,7 +404,7 @@ function shouldSkipProvider(provider: string): boolean {
   if (!breaker || !breaker.isOpen) return false;
 
   if (Date.now() - breaker.lastFailure > CIRCUIT_BREAKER_RESET_MS) {
-    console.log(`🟡 Circuit HALF-OPEN - testing ${provider}`);
+    log('info', `🟡 Circuit HALF-OPEN - testing ${provider}`);
     return false;
   }
 
@@ -966,6 +1009,7 @@ const server = serve({
     }
 
     if (url.pathname === "/notify" && req.method === "POST") {
+      const reqId = generateRequestId();
       try {
         const data = await req.json();
         const title = data.title || "PAI Notification";
@@ -973,26 +1017,32 @@ const server = serve({
         const voiceEnabled = data.voice_enabled !== false;
         const voiceId = data.voice_id || data.voice_name || null;
         const voiceSettings = data.voice_settings || null;
+        // TODO: Pi and OpenCode agents should send session_id and source
+        // in the POST body once their adapters are built.
+        const sessionId = data.session_id || null;
+        const source = data.source || null;  // 'claude-code' | 'pi' | 'opencode'
+        const ctx: LogContext = { requestId: reqId, sessionId, source };
 
         if (voiceId && typeof voiceId !== 'string') {
           throw new Error('Invalid voice_id');
         }
 
-        console.log(`📨 Notification: "${title}" - "${message}" (voice: ${voiceEnabled}, provider: ${voicesConfig.defaultProvider})`);
+        log('info', `📨 Notification: "${title}" - "${message}" (voice: ${voiceEnabled}, provider: ${voicesConfig.defaultProvider})`, ctx);
 
         await sendNotification(title, message, voiceEnabled, voiceId, voiceSettings);
 
+        log('info', `✅ Notification delivered`, ctx);
         return new Response(
-          JSON.stringify({ status: "success", message: "Notification sent" }),
+          JSON.stringify({ status: "success", message: "Notification sent", request_id: reqId }),
           {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: 200
           }
         );
       } catch (error: any) {
-        console.error("Notification error:", error);
+        log('error', `Notification error: ${error.message || error}`, { requestId: reqId });
         return new Response(
-          JSON.stringify({ status: "error", message: error.message || "Internal server error" }),
+          JSON.stringify({ status: "error", message: error.message || "Internal server error", request_id: reqId }),
           {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: error.message?.includes('Invalid') ? 400 : 500
@@ -1003,25 +1053,28 @@ const server = serve({
 
     // /notify/personality — compatibility shim
     if (url.pathname === "/notify/personality" && req.method === "POST") {
+      const reqId = generateRequestId();
       try {
         const data = await req.json();
         const message = data.message || "Notification";
+        const ctx: LogContext = { requestId: reqId, sessionId: data.session_id, source: data.source };
 
-        console.log(`🎭 Personality notification: "${message}"`);
+        log('info', `🎭 Personality notification: "${message}"`, ctx);
 
         await sendNotification("PAI Notification", message, true, null);
 
+        log('info', `✅ Personality notification delivered`, ctx);
         return new Response(
-          JSON.stringify({ status: "success", message: "Personality notification sent" }),
+          JSON.stringify({ status: "success", message: "Personality notification sent", request_id: reqId }),
           {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: 200
           }
         );
       } catch (error: any) {
-        console.error("Personality notification error:", error);
+        log('error', `Personality notification error: ${error.message || error}`, { requestId: reqId });
         return new Response(
-          JSON.stringify({ status: "error", message: error.message || "Internal server error" }),
+          JSON.stringify({ status: "error", message: error.message || "Internal server error", request_id: reqId }),
           {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: error.message?.includes('Invalid') ? 400 : 500
@@ -1031,26 +1084,29 @@ const server = serve({
     }
 
     if (url.pathname === "/pai" && req.method === "POST") {
+      const reqId = generateRequestId();
       try {
         const data = await req.json();
         const title = data.title || "PAI Assistant";
         const message = data.message || "Task completed";
+        const ctx: LogContext = { requestId: reqId, sessionId: data.session_id, source: data.source };
 
-        console.log(`🤖 PAI notification: "${title}" - "${message}"`);
+        log('info', `🤖 PAI notification: "${title}" - "${message}"`, ctx);
 
         await sendNotification(title, message, true, null);
 
+        log('info', `✅ PAI notification delivered`, ctx);
         return new Response(
-          JSON.stringify({ status: "success", message: "PAI notification sent" }),
+          JSON.stringify({ status: "success", message: "PAI notification sent", request_id: reqId }),
           {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: 200
           }
         );
       } catch (error: any) {
-        console.error("PAI notification error:", error);
+        log('error', `PAI notification error: ${error.message || error}`, { requestId: reqId });
         return new Response(
-          JSON.stringify({ status: "error", message: error.message || "Internal server error" }),
+          JSON.stringify({ status: "error", message: error.message || "Internal server error", request_id: reqId }),
           {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: error.message?.includes('Invalid') ? 400 : 500
@@ -1107,18 +1163,18 @@ const server = serve({
 
 const providerStatus = await getProviderStatus();
 
-console.log(`🚀 Voice Server running on port ${PORT}`);
-console.log(`📄 Config source: voices.json`);
-console.log(`🎙️  Primary provider: ${voicesConfig.defaultProvider}`);
-console.log(`📋 Fallback order: ${voicesConfig.fallbackOrder.join(' → ')}`);
-console.log(`🔧 Provider status:`);
+log('info', `🚀 Voice Server running on port ${PORT}`);
+log('info', `📄 Config source: voices.json`);
+log('info', `🎙️  Primary provider: ${voicesConfig.defaultProvider}`);
+log('info', `📋 Fallback order: ${voicesConfig.fallbackOrder.join(' → ')}`);
+log('info', `🔧 Provider status:`);
 for (const [name, status] of Object.entries(providerStatus)) {
   const icon = status.healthy ? '✅' : (status.enabled ? '⚠️' : '⬚');
-  console.log(`   ${icon} ${name}: ${status.enabled ? 'enabled' : 'disabled'}${status.healthy ? ', healthy' : ''}`);
+  log('info', `   ${icon} ${name}: ${status.enabled ? 'enabled' : 'disabled'}${status.healthy ? ', healthy' : ''}`);
 }
-console.log(`🍎 macOS fallback voice: ${getMacOSFallbackVoice()}`);
-console.log(`📖 Pronunciation rules: ${pronunciationRules.length}`);
-console.log(`🎭 Emotional presets: ${Object.keys(EMOTIONAL_PRESETS).length}`);
-console.log(`⚡ Circuit breaker: ${CIRCUIT_BREAKER_THRESHOLD} failures → ${CIRCUIT_BREAKER_RESET_MS / 1000}s cooldown`);
-console.log(`📡 Endpoints: POST /notify, POST /notify/personality, POST /pai, GET /health`);
-console.log(`🔒 Security: CORS restricted to localhost, rate limiting enabled`);
+log('info', `🍎 macOS fallback voice: ${getMacOSFallbackVoice()}`);
+log('info', `📖 Pronunciation rules: ${pronunciationRules.length}`);
+log('info', `🎭 Emotional presets: ${Object.keys(EMOTIONAL_PRESETS).length}`);
+log('info', `⚡ Circuit breaker: ${CIRCUIT_BREAKER_THRESHOLD} failures → ${CIRCUIT_BREAKER_RESET_MS / 1000}s cooldown`);
+log('info', `📡 Endpoints: POST /notify, POST /notify/personality, POST /pai, GET /health`);
+log('info', `🔒 Security: CORS restricted to localhost, rate limiting enabled`);
