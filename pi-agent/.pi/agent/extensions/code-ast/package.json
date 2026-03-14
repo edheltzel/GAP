@@ -1,0 +1,10 @@
+{
+  "name": "code-ast",
+  "private": true,
+  "dependencies": {
+    "typescript": "^5.7.0"
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
