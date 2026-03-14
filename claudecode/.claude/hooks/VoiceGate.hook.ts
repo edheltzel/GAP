@@ -4,8 +4,7 @@
  *
  * PURPOSE:
  * Prevents background agents / subagents from sending voice notifications.
- * Only the main terminal session (identified by absence of CLAUDE_CODE_AGENT_TASK_ID)
- * is allowed to curl the voice server at localhost:8888.
+ * Only the main terminal session is allowed to curl the voice server at localhost:8888.
  *
  * ROOT CAUSE THIS FIXES:
  * Subagents inherit full PAI context (CLAUDE.md → SKILL.md → Algorithm),
@@ -14,10 +13,16 @@
  *
  * TRIGGER: PreToolUse (matcher: Bash)
  *
+ * SUBAGENT DETECTION:
+ * Uses stdin JSON `agent_id` field — present when hook fires inside a
+ * subagent context. Claude Code delivers agent context via stdin JSON,
+ * NOT via environment variables. The old CLAUDE_CODE_AGENT_TASK_ID env
+ * var check was unreliable/broken (that env var doesn't exist).
+ *
  * DECISION LOGIC:
  * 1. Command doesn't contain "localhost:8888" → PASS (not a voice curl)
- * 2. Command contains "localhost:8888" AND is main session → PASS
- * 3. Command contains "localhost:8888" AND is NOT main session → BLOCK
+ * 2. Command contains "localhost:8888" AND no agent_id in stdin → PASS (main session)
+ * 3. Command contains "localhost:8888" AND agent_id present → BLOCK (subagent)
  *
  * PERFORMANCE: <5ms. Fast-path exit for non-voice commands.
  */
@@ -28,29 +33,14 @@ interface HookInput {
     command?: string;
   };
   session_id: string;
-}
-
-function isMainSession(): boolean {
-  // Subagents always have CLAUDE_CODE_AGENT_TASK_ID set by Claude Code.
-  // Main interactive sessions do not. This is reliable regardless of terminal
-  // emulator (works on WezTerm, Kitty, iTerm2, etc.) — unlike the previous
-  // kitty-sessions file check which only worked with Kitty.
-  return !process.env.CLAUDE_CODE_AGENT_TASK_ID;
+  agent_id?: string;
+  agent_type?: string;
 }
 
 async function main() {
   let input: HookInput;
   try {
-    const reader = Bun.stdin.stream().getReader();
-    let raw = '';
-    const read = (async () => {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        raw += new TextDecoder().decode(value, { stream: true });
-      }
-    })();
-    await Promise.race([read, new Promise<void>(r => setTimeout(r, 200))]);
+    const raw = await Bun.stdin.text();
     if (!raw.trim()) {
       console.log(JSON.stringify({ continue: true }));
       return;
@@ -64,21 +54,26 @@ async function main() {
   const command = input.tool_input?.command || '';
 
   // Fast path: not a voice curl → allow immediately
-  if (!command.includes('localhost:8888')) {
+  const isVoiceCurl = command.includes('localhost:8888') || command.includes('127.0.0.1:8888');
+  if (!isVoiceCurl) {
     console.log(JSON.stringify({ continue: true }));
     return;
   }
 
-  // It's a voice curl — check if main session
-  if (isMainSession()) {
+  // It's a voice curl — check if we're in a subagent context
+  // agent_id is present in stdin JSON when the hook fires inside a subagent
+  const agentId = input.agent_id;
+  const agentType = input.agent_type;
+
+  if (!agentId) {
+    // No agent_id → this is the main session, allow the curl
     console.error('[VoiceGate] pass: main-session voice curl');
     console.log(JSON.stringify({ continue: true }));
     return;
   }
 
   // Subagent trying to send voice → block
-  const taskId = process.env.CLAUDE_CODE_AGENT_TASK_ID || 'unknown';
-  console.error(`[VoiceGate] block: subagent voice curl (task_id: ${taskId})`);
+  console.error(`[VoiceGate] block: subagent voice curl (agent_id: ${agentId}, type: ${agentType || 'unknown'})`);
   console.log(JSON.stringify({
     decision: "block",
     reason: "Voice notifications are only sent from the main session. Subagent voice curls are suppressed."

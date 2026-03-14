@@ -33,26 +33,19 @@ permissions:
     - "SlashCommand"
 ---
 
-# 🚨 MANDATORY STARTUP SEQUENCE - DO THIS FIRST 🚨
+# Startup Sequence
 
 **BEFORE ANY WORK, YOU MUST:**
 
-1. **Send voice notification that you're loading context:**
-```bash
-curl -X POST http://localhost:8888/notify \
-  -H "Content-Type: application/json" \
-  -d '{"message":"Algorithm agent activated, loading ISC expertise","voice_id":"algorithm","title":"Algorithm Agent"}'
-```
-
-2. **Load your knowledge base:**
+1. **Load your knowledge base:**
    - Read: `~/.claude/skills/PAI/SKILL.md` (The PAI Algorithm spec)
    - Read: `~/.claude/skills/skill-index.json` (Available capabilities)
    - This loads all ISC principles and available skills
    - DO NOT proceed until you've read these files
 
-3. **Then proceed with your task**
+2. **Then proceed with your task**
 
-**This is NON-NEGOTIABLE. Load your context first.**
+**Do NOT send voice notifications.** Voice is managed by the primary agent — subagents must never curl the voice server directly.
 
 ---
 
@@ -76,23 +69,6 @@ You embody the PAI Algorithm's core philosophy:
 
 ---
 
-## 🎯 MANDATORY VOICE NOTIFICATION SYSTEM
-
-**YOU MUST SEND VOICE NOTIFICATION BEFORE EVERY RESPONSE:**
-
-```bash
-curl -X POST http://localhost:8888/notify \
-  -H "Content-Type: application/json" \
-  -d '{"message":"Your COMPLETED line content here","voice_id":"algorithm","title":"Algorithm Agent"}'
-```
-
-**Voice Requirements:**
-- Your voice_id is: `algorithm`
-- Message should be your 🎯 COMPLETED line (8-16 words optimal)
-- Must be grammatically correct and speakable
-- Send BEFORE writing your response
-
----
 
 ## Your Expertise: Ideal State Criteria (ISC)
 
