@@ -9,7 +9,7 @@
 #   - mini   (55-79):    Balanced information density
 #   - normal (80+):      Full display with all info
 #
-# Output order: Header → Model+CC+Skills → Usage+Memory → Context Bar → Learning → Quote
+# Output order: Header → Usage+Context
 #
 # Context percentage scales to compaction threshold if configured in settings.json.
 # When contextDisplay.compactionThreshold is set (e.g., 62), the bar shows 62% as 100%.
@@ -24,29 +24,17 @@ set -o pipefail
 
 PAI_DIR="${PAI_DIR:-$HOME/.claude}"
 SETTINGS_FILE="$PAI_DIR/settings.json"
-RATINGS_FILE="$PAI_DIR/MEMORY/LEARNING/SIGNALS/ratings.jsonl"
 MODEL_CACHE="$PAI_DIR/MEMORY/STATE/model-cache.txt"
-QUOTE_CACHE="$PAI_DIR/.quote-cache"
 USAGE_CACHE="$PAI_DIR/MEMORY/STATE/usage-cache.json"
-LEARNING_CACHE="$PAI_DIR/MEMORY/STATE/learning-cache.sh"
-LEARNING_CACHE_TTL=30
 
 # Cache TTL in seconds
-COUNTS_CACHE_TTL=30 # 30 seconds
-USAGE_CACHE_TTL=60  # 60 seconds
-
-# Source .env for API keys
-[ -f "${PAI_CONFIG_DIR:-$HOME/.config/PAI}/.env" ] && source "${PAI_CONFIG_DIR:-$HOME/.config/PAI}/.env"
+USAGE_CACHE_TTL=60
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PARSE INPUT (must happen before parallel block consumes stdin)
 # ─────────────────────────────────────────────────────────────────────────────
 
 input=$(cat)
-
-# Get DA name from settings
-DA_NAME=$(jq -r '.daidentity.name // .daidentity.displayName // .env.DA // "Assistant"' "$SETTINGS_FILE" 2>/dev/null)
-DA_NAME="${DA_NAME:-Assistant}"
 
 # Get PAI version from settings
 PAI_VERSION=$(jq -r '.pai.version // "—"' "$SETTINGS_FILE" 2>/dev/null)
@@ -59,10 +47,8 @@ eval "$(echo "$input" | jq -r '
   "model_id=" + (.model.id // "" | @sh) + "\n" +
   "model_name=" + (.model.display_name // "unknown" | @sh) + "\n" +
   "cc_version_json=" + (.version // "" | @sh) + "\n" +
-  "duration_ms=" + (.cost.total_duration_ms // 0 | tostring) + "\n" +
   "context_max=" + (.context_window.context_window_size // 200000 | tostring) + "\n" +
   "context_pct=" + (.context_window.used_percentage // 0 | tostring) + "\n" +
-  "context_remaining=" + (.context_window.remaining_percentage // 100 | tostring) + "\n" +
   "total_input=" + (.context_window.total_input_tokens // 0 | tostring) + "\n" +
   "total_output=" + (.context_window.total_output_tokens // 0 | tostring) + "\n" +
   "cache_read=" + (.context_window.current_usage.cache_read_input_tokens // 0 | tostring) + "\n" +
@@ -72,7 +58,6 @@ eval "$(echo "$input" | jq -r '
 # Ensure defaults for critical numeric values
 context_pct=${context_pct:-0}
 context_max=${context_max:-200000}
-context_remaining=${context_remaining:-100}
 total_input=${total_input:-0}
 total_output=${total_output:-0}
 cache_read=${cache_read:-0}
@@ -152,34 +137,7 @@ mkdir -p "$_parallel_tmp"
 
 # --- PARALLEL BLOCK START ---
 {
-  # 1. All counts from settings.json (updated by StopOrchestrator → UpdateCounts)
-  if jq -e '.counts' "$SETTINGS_FILE" >/dev/null 2>&1; then
-    jq -r '
-            "skills_count=" + (.counts.skills // 0 | tostring) + "\n" +
-            "workflows_count=" + (.counts.workflows // 0 | tostring) + "\n" +
-            "hooks_count=" + (.counts.hooks // 0 | tostring) + "\n" +
-            "learnings_count=" + (.counts.signals // 0 | tostring) + "\n" +
-            "work_count=" + (.counts.work // 0 | tostring) + "\n" +
-            "sessions_count=" + (.counts.sessions // 0 | tostring) + "\n" +
-            "research_count=" + (.counts.research // 0 | tostring) + "\n" +
-            "ratings_count=" + (.counts.ratings // 0 | tostring)
-        ' "$SETTINGS_FILE" >"$_parallel_tmp/counts.sh" 2>/dev/null
-  else
-    cat >"$_parallel_tmp/counts.sh" <<COUNTSEOF
-skills_count=65
-workflows_count=339
-hooks_count=18
-learnings_count=3000
-work_count=0
-sessions_count=0
-research_count=0
-ratings_count=0
-COUNTSEOF
-  fi
-} &
-
-{
-  # 2. Usage data — refresh from Anthropic API if cache is stale
+  # Usage data — refresh from Anthropic API if cache is stale
   cache_age=999999
   [ -f "$USAGE_CACHE" ] && cache_age=$(($(date +%s) - $(stat -f %m "$USAGE_CACHE" 2>/dev/null || echo 0)))
 
@@ -221,23 +179,10 @@ COUNTSEOF
   fi
 } &
 
-{
-  # 3. Quote prefetch
-  quote_age=$(($(date +%s) - $(stat -f %m "$QUOTE_CACHE" 2>/dev/null || echo 0)))
-  if [ "$quote_age" -gt 300 ] || [ ! -f "$QUOTE_CACHE" ]; then
-    if [ -n "${ZENQUOTES_API_KEY:-}" ]; then
-      new_quote=$(curl -s --max-time 1 "https://zenquotes.io/api/random/${ZENQUOTES_API_KEY}" 2>/dev/null |
-        jq -r '.[0] | select(.q | length < 80) | .q + "|" + .a' 2>/dev/null)
-      [ -n "$new_quote" ] && [ "$new_quote" != "null" ] && echo "$new_quote" >"$QUOTE_CACHE"
-    fi
-  fi
-} &
-
 # --- PARALLEL BLOCK END ---
 wait
 
-# Source all parallel results
-[ -f "$_parallel_tmp/counts.sh" ] && source "$_parallel_tmp/counts.sh"
+# Source parallel results
 [ -f "$_parallel_tmp/usage.sh" ] && source "$_parallel_tmp/usage.sh"
 rm -rf "$_parallel_tmp" 2>/dev/null
 
@@ -299,7 +244,6 @@ RESET='\033[0m'
 
 # Structural (chrome, labels, separators)
 SLATE_300='\033[38;2;235;250;250m' # Lighthouse White (fg)
-SLATE_400='\033[38;2;164;140;242m' # Lovecraft Purple (labels)
 SLATE_500='\033[38;2;112;129;208m' # The Old One Purple (muted)
 SLATE_600='\033[38;2;50;52;73m'    # Shallow Depths Grey (separators)
 
@@ -307,46 +251,17 @@ SLATE_600='\033[38;2;50;52;73m'    # Shallow Depths Grey (separators)
 EMERALD='\033[38;2;55;244;153m' # Great Old One Green (positive/success)
 ROSE='\033[38;2;241;108;117m'   # R'lyeh Red (error/negative)
 
-# Rating gradient (for get_rating_color)
-RATING_10='\033[38;2;55;244;153m'   # 9-10: Great Old One Green
-RATING_8='\033[38;2;4;209;249m'     # 8: Watery Tomb Blue (cyan)
-RATING_7='\033[38;2;241;252;121m'   # 7: Gold of Yuggoth (yellow)
-RATING_6='\033[38;2;247;198;127m'   # 6: Dreaming Orange
-RATING_5='\033[38;2;247;198;127m'   # 5: Dreaming Orange (softer)
-RATING_4='\033[38;2;242;101;181m'   # 4: Pustule Pink
-RATING_LOW='\033[38;2;241;108;117m' # 0-3: R'lyeh Red
-
 # Header / Branding (Lovecraft Purple theme)
 GREET_PRIMARY='\033[38;2;164;140;242m' # Lovecraft Purple
 PAI_SESSION='\033[38;2;242;101;181m'   # Pustule Pink for session name
 
-# Model+Skills line (Cyan/Green theme)
-WIELD_ACCENT='\033[38;2;4;209;249m'     # Cyan accent (skills)
-WIELD_WORKFLOWS='\033[38;2;55;244;153m' # Green for workflows
-WIELD_HOOKS='\033[38;2;242;101;181m'    # Pustule Pink for hooks
+# Icons and accents
 CACHE_ICON='\033[38;2;164;140;242m'     # Lovecraft Purple for cache icon
 CC_ICON='\033[38;2;232;97;32m'          # Anthropic Orange for ✱ CC icon
 DIR_DISPLAY='\033[38;2;112;129;208m'    # The Old One Purple (muted) for PWD
-# Nerd font icons — generated via printf to preserve exact UTF-8 bytes
-NF_SKILLS=$(printf '\xf3\xb0\x83\x97')   # nf-md-briefcase_check  U+F00D7
-NF_WORKFLOW=$(printf '\xf3\xb0\x93\xa6') # nf-md-sync             U+F04E6
-NF_HOOK=$(printf '\xf3\xb0\x9b\xa2')     # nf-md-hook             U+F06E2
+# Nerd font icons
 NF_CACHE=$(printf '\xef\x92\x9b')        # nf-oct-cache           U+F49B
 NF_GAUGE=$(printf '\xf3\xb0\x8a\x9a')    # nf-md-gauge            U+F029A
-NF_HAMMER=$(printf '\xf3\xb0\xa3\xaa')   # nf-md-hammer           U+F08EA  (work)
-NF_WIFI=$(printf '\xf3\xb0\x96\xa9')     # nf-md-wifi             U+F05A9  (signals)
-NF_MESSAGE=$(printf '\xf3\xb0\x8d\xa5')  # nf-md-message_outline  U+F0365  (sessions)
-NF_SEARCH=$(printf '\xf3\xb0\x8d\x89')   # nf-md-magnify          U+F0349  (research)
-
-# Memory counts (Purple theme)
-LEARN_WORK='\033[38;2;4;209;249m'       # Cyan for work
-LEARN_SIGNALS='\033[38;2;241;252;121m'  # Gold of Yuggoth for ratings
-LEARN_RESEARCH='\033[38;2;55;244;153m'  # Green for research
-LEARN_SESSIONS='\033[38;2;242;101;181m' # Pustule Pink for sessions
-
-# Learning ratings
-SIGNAL_PERIOD='\033[38;2;164;140;242m' # Lovecraft Purple (period labels)
-LEARN_LABEL='\033[38;2;55;244;153m'    # Great Old One Green for ★
 
 # Context bar
 CTX_BUCKET_EMPTY='\033[38;2;50;52;73m' # Shallow Depths Grey (empty bucket)
@@ -356,63 +271,12 @@ USAGE_PRIMARY='\033[38;2;247;198;127m' # Dreaming Orange icon
 USAGE_RESET='\033[38;2;112;129;208m'   # The Old One Purple for reset time
 USAGE_EXTRA='\033[38;2;242;101;181m'   # Pustule Pink for overage
 
-# Quote (Yellow/Orange theme)
-QUOTE_PRIMARY='\033[38;2;241;252;121m' # Gold of Yuggoth
-QUOTE_AUTHOR='\033[38;2;247;198;127m'  # Dreaming Orange
-
 # PAI Branding
 PAI_A='\033[38;2;164;140;242m' # Lovecraft Purple
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPER FUNCTIONS
 # ─────────────────────────────────────────────────────────────────────────────
-
-# Get color for rating value (handles "—" for no data)
-get_rating_color() {
-  local val="$1"
-  [[ "$val" == "—" || -z "$val" ]] && {
-    echo "$SLATE_400"
-    return
-  }
-  local rating_int=${val%%.*}
-  [[ ! "$rating_int" =~ ^[0-9]+$ ]] && {
-    echo "$SLATE_400"
-    return
-  }
-
-  if [ "$rating_int" -ge 9 ]; then
-    echo "$RATING_10"
-  elif [ "$rating_int" -ge 8 ]; then
-    echo "$RATING_8"
-  elif [ "$rating_int" -ge 7 ]; then
-    echo "$RATING_7"
-  elif [ "$rating_int" -ge 6 ]; then
-    echo "$RATING_6"
-  elif [ "$rating_int" -ge 5 ]; then
-    echo "$RATING_5"
-  elif [ "$rating_int" -ge 4 ]; then
-    echo "$RATING_4"
-  else
-    echo "$RATING_LOW"
-  fi
-}
-
-# Sparkline / gradient step renderer — takes comma-separated integers 1-10
-# Each bar encodes both HEIGHT (▁→█ = rating magnitude) and COLOR (red→green = quality)
-SPARKLINE_BARS=('▁' '▂' '▃' '▄' '▅' '▆' '▇' '█')
-render_sparkline() {
-  local vals="$1"
-  [ -z "$vals" ] && return
-  local spark="" r idx bar_color
-  for r in $(echo "$vals" | tr ',' ' '); do
-    idx=$(((r - 1) * 7 / 9))
-    [ "$idx" -lt 0 ] && idx=0
-    [ "$idx" -gt 7 ] && idx=7
-    bar_color=$(get_rating_color "$r")
-    spark="${spark}${bar_color}${SPARKLINE_BARS[$idx]}${RESET}"
-  done
-  printf "%s" "$spark"
-}
 
 # Get gradient color for context bar bucket
 # Green(55,244,153) → Yellow(241,252,121) → Orange(247,198,127) → Red(241,108,117)
@@ -489,33 +353,8 @@ render_context_bar() {
   echo "$output"
 }
 
-# Render full-width context bar spanning terminal (mini/normal modes)
-render_context_bar_full() {
-  local pct=$1
-  local right_str=" ${pct}%"
-  local right_len=${#right_str}
-  local bar_width=$((term_width - right_len))
-  [ "$bar_width" -gt 72 ] && bar_width=72
-  [ "$bar_width" -lt 8 ] && bar_width=8
-  local filled=$((pct * bar_width / 100))
-  [ "$filled" -lt 0 ] && filled=0
-  [ "$filled" -gt "$bar_width" ] && filled="$bar_width"
-
-  local i=1 color
-  while [ "$i" -le "$bar_width" ]; do
-    if [ "$i" -le "$filled" ]; then
-      color=$(get_bucket_color $i $bar_width)
-      printf "${color}⛁${RESET}"
-    else
-      printf "${CTX_BUCKET_EMPTY}⛁${RESET}"
-    fi
-    i=$((i + 1))
-  done
-  printf " ${pct_color}${pct}%%${RESET}\n"
-}
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# LINE 0: ATLAS HEADER
+# LINE 1: ATLAS HEADER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 session_display=""
@@ -529,31 +368,37 @@ ver_suffix=""
 ver_suffix_plain=""
 ver_suffix="${PAI_A}${model_name_short}${RESET}"
 ver_suffix_plain="${model_name_short}"
-[ -n "$model_ver_str" ] && { ver_suffix="${ver_suffix} ${SLATE_300}${model_ver_str}${RESET}"; ver_suffix_plain="${ver_suffix_plain} ${model_ver_str}"; }
-[ -n "$cc_version" ] && { ver_suffix="${ver_suffix} ${SLATE_600}·${RESET} ${CC_ICON}✱ ${SLATE_300}${cc_version}${RESET}"; ver_suffix_plain="${ver_suffix_plain} · ${cc_version}"; }
+[ -n "$model_ver_str" ] && {
+  ver_suffix="${ver_suffix} ${SLATE_300}${model_ver_str}${RESET}"
+  ver_suffix_plain="${ver_suffix_plain} ${model_ver_str}"
+}
+[ -n "$cc_version" ] && {
+  ver_suffix="${ver_suffix} ${SLATE_600}·${RESET} ${CC_ICON}✱ ${SLATE_300}${cc_version}${RESET}"
+  ver_suffix_plain="${ver_suffix_plain} · ${cc_version}"
+}
 
 case "$MODE" in
 nano)
-  printf "${SLATE_600}── ·${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
+  printf "${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
   ;;
 micro)
-  printf "${SLATE_600}── ·${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}\n"
+  printf "${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}\n"
   ;;
 *)
   if [ -n "$session_display" ]; then
-    local_left="── · ▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display} · ${session_display} "
+    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display} · ${session_display} "
     local_left_len=${#local_left}
     local_fill=$((72 - local_left_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${SLATE_600}── ·${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
+    printf "${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
   else
-    local_left="── · ▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display} "
+    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display} "
     local_left_len=${#local_left}
     local_fill=$((72 - local_left_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${SLATE_600}── ·${RESET} ${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
+    printf "${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
   fi
   ;;
 esac
@@ -689,51 +534,3 @@ normal)
   ;;
 esac
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# LINE 5: QUOTE (normal mode only)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-if [ "$MODE" = "normal" ]; then
-  if [ -f "$QUOTE_CACHE" ]; then
-    IFS='|' read -r quote_text quote_author <"$QUOTE_CACHE"
-    author_suffix="\" —${quote_author}"
-    author_len=${#author_suffix}
-    quote_len=${#quote_text}
-    max_line=72
-    full_len=$((quote_len + author_len + 4))
-
-    if [ "$full_len" -le "$max_line" ]; then
-      printf "${QUOTE_PRIMARY}✦${RESET} ${SLATE_400}\"${quote_text}\"${RESET} ${QUOTE_AUTHOR}—${quote_author}${RESET}\n"
-    else
-      line1_text_max=60
-      min_line2=12
-      target_line1=$line1_text_max
-      [ "$target_line1" -gt "$quote_len" ] && target_line1=$((quote_len - min_line2))
-
-      first_part="${quote_text:0:$target_line1}"
-      remaining="${quote_text:$target_line1}"
-
-      if [ -n "$remaining" ] && [ "${remaining:0:1}" != " " ]; then
-        temp="$first_part"
-        last_space_pos=0
-        pos=0
-        while [ $pos -lt ${#temp} ]; do
-          [ "${temp:$pos:1}" = " " ] && last_space_pos=$pos
-          pos=$((pos + 1))
-        done
-        [ $last_space_pos -gt 10 ] && first_part="${quote_text:0:$last_space_pos}"
-      fi
-
-      second_part="${quote_text:${#first_part}}"
-      second_part="${second_part# }"
-
-      if [ ${#second_part} -lt 10 ]; then
-        printf "${QUOTE_PRIMARY}✦${RESET} ${SLATE_400}\"${quote_text}\"${RESET} ${QUOTE_AUTHOR}—${quote_author}${RESET}\n"
-      else
-        printf "${QUOTE_PRIMARY}✦${RESET} ${SLATE_400}\"${first_part}${RESET}\n"
-        printf "  ${SLATE_400}${second_part}\"${RESET} ${QUOTE_AUTHOR}—${quote_author}${RESET}\n"
-      fi
-    fi
-  fi
-fi
