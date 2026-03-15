@@ -253,12 +253,12 @@ ROSE='\033[38;2;241;108;117m'   # R'lyeh Red (error/negative)
 
 # Header / Branding (Lovecraft Purple theme)
 GREET_PRIMARY='\033[38;2;164;140;242m' # Lovecraft Purple
-PAI_SESSION='\033[38;2;242;101;181m'   # Pustule Pink for session name
+PAI_SESSION='\033[38;2;4;209;249m'     # Watery Tomb Cyan for session name
 
 # Icons and accents
 CACHE_ICON='\033[38;2;164;140;242m'     # Lovecraft Purple for cache icon
 CC_ICON='\033[38;2;232;97;32m'          # Anthropic Orange for ✱ CC icon
-DIR_DISPLAY='\033[38;2;112;129;208m'    # The Old One Purple (muted) for PWD
+DIR_DISPLAY='\033[38;2;242;101;181m'    # Pustule Pink for PWD
 # Nerd font icons
 NF_CACHE=$(printf '\xef\x92\x9b')        # nf-oct-cache           U+F49B
 NF_GAUGE=$(printf '\xf3\xb0\x8a\x9a')    # nf-md-gauge            U+F029A
@@ -379,10 +379,10 @@ ver_suffix_plain="${model_name_short}"
 
 case "$MODE" in
 nano)
-  printf "${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
+  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
   ;;
 micro)
-  printf "${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}\n"
+  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}\n"
   ;;
 *)
   if [ -n "$session_display" ]; then
@@ -391,14 +391,14 @@ micro)
     local_fill=$((72 - local_left_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
+    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
   else
     local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display} "
     local_left_len=${#local_left}
     local_fill=$((72 - local_left_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
+    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
   fi
   ;;
 esac
