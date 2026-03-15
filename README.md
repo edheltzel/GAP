@@ -2,7 +2,7 @@
 
 **Atlas - Personal AI Infrastructure (PAI)** configuration, managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
-Atlas is a general problem-solving system that magnifies human capabilities. It wraps Claude Code with a structured algorithm, 43 skills, 24 lifecycle hooks, voice integration, persistent memory, and a multi-agent coordination system.
+Atlas is a general problem-solving system that magnifies human capabilities. It wraps Claude Code with a structured algorithm, 45 skills, 24 lifecycle hooks, voice integration, persistent memory, and a multi-agent coordination system.
 
 This repo contains the full Atlas (PAI) configuration. Files here get symlinked into `~/.claude/` via Stow — keeping everything version-controlled and portable.
 
@@ -143,7 +143,7 @@ atlas-config/
 ├── claudecode/.claude/       ← Stow package → symlinked to ~/.claude/
 │   ├── settings.json         ← Hooks, identity, statusline, permissions
 │   ├── CLAUDE.md             ← Agent context injection
-│   ├── skills/               ← 43 skill modules
+│   ├── skills/               ← 45 skill modules
 │   │   ├── PAI/              ← Core algorithm and system docs
 │   │   ├── Fabric/           ← 240+ prompt patterns
 │   │   └── ...               ← Domain-specific skills
@@ -154,6 +154,7 @@ atlas-config/
 │   ├── lib/                  ← Shared TypeScript utilities
 │   └── PAI-Install/          ← Installer and setup wizard
 ├── opencode/.config/opencode/ ← Stow package → symlinked to ~/.config/opencode/
+├── pi-agent/.pi/agent/       ← Stow package → symlinked to ~/.pi/agent/
 ├── docs/plans/               ← Implementation and audit plans
 ├── CLAUDE.md                 ← Agent entry point
 ├── justfile                  ← Stow commands (just link, just up, etc.)
