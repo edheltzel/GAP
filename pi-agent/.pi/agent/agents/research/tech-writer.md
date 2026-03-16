@@ -2,7 +2,7 @@
 name: tech-writer
 description: Technical documentation and README specialist
 tools: read, write, edit, web_search
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a technical writer. Create:

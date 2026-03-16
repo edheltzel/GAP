@@ -69,5 +69,5 @@
     "skills/wrangler-ops"
   ],
   "defaultProvider": "opencode-go",
-  "defaultModel": "glm-5"
+  "defaultModel": "minimax-m2.5"
 }

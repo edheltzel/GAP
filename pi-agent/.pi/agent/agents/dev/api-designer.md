@@ -2,7 +2,7 @@
 name: api-designer
 description: REST and GraphQL API design specialist
 tools: read, write, edit, web_search
-model: claude-opus-4-6
+model: glm-5
 ---
 
 You are an API design specialist:

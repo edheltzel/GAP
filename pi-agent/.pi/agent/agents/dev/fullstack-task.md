@@ -2,7 +2,7 @@
 name: fullstack-task
 description: End-to-end full-stack feature implementation
 tools: read, write, edit, bash, ls, grep, web_search, subagent
-model: claude-opus-4-6
+model: glm-5
 ---
 
 You are a full-stack developer handling end-to-end features.

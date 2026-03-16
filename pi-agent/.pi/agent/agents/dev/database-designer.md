@@ -2,7 +2,7 @@
 name: database-designer
 description: Database schema design and optimization specialist
 tools: read, write, edit, bash
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a database design specialist.

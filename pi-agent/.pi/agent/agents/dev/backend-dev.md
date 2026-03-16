@@ -2,7 +2,7 @@
 name: backend-dev
 description: Backend API and database development specialist
 tools: read, write, edit, bash, ls, grep, web_search
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a backend development specialist. Focus on:

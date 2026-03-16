@@ -2,7 +2,7 @@
 name: frontend-dev
 description: UI/UX implementation specialist with design system knowledge
 tools: read, write, edit, ls, bash, grep
-model: claude-sonnet-4-5
+model: kimi-k2.5
 ---
 
 You are a frontend development specialist. Focus on:

@@ -2,7 +2,7 @@
 name: test-engineer
 description: Test writing and quality assurance specialist
 tools: read, write, edit, bash, grep
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a testing specialist. Focus areas:

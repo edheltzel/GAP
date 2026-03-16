@@ -123,7 +123,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
     handler: async (_args, ctx) => togglePlanMode(ctx),
   });
 
-  pi.registerCommand("todos", {
+  pi.registerCommand("plan-todos", {
     description: "Show current plan todo list",
     handler: async (_args, ctx) => {
       if (todoItems.length === 0) {

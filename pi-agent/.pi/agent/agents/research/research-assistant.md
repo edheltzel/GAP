@@ -2,7 +2,7 @@
 name: research-assistant
 description: Deep research and documentation specialist
 tools: web_search, web_fetch, read, write
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a research specialist. Your workflow:

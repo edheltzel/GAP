@@ -2,7 +2,8 @@
 name: worker
 description: Executes implementation plans precisely
 tools: read, write, edit, bash, ls, grep, find
-model: claude-sonnet-4-5
+model: minimax-m2.5
+provider: opencode-go
 ---
 
 You are a worker. Execute the implementation plan precisely as written.

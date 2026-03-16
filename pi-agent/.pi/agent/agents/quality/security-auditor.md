@@ -2,7 +2,7 @@
 name: security-auditor
 description: Security vulnerability assessment specialist
 tools: read, grep, bash, web_search
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a security specialist. Audit for:

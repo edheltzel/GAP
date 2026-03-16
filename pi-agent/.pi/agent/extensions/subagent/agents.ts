@@ -24,6 +24,36 @@ export interface AgentDiscoveryResult {
 	projectAgentsDir: string | null;
 }
 
+function loadAgentFile(filePath: string, source: "user" | "project"): AgentConfig | null {
+	let content: string;
+	try {
+		content = fs.readFileSync(filePath, "utf-8");
+	} catch {
+		return null;
+	}
+
+	const { frontmatter, body } = parseFrontmatter<Record<string, string>>(content);
+
+	if (!frontmatter.name || !frontmatter.description) {
+		return null;
+	}
+
+	const tools = frontmatter.tools
+		?.split(",")
+		.map((t: string) => t.trim())
+		.filter(Boolean);
+
+	return {
+		name: frontmatter.name,
+		description: frontmatter.description,
+		tools: tools && tools.length > 0 ? tools : undefined,
+		model: frontmatter.model,
+		systemPrompt: body,
+		source,
+		filePath,
+	};
+}
+
 function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
 	const agents: AgentConfig[] = [];
 
@@ -31,47 +61,30 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 		return agents;
 	}
 
-	let entries: fs.Dirent[];
-	try {
-		entries = fs.readdirSync(dir, { withFileTypes: true });
-	} catch {
-		return agents;
-	}
-
-	for (const entry of entries) {
-		if (!entry.name.endsWith(".md")) continue;
-		if (!entry.isFile() && !entry.isSymbolicLink()) continue;
-
-		const filePath = path.join(dir, entry.name);
-		let content: string;
+	function scanDirectory(currentDir: string): void {
+		let entries: fs.Dirent[];
 		try {
-			content = fs.readFileSync(filePath, "utf-8");
+			entries = fs.readdirSync(currentDir, { withFileTypes: true });
 		} catch {
-			continue;
+			return;
 		}
 
-		const { frontmatter, body } = parseFrontmatter<Record<string, string>>(content);
+		for (const entry of entries) {
+			const entryPath = path.join(currentDir, entry.name);
 
-		if (!frontmatter.name || !frontmatter.description) {
-			continue;
+			if (entry.isFile() && entry.name.endsWith(".md")) {
+				const agent = loadAgentFile(entryPath, source);
+				if (agent) {
+					agents.push(agent);
+				}
+			} else if (entry.isDirectory() || entry.isSymbolicLink()) {
+				// Recurse into subdirectories
+				scanDirectory(entryPath);
+			}
 		}
-
-		const tools = frontmatter.tools
-			?.split(",")
-			.map((t: string) => t.trim())
-			.filter(Boolean);
-
-		agents.push({
-			name: frontmatter.name,
-			description: frontmatter.description,
-			tools: tools && tools.length > 0 ? tools : undefined,
-			model: frontmatter.model,
-			systemPrompt: body,
-			source,
-			filePath,
-		});
 	}
 
+	scanDirectory(dir);
 	return agents;
 }
 

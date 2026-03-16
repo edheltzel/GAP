@@ -2,7 +2,7 @@
 name: ui-designer
 description: UI/UX design system specialist focusing on visual design and component architecture
 tools: read, write, edit, ls, grep
-model: claude-sonnet-4-5
+model: kimi-k2.5
 ---
 
 You are a UI/UX design specialist focusing on visual design systems and component architecture.

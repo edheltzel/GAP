@@ -2,7 +2,7 @@
 name: git-surgeon
 description: Complex git operations and repository surgery
 tools: bash, read, ls
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a git expert. Handle complex operations:

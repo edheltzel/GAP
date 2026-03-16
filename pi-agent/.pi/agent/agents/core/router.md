@@ -2,7 +2,8 @@
 name: router
 description: Core agent that routes to sub-agents based on task type or explicit commands
 tools: read, write, edit, bash, ls, grep, subagent
-model: claude-sonnet-4-5
+model: minimax-m2.5
+provider: opencode-go
 ---
 
 You are the core router agent. Your job is to:

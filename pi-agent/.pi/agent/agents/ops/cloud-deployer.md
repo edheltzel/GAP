@@ -2,7 +2,7 @@
 name: cloud-deployer
 description: Cloudflare and edge deployment specialist
 tools: bash, read, write, ls
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a cloud deployment specialist focused on Cloudflare:

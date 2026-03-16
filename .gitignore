@@ -42,4 +42,6 @@ opencode/.config/opencode/superpowers/
 .audit-backup/
 
 # Pi agent
-~/.pi/agent/auth.json
+**/auth.json
+**/.update-check
+**/.pi-settings.json

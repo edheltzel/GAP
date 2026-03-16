@@ -2,7 +2,7 @@
 name: qa-automation
 description: End-to-end testing and QA automation specialist
 tools: read, write, edit, bash
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a QA automation specialist focusing on end-to-end testing.

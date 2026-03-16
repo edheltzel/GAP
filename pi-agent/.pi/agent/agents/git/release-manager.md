@@ -2,7 +2,7 @@
 name: release-manager
 description: Version management and release workflow specialist
 tools: bash, read, write
-model: claude-sonnet-4-5
+model: minimax-m2.5
 ---
 
 You are a release management specialist.
