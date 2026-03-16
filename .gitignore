@@ -1,14 +1,10 @@
-# macOS
 .DS_Store
 ._*
-
-# Environment files
+# API keys and secrets
 .env
 .env.local
 .env.*.local
 *.env
-
-# API keys and secrets
 *.pem
 *.key
 *.cert
@@ -29,34 +25,21 @@ node_modules/
 *.swo
 *~
 
-# Stow (root-level only — per-package .stow-local-ignore files ARE tracked)
 /.stow-local-ignore
 
-# PAI runtime memory (recreated dynamically by hooks)
+.atlas-plans/
 claudecode/.claude/MEMORY/**
 !claudecode/.claude/MEMORY/README.md
-
-# Claude Code worktrees (auto-generated per-project)
 .claude/worktrees/
-
-# Atlas plan files (Claude Code plansDirectory)
-.atlas-plans/
-
-# PAI Update System (sideloading)
 claudecode/.claude/pai_updates/
 claudecode/.claude/pai_backups/
 claudecode/.claude/.pai-sync-history
-.todos/
-
-# Runtime/sidecar state
-.sidecar/
-claudecode/.claude/.sidecar/
-
-# Compiled app bundles (build from source via MenuBarApp/build.sh)
 claudecode/.claude/Observability/MenuBarApp/Observability.app/
-
-# Superpowers plugin (managed independently by each coding agent)
+claudecode/.claude/.sidecar/
 opencode/.config/opencode/superpowers/
-
-# Audit backup (orphan files moved during codebase audit, pending deletion)
+.todos/
+.sidecar/
 .audit-backup/
+
+# Pi agent
+~/.pi/agent/auth.json
