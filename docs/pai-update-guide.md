@@ -18,14 +18,43 @@ The following files contain **local customizations** that must NOT be overwritte
 
 **During PAIUpdate:** If upstream changes touch any of these files, merge carefully — do not blindly replace. The voice greeting architecture depends on the hook being async and `pai.ts` NOT having its own voice call. For `atlas-statusline.sh`: only merge changes to sections OTHER than `# COLOR PALETTE` — that block is intentionally Eldritch-themed.
 
+## Upstream Sync Workflow
+
+The PAIUpgrade skill now includes a **SyncUpstream** workflow for syncing atlas-config with the upstream PAI repo. Triggers: `"sync upstream"`, `"check PAI repo"`, `"sync PAI"`, `"merge upstream"`.
+
+- **State:** `claudecode/.claude/skills/PAIUpgrade/State/upstream-sync.json` — tracks last sync ref, tag, and date
+- **Protected files:** Algorithm fork, Banner.ts, settings.json, VoiceGreeting/VoiceGate hooks
+- **New Release Mode:** Auto-detects new release tags and new release directories
+
+Use this workflow instead of manual diffing when upstream PAI updates arrive.
+
 ## v4.0.3 Integration Decisions (2026-03-02)
 
-### Algorithm: v3.5.0-atlas adopted (replaces v1.2.0)
+### Algorithm: v3.7.0-atlas (upgraded 2026-03-16 from v3.5.0-atlas)
 
-- **Component file:** `claudecode/.claude/skills/PAI/Components/Algorithm/v3.5.0-atlas.md`
-- **LATEST pointer:** Updated to `v3.5.0-atlas`
-- v3.5.0 base with Atlas extensions (Loop Mode, Agent Teams, voice config)
-- v1.2.0 additions (Constraint Fidelity, Specificity Preservation, Coverage Map QG6/QG7) intentionally NOT forward-ported — v3.5.0 replaces them structurally with ISC Splitting Test + Count Gate
+- **Component file:** `claudecode/.claude/skills/PAI/Components/Algorithm/v3.7.0-atlas.md`
+- **LATEST pointer:** Updated to `v3.7.0-atlas`
+- Based on upstream v3.7.0, with all Atlas customizations preserved
+- v3.5.0-atlas file retained as archive (no longer active)
+
+**Atlas customizations preserved in v3.7.0-atlas:**
+- `YOUR_VOICE_ID_HERE` placeholder (not Daniel's hardcoded voice_id)
+- `~/.claude/MEMORY/WORK/` absolute paths (upstream still uses bare relative paths)
+- `~/.claude/skills/PAI/PRDFORMAT.md` path (Atlas skill layout)
+- Atlas Extensions section (Loop Mode, Agent Teams)
+- VERIFY LOAD-BEARING ASSUMPTIONS + DISAMBIGUATION in OBSERVE
+- "Test each change individually" in EXECUTE
+- Entry banner in Algorithm file (upstream moved it to CLAUDE.md)
+
+**New from upstream v3.7.0:**
+- PRD stub at Algorithm entry (immediate dashboard visibility)
+- Platform Capabilities table (/simplify, /batch, Agent Teams, etc.)
+- ISC granularity example (blog publishing decomposition)
+- "ALL WORK INSIDE THE ALGORITHM" explicit rule
+- REFLECTIONS JSONL in LEARN phase
+- RPG scenario examples for capability selection
+- RLM paper citation on context compaction
+- ISC Count Gate data point (50 PRDs analysis)
 
 ### BuildCLAUDE.ts: DEFERRED
 

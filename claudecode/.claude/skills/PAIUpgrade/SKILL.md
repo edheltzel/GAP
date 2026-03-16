@@ -67,9 +67,12 @@ Thread 1: USER CONTEXT     Thread 2: SOURCE COLLECTION    Thread 3: INTERNAL REF
 | **MineReflections** | "mine reflections", "check reflections", "what have we learned", "internal improvements", "reflection insights" | `Workflows/MineReflections.md` |
 | **AlgorithmUpgrade** | "algorithm upgrade", "upgrade algorithm", "improve the algorithm", "algorithm improvements", "fix the algorithm" | `Workflows/AlgorithmUpgrade.md` |
 | **ResearchUpgrade** | "research this upgrade", "deep dive on [feature]", "further research" | `Workflows/ResearchUpgrade.md` |
+| **SyncUpstream** | "sync upstream", "check PAI repo", "sync PAI", "upstream changes", "PAI repo updates", "pull PAI", "merge upstream" | `Workflows/SyncUpstream.md` |
 | **FindSources** | "find upgrade sources", "find new sources", "discover channels" | `Workflows/FindSources.md` |
 
 **Default workflow:** If user says "upgrade" or "check for upgrades" without specifics, run the **Upgrade** workflow. The Upgrade workflow automatically includes internal reflection mining as Thread 3.
+
+**Upstream sync:** If user mentions the PAI repo, upstream, or syncing, route to **SyncUpstream**. This handles diffing the upstream `~/Developer/AI/PAI` repo against atlas-config and producing merge plans.
 
 ---
 
@@ -481,6 +484,9 @@ User: "check Anthropic only"
 ## Workflows
 
 - **Upgrade.md** - Primary workflow: full two-thread analysis with prioritized recommendations
+- **SyncUpstream.md** - Sync atlas-config with upstream PAI repo (diff, categorize, merge plan)
+- **AlgorithmUpgrade.md** - Self-improvement from algorithm reflections
+- **MineReflections.md** - Mine reflection JSONL for recurring patterns
 - **ResearchUpgrade.md** - Deep dive on a specific upgrade opportunity
 - **FindSources.md** - Discover and evaluate new sources to monitor
 

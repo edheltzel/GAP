@@ -34,7 +34,8 @@
       "ExitPlanMode",
       "Task",
       "Skill",
-      "mcp__*"
+      "mcp__*",
+      "mcp__pencil"
     ],
     "deny": [],
     "ask": [
@@ -877,13 +878,13 @@
     "skills": 0,
     "workflows": 0,
     "hooks": 2,
-    "signals": 581,
+    "signals": 843,
     "files": 31,
-    "work": 2845,
-    "sessions": 49,
+    "work": 3486,
+    "sessions": 63,
     "research": 0,
-    "ratings": 581,
-    "updatedAt": "2026-03-12T20:53:03.213Z"
+    "ratings": 843,
+    "updatedAt": "2026-03-16T15:51:16.900Z"
   },
   "daidentity": {
     "color": "#A48CF2",
@@ -975,7 +976,7 @@
     }
   },
   "pai": {
-    "algorithmVersion": "3.5.0",
+    "algorithmVersion": "3.7.0",
     "repoUrl": "https://github.com/danielmiessler/PAI",
     "version": "4.0.3"
   },

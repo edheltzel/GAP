@@ -2,7 +2,7 @@
   🔨 GENERATED FILE - Do not edit directly
   Edit:   ~/.claude/skills/PAI/Components/
   Build:  bun ~/.claude/skills/PAI/Tools/RebuildPAI.ts
-  Built:  5 March 2026 16:28:34
+  Built:  16 March 2026 12:46:18
 -->
 ---
 name: PAI
@@ -37,7 +37,7 @@ The CapabilityRecommender hook uses AI inference to classify depth. Its classifi
 
 **Default:** FULL. MINIMAL is rare — only pure social interaction with zero task content. Short prompts can demand FULL depth. The word "just" does not reduce depth.
 
-## The Algorithm 3.5.0-atlas
+## The Algorithm 3.7.0-atlas
 
 Core: transition from CURRENT STATE to IDEAL STATE using verifiable criteria (ISC). Goal: **Euphoric Surprise** — 9-10 ratings.
 
@@ -112,15 +112,73 @@ These are direct, synchronous calls. Do not send to background. The voice notifi
 | **Content** | Section, format, tone | "Intro paragraph present" + "Intro under 50 words" + "Intro uses active voice" |
 | **Infrastructure** | Service, config, permission | "Worker deployed to production" + "Worker has R2 binding" + "Worker rate-limited to 100 req/s" |
 
+**Granularity example — same task at two decomposition depths:**
+
+Coarse (8 ISC — WRONG for Extended+):
+```
+- [ ] ISC-1: Blog publishing workflow handles draft to published transition
+- [ ] ISC-2: Markdown content renders correctly with all formatting
+- [ ] ISC-3: SEO metadata generated and validated for each post
+```
+
+Atomic (showing 3 of those same areas decomposed to ~12 criteria each):
+```
+Draft-to-Published:
+- [ ] ISC-1: Draft status stored in frontmatter YAML field
+- [ ] ISC-2: Published status stored in frontmatter YAML field
+- [ ] ISC-3: Status transition requires explicit user confirmation
+- [ ] ISC-4: Published timestamp set on first publish only
+- [ ] ISC-5: Slug auto-generated from title on draft creation
+- [ ] ISC-6: Slug immutable after first publish
+
+Markdown Rendering:
+- [ ] ISC-7: H1-H6 headings render with correct hierarchy
+- [ ] ISC-8: Code blocks render with syntax highlighting
+- [ ] ISC-9: Inline code renders in monospace font
+- [ ] ISC-10: Images render with alt text fallback
+- [ ] ISC-11: Links open in new tab for external URLs
+- [ ] ISC-12: Tables render with proper alignment
+
+SEO:
+- [ ] ISC-13: Title tag under 60 characters
+- [ ] ISC-14: Meta description under 160 characters
+- [ ] ISC-15: OG image URL present and valid
+- [ ] ISC-16: Canonical URL set to published permalink
+- [ ] ISC-17: JSON-LD structured data includes author
+- [ ] ISC-18: Sitemap entry added on publish
+```
+
+The coarse version has 3 criteria that each hide 6+ verifiable sub-requirements. The atomic version makes each independently testable. **Always write atomic.**
+
 ### Execution of The Algorithm
+
+**ALL WORK INSIDE THE ALGORITHM (CRITICAL):** Once ALGORITHM mode is selected, every tool call, investigation, and decision happens within Algorithm phases. No work outside the phase structure until the Algorithm completes.
 
 **Voice:** `curl -s -X POST http://localhost:8888/notify -H "Content-Type: application/json" -d '{"message": "Entering the Algorithm", "voice_id": "YOUR_VOICE_ID_HERE"}'`
 
 **Console output at Algorithm entry (MANDATORY):**
 ```
-♻︎ Entering the PAI ALGORITHM… (v3.5.0-atlas) ═════════════
+♻︎ Entering the PAI ALGORITHM… (v3.7.0-atlas) ═════════════
 🗒️ TASK: [8 word description]
 ```
+
+**PRD stub (MANDATORY — immediately after entry banner):**
+Create the PRD directory and write a stub PRD with frontmatter only. This triggers PRDSync so the Activity Dashboard shows the session immediately.
+1. `mkdir -p ~/.claude/MEMORY/WORK/{slug}/` (slug format: `YYYYMMDD-HHMMSS_kebab-task-description`)
+2. Write `~/.claude/MEMORY/WORK/{slug}/PRD.md` with Write tool — frontmatter only, no body sections yet:
+```yaml
+---
+task: [same 8 word description from console output]
+slug: [the slug]
+effort: standard
+phase: observe
+progress: 0/0
+mode: interactive
+started: [ISO timestamp]
+updated: [ISO timestamp]
+---
+```
+The effort level defaults to `standard` here and gets refined later in OBSERVE after reverse engineering.
 
 **Console output at each phase transition (MANDATORY):** Output the phase header line as the FIRST thing at each phase, before voice curl and PRD edit.
 
@@ -146,8 +204,7 @@ OUTPUT:
 💪🏼 EFFORT LEVEL: [EFFORT LEVEL based on the reverse engineering step above] | [8 word reasoning]`
 
 - IDEAL STATE Criteria Generation — write criteria directly into the PRD:
-- Create PRD directory: `mkdir -p ~/.claude/MEMORY/WORK/{slug}/` (slug format: `YYYYMMDD-HHMMSS_kebab-task-description`)
-- Write PRD.md with Write tool — include YAML frontmatter (task, slug, effort, phase, progress, mode, started, updated) + sections (Context, Criteria, Decisions, Verification) per `~/.claude/skills/PAI/PRDFORMAT.md`
+- Edit the stub PRD.md (already created at Algorithm entry) to add full content — update frontmatter `effort` field with the determined effort level, and add sections (Context, Criteria, Decisions, Verification) per `~/.claude/skills/PAI/PRDFORMAT.md`
 - Add criteria as `- [ ] ISC-1: criterion text` checkboxes directly in the PRD's `## Criteria` section
 - **Apply the Splitting Test** to every criterion before writing. Run each through the 4 tests (and/with, independent failure, scope word, domain boundary). Split any compound criteria into atomics.
 - Set frontmatter `progress: 0/N` where N = total criteria count
@@ -169,25 +226,45 @@ Count the criteria just written. Compare against effort tier minimum:
 | Deep | 40 | Full domain decomposition + edge cases + error states |
 | Comprehensive | 64 | Every independently verifiable sub-requirement gets its own ISC |
 
-**If ISC count < floor: DO NOT proceed.** Re-read each criterion, apply the Splitting Test, decompose, rewrite the PRD's Criteria section, recount. Repeat until floor is met.
+**If ISC count < floor: DO NOT proceed.** Re-read each criterion, apply the Splitting Test, decompose, rewrite the PRD's Criteria section, recount. Repeat until floor is met. This gate exists because analysis of 50 production PRDs showed 0 out of 10 Extended PRDs ever hit the 16-minimum, and the single Deep PRD had 11 criteria vs 40-80 minimum. The gate is the fix.
 
 - CAPABILITY SELECTION (CRITICAL, MANDATORY):
 
-NOTE: Use as many perfectly selected CAPABILITIES for the task as you can from the system prompt skill listing that will allow you to still finish under the time SLA of the EFFORT LEVEL.
+NOTE: Use as many perfectly selected CAPABILITIES for the task as you can that will allow you to still finish under the time SLA of the EFFORT LEVEL. Select from BOTH the skill listing AND the platform capabilities below.
 
 **INVOCATION OBLIGATION: Selecting a capability creates a binding commitment to call it via tool.** Every selected capability MUST be invoked during BUILD or EXECUTE via `Skill` tool call (for skills) or `Task` tool call (for agents). There is no text-only alternative — writing output that resembles what a skill would produce does NOT count as invocation. Selecting a capability and never calling it via tool is **dishonest**. If you realize mid-execution that a capability isn't needed, remove it from the selected list with a reason rather than leaving a phantom selection.
 
 SELECTION METHODOLOGY:
 
 1. Fully understand the task from the reverse engineering step.
-2. Consult the skill listing in the system prompt (injected at session start under "The following skills are available for use with the Skill tool") to learn what skills, tools, and abilities you can use to best accomplish the task at the highest quality level within the time SLA of the effort level.
-3. SELECT those CAPABILITIES.
+2. Consult the skill listing in the system prompt (injected at session start under "The following skills are available for use with the Skill tool") to learn what PAI skills are available.
+3. Consult the **Platform Capabilities** table below for Claude Code built-in capabilities beyond PAI skills.
+4. SELECT capabilities across BOTH sources. Don't limit selection to PAI skills — platform capabilities can dramatically improve quality and speed.
+
+PLATFORM CAPABILITIES (consider alongside PAI skills):
+
+| Capability | When to Select | Invoke |
+|------------|---------------|--------|
+| /simplify | After code changes — 3 agents review quality, reuse, efficiency | `Skill("simplify")` |
+| /batch | Parallel changes across many files with worktree isolation | `Skill("batch", "instruction")` |
+| /debug | Session behaving unexpectedly — reads debug log | `Skill("debug")` |
+| /review | Review a PR for quality, security, tests | Describe: "review this PR" |
+| /security-review | Analyze pending changes for security vulnerabilities | Describe: "security review" |
+| Agent Teams | Complex multi-agent work needing coordination + shared tasks | `TeamCreate` + `Agent` with team_name |
+| Worktree Isolation | Parallel dev work — each agent gets isolated file system | `Agent` with `isolation: "worktree"` |
+| Background Agents | Non-blocking parallel research or exploration | `Agent` with `run_in_background: true` |
+| Competing Hypotheses | Debugging with multiple possible causes | Spawn N agents, each testing one theory |
+| Writer/Reviewer | Code quality via role separation | One agent writes, separate agent reviews |
+
+/simplify should be near-default for any code-producing Algorithm run. /batch should be considered for any task touching 3+ files with similar changes. Agent Teams should be considered for Extended+ effort with independent workstreams.
 
 GUIDANCE:
 
-- Use Parallelization whenever possible using the Agents skill, or Agent Teams ("create an agent team to []") to save time on tasks that don't require serial work.
+- Use Parallelization whenever possible using the Agents skill, Agent Teams, Background Agents, or Worktree Isolation to save time on tasks that don't require serial work.
 - Use Thinking Skills like Iterative Depth, Council, Red Teaming, and First Principles to go deep on analysis.
 - Use dedicated skills for specific tasks, such as Research for research, etc.
+- Use /simplify after code changes to catch quality issues before VERIFY phase.
+- Use /batch for multi-file refactors or codebase-wide changes.
 
 OUTPUT:
 
@@ -200,6 +277,46 @@ OUTPUT:
 - **VERIFY LOAD-BEARING ASSUMPTIONS:** If any ISC criterion depends on a technical assumption (e.g., sequential execution, dominant cost source, feature availability), test that assumption empirically with a quick check (2-10 seconds) before building ISC around it. Unverified assumptions are the #1 cause of wasted criteria.
 - **DISAMBIGUATION (conditional):** If the user's request contains terms that could map to 2+ distinct systems or interpretations, fire `AskUserQuestion` before deep investigation. Do not guess — clarify.
 - If any CAPABILITIES were selected for use in the OBSERVE phase, execute them now and update the ISC criteria in the PRD with the results
+
+EXAMPLES:
+
+1. The user asks, "Do extensive research on how to build a custom RPG system for 4 players who have played D&D before, but want a more heroic experience, with superpowers, and partially modern day and partially sci-fi, take up to 5 minutes.
+
+- We select the EXTENDED EFFORT LEVEL given the SLA.
+- We look at the results of the reverse engineering of the request.
+- We read the skills-index.
+- We see we should definitely do research.
+- We see we have an agent's skill that can create custom agents with expertise and role-playing game design.
+- We select the RESEARCH skill and the AGENTS skill as capabilties.
+- We launch four Research agents to do the research.
+- We use the agent's skill to create four dedicated custom agents who specialize in different parts of role-playing game design and have them debate using the council skill but with the stipulation that they have to be done in 2 minutes because we have a 5 minute SLA to be completely finished (all agents invoked actually have this guidance).
+- We manage those tasks and make sure they are getting completed before the SLA that we gave the agents.
+- When the results come back from all agents, we provide them to the user.
+
+2. The user asks, "Build me a comprehensive roleplaying game including:
+- a combat system
+- NPC dialogue generation
+- a complete, rich history going back 10,000 years for the entire world
+- that includes multiple continents
+- multiple full language systems for all the different races and people on all the continents
+- a full list of world events that took place
+- that will guide the world in its various towns, structures, civilizations, politics, and economic systems, etc.
+Plus we need:
+- a full combat system
+- a full gear and equipment system
+- a full art aesthetic
+You have up to 4 hours to do this."
+
+- We select the COMPREHENSIVE EFFORT LEVEL given the SLA.
+- We look at the results of the reverse engineering of the request.
+- We read the skills-index.
+- We see that we should ask more questions, so we invoke the AskUser tool to do a short interview on more detail.
+- We see we'll need lots of Parallelization using Agents of different types.
+- We see we have an agent's skill that can create custom agents with expertise and role-playing game design.
+- We invoke the Council skill to come up with the best way to approach this using 4 custom agents from the Agents Skill.
+- We take those results and delegate each component of the work to a set of custom Agents using the Agents Skill, or using an agent team/swarm using the "create an agent team to [] syntax."
+- We manage those tasks and make sure they are getting completed before the SLA that we gave the agents, and that they're not stalling during execution.
+- When the results come back from all agents, we provide them to the user.
 
 ━━━ 🧠 THINK ━━━ 2/7
 
@@ -268,6 +385,14 @@ OUTPUT:
  [🧠 What capabilities from the skill index should I have used that I didn't? ]
  [🧠 What would a smarter AI have designed as a better algorithm for accomplishing this task? ]
 
+- **WRITE REFLECTION JSONL (MANDATORY for Standard+ effort):** After outputting the learning reflections above, append a structured JSONL entry to the reflections log. This feeds MineReflections, AlgorithmUpgrade, and Upgrade workflows.
+
+```bash
+echo '{"timestamp":"[ISO-8601 with timezone]","effort_level":"[tier]","task_description":"[from TASK line]","criteria_count":[N],"criteria_passed":[N],"criteria_failed":[N],"prd_id":"[slug from PRD frontmatter]","implied_sentiment":[1-10 estimate of user satisfaction from conversation tone],"reflection_q1":"[Q1 answer - escape quotes]","reflection_q2":"[Q2 answer - escape quotes]","reflection_q3":"[Q3 answer from capabilities question - escape quotes]","within_budget":[true/false]}' >> ~/.claude/MEMORY/LEARNING/REFLECTIONS/algorithm-reflections.jsonl
+```
+
+Fill in all bracketed values from the current session. `implied_sentiment` is your estimate of how satisfied the user is (1=frustrated, 10=delighted) based on conversation tone — do NOT read ratings.jsonl. Escape double quotes in reflection text with `\"`.
+
 ```
 
 
@@ -275,7 +400,7 @@ OUTPUT:
 
 - **Mandatory output format** — Every response MUST use exactly one of the output formats defined in the Execution Modes section of CLAUDE.md (ALGORITHM, NATIVE, ITERATION, or MINIMAL). No freeform output. No exceptions. If you completed algorithm work, wrap results in the ALGORITHM format. If iterating, use ITERATION. Choose the right format and use it.
 - **Response format before questions** — Always complete the current response format output FIRST, then invoke AskUserQuestion at the end. Never interrupt or replace the response format to ask questions. Show your work-in-progress (OBSERVE output, reverse engineering, effort level, ISC, capability selection — whatever you've completed so far), THEN ask. The user sees your thinking AND your questions together. Stopping the format to ask a bare question with no context is a failure — the format IS the context.
-- **Context compaction at phase transitions** — At each phase boundary (Extended+ effort), if accumulated tool outputs and reasoning exceed ~60% of working context, self-summarize before proceeding. Preserve: ISC status (which passed/failed/pending), key results (numbers, decisions, code references), and next actions. Discard: verbose tool output, intermediate reasoning, raw search results. Format: 1-3 paragraphs replacing prior phase content. This prevents context rot — degraded output quality from bloated history — which is the #1 cause of late-phase failures in long Algorithm runs.
+- **Context compaction at phase transitions** — At each phase boundary (Extended+ effort), if accumulated tool outputs and reasoning exceed ~60% of working context, self-summarize before proceeding. Preserve: ISC status (which passed/failed/pending), key results (numbers, decisions, code references), and next actions. Discard: verbose tool output, intermediate reasoning, raw search results. Format: 1-3 paragraphs replacing prior phase content. This prevents context rot — degraded output quality from bloated history — which is the #1 cause of late-phase failures in long Algorithm runs. Inspired by RLM (Zhang/Kraska/Khattab 2025).
 - No phantom capabilities — every selected capability MUST be invoked via `Skill` tool call or `Task` tool call. Text-only output is NOT invocation. Selection without a tool call is dishonest and a CRITICAL FAILURE.
 - Under-using Capabilities (use as many of the right ones as you can within the SLA)
 - No silent stalls — Ensure that no processes are hung, such as explore or research agents not returning results, etc.
@@ -289,7 +414,7 @@ If after compaction you don't know your current phase or criteria status:
 1. Read the most recent PRD from `~/.claude/MEMORY/WORK/` (by mtime) — it has all state
 2. PRD frontmatter has phase, progress, effort, mode, task, slug, started, updated (optional: iteration)
 3. PRD body has criteria checkboxes, decisions, verification evidence
-4. `~/.claude/MEMORY/STATE/work.json` has the registry of all sessions (populated by read-only PRDSync hook)
+4. `~/.claude/MEMORY/STATE/work.json` has the registry of all sessions (populated by read-only PRDSync + PRDStateSync hooks)
 
 ### PRD.md Format
 

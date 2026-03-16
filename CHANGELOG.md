@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Algorithm v3.7.0-atlas: upgraded from v3.5.0-atlas with upstream v3.7.0 features (PRD stub, Platform Capabilities table, ISC granularity example, REFLECTIONS JSONL, "ALL WORK INSIDE" rule)
+- SyncUpstream workflow in PAIUpgrade skill for upstream PAI repo syncing (diff, categorize, merge plan)
+- `upstream-sync.json` state file tracking last sync point with upstream PAI repo
 - VoiceServer README documentation (API, providers, config, agent integration)
 - Conversion skills: `converting-claude-subagents`, `converting-slash-commands` for PAI→OpenCode porting
 - `claudecode/scripts/` with `convert-pai-to-oc.ts` converter tooling
