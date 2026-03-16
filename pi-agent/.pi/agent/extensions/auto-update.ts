@@ -1,12 +1,13 @@
 /**
- * oh-pi Auto Update — check for new oh-pi version on session start
+ * PI Auto Update — check for new pi-coding-agent version on session start
  */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
+const PACKAGE_NAME = "@mariozechner/pi-coding-agent";
 const CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24h
 const STAMP_FILE = join(homedir(), ".pi", "agent", ".update-check");
 
@@ -20,22 +21,14 @@ function writeStamp() {
 
 function getLatestVersion(): string | null {
   try {
-    return execSync("npm view oh-pi version", { encoding: "utf8", timeout: 8000 }).trim();
+    return execSync(`npm view ${PACKAGE_NAME} version`, { encoding: "utf8", timeout: 8000 }).trim();
   } catch { return null; }
 }
 
 function getCurrentVersion(): string | null {
-  // Read from the installed package.json
   try {
-    const pkgPath = join(__dirname, "..", "..", "package.json");
-    if (existsSync(pkgPath)) {
-      return JSON.parse(readFileSync(pkgPath, "utf8")).version;
-    }
-  } catch {}
-  // Fallback: npm list
-  try {
-    const out = JSON.parse(execSync("npm list -g oh-pi --json --depth=0", { encoding: "utf8", timeout: 8000 }));
-    return out.dependencies?.["oh-pi"]?.version ?? null;
+    const out = JSON.parse(execSync(`npm list -g ${PACKAGE_NAME} --json --depth=0`, { encoding: "utf8", timeout: 8000 }));
+    return out.dependencies?.[PACKAGE_NAME]?.version ?? null;
   } catch { return null; }
 }
 
@@ -51,7 +44,6 @@ export function isNewer(latest: string, current: string): boolean {
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
-    // Non-blocking: run check in background
     setTimeout(async () => {
       try {
         if (Date.now() - readStamp() < CHECK_INTERVAL) return;
@@ -61,9 +53,9 @@ export default function (pi: ExtensionAPI) {
         const latest = getLatestVersion();
         if (!current || !latest || !isNewer(latest, current)) return;
 
-        const msg = `oh-pi ${latest} available (current: ${current}). Run: npx oh-pi@latest`;
+        const msg = `pi ${latest} available (current: ${current}). Run: npm install -g ${PACKAGE_NAME}`;
         if (ctx.hasUI) {
-          ctx.ui.toast?.(msg) ?? console.log(`\n💡 ${msg}\n`);
+          ctx.ui.notify(msg, "info");
         }
       } catch {}
     }, 2000);

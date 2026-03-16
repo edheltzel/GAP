@@ -41,7 +41,7 @@ export default function (pi: ExtensionAPI) {
     const stats = loadStats();
     
     // Track by tool name patterns
-    const toolName = event.name;
+    const toolName = event.toolName;
     
     // Map tool names to skills
     const skillMapping: Record<string, string> = {
