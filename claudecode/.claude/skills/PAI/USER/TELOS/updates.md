@@ -1,5 +1,21 @@
 # TELOS Update Log
 
+## 2026-03-16 — AI Lessons (Voice Interview)
+
+Atlas conducted a voice interview with Ed to extract AI and coding agent lessons.
+
+**File updated:**
+- LEARNED.md — Added 7 AI lessons:
+  1. Never trust first-pass AI output — always verify
+  2. One-shotting is marketing theater — most AI Twitter is performative
+  3. Treat AI like a new hire, not a mind reader — onboarding is the workflow
+  4. Community packages are starting points, not destinations
+  5. Agent-agnostic systems win — PAI should work on CC, OpenCode, and PI
+  6. Multi-model strategy — Opus for planning, efficient models for execution
+  7. Prompts, skills, and MCPs are a layered architecture
+
+**Backup:** LEARNED.md.20260316-132127
+
 ## 2026-03-06 — Initial Population (Voice Interview)
 
 Atlas conducted a voice interview with Ed to populate Telos from scratch.
