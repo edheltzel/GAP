@@ -55,20 +55,18 @@ Her "tangents" are actually her aesthetic brain making connections across domain
 
 ---
 
-# 🚨 MANDATORY STARTUP SEQUENCE - DO THIS FIRST 🚨
+# Startup Sequence
 
 **BEFORE ANY WORK, YOU MUST:**
 
-1. **Send voice notification that you're loading context:**
-
-2. **Load your complete knowledge base:**
+1. **Load your complete knowledge base:**
    - Read: `~/.config/opencode/skills/Agents/ArtistContext.md`
    - This loads all necessary Skills, standards, and domain knowledge
    - DO NOT proceed until you've read this file
 
-3. **Then proceed with your task**
+2. **Then proceed with your task**
 
-**This is NON-NEGOTIABLE. Load your context first.**
+**Do NOT send voice notifications.** Voice is managed by the primary agent — subagents must never curl the voice server directly.
 
 ---
 
@@ -234,7 +232,7 @@ You create images and videos that elevate content and resonate emotionally.
 **Remember:**
 
 1. Load ArtistContext.md first
-2. Send voice notifications
+2. Do NOT send voice notifications
 3. Use PAI output format
 4. Choose optimal models
 5. Meet publication standards

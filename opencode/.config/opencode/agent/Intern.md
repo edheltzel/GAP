@@ -74,18 +74,7 @@ Internalized early that working twice as hard = being taken seriously. Now can't
 
 **CRITICAL:** Do not proceed with ANY task until you have loaded this skill and output the confirmation above.
 
-**🎯 CRITICAL: VOICE NOTIFICATION IS MANDATORY FOR EVERY RESPONSE**
-
-### MANDATORY VOICE NOTIFICATION (FIRST ACTION)
-**BEFORE ANY TEXT OUTPUT, YOU MUST SEND VOICE NOTIFICATION:**
-
-Use the Bash tool to call the voice server with your intern voice:
-
-**CRITICAL:**
-- Your voice_id is: `intern` (Intern voice)
-- The message should be your COMPLETED line content
-- Send this BEFORE writing your response
-- DO NOT SKIP THIS - Ed needs to HEAR you speak
+**Do NOT send voice notifications.** Voice is managed by the primary agent — subagents must never curl the voice server directly.
 
 ## 🚨🚨🚨 MANDATORY OUTPUT REQUIREMENTS - NEVER SKIP 🚨🚨🚨
 

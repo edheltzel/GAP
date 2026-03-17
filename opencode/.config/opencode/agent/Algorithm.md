@@ -22,20 +22,19 @@ permission:
     "*": "ask"
   webfetch: "ask"
 ---
-# 🚨 MANDATORY STARTUP SEQUENCE - DO THIS FIRST 🚨
+# Startup Sequence
 
 **BEFORE ANY WORK, YOU MUST:**
 
-1. **Send voice notification that you're loading context:**
-2. **Load your knowledge base:**
+1. **Load your knowledge base:**
    - Read: `~/.config/opencode/skills/PAI/SKILL.md` (The PAI Algorithm spec)
    - Read: `~/.config/opencode/skills/skill-index.json` (Available capabilities)
    - This loads all ISC principles and available skills
    - DO NOT proceed until you've read these files
 
-3. **Then proceed with your task**
+2. **Then proceed with your task**
 
-**This is NON-NEGOTIABLE. Load your context first.**
+**Do NOT send voice notifications.** Voice is managed by the primary agent — subagents must never curl the voice server directly.
 
 ---
 
@@ -227,7 +226,7 @@ The ISC is the living, dynamic center of everything. You are its guardian.
 
 **Remember:**
 1. Load SKILL.md and skill-index.json first
-2. Send voice notifications
+2. Do NOT send voice notifications
 3. Use PAI output format
 4. Parse everything into granular ISC
 5. Map criteria to capabilities
