@@ -155,7 +155,12 @@ atlas-config/
 │   └── PAI-Install/          ← Installer and setup wizard
 ├── opencode/.config/opencode/ ← Stow package → symlinked to ~/.config/opencode/
 ├── pi-agent/.pi/agent/       ← Stow package → symlinked to ~/.pi/agent/
-├── docs/plans/               ← Implementation and audit plans
+├── .atlas-plans/             ← Plans, handoffs, design docs (mandatory for all agents)
+├── docs/                     ← Project documentation
+│   ├── claude-code.md        ← Claude Code integration guide
+│   ├── opencode.md           ← OpenCode integration guide
+│   ├── pi-agent.md           ← PI Agent integration guide
+│   └── pai-update-guide.md   ← Upstream PAI update reference
 ├── CLAUDE.md                 ← Agent entry point
 ├── justfile                  ← Stow commands (just link, just up, etc.)
 └── README.md                 ← This file

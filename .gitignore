@@ -27,7 +27,6 @@ node_modules/
 
 /.stow-local-ignore
 
-.atlas-plans/
 claudecode/.claude/MEMORY/**
 !claudecode/.claude/MEMORY/README.md
 .claude/worktrees/

@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - OpenCode plan commands (`x-plan-create`, `x-plan-implement`, `list-plans`, `archive-plan`): `docs/plans/` → `.atlas-plans/`
+- Moved all existing plans from `docs/plans/` to `.atlas-plans/`
+- `docs/` restructured as project documentation (agent guides, PAI update reference)
+- README repo structure updated to reflect `.atlas-plans/` and `docs/` reorganization
 - Settings.json version: 4.0.3 → 4.0.31
 
 ## [Unreleased]
