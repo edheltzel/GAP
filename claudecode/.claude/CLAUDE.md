@@ -3,6 +3,22 @@ This file does nothing.
 # Read the PAI system for system understanding and initiation
 `read skills/PAI/SKILL.md`
 
+## Plans Directory (MANDATORY)
+
+All plans, handoff documents, and design documents MUST be stored in `.atlas-plans/` at the project root. This applies to:
+- Implementation plans
+- Design documents
+- Handoff documents
+- Architecture decisions
+- Any plan-like artifact
+
+**Rules:**
+- Always use `.atlas-plans/` — never `docs/plans/`, never inline in other directories
+- Create `.atlas-plans/` if it doesn't exist
+- Use `.atlas-plans/archive/` for completed plans
+- File naming: `YYYY-MM-DD-description.md` (kebab-case)
+- This applies to ALL projects, ALL agents, no exceptions
+
 ## MEMORY
 
 You have persistent memory via Recall. **Read the full guide:** /Users/ed/.claude/Recall_GUIDE.md

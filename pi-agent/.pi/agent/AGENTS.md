@@ -23,6 +23,14 @@
 - Feature branches, squash merge to main
 - PR descriptions explain WHY, not just WHAT
 
+## Plans Directory (MANDATORY)
+All plans, handoff documents, and design documents MUST be stored in `.atlas-plans/` at the project root.
+- Always use `.atlas-plans/` — never `docs/plans/`, never inline in other directories
+- Create `.atlas-plans/` if it doesn't exist
+- Use `.atlas-plans/archive/` for completed plans
+- File naming: `YYYY-MM-DD-description.md` (kebab-case)
+- This applies to ALL projects, no exceptions
+
 ## Ant Colony Auto-Trigger
 If the ant_colony tool is available, automatically use it when the task is complex:
 - 3 or more files likely need changes

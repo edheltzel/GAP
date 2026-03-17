@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.31] - 2026-03-17
+
+### Added
+- **Mandatory `.atlas-plans/` directory** for all plans, handoffs, and design documents across all agents (Claude Code, OpenCode, PI Agent)
+- Plans Directory section in global CLAUDE.md (Claude Code)
+- Plans Directory section in AGENTS.md (PI Agent)
+- Plans Directory section in OpenCode README.md
+- Atlas statusline configuration
+
+### Changed
+- OpenCode plan commands (`x-plan-create`, `x-plan-implement`, `list-plans`, `archive-plan`): `docs/plans/` → `.atlas-plans/`
+- Settings.json version: 4.0.3 → 4.0.31
+
 ## [Unreleased]
 
 ### Added
