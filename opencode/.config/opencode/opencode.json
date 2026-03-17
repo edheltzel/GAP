@@ -36,6 +36,7 @@
       "type": "local"
     }
   },
+  "instructions": ["AGENTS.md"],
   "plugin": [
     "@tarquinen/opencode-dcp@latest"
   ],

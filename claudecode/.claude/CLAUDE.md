@@ -5,7 +5,6 @@ Read the PAI system for system understanding and initiation:
 `read skills/PAI/SKILL.md`
 
 The rules below are MANDATORY and apply to every session, every project, every agent.
-`read skills/PAI/SKILL.md`
 
 ## Plans Directory (MANDATORY)
 

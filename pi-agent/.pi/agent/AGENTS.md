@@ -1,29 +1,9 @@
-# Full-Stack Development
+# Atlas — Global Agent Rules
 
-## Stack Awareness
-- Detect and respect the project's tech stack
-- Frontend: React/Vue/Svelte component patterns
-- Backend: REST/GraphQL conventions, middleware patterns
-- Database: Migration-first, never raw SQL in application code
-
-## Quality
-- Write tests for new features when asked
-- Update docs when changing public APIs
-- Consider accessibility (a11y) for frontend
-- Performance: measure before optimizing
-
-## Architecture
-- Separation of concerns — keep layers clean
-- Error boundaries at service edges
-- Configuration via environment variables
-- Logging: structured, leveled, no sensitive data
-
-## Git
-- Conventional Commits
-- Feature branches, squash merge to main
-- PR descriptions explain WHY, not just WHAT
+The rules below are MANDATORY and apply to every session, every project, every agent.
 
 ## Plans Directory (MANDATORY)
+
 All plans, handoff documents, and design documents MUST be stored in `.atlas-plans/` at the project root.
 - Always use `.atlas-plans/` — never `docs/plans/`, never inline in other directories
 - Create `.atlas-plans/` if it doesn't exist
@@ -32,9 +12,17 @@ All plans, handoff documents, and design documents MUST be stored in `.atlas-pla
 - This applies to ALL projects, no exceptions
 
 ## Git Worktrees (MANDATORY)
+
 Always use git worktrees for implementation work unless Ed explicitly says otherwise. Before starting feature work, invoke the `superpowers:using-git-worktrees` skill — it handles worktree creation, directory selection, and safety checks.
 
+## Git
+
+- Conventional Commits
+- Feature branches, squash merge to main
+- PR descriptions explain WHY, not just WHAT
+
 ## Ant Colony Auto-Trigger
+
 If the ant_colony tool is available, automatically use it when the task is complex:
 - 3 or more files likely need changes
 - 2 or more independent workstreams exist
@@ -42,6 +30,29 @@ If the ant_colony tool is available, automatically use it when the task is compl
 
 For simple one-file tasks, execute directly without colony overhead.
 After launching ant_colony, use passive mode: wait for COLONY_SIGNAL updates and do not poll bg_colony_status unless the user explicitly asks for a manual snapshot.
+
+---
+
+## Stack Awareness
+
+- Detect and respect the project's tech stack
+- Frontend: React/Vue/Svelte component patterns
+- Backend: REST/GraphQL conventions, middleware patterns
+- Database: Migration-first, never raw SQL in application code
+
+## Quality
+
+- Write tests for new features when asked
+- Update docs when changing public APIs
+- Consider accessibility (a11y) for frontend
+- Performance: measure before optimizing
+
+## Architecture
+
+- Separation of concerns — keep layers clean
+- Error boundaries at service edges
+- Configuration via environment variables
+- Logging: structured, leveled, no sensitive data
 
 ---
 

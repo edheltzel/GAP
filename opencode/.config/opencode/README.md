@@ -88,20 +88,9 @@ tail -f /tmp/voice-server.log
 
 ---
 
-## Git Worktrees (MANDATORY)
+## Agent Rules
 
-Always use git worktrees for implementation work unless Ed explicitly says otherwise. Before starting feature work, invoke the `superpowers:using-git-worktrees` skill — it handles worktree creation, directory selection, and safety checks.
-
----
-
-## Plans Directory (MANDATORY)
-
-All plans, handoff documents, and design documents MUST be stored in `.atlas-plans/` at the project root.
-- Always use `.atlas-plans/` — never `docs/plans/`, never inline in other directories
-- Create `.atlas-plans/` if it doesn't exist
-- Use `.atlas-plans/archive/` for completed plans
-- File naming: `YYYY-MM-DD-description.md` (kebab-case)
-- This applies to ALL projects, no exceptions
+Mandatory agent rules (plans, worktrees, memory, git conventions) are in **`AGENTS.md`** — loaded automatically via `instructions` in `opencode.json`.
 
 ---
 
