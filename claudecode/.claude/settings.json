@@ -412,7 +412,16 @@
     "claude-md-management@claude-plugins-official": true,
     "explanatory-output-style@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true
+    "superpowers@claude-plugins-official": true,
+    "chrome-devtools-mcp@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "chrome-devtools-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ChromeDevTools/chrome-devtools-mcp"
+      }
+    }
   },
   "spinnerVerbs": {
     "mode": "replace",
@@ -878,13 +887,13 @@
     "skills": 0,
     "workflows": 0,
     "hooks": 2,
-    "signals": 875,
+    "signals": 897,
     "files": 32,
-    "work": 3531,
+    "work": 3566,
     "sessions": 64,
     "research": 0,
-    "ratings": 875,
-    "updatedAt": "2026-03-17T16:13:17.807Z"
+    "ratings": 897,
+    "updatedAt": "2026-03-17T21:10:53.735Z"
   },
   "daidentity": {
     "color": "#A48CF2",
