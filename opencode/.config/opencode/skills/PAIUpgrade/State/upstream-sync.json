@@ -1,0 +1,8 @@
+{
+  "upstream_repo": "~/Developer/AI/PAI",
+  "release_dir": "Releases/v4.0.3/.claude",
+  "last_sync_ref": "fb07141",
+  "last_sync_tag": "v4.0.3",
+  "last_sync_date": "2026-03-16T08:30:00-04:00",
+  "algorithm_version": "v3.7.0-atlas"
+}
