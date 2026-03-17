@@ -21,7 +21,7 @@ import { Text } from "@mariozechner/pi-tui";
 import { spawn, execSync } from "node:child_process";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import { platform } from "node:os";
+import { homedir, platform } from "node:os";
 
 function which(cmd: string): boolean {
   try {
@@ -64,7 +64,7 @@ const SOUND_PATH = (() => {
       if (existsSync(p)) return p;
     }
   } catch {}
-  return "/Users/noah/.my-pi/extensions/notifications/chime.mp3";
+  return join(homedir(), ".pi", "agent", "extensions", "notifications", "chime.mp3");
 })();
 
 function playChime() {

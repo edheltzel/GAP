@@ -1,3 +1,6 @@
+---
+description: Share a visual explainer HTML file via Vercel with a live URL
+---
 # Share Visual Explainer Page
 
 Share a visual explainer HTML file instantly via Vercel. Returns a live URL with no authentication required.

@@ -33,7 +33,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("turn_start", async () => {
     turnCount++;
     try {
-      await pi.exec("git", ["stash", "create", "-m", `oh-pi-turn-${turnCount}`]);
+      await pi.exec("git", ["stash", "push", "-m", `pi-turn-${turnCount}`]);
     } catch { /* not a git repo */ }
   });
 

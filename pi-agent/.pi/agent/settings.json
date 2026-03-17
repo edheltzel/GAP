@@ -1,46 +1,7 @@
 {
-  "profile": "core",
-  "evolution": {
-    "enabled": true,
-    "promotionThreshold": 10,
-    "trackUsage": true
-  },
   "lastChangelogVersion": "0.58.1",
-  "mcp": {
-    "servers": [
-      {
-        "name": "pencil",
-        "transport": "stdio",
-        "command": "/Applications/Pencil.app/Contents/Resources/app.asar.unpacked/out/mcp-server-darwin-arm64",
-        "args": [
-          "--app",
-          "desktop"
-        ],
-        "env": {}
-      }
-    ]
-  },
-  "agents": [
-    "agents/core/planner.md",
-    "agents/core/router.md",
-    "agents/core/scout.md",
-    "agents/core/worker.md",
-    "agents/dev/api-designer.md",
-    "agents/dev/backend-dev.md",
-    "agents/dev/database-designer.md",
-    "agents/dev/frontend-dev.md",
-    "agents/dev/fullstack-task.md",
-    "agents/dev/ui-designer.md",
-    "agents/git/git-surgeon.md",
-    "agents/git/release-manager.md",
-    "agents/ops/cloud-deployer.md",
-    "agents/ops/devops-engineer.md",
-    "agents/quality/qa-automation.md",
-    "agents/quality/security-auditor.md",
-    "agents/quality/test-engineer.md",
-    "agents/research/research-assistant.md",
-    "agents/research/tech-writer.md"
-  ],
+  "defaultProvider": "opencode-go",
+  "defaultModel": "minimax-m2.5",
   "skills": [
     "skills/beans",
     "skills/brave-search",
@@ -61,13 +22,11 @@
     "skills/playwright-cli",
     "skills/pr-helper",
     "skills/quick-setup",
-    "skills/RedTeam",
+    "skills/red-team",
     "skills/release-helper",
     "skills/tmux-helper",
     "skills/web-fetch",
     "skills/web-search",
     "skills/wrangler-ops"
-  ],
-  "defaultProvider": "opencode-go",
-  "defaultModel": "minimax-m2.5"
+  ]
 }

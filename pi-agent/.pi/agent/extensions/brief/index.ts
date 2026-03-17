@@ -301,7 +301,7 @@ export default function brief(pi: ExtensionAPI): void {
       }
 
       const outputPath =
-        (pi.getFlag("--brief-output") as string) ?? DEFAULT_OUTPUT;
+        (pi.getFlag("brief-output") as string) ?? DEFAULT_OUTPUT;
       const outputFile = join(outputPath, parsed.filename);
 
       // Check if brief already exists
