@@ -88,6 +88,12 @@ tail -f /tmp/voice-server.log
 
 ---
 
+## Git Worktrees (MANDATORY)
+
+Always use git worktrees for implementation work unless Ed explicitly says otherwise. Before starting feature work, invoke the `superpowers:using-git-worktrees` skill — it handles worktree creation, directory selection, and safety checks.
+
+---
+
 ## Plans Directory (MANDATORY)
 
 All plans, handoff documents, and design documents MUST be stored in `.atlas-plans/` at the project root.

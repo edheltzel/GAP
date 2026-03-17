@@ -19,6 +19,10 @@ All plans, handoff documents, and design documents MUST be stored in `.atlas-pla
 - File naming: `YYYY-MM-DD-description.md` (kebab-case)
 - This applies to ALL projects, ALL agents, no exceptions
 
+## Git Worktrees (MANDATORY)
+
+Always use git worktrees for implementation work unless Ed explicitly says otherwise. Before starting feature work, invoke the `superpowers:using-git-worktrees` skill — it handles worktree creation, directory selection, and safety checks. This keeps the main working tree clean and enables parallel development.
+
 ## MEMORY
 
 You have persistent memory via Recall. **Read the full guide:** /Users/ed/.claude/Recall_GUIDE.md
