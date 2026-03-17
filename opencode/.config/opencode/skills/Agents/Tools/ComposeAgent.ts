@@ -34,10 +34,10 @@ import Handlebars from "handlebars";
 
 // Paths
 const HOME = process.env.HOME || "~";
-const BASE_TRAITS_PATH = `${HOME}/.claude/skills/Agents/Data/Traits.yaml`;
-const USER_TRAITS_PATH = `${HOME}/.claude/skills/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml`;
-const TEMPLATE_PATH = `${HOME}/.claude/skills/Agents/Templates/DynamicAgent.hbs`;
-const CUSTOM_AGENTS_DIR = `${HOME}/.claude/custom-agents`;
+const BASE_TRAITS_PATH = `${HOME}/.config/opencode/skills/Agents/Data/Traits.yaml`;
+const USER_TRAITS_PATH = `${HOME}/.config/opencode/skills/PAI/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml`;
+const TEMPLATE_PATH = `${HOME}/.config/opencode/skills/Agents/Templates/DynamicAgent.hbs`;
+const CUSTOM_AGENTS_DIR = `${HOME}/.config/opencode/custom-agents`;
 
 // Types
 interface ProsodySettings {
@@ -652,7 +652,6 @@ ${approachBlock}
 
 1. **Send voice notification that you're loading:**
 \`\`\`bash
-curl -X POST http://localhost:8888/notify \\
   -H "Content-Type: application/json" \\
   -d '{"message":"${agent.name} loading and ready to work","voice_id":"${agent.voiceId}","title":"${agent.name}"}'
 \`\`\`
@@ -668,7 +667,6 @@ curl -X POST http://localhost:8888/notify \\
 **YOU MUST SEND VOICE NOTIFICATION BEFORE EVERY RESPONSE:**
 
 \`\`\`bash
-curl -X POST http://localhost:8888/notify \\
   -H "Content-Type: application/json" \\
   -d '{"message":"Your COMPLETED line content here","voice_id":"${agent.voiceId}","title":"${agent.name}"}'
 \`\`\`

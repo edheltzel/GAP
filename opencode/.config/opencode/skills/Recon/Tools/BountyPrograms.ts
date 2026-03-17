@@ -46,7 +46,7 @@ interface BountyProgramsResult {
 const CHAOS_BOUNTY_URL = "https://raw.githubusercontent.com/projectdiscovery/public-bugbounty-programs/main/chaos-bugbounty-list.json";
 
 // Local cache path
-const CACHE_DIR = `${process.env.HOME}/.claude/skills/Recon/Data`;
+const CACHE_DIR = `${process.env.HOME}/.config/opencode/skills/Recon/Data`;
 const CACHE_FILE = `${CACHE_DIR}/BountyPrograms.json`;
 const CACHE_MAX_AGE_HOURS = 24;
 
