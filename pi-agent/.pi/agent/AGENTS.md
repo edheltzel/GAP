@@ -96,3 +96,19 @@ Separate conversation while main agent works.
 
 - **browser-tools** — Browser automation via Chrome DevTools Protocol
 - **superpowers** — 14 workflow skills: brainstorming, writing-plans, test-driven-development, systematic-debugging, verification-before-completion, etc.
+
+## MEMORY
+
+You have persistent memory via Recall. **Read the full guide:** ~/.pi/agent/Recall_GUIDE.md
+
+Core rules:
+1. Before asking user to repeat anything → search first with `recall-memory_memory_search`
+2. When decisions are made → record with `recall-memory_memory_add`
+3. End of session when user says `/dump` → call `recall-memory_memory_dump({ title: "Descriptive Title" })`
+4. Dumped sessions are immediately searchable from new sessions via `recall-memory_memory_search`
+
+Tool syntax:
+- `recall-memory_memory_search({ query: "search terms" })`
+- `recall-memory_memory_add({ type: "decision", content: "what", detail: "why" })`
+- `recall-memory_memory_dump({ title: "Session title", skip_fabric: true })`
+- `recall-memory_context_for_agent({ task_description: "what the agent will do" })`

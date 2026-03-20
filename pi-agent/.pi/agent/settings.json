@@ -28,5 +28,8 @@
     "skills/web-fetch",
     "skills/web-search",
     "skills/wrangler-ops"
+  ],
+  "packages": [
+    "npm:pi-mcp-adapter"
   ]
 }
