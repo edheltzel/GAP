@@ -71,7 +71,6 @@
     ],
     "defaultMode": "default"
   },
-  "model": "sonnet",
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [],
   "hooks": {
@@ -155,6 +154,15 @@
             "type": "command",
             "command": "${PAI_DIR}/hooks/PRDSync.hook.ts",
             "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
           }
         ]
       }
@@ -363,6 +371,14 @@
             "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionExtract.ts"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -392,6 +408,36 @@
             "type": "command",
             "command": "/Users/ed/.kanban-code/hook.sh",
             "timeout": 5000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
           }
         ]
       }
@@ -853,6 +899,7 @@
       "Hydrogen-Sonata-playing"
     ]
   },
+  "effortLevel": "high",
   "plansDirectory": "./.atlas-plans",
   "skipDangerousModePermissionPrompt": true,
   "_docs": {
@@ -887,14 +934,14 @@
   "counts": {
     "skills": 0,
     "workflows": 0,
-    "hooks": 2,
-    "signals": 906,
+    "hooks": 4,
+    "signals": 950,
     "files": 33,
-    "work": 3579,
-    "sessions": 64,
+    "work": 3625,
+    "sessions": 69,
     "research": 0,
-    "ratings": 906,
-    "updatedAt": "2026-03-17T22:03:27.699Z"
+    "ratings": 950,
+    "updatedAt": "2026-03-19T20:15:58.294Z"
   },
   "daidentity": {
     "color": "#A48CF2",
@@ -1012,6 +1059,5 @@
     "packageManager": "bun",
     "pythonPackageManager": "uv",
     "terminal": "Wezterm"
-  },
-  "effortLevel": "high"
+  }
 }
