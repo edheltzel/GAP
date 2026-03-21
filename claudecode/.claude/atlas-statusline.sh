@@ -11,8 +11,11 @@
 #
 # Output order: Header → Usage+Context
 #
+# Rate limits and context data come from Claude Code's native stdin JSON.
+# Extra usage (Max plan overage) fetched from API with 5-minute cache.
+#
 # Context percentage scales to compaction threshold if configured in settings.json.
-# When contextDisplay.compactionThreshold is set (e.g., 62), the bar shows 62% as 100%.
+# When contextDisplay.compactionThreshold is set (e.g., 83), the bar shows 83% as 100%.
 # Set threshold to 100 or remove the setting to show raw 0-100% from Claude Code.
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -25,13 +28,13 @@ set -o pipefail
 PAI_DIR="${PAI_DIR:-$HOME/.claude}"
 SETTINGS_FILE="$PAI_DIR/settings.json"
 MODEL_CACHE="$PAI_DIR/MEMORY/STATE/model-cache.txt"
-USAGE_CACHE="$PAI_DIR/MEMORY/STATE/usage-cache.json"
+EXTRA_USAGE_CACHE="$PAI_DIR/MEMORY/STATE/extra-usage-cache.json"
 
-# Cache TTL in seconds
-USAGE_CACHE_TTL=60
+# Extra usage cache TTL — only for Max plan overage (API-only field)
+EXTRA_USAGE_CACHE_TTL=300
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PARSE INPUT (must happen before parallel block consumes stdin)
+# PARSE INPUT (single jq call extracts everything from stdin)
 # ─────────────────────────────────────────────────────────────────────────────
 
 input=$(cat)
@@ -49,25 +52,31 @@ eval "$(echo "$input" | jq -r '
   "cc_version_json=" + (.version // "" | @sh) + "\n" +
   "context_max=" + (.context_window.context_window_size // 200000 | tostring) + "\n" +
   "context_pct=" + (.context_window.used_percentage // 0 | tostring) + "\n" +
-  "total_input=" + (.context_window.total_input_tokens // 0 | tostring) + "\n" +
-  "total_output=" + (.context_window.total_output_tokens // 0 | tostring) + "\n" +
   "cache_read=" + (.context_window.current_usage.cache_read_input_tokens // 0 | tostring) + "\n" +
-  "cache_create=" + (.context_window.current_usage.cache_creation_input_tokens // 0 | tostring)
+  "cache_create=" + (.context_window.current_usage.cache_creation_input_tokens // 0 | tostring) + "\n" +
+  "exceeds_200k=" + (.exceeds_200k_tokens // false | tostring) + "\n" +
+  "rl_5h_pct=" + (.rate_limits.five_hour.used_percentage // -1 | tostring) + "\n" +
+  "rl_5h_resets=" + (.rate_limits.five_hour.resets_at // 0 | tostring) + "\n" +
+  "rl_7d_pct=" + (.rate_limits.seven_day.used_percentage // -1 | tostring) + "\n" +
+  "rl_7d_resets=" + (.rate_limits.seven_day.resets_at // 0 | tostring) + "\n" +
+  "cost_usd=" + (.cost.total_cost_usd // 0 | tostring) + "\n" +
+  "duration_ms=" + (.cost.total_duration_ms // 0 | tostring) + "\n" +
+  "lines_added=" + (.cost.total_lines_added // 0 | tostring) + "\n" +
+  "lines_removed=" + (.cost.total_lines_removed // 0 | tostring) + "\n" +
+  "worktree_name=" + (.worktree.name // "" | @sh) + "\n" +
+  "agent_name=" + (.agent.name // "" | @sh) + "\n" +
+  "output_style=" + (.output_style.name // "" | @sh)
 ' 2>/dev/null)"
 
 # Ensure defaults for critical numeric values
 context_pct=${context_pct:-0}
 context_max=${context_max:-200000}
-total_input=${total_input:-0}
-total_output=${total_output:-0}
 cache_read=${cache_read:-0}
 cache_create=${cache_create:-0}
-
-# If used_percentage is 0 but we have token data, calculate manually
-if [ "$context_pct" = "0" ] && [ "$total_input" -gt 0 ]; then
-  total_tokens=$((total_input + total_output))
-  context_pct=$((total_tokens * 100 / context_max))
-fi
+rl_5h_pct=${rl_5h_pct:--1}
+rl_7d_pct=${rl_7d_pct:--1}
+cost_usd=${cost_usd:-0}
+duration_ms=${duration_ms:-0}
 
 # Cache model name for other tools
 mkdir -p "$(dirname "$MODEL_CACHE")" 2>/dev/null
@@ -79,7 +88,6 @@ model_version=$(echo "${model_id:-}" | sed -E 's/claude-[a-z]+-([0-9]+)-([0-9]+)
 # Don't show version if display_name already contains it (e.g. "Sonnet 4.6")
 [ -n "$model_version" ] && echo "$model_name" | grep -qF "$model_version" 2>/dev/null && model_version=""
 # Split model display: name prefix in PAI_A, version suffix in SLATE_300 white
-# e.g. "Sonnet 4.6" → model_name_short="Sonnet", model_ver_str="4.6"
 model_name_short="$model_name"
 model_ver_str="${model_version:-}"
 if [ -z "$model_ver_str" ]; then
@@ -129,62 +137,69 @@ if [ -n "$session_id" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PARALLEL PREFETCH - Launch ALL expensive operations immediately
+# RATE LIMITS (native from Claude Code JSON, no API call needed)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_parallel_tmp="/tmp/pai-parallel-$$"
-mkdir -p "$_parallel_tmp"
+# Convert native used_percentage (0-100 float) to integer
+usage_5h_int=${rl_5h_pct%%.*}
+usage_7d_int=${rl_7d_pct%%.*}
+# -1 means field was absent (not a Claude.ai subscriber or pre-first-response)
+[ "$usage_5h_int" -lt 0 ] 2>/dev/null && usage_5h_int=0
+[ "$usage_7d_int" -lt 0 ] 2>/dev/null && usage_7d_int=0
+has_rate_limits=false
+[ "$rl_5h_pct" != "-1" ] && has_rate_limits=true
 
-# --- PARALLEL BLOCK START ---
-{
-  # Usage data — refresh from Anthropic API if cache is stale
-  cache_age=999999
-  [ -f "$USAGE_CACHE" ] && cache_age=$(($(date +%s) - $(stat -f %m "$USAGE_CACHE" 2>/dev/null || echo 0)))
+# Convert Unix epoch resets_at to local clock time (macOS date -r)
+reset_5h_time=""
+reset_7d_time=""
+if [ "$has_rate_limits" = "true" ]; then
+  [ "${rl_5h_resets:-0}" -gt 0 ] 2>/dev/null && reset_5h_time=$(date -r "$rl_5h_resets" "+%H:%M" 2>/dev/null)
+  [ "${rl_7d_resets:-0}" -gt 0 ] 2>/dev/null && reset_7d_time=$(date -r "$rl_7d_resets" "+%a %H:%M" 2>/dev/null)
+fi
 
-  if [ "$cache_age" -gt "$USAGE_CACHE_TTL" ]; then
-    keychain_data=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)
-    token=$(echo "$keychain_data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('claudeAiOauth',{}).get('accessToken',''))" 2>/dev/null)
+# ─────────────────────────────────────────────────────────────────────────────
+# EXTRA USAGE (API-only — Max plan overage, fetched with long cache)
+# ─────────────────────────────────────────────────────────────────────────────
 
-    if [ -n "$token" ]; then
-      usage_json=$(curl -s --max-time 3 \
-        -H "Authorization: Bearer $token" \
-        -H "Content-Type: application/json" \
-        -H "anthropic-beta: oauth-2025-04-20" \
-        "https://api.anthropic.com/api/oauth/usage" 2>/dev/null)
-
-      if [ -n "$usage_json" ] && echo "$usage_json" | jq -e '.five_hour' >/dev/null 2>&1; then
-        if [ -f "$USAGE_CACHE" ]; then
-          ws_cost=$(jq -r '.workspace_cost // empty' "$USAGE_CACHE" 2>/dev/null)
-          if [ -n "$ws_cost" ] && [ "$ws_cost" != "null" ]; then
-            usage_json=$(echo "$usage_json" | jq --argjson ws "$ws_cost" '. + {workspace_cost: $ws}' 2>/dev/null || echo "$usage_json")
-          fi
+extra_display=""
+if [ -f "$EXTRA_USAGE_CACHE" ]; then
+  cache_age=$(($(date +%s) - $(stat -f %m "$EXTRA_USAGE_CACHE" 2>/dev/null || echo 0)))
+  if [ "$cache_age" -gt "$EXTRA_USAGE_CACHE_TTL" ]; then
+    # Refresh in background — non-blocking
+    {
+      keychain_data=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)
+      token=$(echo "$keychain_data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('claudeAiOauth',{}).get('accessToken',''))" 2>/dev/null)
+      if [ -n "$token" ]; then
+        usage_json=$(curl -s --max-time 3 \
+          -H "Authorization: Bearer $token" \
+          -H "Content-Type: application/json" \
+          -H "anthropic-beta: oauth-2025-04-20" \
+          "https://api.anthropic.com/api/oauth/usage" 2>/dev/null)
+        if [ -n "$usage_json" ] && echo "$usage_json" | jq -e '.extra_usage' >/dev/null 2>&1; then
+          echo "$usage_json" | jq '.extra_usage' >"$EXTRA_USAGE_CACHE" 2>/dev/null
         fi
-        echo "$usage_json" | jq '.' >"$USAGE_CACHE" 2>/dev/null
       fi
+    } &
+  fi
+
+  # Read cached extra usage
+  eval "$(jq -r '
+    "extra_enabled=" + (.is_enabled // false | tostring) + "\n" +
+    "extra_limit=" + (.monthly_limit // 0 | tostring) + "\n" +
+    "extra_used=" + (.used_credits // 0 | tostring)
+  ' "$EXTRA_USAGE_CACHE" 2>/dev/null)"
+
+  if [ "${extra_enabled:-false}" = "true" ]; then
+    extra_limit_dollars=$((${extra_limit:-0} / 100))
+    extra_used_dollars=$((${extra_used%%.*} / 100))
+    if [ "${extra_limit_dollars:-0}" -ge 1000 ]; then
+      extra_limit_fmt="\$$((extra_limit_dollars / 1000))K"
+    else
+      extra_limit_fmt="\$${extra_limit_dollars:-0}"
     fi
+    extra_display="\$${extra_used_dollars:-0}/${extra_limit_fmt}"
   fi
-
-  if [ -f "$USAGE_CACHE" ]; then
-    jq -r '
-            "usage_5h=" + (.five_hour.utilization // 0 | tostring) + "\n" +
-            "usage_5h_reset=" + (.five_hour.resets_at // "" | @sh) + "\n" +
-            "usage_7d=" + (.seven_day.utilization // 0 | tostring) + "\n" +
-            "usage_7d_reset=" + (.seven_day.resets_at // "" | @sh) + "\n" +
-            "usage_extra_enabled=" + (.extra_usage.is_enabled // false | tostring) + "\n" +
-            "usage_extra_limit=" + (.extra_usage.monthly_limit // 0 | tostring) + "\n" +
-            "usage_extra_used=" + (.extra_usage.used_credits // 0 | tostring)
-        ' "$USAGE_CACHE" >"$_parallel_tmp/usage.sh" 2>/dev/null
-  else
-    echo -e "usage_5h=0\nusage_7d=0\nusage_extra_enabled=false" >"$_parallel_tmp/usage.sh"
-  fi
-} &
-
-# --- PARALLEL BLOCK END ---
-wait
-
-# Source parallel results
-[ -f "$_parallel_tmp/usage.sh" ] && source "$_parallel_tmp/usage.sh"
-rm -rf "$_parallel_tmp" 2>/dev/null
+fi
 
 # Calculate cache hit rate
 cache_total=$((cache_read + cache_create))
@@ -194,6 +209,12 @@ else
   cache_hit_rate=0
 fi
 
+# Format cost and duration
+cost_fmt=$(printf '$%.2f' "$cost_usd" 2>/dev/null || echo '$0.00')
+duration_sec=$((${duration_ms%%.*} / 1000))
+duration_min=$((duration_sec / 60))
+duration_secs=$((duration_sec % 60))
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TERMINAL WIDTH DETECTION
 # ─────────────────────────────────────────────────────────────────────────────
@@ -201,20 +222,13 @@ fi
 detect_terminal_width() {
   local width=""
 
-  # Tier 1: Kitty IPC (most accurate for Kitty panes)
-  if [ -n "$KITTY_WINDOW_ID" ] && command -v kitten >/dev/null 2>&1; then
-    width=$(kitten @ ls 2>/dev/null | jq -r --argjson wid "$KITTY_WINDOW_ID" \
-      '.[].tabs[].windows[] | select(.id == $wid) | .columns' 2>/dev/null)
-  fi
+  # Tier 1: Direct TTY query (works in most terminals)
+  width=$(stty size </dev/tty 2>/dev/null | awk '{print $2}')
 
-  # Tier 2: Direct TTY query
-  [ -z "$width" ] || [ "$width" = "0" ] || [ "$width" = "null" ] &&
-    width=$(stty size </dev/tty 2>/dev/null | awk '{print $2}')
-
-  # Tier 3: tput fallback
+  # Tier 2: tput fallback
   [ -z "$width" ] || [ "$width" = "0" ] && width=$(tput cols 2>/dev/null)
 
-  # Tier 4: Environment variable
+  # Tier 3: Environment variable
   [ -z "$width" ] || [ "$width" = "0" ] && width=${COLUMNS:-80}
 
   echo "$width"
@@ -259,6 +273,11 @@ PAI_SESSION='\033[38;2;4;209;249m'     # Watery Tomb Cyan for session name
 CACHE_ICON='\033[38;2;164;140;242m'     # Lovecraft Purple for cache icon
 CC_ICON='\033[38;2;232;97;32m'          # Anthropic Orange for ✱ CC icon
 DIR_DISPLAY='\033[38;2;242;101;181m'    # Pustule Pink for PWD
+COST_COLOR='\033[38;2;247;198;127m'     # Dreaming Orange for cost
+DURATION_COLOR='\033[38;2;112;129;208m' # The Old One Purple for duration
+WORKTREE_COLOR='\033[38;2;4;209;249m'   # Watery Tomb Cyan for worktree
+WARN_COLOR='\033[38;2;241;108;117m'     # R'lyeh Red for warnings
+
 # Nerd font icons
 NF_CACHE=$(printf '\xef\x92\x9b')        # nf-oct-cache           U+F49B
 NF_GAUGE=$(printf '\xf3\xb0\x8a\x9a')    # nf-md-gauge            U+F029A
@@ -377,6 +396,22 @@ ver_suffix_plain="${model_name_short}"
   ver_suffix_plain="${ver_suffix_plain} · ${cc_version}"
 }
 
+# Build context tags (worktree, agent, output style) for header
+ctx_tags=""
+ctx_tags_plain=""
+[ -n "${worktree_name:-}" ] && {
+  ctx_tags="${ctx_tags} ${SLATE_600}·${RESET} ${WORKTREE_COLOR}⎇ ${worktree_name}${RESET}"
+  ctx_tags_plain="${ctx_tags_plain} · ⎇ ${worktree_name}"
+}
+[ -n "${agent_name:-}" ] && {
+  ctx_tags="${ctx_tags} ${SLATE_600}·${RESET} ${PAI_SESSION}⚙ ${agent_name}${RESET}"
+  ctx_tags_plain="${ctx_tags_plain} · ⚙ ${agent_name}"
+}
+[ -n "${output_style:-}" ] && [ "${output_style}" != "default" ] && {
+  ctx_tags="${ctx_tags} ${SLATE_600}·${RESET} ${SLATE_500}◉ ${output_style}${RESET}"
+  ctx_tags_plain="${ctx_tags_plain} · ◉ ${output_style}"
+}
+
 case "$MODE" in
 nano)
   printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
@@ -386,25 +421,25 @@ micro)
   ;;
 *)
   if [ -n "$session_display" ]; then
-    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display} · ${session_display} "
+    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display} · ${session_display}${ctx_tags_plain} "
     local_left_len=${#local_left}
     local_fill=$((72 - local_left_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
+    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
   else
-    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display} "
+    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display}${ctx_tags_plain} "
     local_left_len=${#local_left}
     local_fill=$((72 - local_left_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}${local_dashes}${RESET}\n"
+    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
   fi
   ;;
 esac
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LINE 2: USAGE + MEMORY
+# LINE 2: USAGE + CONTEXT + COST
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Context computation (scaled to compaction threshold if configured)
@@ -428,69 +463,20 @@ else
   pct_color="$EMERALD"
 fi
 
-# Usage data
-usage_5h_int=${usage_5h%%.*}
-usage_7d_int=${usage_7d%%.*}
-[ -z "$usage_5h_int" ] && usage_5h_int=0
-[ -z "$usage_7d_int" ] && usage_7d_int=0
+# exceeds_200k warning prefix
+ctx_warn=""
+[ "${exceeds_200k:-false}" = "true" ] && ctx_warn="${WARN_COLOR}⚠${RESET} "
 
-reset_5h_time=""
-reset_7d_time=""
-extra_display=""
-if [ "$usage_5h_int" -gt 0 ] || [ "$usage_7d_int" -gt 0 ] || [ -f "$USAGE_CACHE" ]; then
-  usage_5h_color=$(get_usage_color "$usage_5h_int")
-  usage_7d_color=$(get_usage_color "$usage_7d_int")
+# Usage colors
+usage_5h_color=$(get_usage_color "$usage_5h_int")
+usage_7d_color=$(get_usage_color "$usage_7d_int")
 
-  eval "$(python3 -c "
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
-
-def parse_ts(ts):
-    if not ts: return None
-    try:
-        if '+' in ts[10:]:
-            return datetime.fromisoformat(ts)
-        elif ts.endswith('Z'):
-            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
-        else:
-            return datetime.fromisoformat(ts + '+00:00')
-    except: return None
-
-def clock_time(ts, fmt):
-    dt = parse_ts(ts)
-    if not dt: return ''
-    local_dt = dt.astimezone(ZoneInfo('America/Los_Angeles'))
-    if fmt == 'weekly':
-        return local_dt.strftime('%a %H:%M')
-    return local_dt.strftime('%H:%M')
-
-r5h = '$usage_5h_reset'
-r7d = '$usage_7d_reset'
-print(f\"clock_5h='{clock_time(r5h, 'hourly')}'\")
-print(f\"clock_7d='{clock_time(r7d, 'weekly')}'\")
-" 2>/dev/null)"
-
-  reset_5h_time="${clock_5h:-}"
-  reset_7d_time="${clock_7d:-}"
-
-  if [ "$usage_extra_enabled" = "true" ]; then
-    extra_limit_dollars=$((${usage_extra_limit:-0} / 100))
-    extra_used_dollars=$((${usage_extra_used%%.*} / 100))
-    if [ "${extra_limit_dollars:-0}" -ge 1000 ]; then
-      extra_limit_fmt="\$$((extra_limit_dollars / 1000))K"
-    else
-      extra_limit_fmt="\$${extra_limit_dollars:-0}"
-    fi
-    extra_display="\$${extra_used_dollars:-0}/${extra_limit_fmt}"
-  fi
-fi
-
-# Usage + context bar + cache
+# Usage + context bar + cache + cost
 case "$MODE" in
 nano)
-  [ -n "$reset_5h_time" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
+  [ "$has_rate_limits" = "true" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
   ctx_bar=$(render_context_bar 6 $display_pct)
-  printf " ${SLATE_600}·${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
   if [ "$cache_total" -gt 0 ]; then
     cache_num_color=$(get_cache_color "$cache_hit_rate")
     printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
@@ -498,9 +484,9 @@ nano)
   printf "\n"
   ;;
 micro)
-  [ -n "$reset_5h_time" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
+  [ "$has_rate_limits" = "true" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
   ctx_bar=$(render_context_bar 8 $display_pct)
-  printf " ${SLATE_600}·${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
   if [ "$cache_total" -gt 0 ]; then
     cache_num_color=$(get_cache_color "$cache_hit_rate")
     printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
@@ -508,29 +494,30 @@ micro)
   printf "\n"
   ;;
 mini)
-  if [ -n "$reset_5h_time" ]; then
+  if [ "$has_rate_limits" = "true" ]; then
     printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
   fi
   ctx_bar=$(render_context_bar 16 $display_pct)
-  printf " ${SLATE_600}·${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
   if [ "$cache_total" -gt 0 ]; then
     cache_num_color=$(get_cache_color "$cache_hit_rate")
     printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
   fi
+  [ "$duration_sec" -gt 0 ] && printf " ${SLATE_600}·${RESET} ${COST_COLOR}${cost_fmt}${RESET} ${DURATION_COLOR}${duration_min}m${duration_secs}s${RESET}"
   printf "\n"
   ;;
 normal)
-  if [ -n "$reset_5h_time" ]; then
+  if [ "$has_rate_limits" = "true" ]; then
     printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
     [ -n "$extra_display" ] && printf " ${SLATE_600}·${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
   fi
   ctx_bar=$(render_context_bar 24 $display_pct)
-  printf " ${SLATE_600}·${RESET} ${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
   if [ "$cache_total" -gt 0 ]; then
     cache_num_color=$(get_cache_color "$cache_hit_rate")
     printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
   fi
+  [ "$duration_sec" -gt 0 ] && printf " ${SLATE_600}·${RESET} ${COST_COLOR}${cost_fmt}${RESET} ${DURATION_COLOR}${duration_min}m${duration_secs}s${RESET}"
   printf "\n"
   ;;
 esac
-
