@@ -59,10 +59,6 @@ eval "$(echo "$input" | jq -r '
   "rl_5h_resets=" + (.rate_limits.five_hour.resets_at // 0 | tostring) + "\n" +
   "rl_7d_pct=" + (.rate_limits.seven_day.used_percentage // -1 | tostring) + "\n" +
   "rl_7d_resets=" + (.rate_limits.seven_day.resets_at // 0 | tostring) + "\n" +
-  "cost_usd=" + (.cost.total_cost_usd // 0 | tostring) + "\n" +
-  "duration_ms=" + (.cost.total_duration_ms // 0 | tostring) + "\n" +
-  "lines_added=" + (.cost.total_lines_added // 0 | tostring) + "\n" +
-  "lines_removed=" + (.cost.total_lines_removed // 0 | tostring) + "\n" +
   "worktree_name=" + (.worktree.name // "" | @sh) + "\n" +
   "agent_name=" + (.agent.name // "" | @sh) + "\n" +
   "output_style=" + (.output_style.name // "" | @sh)
@@ -75,8 +71,6 @@ cache_read=${cache_read:-0}
 cache_create=${cache_create:-0}
 rl_5h_pct=${rl_5h_pct:--1}
 rl_7d_pct=${rl_7d_pct:--1}
-cost_usd=${cost_usd:-0}
-duration_ms=${duration_ms:-0}
 
 # Cache model name for other tools
 mkdir -p "$(dirname "$MODEL_CACHE")" 2>/dev/null
@@ -209,12 +203,6 @@ else
   cache_hit_rate=0
 fi
 
-# Format cost and duration
-cost_fmt=$(printf '$%.2f' "$cost_usd" 2>/dev/null || echo '$0.00')
-duration_sec=$((${duration_ms%%.*} / 1000))
-duration_min=$((duration_sec / 60))
-duration_secs=$((duration_sec % 60))
-
 # ─────────────────────────────────────────────────────────────────────────────
 # TERMINAL WIDTH DETECTION
 # ─────────────────────────────────────────────────────────────────────────────
@@ -273,8 +261,6 @@ PAI_SESSION='\033[38;2;4;209;249m'     # Watery Tomb Cyan for session name
 CACHE_ICON='\033[38;2;164;140;242m'     # Lovecraft Purple for cache icon
 CC_ICON='\033[38;2;232;97;32m'          # Anthropic Orange for ✱ CC icon
 DIR_DISPLAY='\033[38;2;242;101;181m'    # Pustule Pink for PWD
-COST_COLOR='\033[38;2;247;198;127m'     # Dreaming Orange for cost
-DURATION_COLOR='\033[38;2;112;129;208m' # The Old One Purple for duration
 WORKTREE_COLOR='\033[38;2;4;209;249m'   # Watery Tomb Cyan for worktree
 WARN_COLOR='\033[38;2;241;108;117m'     # R'lyeh Red for warnings
 
@@ -503,7 +489,6 @@ mini)
     cache_num_color=$(get_cache_color "$cache_hit_rate")
     printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
   fi
-  [ "$duration_sec" -gt 0 ] && printf " ${SLATE_600}·${RESET} ${COST_COLOR}${cost_fmt}${RESET} ${DURATION_COLOR}${duration_min}m${duration_secs}s${RESET}"
   printf "\n"
   ;;
 normal)
@@ -517,7 +502,6 @@ normal)
     cache_num_color=$(get_cache_color "$cache_hit_rate")
     printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
   fi
-  [ "$duration_sec" -gt 0 ] && printf " ${SLATE_600}·${RESET} ${COST_COLOR}${cost_fmt}${RESET} ${DURATION_COLOR}${duration_min}m${duration_secs}s${RESET}"
   printf "\n"
   ;;
 esac
