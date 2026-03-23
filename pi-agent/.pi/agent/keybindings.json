@@ -1,25 +1,25 @@
 {
-  "cursorUp": [
+  "tui.editor.cursorUp": [
     "up",
     "alt+k"
   ],
-  "cursorDown": [
+  "tui.editor.cursorDown": [
     "down",
     "alt+j"
   ],
-  "cursorLeft": [
+  "tui.editor.cursorLeft": [
     "left",
     "alt+h"
   ],
-  "cursorRight": [
+  "tui.editor.cursorRight": [
     "right",
     "alt+l"
   ],
-  "cursorWordLeft": [
+  "tui.editor.cursorWordLeft": [
     "alt+left",
     "alt+b"
   ],
-  "cursorWordRight": [
+  "tui.editor.cursorWordRight": [
     "alt+right",
     "alt+w"
   ]

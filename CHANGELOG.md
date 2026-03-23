@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.33] - 2026-03-23
+
+### Added
+- Extraction infrastructure libraries for hooks: lock, migration, quality, semaphore, tracker, pid-utils (671 lines)
+- 14 SEO skill symlinks for PI Agent (seo, seo-audit, seo-competitor-pages, seo-content, seo-geo, seo-hreflang, seo-images, seo-local, seo-page, seo-plan, seo-programmatic, seo-schema, seo-sitemap, seo-technical)
+
+### Changed
+- PI Agent keybindings: namespaced with `tui.editor.` prefix, added trailing newline
+- Session stats counters updated (signals, sessions, ratings)
+
 ## [4.0.32] - 2026-03-23
 
 ### Added
