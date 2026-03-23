@@ -450,7 +450,6 @@
   "enabledPlugins": {
     "claudit@quickstop": true,
     "frontend-design@claude-plugins-official": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
     "playground@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
@@ -460,16 +459,13 @@
     "explanatory-output-style@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "figma@claude-plugins-official": true,
+    "php-lsp@claude-plugins-official": true,
+    "lua-lsp@claude-plugins-official": true,
     "chrome-devtools-mcp@claude-plugins-official": true
   },
-  "extraKnownMarketplaces": {
-    "chrome-devtools-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "ChromeDevTools/chrome-devtools-mcp"
-      }
-    }
-  },
+  "extraKnownMarketplaces": {},
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
@@ -935,13 +931,13 @@
     "skills": 0,
     "workflows": 0,
     "hooks": 4,
-    "signals": 955,
+    "signals": 1018,
     "files": 33,
-    "work": 3632,
-    "sessions": 69,
+    "work": 3698,
+    "sessions": 70,
     "research": 0,
-    "ratings": 955,
-    "updatedAt": "2026-03-20T14:14:07.772Z"
+    "ratings": 1018,
+    "updatedAt": "2026-03-22T12:35:20.121Z"
   },
   "daidentity": {
     "color": "#A48CF2",

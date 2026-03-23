@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.32] - 2026-03-23
+
+### Added
+- `archive-plan` and `list-plans` slash commands for Claude Code
+- Plugins: context7, figma, php-lsp, lua-lsp
+- `prompt-optimizer` skill for PI Agent
+
+### Changed
+- Statusline: native rate_limits JSON replaces Anthropic API call, adds worktree/agent/style indicators, exceeds_200k warning
+- Statusline: removed cost/duration tracking (Max plan)
+- PI Agent: version bump 0.58.1 → 0.58.4
+
+### Removed
+- `statusline-command.sh` (1430 lines of dead code)
+- `ui-ux-pro-max` plugin and `extraKnownMarketplaces` config
+- PI Agent `seo` skill symlink
+
 ## [4.0.31] - 2026-03-17
 
 ### Added
