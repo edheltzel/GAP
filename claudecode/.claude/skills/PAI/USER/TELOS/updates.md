@@ -1,5 +1,33 @@
 # TELOS Update Log
 
+## 2026-03-25 — Major TELOS Expansion (Voice Interview)
+
+Atlas conducted a voice interview with Ed to fill empty placeholders and deepen thin areas.
+
+**Files rewritten (from placeholder):**
+- FRAMES.md — 4 frames: Family Protection Filter, Scenario Simulation, Read the Room, Gut vs. Emotion Check
+- NARRATIVES.md — 3 narratives: The Imposter (self-perception), The Tree (family's perception), Faith-Driven Family Unit
+- PROBLEMS.md — 3 active problems: Recall (agent-agnostic memory), PeptideWare sales decline, sunset Rainy Day Media
+
+**Files expanded:**
+- BOOKS.md — Added 5: The Bible, Art of War, Art of the Deal, 1984, formative technical books
+- MOVIES.md — Added 7: NeverEnding Story, BeastMaster, Star Wars OT, Star Trek TNG, Casino, Reservoir Dogs, Ren & Stimpy
+- WRONG.md — Added 3: BJJ friend betrayal, political trust (Trump), pricing/client selection
+- PREDICTIONS.md — Added AI Bubble section (investment/utility correction, anti-hype not anti-AI)
+- PROJECTS.md — Added 3: Rainy Day Media (sunset target), Alionsa Health Partners (with Jason), Recall
+
+**Corrections:**
+- CHALLENGES.md — Fixed wife's name from Evelyn to Kristina
+- All files — Wife's name is Kristina (with K), son is Lucas
+
+**Key insights:**
+- Star Trek TNG's ship computer is the direct inspiration for Atlas voice mode
+- Business partner Jason co-founded Alionsa Health Partners
+- Ed self-identifies with imposter syndrome despite evidence of capability
+- Conservative communication style: speak when spoken to, read the room first
+
+**Backups:** All files backed up to Backups/ with timestamp 20260325-*
+
 ## 2026-03-16 — AI Lessons (Voice Interview)
 
 Atlas conducted a voice interview with Ed to extract AI and coding agent lessons.

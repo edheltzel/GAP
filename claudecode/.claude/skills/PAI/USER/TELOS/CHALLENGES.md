@@ -2,7 +2,7 @@
 
 ## Health
 - Physical health impacts mobility, making building and walking difficult at times
-- Parkinson's and rheumatoid arthritis affect both Ed and his wife Evelyn
+- Parkinson's and rheumatoid arthritis affect both Ed and his wife Kristina
 - Aging will compound these challenges over time — dealt with as bridges are crossed
 
 ## Business

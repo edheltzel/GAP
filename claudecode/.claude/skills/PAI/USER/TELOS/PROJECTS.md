@@ -15,3 +15,19 @@
 ## Atlas (PAI)
 - Personal AI operating system built on Claude Code
 - Ed's daily driver for development, research, and life management
+- Inspired by Star Trek: The Next Generation's ship computer
+
+## Rainy Day Media (RDM)
+- Client work arm — web development and creative services
+- Targeted for sunset so Ed can focus on PeptideWare, MyChron, and Alionsa Health Partners
+- Currently still needed for income while MyChron seeks funding
+
+## Alionsa Health Partners
+- New entity co-founded with business partner Jason
+- Related to the MyChron health ecosystem
+- Starting to gain traction but will likely require a loan to scale
+
+## Recall
+- Agent-agnostic persistent memory system for coding agents
+- Working version exists but too dependent on frontier models (Claude Code)
+- Exploring smaller LLMs (Qwen 3/3.5, 2B-27B parameters) for portability
