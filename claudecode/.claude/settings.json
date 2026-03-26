@@ -463,7 +463,8 @@
     "figma@claude-plugins-official": true,
     "php-lsp@claude-plugins-official": true,
     "lua-lsp@claude-plugins-official": true,
-    "chrome-devtools-mcp@claude-plugins-official": true
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {},
   "spinnerVerbs": {
@@ -931,13 +932,13 @@
     "skills": 0,
     "workflows": 0,
     "hooks": 4,
-    "signals": 1049,
-    "files": 33,
-    "work": 3737,
-    "sessions": 71,
+    "signals": 1062,
+    "files": 42,
+    "work": 3767,
+    "sessions": 72,
     "research": 0,
-    "ratings": 1049,
-    "updatedAt": "2026-03-24T16:05:51.977Z"
+    "ratings": 1062,
+    "updatedAt": "2026-03-26T10:06:17.223Z"
   },
   "daidentity": {
     "color": "#A48CF2",
