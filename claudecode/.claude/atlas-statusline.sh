@@ -91,6 +91,9 @@ if [ -z "$model_ver_str" ]; then
     model_ver_str="$extracted_ver"
   fi
 fi
+# Compact context window suffix: "(1M context)" → "-1M"
+model_name_short=$(echo "$model_name_short" | sed -E 's/ *\(([0-9]+[KMG]) context\)/-\1/')
+
 cc_version="${cc_version_json:-}"
 
 # Get session label — authoritative source: Claude Code's sessions-index.json customTitle
@@ -260,13 +263,15 @@ PAI_SESSION='\033[38;2;4;209;249m'     # Watery Tomb Cyan for session name
 # Icons and accents
 CACHE_ICON='\033[38;2;164;140;242m'     # Lovecraft Purple for cache icon
 CC_ICON='\033[38;2;232;97;32m'          # Anthropic Orange for ✱ CC icon
-DIR_DISPLAY='\033[38;2;242;101;181m'    # Pustule Pink for PWD
+DIR_DISPLAY='\033[38;2;4;209;249m'      # Watery Tomb Cyan for PWD
+GIT_BRANCH_COLOR='\033[38;2;242;101;181m' # Pustule Pink for git branch
 WORKTREE_COLOR='\033[38;2;4;209;249m'   # Watery Tomb Cyan for worktree
 WARN_COLOR='\033[38;2;241;108;117m'     # R'lyeh Red for warnings
 
 # Nerd font icons
 NF_CACHE=$(printf '\xef\x92\x9b')        # nf-oct-cache           U+F49B
 NF_GAUGE=$(printf '\xf3\xb0\x8a\x9a')    # nf-md-gauge            U+F029A
+NF_BRANCH=$(printf '\xef\x90\x98')       # nf-oct-git_branch      U+F418
 
 # Context bar
 CTX_BUCKET_EMPTY='\033[38;2;50;52;73m' # Shallow Depths Grey (empty bucket)
@@ -368,6 +373,15 @@ session_display=""
 # Display just the directory basename (e.g., /atlas-config)
 dir_display="/${current_dir##*/}"
 
+# Get current git branch (runs each refresh — always up to date)
+git_branch=$(git -C "$current_dir" rev-parse --abbrev-ref HEAD 2>/dev/null)
+git_display=""
+git_display_plain=""
+if [ -n "$git_branch" ]; then
+  git_display=" ${SLATE_600}·${RESET} ${GIT_BRANCH_COLOR}${NF_BRANCH} ${git_branch}${RESET}"
+  git_display_plain=" · ${NF_BRANCH} ${git_branch}"
+fi
+
 # Build version suffix: model + CC version
 ver_suffix=""
 ver_suffix_plain=""
@@ -403,23 +417,23 @@ nano)
   printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
   ;;
 micro)
-  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}\n"
+  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}\n"
   ;;
 *)
   if [ -n "$session_display" ]; then
-    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display} · ${session_display}${ctx_tags_plain} "
+    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain} · ${session_display}${ctx_tags_plain} "
     local_left_len=${#local_left}
     local_fill=$((72 - local_left_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
+    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
   else
-    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display}${ctx_tags_plain} "
+    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain}${ctx_tags_plain} "
     local_left_len=${#local_left}
     local_fill=$((72 - local_left_len))
     [ "$local_fill" -lt 2 ] && local_fill=2
     local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
+    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
   fi
   ;;
 esac
