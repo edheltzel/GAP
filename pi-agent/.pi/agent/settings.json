@@ -1,7 +1,7 @@
 {
-  "lastChangelogVersion": "0.58.4",
+  "lastChangelogVersion": "0.62.0",
   "defaultProvider": "opencode-go",
-  "defaultModel": "minimax-m2.5",
+  "defaultModel": "minimax-m2.7",
   "skills": [
     "skills/beans",
     "skills/brave-search",
