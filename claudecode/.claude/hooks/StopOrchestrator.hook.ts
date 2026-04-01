@@ -36,12 +36,11 @@ interface HookInput {
 
 /**
  * Voice gate: only main terminal sessions get voice.
- * Subagents spawned via Task tool run in isolated processes without terminal env vars.
- * Check TERM_PROGRAM to detect a real terminal session (WezTerm, Kitty, iTerm2, etc.).
+ * Subagents spawned via Task tool run in isolated processes without TERM_PROGRAM.
+ * Any terminal program = real session; absent = subagent.
  */
 function isMainSession(_sessionId: string): boolean {
-  const termProgram = process.env.TERM_PROGRAM;
-  return !!termProgram && ['WezTerm', 'kitty', 'iTerm2', 'iTerm.app', 'Apple_Terminal', 'tmux'].includes(termProgram);
+  return !!process.env.TERM_PROGRAM;
 }
 
 async function readStdin(): Promise<HookInput | null> {
