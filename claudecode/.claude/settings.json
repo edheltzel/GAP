@@ -8,7 +8,8 @@
     "PAI_CONFIG_DIR": "/Users/ed/.config/PAI",
     "PAI_DIR": "/Users/ed/.claude",
     "ENABLE_TOOL_SEARCH": "auto",
-    "PROJECTS_DIR": "/Users/ed/Developer"
+    "PROJECTS_DIR": "/Users/ed/Developer",
+    "CLAUDE_CODE_NO_FLICKER": "1"
   },
   "attribution": {
     "commit": "",
@@ -934,11 +935,11 @@
     "hooks": 4,
     "signals": 1113,
     "files": 42,
-    "work": 3886,
+    "work": 3887,
     "sessions": 85,
     "research": 0,
     "ratings": 1113,
-    "updatedAt": "2026-04-02T23:05:22.426Z"
+    "updatedAt": "2026-04-03T14:23:12.132Z"
   },
   "daidentity": {
     "color": "#A48CF2",
@@ -1005,20 +1006,10 @@
       "topic": "${NTFY_TOPIC}"
     },
     "routing": {
-      "backgroundAgent": [
-        "ntfy"
-      ],
-      "error": [
-        "ntfy",
-        "discord"
-      ],
-      "longTask": [
-        "ntfy"
-      ],
-      "security": [
-        "ntfy",
-        "discord"
-      ],
+      "backgroundAgent": ["ntfy"],
+      "error": ["ntfy", "discord"],
+      "longTask": ["ntfy"],
+      "security": ["ntfy", "discord"],
       "taskComplete": []
     },
     "thresholds": {
@@ -1060,10 +1051,7 @@
   "mcpServers": {
     "recall-memory": {
       "command": "/Users/ed/.bun/bin/bun",
-      "args": [
-        "run",
-        "/Users/ed/.bun/bin/mem-mcp"
-      ]
+      "args": ["run", "/Users/ed/.bun/bin/mem-mcp"]
     }
   }
 }
