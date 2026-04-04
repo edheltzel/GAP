@@ -933,13 +933,13 @@
     "skills": 0,
     "workflows": 0,
     "hooks": 4,
-    "signals": 1113,
+    "signals": 1115,
     "files": 42,
-    "work": 3890,
+    "work": 3894,
     "sessions": 85,
     "research": 0,
-    "ratings": 1113,
-    "updatedAt": "2026-04-03T16:28:31.706Z"
+    "ratings": 1115,
+    "updatedAt": "2026-04-03T19:09:57.807Z"
   },
   "daidentity": {
     "color": "#A48CF2",
@@ -1006,10 +1006,20 @@
       "topic": "${NTFY_TOPIC}"
     },
     "routing": {
-      "backgroundAgent": ["ntfy"],
-      "error": ["ntfy", "discord"],
-      "longTask": ["ntfy"],
-      "security": ["ntfy", "discord"],
+      "backgroundAgent": [
+        "ntfy"
+      ],
+      "error": [
+        "ntfy",
+        "discord"
+      ],
+      "longTask": [
+        "ntfy"
+      ],
+      "security": [
+        "ntfy",
+        "discord"
+      ],
       "taskComplete": []
     },
     "thresholds": {
@@ -1051,7 +1061,10 @@
   "mcpServers": {
     "recall-memory": {
       "command": "/Users/ed/.bun/bin/bun",
-      "args": ["run", "/Users/ed/.bun/bin/mem-mcp"]
+      "args": [
+        "run",
+        "/Users/ed/.bun/bin/mem-mcp"
+      ]
     }
   }
 }
