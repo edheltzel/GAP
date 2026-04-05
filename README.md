@@ -150,7 +150,7 @@ atlas-config/
 │   ├── hooks/                ← 24 lifecycle event handlers
 │   ├── agents/               ← Named agent personas
 │   ├── MEMORY/               ← Persistent memory (gitignored, PAI subdirs)
-│   ├── VoiceServer/          ← Multi-provider TTS (Kokoro, ElevenLabs, macOS say)
+│   ├── VoiceServer/          ← Multi-provider TTS (Edge TTS, ElevenLabs, Kokoro, macOS say)
 │   ├── lib/                  ← Shared TypeScript utilities
 │   └── PAI-Install/          ← Installer and setup wizard
 ├── opencode/.config/opencode/ ← Stow package → symlinked to ~/.config/opencode/
@@ -216,6 +216,6 @@ Claude Code runtime files (`debug/`, `todos/`, `projects/`, `history.jsonl`, etc
 3. **The Algorithm runs** — your request is decomposed into testable criteria, work is planned and executed, results are verified against those criteria.
 4. **Skills are invoked** as needed — research agents fan out, browser automation verifies UI, security tools probe for vulnerabilities, creative tools generate content.
 5. **Memory persists** — session context, learning, and work products survive across sessions via PRD files and the MEMORY filesystem.
-6. **Voice announces** phase transitions and results via the [VoiceServer](claudecode/.claude/VoiceServer/README.md) — a multi-provider TTS server on port 8888 with automatic fallback ([Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) local → ElevenLabs cloud → macOS say), circuit breakers, 13 emotional presets, pronunciation preprocessing, and 15 named agent voices. Full voice conversations use Kokoro + [Whisper](https://huggingface.co/openai/whisper-small). VoiceServer is **agent-agnostic** — any coding agent that can POST JSON can use it.
+6. **Voice announces** phase transitions and results via the [VoiceServer](claudecode/.claude/VoiceServer/README.md) — a multi-provider TTS server on port 8888 with automatic fallback (Edge TTS → ElevenLabs cloud → Kokoro local → macOS say), circuit breakers, 13 emotional presets, pronunciation preprocessing, and 15 named agent voices. Full voice conversations use [VoiceLayer](https://github.com/EtanHey/voicelayer) MCP (Silero VAD + [whisper.cpp](https://github.com/ggerganov/whisper.cpp) STT + Edge TTS). VoiceServer is **agent-agnostic** — any coding agent that can POST JSON can use it.
 
 The result: structured, verifiable, high-quality output that improves with every interaction.

@@ -28,8 +28,9 @@ When modifying hooks, follow the update protocol in the hooks README (update hea
 The VoiceServer is documented in [`claudecode/.claude/VoiceServer/README.md`](claudecode/.claude/VoiceServer/README.md). Key references:
 
 - **API**: POST `/notify` on port 8888 — any process that can POST JSON can use it
-- **Providers**: Kokoro (local) → ElevenLabs (cloud) → macOS say (fallback)
+- **Providers**: Edge TTS (primary) → ElevenLabs (cloud) → Kokoro (local) → macOS say (fallback)
 - **Config**: `voices.json` (providers, agent voices), `pronunciations.json` (TTS overrides)
+- **Voice conversations**: [VoiceLayer](https://github.com/EtanHey/voicelayer) MCP server provides bidirectional converse mode (Silero VAD + whisper.cpp STT + Edge TTS)
 - **Agent-agnostic**: No coding-agent-specific code in the server — integration is consumer-side
 
 ## For Humans
