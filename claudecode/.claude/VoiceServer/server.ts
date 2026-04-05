@@ -56,6 +56,7 @@ interface ProviderConfig {
   defaultVoice?: string;
   defaultVoiceId?: string;
   voice?: string;
+  rate?: string;
   description?: string;
 }
 
@@ -78,6 +79,7 @@ interface VoiceMapping {
 
 interface VoicesConfig {
   providers: {
+    edgetts: ProviderConfig;
     kokoro: ProviderConfig;
     elevenlabs: ProviderConfig;
     say: ProviderConfig;
@@ -182,6 +184,11 @@ function resolveEnvVar(value: string | undefined): string | undefined {
 function loadVoicesConfig(): VoicesConfig {
   const defaultConfig: VoicesConfig = {
     providers: {
+      edgetts: {
+        enabled: true,
+        defaultVoice: 'en-US-AvaNeural',
+        description: 'Microsoft Edge TTS - free, high-quality neural voices'
+      },
       kokoro: {
         enabled: true,
         endpoint: 'http://127.0.0.1:8880/v1',
@@ -200,8 +207,8 @@ function loadVoicesConfig(): VoicesConfig {
         description: 'macOS built-in - always available fallback'
       }
     },
-    defaultProvider: 'kokoro',
-    fallbackOrder: ['kokoro', 'elevenlabs', 'say'],
+    defaultProvider: 'edgetts',
+    fallbackOrder: ['edgetts', 'elevenlabs', 'kokoro', 'say'],
     default_volume: 0.8,
     identity: {
       description: 'Main AI assistant voice',
@@ -368,6 +375,7 @@ function extractEmotionalMarker(message: string): { cleaned: string; emotion?: s
 // =============================================================================
 
 const circuitBreakers: Record<string, CircuitBreakerState> = {
+  edgetts: { failures: 0, lastFailure: 0, isOpen: false },
   elevenlabs: { failures: 0, lastFailure: 0, isOpen: false },
   kokoro: { failures: 0, lastFailure: 0, isOpen: false },
 };
@@ -541,6 +549,92 @@ function spawnSafe(command: string, args: string[]): Promise<void> {
 // =============================================================================
 // TTS Provider Implementations
 // =============================================================================
+
+// --- Edge TTS Provider ---
+const EDGETTS_TIMEOUT_MS = 15_000;
+const PYTHON3_PATH = '/opt/homebrew/bin/python3';
+
+class EdgeTTSProvider implements TTSProvider {
+  name = 'edgetts';
+
+  isEnabled(): boolean {
+    return voicesConfig.providers.edgetts?.enabled !== false;
+  }
+
+  async isHealthy(): Promise<boolean> {
+    if (shouldSkipProvider('edgetts')) return false;
+    try {
+      const check = spawn(PYTHON3_PATH, ['-m', 'edge_tts', '--list-voices']);
+      const exitCode = await new Promise<number>((resolve) => {
+        check.on('exit', resolve);
+        check.on('error', () => resolve(1));
+        setTimeout(() => { check.kill(); resolve(1); }, 3000);
+      });
+      return exitCode === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  async speak(text: string, voice?: string): Promise<boolean> {
+    const edgettsVoice = voice || voicesConfig.providers.edgetts?.defaultVoice || 'en-US-AvaNeural';
+    const rate = voicesConfig.providers.edgetts?.rate || '+0%';
+    const tmpFile = `/tmp/voiceserver-edgetts-${Date.now()}.mp3`;
+
+    // Apply pronunciations
+    const processedText = applyPronunciations(text);
+
+    try {
+      console.log(`🌐 Edge TTS speaking (voice: ${edgettsVoice})...`);
+
+      // Synthesize via edge-tts CLI
+      const synth = spawn(PYTHON3_PATH, [
+        '-m', 'edge_tts',
+        '--text', processedText,
+        '--voice', edgettsVoice,
+        '--rate', rate,
+        '--write-media', tmpFile,
+      ]);
+
+      const synthExit = await new Promise<number>((resolve, reject) => {
+        const timeout = setTimeout(() => { synth.kill(); reject(new Error('Edge TTS synthesis timeout')); }, EDGETTS_TIMEOUT_MS);
+        synth.on('exit', (code) => { clearTimeout(timeout); resolve(code ?? 1); });
+        synth.on('error', (err) => { clearTimeout(timeout); reject(err); });
+      });
+
+      if (synthExit !== 0) {
+        throw new Error(`edge-tts exited with code ${synthExit}`);
+      }
+
+      // Play via afplay (macOS) or mpv/ffplay (Linux)
+      const player = process.platform === 'darwin' ? '/usr/bin/afplay' : 'mpv';
+      const play = spawn(player, [tmpFile]);
+
+      await new Promise<void>((resolve, reject) => {
+        play.on('exit', (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`Player exited with code ${code}`));
+        });
+        play.on('error', reject);
+      });
+
+      recordProviderSuccess('edgetts');
+      console.log('✅ Edge TTS completed');
+      return true;
+    } catch (error: any) {
+      recordProviderFailure('edgetts');
+      if (error.message?.includes('timeout')) {
+        console.warn(`⏱️  Edge TTS timeout after ${EDGETTS_TIMEOUT_MS}ms`);
+      } else {
+        console.error('❌ Edge TTS error:', error.message || error);
+      }
+      return false;
+    } finally {
+      // Clean up temp file
+      try { unlinkSync(tmpFile); } catch {}
+    }
+  }
+}
 
 // --- macOS Say Provider ---
 class MacOSSayProvider implements TTSProvider {
@@ -760,6 +854,7 @@ class KokoroProvider implements TTSProvider {
 // =============================================================================
 
 const providers: Record<string, TTSProvider> = {
+  edgetts: new EdgeTTSProvider(),
   elevenlabs: new ElevenLabsProvider(),
   kokoro: new KokoroProvider(),
   say: new MacOSSayProvider(),
