@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+- GitCleanup skill: prune stale worktrees, branches, PRs, and issues across local and remote
+  - SweepLocal: remove stale worktrees and associated local branches
+  - SweepRemote: delete merged remote branches via `gh` CLI (GitHub-first)
+  - ClosePR: close or merge stale pull requests on GitHub/GitLab
+  - ResolveConflicts: guided conflict resolution before cleanup operations
+  - AuditRepo: full repo audit with ranked cleanup priority list
+
 ## [4.0.34] - 2026-04-01
 
 ### Fixed
