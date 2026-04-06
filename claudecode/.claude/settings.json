@@ -933,13 +933,13 @@
     "skills": 0,
     "workflows": 0,
     "hooks": 4,
-    "signals": 1141,
+    "signals": 1159,
     "files": 42,
-    "work": 3923,
-    "sessions": 85,
+    "work": 3964,
+    "sessions": 86,
     "research": 0,
-    "ratings": 1141,
-    "updatedAt": "2026-04-05T13:20:35.449Z"
+    "ratings": 1159,
+    "updatedAt": "2026-04-06T18:40:58.647Z"
   },
   "daidentity": {
     "color": "#A48CF2",
@@ -963,6 +963,13 @@
       "warmth": 70
     },
     "startupCatchphrase": "Atlas, standing by",
+    "startupCatchphrases": [
+      "Atlas, standing by",
+      "Atlas, ready to go",
+      "Atlas, ready and engaged",
+      "Atlas online, let's build something",
+      "Atlas here, what are we working on?"
+    ],
     "voiceId": "21m00Tcm4TlvDq8ikWAM",
     "voices": {
       "algorithm": {
@@ -1066,5 +1073,6 @@
         "/Users/ed/.bun/bin/mem-mcp"
       ]
     }
-  }
+  },
+  "model": "sonnet"
 }

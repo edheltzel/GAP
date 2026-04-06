@@ -238,8 +238,13 @@ try {
   const settings = await Bun.file(join(CLAUDE_DIR, 'settings.json')).json();
 
   const daName = settings.daidentity?.displayName || settings.daidentity?.name || 'Atlas';
-  const catchphrase = (settings.daidentity?.startupCatchphrase || `${daName} standing by`)
-    .replace(/\{name\}/gi, daName);
+
+  const catchphrases = settings.daidentity?.startupCatchphrases;
+  const catchphrase = (
+    catchphrases?.length
+      ? catchphrases[Math.floor(Math.random() * catchphrases.length)]
+      : settings.daidentity?.startupCatchphrase || `${daName} standing by`
+  ).replace(/\{name\}/gi, daName);
   const personality = settings.daidentity?.personality;
 
   const url = personality?.baseVoice

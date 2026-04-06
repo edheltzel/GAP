@@ -563,8 +563,10 @@ class EdgeTTSProvider implements TTSProvider {
 
   async isHealthy(): Promise<boolean> {
     if (shouldSkipProvider('edgetts')) return false;
+    // Check module importability only — no network call. Actual synthesis
+    // failures are handled by the circuit breaker in speak().
     try {
-      const check = spawn(PYTHON3_PATH, ['-m', 'edge_tts', '--list-voices']);
+      const check = spawn(PYTHON3_PATH, ['-c', 'import edge_tts']);
       const exitCode = await new Promise<number>((resolve) => {
         check.on('exit', resolve);
         check.on('error', () => resolve(1));
