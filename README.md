@@ -2,7 +2,7 @@
 
 **Atlas - Personal AI Infrastructure (PAI)** configuration, managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
-Atlas is a general problem-solving system that magnifies human capabilities. It wraps Claude Code with a structured algorithm, 45 skills, 24 lifecycle hooks, voice integration, persistent memory, and a multi-agent coordination system.
+Atlas is a general problem-solving system that magnifies human capabilities. It wraps Claude Code with a structured algorithm, 46 skills, 24 lifecycle hooks, voice integration, persistent memory, and a multi-agent coordination system.
 
 This repo contains the full Atlas (PAI) configuration. Files here get symlinked into `~/.claude/` via Stow — keeping everything version-controlled and portable.
 
@@ -131,6 +131,7 @@ Tools for managing and improving Atlas itself.
 | **PAIUpgrade**      | `/pai-upgrade`      | Extracts system improvements from content. Monitors Anthropic ecosystem and YouTube for relevant updates.  |
 | **Agents**          | `/agents`           | Dynamic agent composition and management. Create custom agent personalities, voices, and specializations.  |
 | **Observability**   | `/observability`    | Real-time Claude Code session monitoring dashboard. Start, stop, and view agent activity.                  |
+| **GitCleanup**      | `/git-cleanup`      | Git repo hygiene — prune stale branches, worktrees, PRs, and issues across local and remote.               |
 | **UpdateDocs**      | `/update-docs`      | Scans git history, updates README.md and CLAUDE.md to reflect current project state.                       |
 | **KeybindingsHelp** | `/keybindings-help` | Customize Claude Code keyboard shortcuts, chord bindings, and keybindings.json.                            |
 
@@ -143,7 +144,7 @@ atlas-config/
 ├── claudecode/.claude/       ← Stow package → symlinked to ~/.claude/
 │   ├── settings.json         ← Hooks, identity, statusline, permissions
 │   ├── CLAUDE.md             ← Agent context injection
-│   ├── skills/               ← 45 skill modules
+│   ├── skills/               ← 46 skill modules
 │   │   ├── PAI/              ← Core algorithm and system docs
 │   │   ├── Fabric/           ← 240+ prompt patterns
 │   │   └── ...               ← Domain-specific skills
