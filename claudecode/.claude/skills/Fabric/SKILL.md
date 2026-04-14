@@ -1,6 +1,6 @@
 ---
 name: Fabric
-description: Intelligent prompt pattern system with 240+ specialized patterns for content analysis, extraction, and transformation. USE WHEN user says 'use fabric', 'fabric pattern', 'run fabric', 'update fabric', 'update patterns', 'sync fabric', 'extract wisdom', 'summarize with fabric', 'create threat model', 'analyze with fabric', OR any request to apply Fabric patterns to content.
+description: Intelligent prompt pattern system with 265 specialized patterns for content analysis, extraction, and transformation. USE WHEN user says 'use fabric', 'fabric pattern', 'run fabric', 'update fabric', 'update patterns', 'sync fabric', 'pull patterns', 'extract wisdom', 'summarize with fabric', 'create threat model', 'analyze with fabric', OR any request to apply Fabric patterns to content.
 ---
 
 ## Customization
@@ -31,7 +31,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
 
 # Fabric
 
-Intelligent prompt pattern system providing 240+ specialized patterns for content analysis, extraction, summarization, threat modeling, and transformation.
+Intelligent prompt pattern system providing 265 specialized patterns for content analysis, extraction, summarization, threat modeling, and transformation.
 
 **Patterns Location:** `${CLAUDE_SKILL_DIR}/Patterns/`
 
@@ -89,7 +89,7 @@ Instead of calling `fabric -p pattern_name`, PAI executes patterns natively:
 
 ### When to Use Fabric CLI Directly
 
-Only use `fabric` command for:
+Only use `fabric-ai` command for:
 - **`-y URL`** - YouTube transcript extraction
 - **`-u URL`** - URL content fetching (when native fetch fails)
 
@@ -108,7 +108,7 @@ Only use `fabric` command for:
 
 ### Full Pattern Catalog
 
-See `PatternCatalog.md` for complete list of 240+ patterns organized by category.
+See `PatternCatalog.md` for complete list of 265 patterns organized by category.
 
 ---
 
@@ -129,7 +129,7 @@ Patterns/
 │   └── system.md
 ├── create_threat_model/
 │   └── system.md
-└── ...240+ patterns
+└── ...265 patterns
 ```
 
 Each pattern's `system.md` contains the full prompt that defines:
@@ -162,7 +162,7 @@ Each pattern's `system.md` contains the full prompt that defines:
 - **Security** - Threat modeling and analysis
 
 ### Uses
-- **fabric CLI** - For YouTube transcripts (`-y`) and URL fetching (`-u`)
+- **fabric-ai CLI** - For YouTube transcripts (`-y`) and URL fetching (`-u`)
 - **Native execution** - Direct pattern application (preferred)
 
 ---
@@ -171,7 +171,7 @@ Each pattern's `system.md` contains the full prompt that defines:
 
 | Path | Purpose |
 |------|---------|
-| `${CLAUDE_SKILL_DIR}/Patterns/` | Local pattern storage (240+) |
+| `${CLAUDE_SKILL_DIR}/Patterns/` | Local pattern storage (265) |
 | `${CLAUDE_SKILL_DIR}/PatternCatalog.md` | Full pattern documentation |
 | `${CLAUDE_SKILL_DIR}/Workflows/` | Execution workflows |
 | `${CLAUDE_SKILL_DIR}/Tools/` | CLI utilities |
@@ -179,6 +179,13 @@ Each pattern's `system.md` contains the full prompt that defines:
 ---
 
 ## Changelog
+
+### 2026-04-10
+- Updated patterns from upstream (fabric-ai v1.4.444)
+- 237 -> 265 patterns (28 new from upstream, 12 custom preserved)
+- Created UpdatePatterns.md workflow (was missing)
+- Updated CLI reference: binary is `fabric-ai` (Homebrew)
+- Notable new patterns: audit_consent, audit_transparency, check_falsifiability, create_design_system, detect_mind_virus, extract_ethical_framework, greybeard_secure_prompt_engineer, ultimate_law_safety
 
 ### 2026-01-18
 - Initial skill creation (extracted from PAI/Tools/fabric)

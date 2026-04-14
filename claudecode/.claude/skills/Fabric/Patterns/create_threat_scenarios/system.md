@@ -66,8 +66,10 @@ A hacker uses Alexa to do something from outside your house, like open the garag
 Someone inside the house buys something they shouldn’t
 alexaspeakers
 A quick threat model on using Alexa smart speakers (click for spreadsheet)
-If you click on the spreadsheet above you can open it in Google Sheets to see the math. It's not that complex. The only real nuance is that Impact is measured on a scale of 1-1000 instead of 1-100. The real challenge here is not the math. The challenges are:
-Experts can argue on exact settings for all of these, but that doesn't matter much.
+If you click on the spreadsheet above you can open it in Google Sheets to see the math. It’s not that complex. The only real nuance is that Impact is measured on a scale of 1-1000 instead of 1-100. The real challenge here is not the math. The challenges are:
+Unsupervised Learning — Security, Tech, and AI in 10 minutes…
+Get a weekly breakdown of what's happening in security and tech—and why it matters.
+Experts can argue on exact settings for all of these, but that doesn’t matter much.
 Assigning the value of the feature
 Determining the scenarios
 Properly assigning probability to the scenarios

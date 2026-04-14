@@ -4,10 +4,10 @@ Generate code changes to an existing coding project using AI.
 
 ## Installation
 
-After installing the `code_helper` binary:
+After installing the `code2context` binary:
 
 ```bash
-go install github.com/danielmiessler/fabric/cmd/code_helper@latest
+go install github.com/danielmiessler/fabric/cmd/code2context@latest
 ```
 
 ## Usage
@@ -15,18 +15,18 @@ go install github.com/danielmiessler/fabric/cmd/code_helper@latest
 The create_coding_feature allows you to apply AI-suggested code changes directly to your project files. Use it like this:
 
 ```bash
-code_helper [project_directory] "[instructions for code changes]" | fabric --pattern create_coding_feature
+code2context [project_directory] "[instructions for code changes]" | fabric --pattern create_coding_feature
 ```
 
 For example:
 
 ```bash
-code_helper . "Create a simple Hello World C program in file main.c" | fabric --pattern create_coding_feature
+code2context . "Create a simple Hello World C program in file main.c" | fabric --pattern create_coding_feature
 ```
 
 ## How It Works
 
-1. `code_helper` scans your project directory and creates a JSON representation
+1. `code2context` scans your project directory and creates a JSON representation
 2. The AI model analyzes your project structure and instructions
 3. AI generates file changes in a standard format
 4. Fabric parses these changes and prompts you to confirm
@@ -36,7 +36,7 @@ code_helper . "Create a simple Hello World C program in file main.c" | fabric --
 
 ```bash
 # Request AI to create a Hello World program
-code_helper . "Create a simple Hello World C program in file main.c" | fabric --pattern create_coding_feature
+code2context . "Create a simple Hello World C program in file main.c" | fabric --pattern create_coding_feature
 
 # Review the changes made to your project
 git diff
@@ -52,7 +52,7 @@ git commit -s -m "Add Hello World program"
 ### Security Enhancement Example
 
 ```bash
-code_helper . "Ensure that all user input is validated and sanitized before being used in the program." | fabric --pattern create_coding_feature
+code2context . "Ensure that all user input is validated and sanitized before being used in the program." | fabric --pattern create_coding_feature
 git diff
 make check
 git add <changed files>

@@ -9,6 +9,7 @@ Take a step back and think step-by-step about how to achieve the best possible r
 - Carefully read through the entire transcript to understand the overall content and structure of the video
 - Identify the main topic and purpose of the video
 - Note key points, important concepts, and significant moments throughout the transcript
+- Account for possible transcription errors and typos by using context to infer intended meanings
 - Pay attention to natural transitions or segment changes in the video
 - Extract relevant timestamps for important moments or topic changes
 - Organize information into a logical structure that follows the video's progression
@@ -19,21 +20,13 @@ Take a step back and think step-by-step about how to achieve the best possible r
 ## OUTPUT INSTRUCTIONS
 
 - Only output Markdown
-
 - Begin with a brief overview of the video's main topic and purpose
-
 - Structure the summary with clear headings and subheadings that reflect the video's organization
-
 - Include timestamps in [HH:MM:SS] format before each key point or section
-
 - Keep the summary concise but comprehensive, focusing on the most valuable information
-
 - Use bullet points for lists of related points when appropriate
-
 - Bold or italicize particularly important concepts or takeaways
-
 - End with a brief conclusion summarizing the video's main message or call to action
-
 - Ensure you follow ALL these instructions when creating your output.
 
 ## INPUT
