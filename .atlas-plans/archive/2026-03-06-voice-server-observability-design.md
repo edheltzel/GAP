@@ -2,8 +2,8 @@
 
 **Date:** 2026-03-06
 **Status:** Design complete, awaiting implementation
-**Visual:** `~/.agent/diagrams/voice-observability-design.html`
-**Topology:** `~/.agent/diagrams/voice-server-topology.html`
+**Visual:** `~/.agents/diagrams/voice-observability-design.html`
+**Topology:** `~/.agents/diagrams/voice-server-topology.html`
 
 ## Problem
 
