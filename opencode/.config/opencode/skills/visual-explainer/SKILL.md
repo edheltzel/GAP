@@ -169,11 +169,11 @@ Keep animations purposeful: entrance reveals, hover feedback, and user-initiated
 
 ### 4. Deliver
 
-**Output location:** Write to `~/.agent/diagrams/`. Use a descriptive filename based on content: `modem-architecture.html`, `pipeline-flow.html`, `schema-overview.html`. The directory persists across sessions.
+**Output location:** Write to `~/.agents/diagrams/`. Use a descriptive filename based on content: `modem-architecture.html`, `pipeline-flow.html`, `schema-overview.html`. The directory persists across sessions.
 
 **Open in browser:**
-- macOS: `open ~/.agent/diagrams/filename.html`
-- Linux: `xdg-open ~/.agent/diagrams/filename.html`
+- macOS: `open ~/.agents/diagrams/filename.html`
+- Linux: `xdg-open ~/.agents/diagrams/filename.html`
 
 **Tell the user** the file path so they can re-open or share it.
 

@@ -1,10 +1,12 @@
 {
-  "lastChangelogVersion": "0.64.0",
+  "lastChangelogVersion": "0.66.1",
   "defaultProvider": "opencode-go",
   "defaultModel": "minimax-m2.7",
   "theme": "atlas-eldritch",
   "quietStartup": true,
-  "packages": ["npm:pi-mcp-adapter"],
+  "packages": [
+    "npm:pi-mcp-adapter"
+  ],
   "skills": [
     "skills/beans",
     "skills/brave-search",
