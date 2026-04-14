@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ClosePR: close or merge stale pull requests on GitHub/GitLab
   - ResolveConflicts: guided conflict resolution before cleanup operations
   - AuditRepo: full repo audit with ranked cleanup priority list
+- Fabric pattern sync: `sanitize_broken_html_to_markdown`, `suggest_openclaw_pattern`, `suggest_gt_command`, `extract_ethical_framework`, `extract_insights_dm`, `create_design_system`, `audit_transparency`, `detect_silent_victims`, `detect_mind_virus`, `check_falsifiability`, plus `Workflows/UpdatePatterns.md`
+- PI Agent skill symlinks: `karpathy-guidelines`, `seo-backlinks`, `seo-dataforseo`, `seo-google`, `seo-image-gen`, `seo-maps`
+- New plan: `2026-04-10-voice-system-architectural-overhaul.md`
+
+### Changed
+- `.atlas-plans/` entries renamed from cryptic codenames to `YYYY-MM-DD-description.md` format per CLAUDE.md convention; 7 completed plans moved to `.atlas-plans/archive/`
+- `visual-explainer` skill updated across claudecode, pi-agent, and opencode (SKILL.md + commands: share, plan-review, project-recap, generate-slides, generate-visual-plan, generate-web-diagram, diff-review, fact-check)
+- `opencode` plan-review and project-recap commands refreshed
+
+### Removed
+- Obsolete `/Users/ed/.kanban-code/hook.sh` hook entries from `settings.json` (Notification, Stop, SessionStart lifecycle events)
 
 ## [4.0.34] - 2026-04-01
 
