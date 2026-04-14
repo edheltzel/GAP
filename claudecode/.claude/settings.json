@@ -75,18 +75,6 @@
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [],
   "hooks": {
-    "Notification": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "AskUserQuestion",
@@ -287,11 +275,6 @@
             "type": "command",
             "command": "${PAI_DIR}/hooks/IntegrityCheck.hook.ts",
             "timeout": 30000
-          },
-          {
-            "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh",
-            "timeout": 5000
           }
         ]
       }
@@ -308,11 +291,6 @@
             "type": "command",
             "command": "${PAI_DIR}/hooks/LoadContext.hook.ts",
             "timeout": 30000
-          },
-          {
-            "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh",
-            "timeout": 5000
           }
         ]
       },
@@ -356,11 +334,6 @@
             "type": "command",
             "command": "${PAI_DIR}/hooks/StopOrchestrator.hook.ts",
             "timeout": 30000
-          },
-          {
-            "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh",
-            "timeout": 5000
           }
         ]
       },
@@ -404,11 +377,6 @@
             "type": "command",
             "command": "${PAI_DIR}/hooks/SessionAutoName.hook.ts",
             "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "/Users/ed/.kanban-code/hook.sh",
-            "timeout": 5000
           }
         ]
       },
@@ -930,16 +898,16 @@
     "skills/PAI/USER/DAIDENTITY.md"
   ],
   "counts": {
-    "skills": 0,
+    "skills": 37,
     "workflows": 0,
     "hooks": 4,
-    "signals": 1159,
+    "signals": 1232,
     "files": 42,
-    "work": 3964,
-    "sessions": 86,
+    "work": 4072,
+    "sessions": 94,
     "research": 0,
-    "ratings": 1159,
-    "updatedAt": "2026-04-06T18:40:58.647Z"
+    "ratings": 1232,
+    "updatedAt": "2026-04-14T20:47:05.305Z"
   },
   "daidentity": {
     "color": "#A48CF2",
@@ -1074,5 +1042,5 @@
       ]
     }
   },
-  "model": "sonnet"
+  "model": "opus[1m]"
 }
