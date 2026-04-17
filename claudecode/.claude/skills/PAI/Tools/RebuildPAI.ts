@@ -13,11 +13,14 @@ import { readdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const HOME = process.env.HOME!;
-const CORE_DIR = join(HOME, ".claude/skills/PAI");
+// PAI_BUILD_ROOT: override to point at a worktree's skill root (e.g. worktree/.claude/skills/PAI).
+// Note: PAI_DIR in settings.json means ~/.claude (the .claude root), not the skill root —
+// we use a distinct name to avoid a naming clash with that established convention.
+const CORE_DIR = process.env.PAI_BUILD_ROOT || join(HOME, ".claude/skills/PAI");
 const COMPONENTS_DIR = join(CORE_DIR, "Components");
 const ALGORITHM_DIR = join(COMPONENTS_DIR, "Algorithm");
 const OUTPUT_FILE = join(CORE_DIR, "SKILL.md");
-const SETTINGS_PATH = join(HOME, ".claude/settings.json");
+const SETTINGS_PATH = join(process.env.PAI_CONFIG_DIR || join(HOME, ".claude"), "settings.json");
 
 /**
  * Load identity variables from settings.json for template resolution

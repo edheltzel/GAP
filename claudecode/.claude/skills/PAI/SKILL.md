@@ -1,13 +1,15 @@
-<!--
-  🔨 GENERATED FILE - Do not edit directly
-  Edit:   ~/.claude/skills/PAI/Components/
-  Build:  bun ~/.claude/skills/PAI/Tools/RebuildPAI.ts
-  Built:  16 March 2026 20:16:34
--->
 ---
 name: PAI
 description: Personal AI Infrastructure core. The authoritative reference for how PAI works.
 ---
+
+<!--
+  🔨 GENERATED FILE - Do not edit directly
+  Edit:   ~/.claude/skills/PAI/Components/
+  Build:  bun ~/.claude/skills/PAI/Tools/RebuildPAI.ts
+  Built:  17 April 2026 17:32:54
+-->
+
 
 # Intro to PAI
 
@@ -32,7 +34,7 @@ The CapabilityRecommender hook uses AI inference to classify depth. Its classifi
 
 🔧 CHANGE: [What you're doing differently]
 ✅ VERIFY: [Evidence it worked]
-🗣️ Atlas: [Result summary]
+🗣️ PAI: [Result summary]
 ```
 
 **Default:** FULL. MINIMAL is rare — only pure social interaction with zero task content. Short prompts can demand FULL depth. The word "just" does not reduce depth.
@@ -274,7 +276,7 @@ OUTPUT:
 🏹 CAPABILITIES SELECTED:
  🏹 [12-24 words on why only those CAPABILITIES were selected]
 
-- **VERIFY LOAD-BEARING ASSUMPTIONS:** If any ISC criterion depends on a technical assumption (e.g., sequential execution, dominant cost source, feature availability), test that assumption empirically with a quick check (2-10 seconds) before building ISC around it. Unverified assumptions are the #1 cause of wasted criteria.
+- **VERIFY LOAD-BEARING ASSUMPTIONS:** Before leaving OBSERVE, identify every criterion that rests on a testable assumption (e.g., "hooks run sequentially", "the CSS cascade resolves this way", "this function returns X", "this service is available", "dominant cost source is Y"). Verify each assumption in the smallest possible experiment — read the file, run a one-liner, check a browser console, grep for the symbol — BEFORE writing criteria or planning around it. Two minutes of verification prevents N criteria of rework. Unverified assumptions are the #1 cause of wasted criteria.
 - **DISAMBIGUATION (conditional):** If the user's request contains terms that could map to 2+ distinct systems or interpretations, fire `AskUserQuestion` before deep investigation. Do not guess — clarify.
 - If any CAPABILITIES were selected for use in the OBSERVE phase, execute them now and update the ISC criteria in the PRD with the results
 
@@ -341,6 +343,8 @@ OUTPUT:
 
 [Prerequisite validation. Update ISC in PRD if necessary. Reanalyze CAPABILITIES to see if any need to be added.]
 
+- **Scan for independent subtasks.** After selecting CAPABILITIES, scan the criteria list for work that has no mutual dependency. If 2+ criteria can execute independently (e.g., multiple file edits in separate modules, parallel research queries, independent test runs), mandate parallel agent dispatch — never run 3+ independent operations sequentially when they could run concurrently. Parallelism is not optional for independent work; it is the default.
+
 - **WRITE TO PRD (MANDATORY):** For Advanced+ effort, add a `### Plan` subsection to `## Context` with technical approach and key decisions.
 
 ━━━ 🔨 BUILD ━━━ 4/7
@@ -373,6 +377,8 @@ OUTPUT:
 ━━━ 📚 LEARN ━━━ 7/7
 
 **FIRST ACTION:** Voice announce `"Entering the Learn phase."`, then Edit PRD frontmatter `phase: learn, updated: {timestamp}`. After reflection, set `phase: complete`. Algorithm reflection and improvement
+
+- **Default to visuals for architectural/strategic output.** For tasks involving architecture, audit findings, design systems, strategic recommendations, or multi-component system descriptions — produce an HTML visual report alongside the text summary. Use the `generate-web-diagram` or `project-recap` skills. A static HTML report with clickable diagrams is 5x more actionable than paragraphs. For pure code changes or simple Q&A, text-only is correct — do not over-apply.
 
 - **WRITE TO PRD (MANDATORY):** Set frontmatter `phase: complete`. No changelog section needed — git history serves this purpose.
 
@@ -415,6 +421,20 @@ If after compaction you don't know your current phase or criteria status:
 2. PRD frontmatter has phase, progress, effort, mode, task, slug, started, updated (optional: iteration)
 3. PRD body has criteria checkboxes, decisions, verification evidence
 4. `~/.claude/MEMORY/STATE/work.json` has the registry of all sessions (populated by read-only PRDSync + PRDStateSync hooks)
+
+### LOG Compaction Checkpoints
+
+**Compaction checkpoint entries.** Every 3-5 LOG entries, or before any potential compaction boundary, write a checkpoint entry in the PRD's `## Verification` section (or inline in `## Decisions`) with this exact structure:
+
+```
+## COMPACTION CHECKPOINT — <timestamp>
+**Verified implemented:** [list of criteria with evidence]
+**Remaining:** [list of criteria still to complete]
+**Current PRD state:** [one-paragraph summary of the PRD as it stands now]
+**Active assumptions:** [any load-bearing assumptions that haven't been verified yet]
+```
+
+This format survives compaction because the summarizer can quote it verbatim. Without a checkpoint, compaction discards granular criterion status and active assumptions, producing silent regressions in later phases. Use this proactively — do not wait until context pressure is visible.
 
 ### PRD.md Format
 
@@ -461,8 +481,8 @@ When decomposing:
 ## Configuration
 
 Custom values in `settings.json`:
-- `daidentity.name` - DA's name (Atlas)
-- `principal.name` - User's name (Ed)
+- `daidentity.name` - DA's name (PAI)
+- `principal.name` - User's name (User)
 - `principal.timezone` - User's timezone
 
 ---

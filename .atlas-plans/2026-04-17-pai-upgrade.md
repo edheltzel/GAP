@@ -26,16 +26,33 @@
 
 **POST-MERGE STEP:** `RebuildPAI.ts` hardcodes `$HOME/.claude/skills/PAI/` paths, so running it from a worktree writes to the stow target, not the worktree. After merging this branch to main and restowing, run `bun ~/.claude/skills/PAI/Tools/RebuildPAI.ts` to regenerate `SKILL.md` from the updated v3.7.0-atlas.md. The component change is live; only the generated SKILL.md is stale until regenerated.
 
-### Tier 3 — MEDIUM (backlog)
+### Tier 3 — MEDIUM (committed 2026-04-17)
 
-| # | Item | Files |
-|---|------|-------|
-| 5 | MCP Elicitation + ElicitationResult hooks | new hook + BrightData/chrome-devtools |
-| 8 | `xhigh` effort tier in ModelRouter | `hooks/ModelRouter.hook.ts` |
-| 12 | `anthropic/maxResultSizeChars` on BrightData MCP | `.mcp.json` |
-| 13 | `refreshInterval` for atlas-statusline | `settings.json` |
-| 14 | MCP Elicitation support | duplicate of 5? — verify |
-| R4 | Visual output in DELIVER phase | Algorithm spec |
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 5 | MCP Elicitation hook | ✅ | New `hooks/ElicitationHandler.hook.ts` — observe-only, appends JSONL to `MEMORY/LEARNING/mcp-elicitations.jsonl`. Defensive schema typing (field names not yet in official docs). Registered in settings.json. ElicitationResult intentionally NOT wired — out of scope. |
+| 8 | `xhigh` effort in ModelRouter | ❌ N/A | Current ModelRouter has no effort mapping — only uses `state.sla` as a display label in the system-reminder. The PAIUpgrade report's EFFORT_MAP suggestion was aspirational. Adding one would require inventing structure. Deferred unless Ed explicitly wants to add it. |
+| 12 | `maxResultSizeChars` on BrightData | ❌ N/A | Atlas BrightData is a skill-level workflow (curl to Bright Data API), NOT an MCP server. Annotation doesn't apply. |
+| 13 | `refreshInterval` for statusline | ✅ | Added `"refreshInterval": 30` to `statusLine` block in settings.json. Live-updates model/token/cost every 30 seconds. |
+| 14 | MCP Elicitation support | ✅ | Duplicate of #5 — handled by the ElicitationHandler. |
+| R2 | Parallelization scan in PLAN | ✅ | Added to Algorithm v3.7.0-atlas.md PLAN phase. "Never run 3+ independent operations sequentially when they could run concurrently." |
+| R4 | Visual output in DELIVER | ✅ | Added to LEARN phase (no DELIVER phase in current Algorithm). Default-to-visuals for architecture/audit/strategic tasks. |
+
+### Tier 4 — LOW (awareness only — no code changes)
+
+| # | Item | Disposition |
+|---|------|-------------|
+| 3d | `defer` decision in SecurityValidator | Only relevant for `-p` pipeline use. No current driver. Document only. |
+| 6 | MCP structured tool output | Requires MCP server rewrites outside Atlas. Track upstream. |
+| 10 | Monitor anthropics/skills repo | Ongoing; not a code change. |
+| 11 | `ENABLE_PROMPT_CACHING_1H` | Irrelevant on Max plan. Document if Atlas ever uses API key billing. |
+
+### Infrastructure fixes (bonus — committed 2026-04-17)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| PAI/SKILL.md malformed frontmatter | ✅ | Root cause: `00-frontmatter.md` placed HTML comment before `---`. Swapped order in the component. Build-timestamp injection in RebuildPAI.ts still works verbatim. Regenerated SKILL.md now has `---` at byte 0. |
+| RebuildPAI.ts can't regenerate from worktree | ✅ | Added `PAI_BUILD_ROOT` env var (defaults to `$HOME/.claude/skills/PAI`). Running RebuildPAI.ts with `PAI_BUILD_ROOT=<worktree>/claudecode/.claude/skills/PAI` now reads/writes the worktree. Also added `PAI_CONFIG_DIR` for settings.json path override. |
 
 ### Tier 4 — LOW (awareness / future)
 
