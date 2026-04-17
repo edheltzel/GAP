@@ -14,15 +14,17 @@
 | 1 | InstructionsLoaded.hook.ts confirmed schema | 🚧 Parallel agent | Replace defensive fallback with typed `InstructionsLoadedInput` interface. Preserve existing behavior while tightening field access. |
 | 9 | SKILL.md front-matter audit | 🚧 Parallel agent | Sweep `claudecode/.claude/skills/*/SKILL.md`, add missing `name`/`description`/`version` YAML frontmatter. Use claude-api skill as reference. |
 
-### Tier 2 — HIGH (next session after Tier 1 reviewed)
+### Tier 2 — HIGH (committed 2026-04-17)
 
-| # | Item | Files |
-|---|------|-------|
-| 3 | PreCompact hook for Algorithm state preservation | new `hooks/PreCompact.hook.ts`, `settings.json` |
-| 4 | UserPromptSubmit `sessionTitle` for zero-cost naming | `hooks/SessionAutoName.hook.ts` |
-| 7 | PermissionDenied hook for denial tracking | new `hooks/PermissionDenied.hook.ts`, `settings.json` |
-| R1 | Verify-before-proceeding pattern in OBSERVE | `skills/PAI/Components/Algorithm/v3.7.0-atlas.md` |
-| R3 | Compaction-resilient LOG format | Algorithm LOG spec |
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 3 | PreCompact hook | ✅ | New `hooks/PreCompact.hook.ts` — reads MEMORY/WORK/<slug>/LOG.md tail (~3000 chars), emits via `hookSpecificOutput.additionalContext`. Never blocks. Registered in settings.json. Verified happy-path + graceful-degradation. |
+| 4 | UserPromptSubmit `sessionTitle` | ✅ | Additive edit to `SessionAutoName.hook.ts` — emits sessionTitle in customTitle-sync branch + storeName path. Haiku inference preserved. TS null-narrowing fix included. |
+| 7 | PermissionDenied hook | ✅ | New `hooks/PermissionDenied.hook.ts` — appends JSONL to `MEMORY/LEARNING/permission-denials.jsonl`. Observe-only (no retry logic yet). Registered alphabetically between InstructionsLoaded and PermissionRequest. |
+| R1 | Verify-before-proceeding | ✅ | Expanded existing `VERIFY LOAD-BEARING ASSUMPTIONS` bullet in OBSERVE (v3.7.0-atlas.md line 238) with "before leaving OBSERVE", rationale, examples. |
+| R3 | Compaction-resilient LOG format | ✅ | Added `### LOG Compaction Checkpoints` subsection with structured checkpoint template (Verified implemented / Remaining / Current PRD state / Active assumptions). |
+
+**POST-MERGE STEP:** `RebuildPAI.ts` hardcodes `$HOME/.claude/skills/PAI/` paths, so running it from a worktree writes to the stow target, not the worktree. After merging this branch to main and restowing, run `bun ~/.claude/skills/PAI/Tools/RebuildPAI.ts` to regenerate `SKILL.md` from the updated v3.7.0-atlas.md. The component change is live; only the generated SKILL.md is stale until regenerated.
 
 ### Tier 3 — MEDIUM (backlog)
 
