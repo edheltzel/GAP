@@ -417,25 +417,30 @@
     "command": "$PAI_DIR/atlas-statusline.sh"
   },
   "enabledPlugins": {
-    "claudit@quickstop": true,
     "frontend-design@claude-plugins-official": true,
     "playground@claude-plugins-official": true,
     "code-review@claude-plugins-official": false,
     "code-simplifier@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": false,
     "explanatory-output-style@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "superpowers@claude-plugins-official": false,
     "context7@claude-plugins-official": true,
-    "figma@claude-plugins-official": true,
     "php-lsp@claude-plugins-official": true,
     "lua-lsp@claude-plugins-official": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
     "ralph-loop@claude-plugins-official": false
   },
-  "extraKnownMarketplaces": {},
+  "extraKnownMarketplaces": {
+    "agricidaniel-seo": {
+      "source": {
+        "source": "github",
+        "repo": "AgriciDaniel/claude-seo"
+      },
+      "autoUpdate": true
+    }
+  },
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
@@ -898,16 +903,16 @@
     "skills/PAI/USER/DAIDENTITY.md"
   ],
   "counts": {
-    "skills": 37,
+    "skills": 38,
     "workflows": 0,
     "hooks": 4,
-    "signals": 1232,
+    "signals": 1263,
     "files": 42,
-    "work": 4072,
-    "sessions": 94,
+    "work": 4133,
+    "sessions": 103,
     "research": 0,
-    "ratings": 1232,
-    "updatedAt": "2026-04-14T20:47:05.305Z"
+    "ratings": 1263,
+    "updatedAt": "2026-04-17T14:36:30.354Z"
   },
   "daidentity": {
     "color": "#A48CF2",
@@ -936,7 +941,11 @@
       "Atlas, ready to go",
       "Atlas, ready and engaged",
       "Atlas online, let's build something",
-      "Atlas here, what are we working on?"
+      "Atlas here, what are we working on?",
+      "Atlas, locked and loaded",
+      "Hey Ed, lets do this",
+      "Lets Fucking Go!!!!",
+      "Atlas engaged, what are me hacking?"
     ],
     "voiceId": "21m00Tcm4TlvDq8ikWAM",
     "voices": {
@@ -981,20 +990,10 @@
       "topic": "${NTFY_TOPIC}"
     },
     "routing": {
-      "backgroundAgent": [
-        "ntfy"
-      ],
-      "error": [
-        "ntfy",
-        "discord"
-      ],
-      "longTask": [
-        "ntfy"
-      ],
-      "security": [
-        "ntfy",
-        "discord"
-      ],
+      "backgroundAgent": ["ntfy"],
+      "error": ["ntfy", "discord"],
+      "longTask": ["ntfy"],
+      "security": ["ntfy", "discord"],
       "taskComplete": []
     },
     "thresholds": {
@@ -1036,11 +1035,7 @@
   "mcpServers": {
     "recall-memory": {
       "command": "/Users/ed/.bun/bin/bun",
-      "args": [
-        "run",
-        "/Users/ed/.bun/bin/mem-mcp"
-      ]
+      "args": ["run", "/Users/ed/.bun/bin/mem-mcp"]
     }
-  },
-  "model": "opus[1m]"
+  }
 }
