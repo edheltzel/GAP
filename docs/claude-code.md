@@ -31,12 +31,12 @@ just up   # restow after changes
 3. **Algorithm executes** → 7-phase cycle (Observe → Think → Plan → Build → Execute → Verify → Learn)
 4. **Skills invoked** → `/research`, `/commit`, `/browser`, etc. via `Skill` tool
 5. **PRDs track work** → `~/.claude/MEMORY/WORK/{slug}/PRD.md` as session artifacts
-6. **Plans stored** → `.atlas-plans/` at project root (mandatory)
+6. **Plans stored** → `.atlas/plans/` at project root (mandatory)
 7. **Session ends** → `Stop` hooks fire (session extract, learning capture)
 
 ## Plans and PRDs
 
-- **Plans** (handoffs, design docs, implementation plans): `.atlas-plans/` at project root — mandatory, git-tracked
+- **Plans** (handoffs, design docs, implementation plans): `.atlas/plans/` at project root — mandatory, git-tracked
 - **PRDs** (Algorithm session artifacts): `~/.claude/MEMORY/WORK/` — internal, not git-tracked
 
 ## Voice

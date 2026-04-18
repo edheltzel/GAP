@@ -2,13 +2,22 @@
 
 The rules below are MANDATORY and apply to every session, every project, every agent.
 
-## Plans Directory (MANDATORY)
+## `.atlas/` Directory (MANDATORY)
 
-All plans, handoff documents, and design documents MUST be stored in `.atlas-plans/` at the project root.
-- Always use `.atlas-plans/` — never `docs/plans/`, never inline in other directories
-- Create `.atlas-plans/` if it doesn't exist
-- Use `.atlas-plans/archive/` for completed plans
+All project-local Atlas artifacts MUST live under `.atlas/` at the project root:
+
+| Path                          | Purpose                                    |
+|-------------------------------|--------------------------------------------|
+| `.atlas/plans/`               | Active plan/design/architecture docs       |
+| `.atlas/plans/archive/`       | Completed plans                            |
+| `.atlas/handoffs/`            | Session handoff docs                       |
+| `.atlas/handoffs/archive/`    | Consumed handoffs                          |
+
+- Always use `.atlas/plans/` — never `docs/plans/`, never `.atlas-plans/` (legacy), never inline in other directories
+- Create `.atlas/plans/` (or `.atlas/handoffs/`) if it doesn't exist
+- Use `.atlas/plans/archive/` for completed plans (singular `archive/`, not `archived/`)
 - File naming: `YYYY-MM-DD-description.md` (kebab-case)
+- Legacy `.atlas-plans/` layouts can be migrated with `/MigrateAtlasDir` (dry-run by default)
 - This applies to ALL projects, no exceptions
 
 ## Git Worktrees (MANDATORY)

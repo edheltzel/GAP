@@ -6,11 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Fixed
-- `atlas-statusline.sh`: remove duplicate worktree tag when `.worktree.name` equals the cwd basename (the worktree folder *is* the cwd, so rendering both was redundant)
-- `atlas-statusline.sh`: drop session title from header; Claude Code v2.1.114+ renders it natively as a chip above the prompt input, making the statusline copy duplicative
+### Changed
+- **BREAKING convention:** project-local Atlas artifacts moved from `.atlas-plans/` to `.atlas/` namespace. Plans live at `.atlas/plans/` (archive at `.atlas/plans/archive/`), handoffs at `.atlas/handoffs/` (archive at `.atlas/handoffs/archive/`). Singular `archive/`, not `archived/`.
+- Updated all rule surfaces: `CLAUDE.md` (root + `claudecode/.claude/`), `opencode/.config/opencode/AGENTS.md`, `pi-agent/.pi/agent/AGENTS.md`
+- Updated all handoff + plan skills: `CreateHandoff`, `ReviewHandoff`, `list-plans`, `archive-plan` across claudecode, opencode, and pi-agent packages
+- Updated `x-plan-create`, `x-plan-implement`, and `PAIUpgrade/Workflows/SyncUpstream.md`
+- `claudecode/.claude/settings.json`: `plansDirectory` bumped from `./.atlas-plans` to `./.atlas/plans`
+- README.md + `docs/{claude-code,opencode,pi-agent,pai-update-guide}.md` all updated
+- Physical migration of atlas-config's own plans: `.atlas-plans/` → `.atlas/plans/` at repo root, and `pi-agent/.pi/agent/.atlas-plans/` → `pi-agent/.pi/agent/.atlas/plans/` (via `git mv` so history follows the rename)
 
 ### Added
+- **`/MigrateAtlasDir`** slash command (Claude Code + OpenCode) and `/skill:migrate-atlas-dir` Pi skill for per-project `.atlas-plans/` → `.atlas/` migration. Dry-run by default; pass `execute` to perform. Uses `git mv` when in a repo, refuses to clobber existing destination files, and leaves the rename staged for the user to commit.
 - GitCleanup skill: prune stale worktrees, branches, PRs, and issues across local and remote
   - SweepLocal: remove stale worktrees and associated local branches
   - SweepRemote: delete merged remote branches via `gh` CLI (GitHub-first)
@@ -21,8 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PI Agent skill symlinks: `karpathy-guidelines`, `seo-backlinks`, `seo-dataforseo`, `seo-google`, `seo-image-gen`, `seo-maps`
 - New plan: `2026-04-10-voice-system-architectural-overhaul.md`
 
-### Changed
-- `.atlas-plans/` entries renamed from cryptic codenames to `YYYY-MM-DD-description.md` format per CLAUDE.md convention; 7 completed plans moved to `.atlas-plans/archive/`
+### Fixed
+- `atlas-statusline.sh`: remove duplicate worktree tag when `.worktree.name` equals the cwd basename (the worktree folder *is* the cwd, so rendering both was redundant)
+- `atlas-statusline.sh`: drop session title from header; Claude Code v2.1.114+ renders it natively as a chip above the prompt input, making the statusline copy duplicative
+
+### Changed (other)
+- `.atlas-plans/` entries renamed from cryptic codenames to `YYYY-MM-DD-description.md` format per CLAUDE.md convention; 7 completed plans moved to `.atlas-plans/archive/` (superseded by the `.atlas/` namespace rename above)
 - `visual-explainer` skill updated across claudecode, pi-agent, and opencode (SKILL.md + commands: share, plan-review, project-recap, generate-slides, generate-visual-plan, generate-web-diagram, diff-review, fact-check)
 - `opencode` plan-review and project-recap commands refreshed
 

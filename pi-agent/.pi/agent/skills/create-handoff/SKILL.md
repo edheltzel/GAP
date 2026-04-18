@@ -1,22 +1,22 @@
 ---
 name: create-handoff
-description: Create a session handoff doc in .atlas-plans/handoffs/ and dump the session to Recall so /clear is safe. Use when context is running low and you want to resume cleanly in a new session. Invoke directly with /skill:create-handoff [optional-slug].
+description: Create a session handoff doc in .atlas/handoffs/ and dump the session to Recall so /clear is safe. Use when context is running low and you want to resume cleanly in a new session. Invoke directly with /skill:create-handoff [optional-slug].
 allowed-tools: Read, Write, Bash(git:*), Bash(mkdir:*), Bash(mem:*), Bash(date:*)
 ---
 
 # Create Handoff
 
-Capture the current session so it can be resumed cleanly after `/clear`. Writes a structured handoff document to `.atlas-plans/handoffs/` **and** dumps the session to the Recall database so nothing is lost when the context window is reset.
+Capture the current session so it can be resumed cleanly after `/clear`. Writes a structured handoff document to `.atlas/handoffs/` **and** dumps the session to the Recall database so nothing is lost when the context window is reset.
 
 Arguments are appended as user input after this skill loads. If the user supplied text after `/skill:create-handoff`, treat it as a slug/title hint. If not, infer a short slug from the current task (3–6 words, kebab-case).
 
 ## Behavior
 
-1. **Derive slug.** If user supplied args, slugify them (lowercase, kebab-case, strip punctuation). Otherwise infer from current task context. Compute today's date via `date +%Y-%m-%d` and the target path: `.atlas-plans/handoffs/YYYY-MM-DD-handoff-{slug}.md`.
+1. **Derive slug.** If user supplied args, slugify them (lowercase, kebab-case, strip punctuation). Otherwise infer from current task context. Compute today's date via `date +%Y-%m-%d` and the target path: `.atlas/handoffs/YYYY-MM-DD-handoff-{slug}.md`.
 
 2. **Ensure directories exist:**
    ```bash
-   mkdir -p .atlas-plans/handoffs/archive
+   mkdir -p .atlas/handoffs/archive
    ```
 
 3. **Capture git state.** Run these and include the output in the handoff doc:
@@ -80,7 +80,7 @@ Arguments are appended as user input after this skill loads. If the user supplie
    ```
    /skill:review-handoff {filename}
    ```
-   Or just `/skill:review-handoff` — it defaults to the newest handoff in `.atlas-plans/handoffs/`.
+   Or just `/skill:review-handoff` — it defaults to the newest handoff in `.atlas/handoffs/`.
    ```
 
 5. **Dump the session to Recall:**
@@ -99,4 +99,4 @@ Arguments are appended as user input after this skill loads. If the user supplie
 
 - Handoff doc = source of truth for next session. Recall dump = backstop for ad-hoc details.
 - Do not summarize the entire conversation — focus on what's needed to continue. The Recall dump captures the rest.
-- Create `.atlas-plans/handoffs/` and `archive/` if they don't yet exist.
+- Create `.atlas/handoffs/` and `archive/` if they don't yet exist.

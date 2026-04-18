@@ -247,7 +247,7 @@ After applying upstream changes, run these hygiene checks on `CLAUDE.md`:
 
 1. **Remove "This file does nothing"** — upstream PAI ships CLAUDE.md with this placeholder line. If present, replace with `# Atlas — Global Agent Rules` header. This line causes agents to deprioritize the mandatory rules that follow it.
 2. **Verify mandatory sections exist** — check that these sections are present (they're Atlas additions, not upstream):
-   - `## Plans Directory (MANDATORY)` — `.atlas-plans/` rule
+   - `## Plans Directory (MANDATORY)` — `.atlas/plans/` rule
    - `## Git Worktrees (MANDATORY)` — worktree-first rule
    - `## MEMORY` — Recall integration
 3. **If any mandatory section was removed by the merge**, restore it from git (`git show HEAD:claudecode/.claude/CLAUDE.md`).

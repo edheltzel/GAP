@@ -25,7 +25,7 @@ just up   # restow after changes
 2. **User sends prompt** → Agent processes with configured model
 3. **Complex tasks** → Ant Colony auto-triggers for 3+ file changes or 2+ independent workstreams
 4. **Subagents available** → `scout`, `planner`, `reviewer`, `worker`, `remover`
-5. **Plans stored** → `.atlas-plans/` at project root (mandatory)
+5. **Plans stored** → `.atlas/plans/` at project root (mandatory)
 
 ## Built-in Tools
 
@@ -51,4 +51,4 @@ For complex tasks (3+ files, 2+ workstreams), PI Agent automatically uses ant co
 
 ## Plans
 
-All plans, handoffs, and design documents use `.atlas-plans/` at the project root. This is mandatory — `docs/plans/` is not used.
+All plans, handoffs, and design documents use `.atlas/plans/` at the project root. This is mandatory — `docs/plans/` is not used.

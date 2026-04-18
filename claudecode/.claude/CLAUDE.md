@@ -6,21 +6,25 @@ Read the PAI system for system understanding and initiation:
 
 The rules below are MANDATORY and apply to every session, every project, every agent.
 
-## Plans Directory (MANDATORY)
+## `.atlas/` Directory (MANDATORY)
 
-All plans, handoff documents, and design documents MUST be stored in `.atlas-plans/` at the project root. This applies to:
-- Implementation plans
-- Design documents
-- Handoff documents
-- Architecture decisions
-- Any plan-like artifact
+All project-local Atlas artifacts MUST live under `.atlas/` at the project root:
+
+| Path                          | Purpose                                    |
+|-------------------------------|--------------------------------------------|
+| `.atlas/plans/`               | Active plan/design/architecture docs       |
+| `.atlas/plans/archive/`       | Completed plans                            |
+| `.atlas/handoffs/`            | Session handoff docs                       |
+| `.atlas/handoffs/archive/`    | Consumed handoffs (archived on read)       |
 
 **Rules:**
-- Always use `.atlas-plans/` — never `docs/plans/`, never inline in other directories
-- Create `.atlas-plans/` if it doesn't exist
-- Use `.atlas-plans/archive/` for completed plans
+- Always use `.atlas/plans/` — never `docs/plans/`, never `.atlas-plans/` (legacy), never inline in other directories
+- Create `.atlas/plans/` (or `.atlas/handoffs/`) if it doesn't exist
+- Use `.atlas/plans/archive/` for completed plans, `.atlas/handoffs/archive/` for consumed handoffs (singular `archive/`, not `archived/`)
 - File naming: `YYYY-MM-DD-description.md` (kebab-case) — use today's date and a clear rundown of the plan title (e.g., `2026-04-05-migrate-auth-to-jwt.md`), never arbitrary or cryptic names
 - This applies to ALL projects, ALL agents, no exceptions
+
+**Legacy migration:** projects that still use the old `.atlas-plans/` layout can be migrated in-place with `/MigrateAtlasDir` (Claude Code / OpenCode) or `/skill:migrate-atlas-dir` (Pi). Dry-run by default; append `execute` to perform.
 
 ## Git Worktrees (MANDATORY)
 

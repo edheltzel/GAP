@@ -1,10 +1,10 @@
 ---
-description: "Create a session handoff doc in .atlas-plans/handoffs/ and dump the session to Recall so /clear is safe"
+description: "Create a session handoff doc in .atlas/handoffs/ and dump the session to Recall so /clear is safe"
 ---
 
 # Create Handoff
 
-Capture the current session so it can be resumed cleanly after `/clear`. Writes a structured handoff document to `.atlas-plans/handoffs/` **and** dumps the session to the Recall database so nothing is lost when the context window is reset.
+Capture the current session so it can be resumed cleanly after `/clear`. Writes a structured handoff document to `.atlas/handoffs/` **and** dumps the session to the Recall database so nothing is lost when the context window is reset.
 
 **Optional slug/title:** $ARGUMENTS
 
@@ -12,11 +12,11 @@ Use this when the context window is getting tight and you want to `/clear` witho
 
 ## Behavior
 
-1. **Derive slug.** If `$ARGUMENTS` is provided, slugify it (kebab-case). Otherwise, infer a short slug from the current task under discussion (3–6 words, kebab-case). Compute today's date and the target path: `.atlas-plans/handoffs/YYYY-MM-DD-handoff-{slug}.md`.
+1. **Derive slug.** If `$ARGUMENTS` is provided, slugify it (kebab-case). Otherwise, infer a short slug from the current task under discussion (3–6 words, kebab-case). Compute today's date and the target path: `.atlas/handoffs/YYYY-MM-DD-handoff-{slug}.md`.
 
 2. **Ensure directories exist:**
    ```bash
-   mkdir -p .atlas-plans/handoffs/archive
+   mkdir -p .atlas/handoffs/archive
    ```
 
 3. **Capture git state.** Run these and include the output in the handoff doc:
@@ -81,7 +81,7 @@ Use this when the context window is getting tight and you want to `/clear` witho
    ```
    /ReviewHandoff {filename}
    ```
-   Or just `/ReviewHandoff` — it defaults to the newest handoff in `.atlas-plans/handoffs/`.
+   Or just `/ReviewHandoff` — it defaults to the newest handoff in `.atlas/handoffs/`.
    ```
 
 5. **Dump the session to Recall:**
@@ -100,4 +100,4 @@ Use this when the context window is getting tight and you want to `/clear` witho
 
 - The handoff doc is the source of truth for the next session; Recall is the backstop so ad-hoc details (chat exchanges, tangents, micro-decisions) remain searchable.
 - Do not attempt to summarize the entire conversation — focus on what's needed to continue the work. The Recall dump captures everything else.
-- If `.atlas-plans/handoffs/` doesn't exist yet, create it in step 2. Do the same for `archive/`.
+- If `.atlas/handoffs/` doesn't exist yet, create it in step 2. Do the same for `archive/`.

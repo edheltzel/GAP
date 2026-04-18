@@ -905,7 +905,7 @@
     ]
   },
   "effortLevel": "high",
-  "plansDirectory": "./.atlas-plans",
+  "plansDirectory": "./.atlas/plans",
   "skipDangerousModePermissionPrompt": true,
   "skipAutoPermissionPrompt": true,
   "_docs": {

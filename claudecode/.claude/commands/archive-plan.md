@@ -1,10 +1,10 @@
 ---
-description: "Move a plan from .atlas-plans/ to .atlas-plans/archive/ [plan filename]"
+description: "Move a plan from .atlas/plans/ to .atlas/plans/archive/ [plan filename]"
 ---
 
 # Archive Plan
 
-Move a completed plan from `.atlas-plans/` to `.atlas-plans/archive/`.
+Move a completed plan from `.atlas/plans/` to `.atlas/plans/archive/`.
 
 **Plan to archive:** $ARGUMENTS
 
@@ -12,27 +12,27 @@ Move a completed plan from `.atlas-plans/` to `.atlas-plans/archive/`.
 
 1. If no argument provided, list active plans and ask which to archive:
    ```
-   eza -1 .atlas-plans/*.md 2>/dev/null
+   eza -1 .atlas/plans/*.md 2>/dev/null
    ```
 
-2. Verify the file exists in `.atlas-plans/`:
+2. Verify the file exists in `.atlas/plans/`:
    ```
-   ls .atlas-plans/<filename>
+   ls .atlas/plans/<filename>
    ```
 
 3. Ensure archive directory exists:
    ```
-   mkdir -p .atlas-plans/archive
+   mkdir -p .atlas/plans/archive
    ```
 
 4. Move to archive:
    ```
-   mv .atlas-plans/<filename> .atlas-plans/archive/<filename>
+   mv .atlas/plans/<filename> .atlas/plans/archive/<filename>
    ```
 
 5. Confirm the move:
    ```
-   Archived: .atlas-plans/<filename> → .atlas-plans/archive/<filename>
+   Archived: .atlas/plans/<filename> → .atlas/plans/archive/<filename>
    ```
 
 $@

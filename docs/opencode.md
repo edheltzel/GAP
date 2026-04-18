@@ -30,16 +30,16 @@ just up   # restow after changes
 2. **User sends prompt** → Agent processes with configured model
 3. **Skills/commands invoked** → `/x-plan-create`, `/commit`, `/voice`, etc.
 4. **Subagents spawned** → `codebase-analyzer`, `workflow-locator`, researchers, etc.
-5. **Plans stored** → `.atlas-plans/` at project root (mandatory)
+5. **Plans stored** → `.atlas/plans/` at project root (mandatory)
 
 ## Plans
 
 - **Create:** `/x-plan-create` — interactive plan creation with research agents
 - **Implement:** `/x-plan-implement` — execute an approved plan phase by phase
 - **List:** `/list-plans` — show active and archived plans
-- **Archive:** `/archive-plan` — move completed plans to `.atlas-plans/archive/`
+- **Archive:** `/archive-plan` — move completed plans to `.atlas/plans/archive/`
 
-All plan commands target `.atlas-plans/` at the project root.
+All plan commands target `.atlas/plans/` at the project root.
 
 ## Voice
 

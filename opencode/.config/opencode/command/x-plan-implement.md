@@ -8,7 +8,7 @@ tools:
 
 # Implement Plan
 
-You are tasked with implementing an approved technical plan from `.atlas-plans/`. These plans contain phases with specific changes and success criteria.
+You are tasked with implementing an approved technical plan from `.atlas/plans/`. These plans contain phases with specific changes and success criteria.
 
 **Plan to implement:** $ARGUMENTS
 
@@ -26,9 +26,9 @@ If no plan path provided, ask for one:
 ```
 I'm ready to implement a technical plan. Please provide the path to the plan file.
 
-Example: `/implement_plan .atlas-plans/2025-01-08-ENG-1478-parent-child-tracking.md`
+Example: `/implement_plan .atlas/plans/2025-01-08-ENG-1478-parent-child-tracking.md`
 
-You can find available plans with: `ls .atlas-plans/`
+You can find available plans with: `ls .atlas/plans/`
 ```
 
 ## Implementation Philosophy

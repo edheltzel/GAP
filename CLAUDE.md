@@ -35,18 +35,31 @@ The VoiceServer is documented in [`claudecode/.claude/VoiceServer/README.md`](cl
 
 ## Session Handoff Workflow
 
-A cross-agent pair of slash commands for safely clearing a session when the context window is running low. Usable from Claude Code, OpenCode, or Pi — all three write to the same `.atlas-plans/handoffs/` path and dump to the same Recall database, so a handoff from any agent can be resumed in any other.
+A cross-agent pair of slash commands for safely clearing a session when the context window is running low. Usable from Claude Code, OpenCode, or Pi — all three write to the same `.atlas/handoffs/` path and dump to the same Recall database, so a handoff from any agent can be resumed in any other.
 
-- **CreateHandoff** — writes `.atlas-plans/handoffs/YYYY-MM-DD-handoff-{slug}.md` (task, done/next, key decisions, files touched, git state, open questions) and runs `mem dump` before `/clear`. Files:
+- **CreateHandoff** — writes `.atlas/handoffs/YYYY-MM-DD-handoff-{slug}.md` (task, done/next, key decisions, files touched, git state, open questions) and runs `mem dump` before `/clear`. Files:
   - `claudecode/.claude/commands/CreateHandoff.md` (Claude Code) → `/CreateHandoff`
   - `opencode/.config/opencode/command/CreateHandoff.md` (OpenCode) → `/CreateHandoff`
   - `pi-agent/.pi/agent/skills/create-handoff/SKILL.md` (Pi) → `/skill:create-handoff`
-- **ReviewHandoff** — reads the newest (or specified) handoff, flags git-state drift, archives the file to `.atlas-plans/handoffs/archive/`, and continues the work. Files:
+- **ReviewHandoff** — reads the newest (or specified) handoff, flags git-state drift, archives the file to `.atlas/handoffs/archive/`, and continues the work. Files:
   - `claudecode/.claude/commands/ReviewHandoff.md` → `/ReviewHandoff`
   - `opencode/.config/opencode/command/ReviewHandoff.md` → `/ReviewHandoff`
   - `pi-agent/.pi/agent/skills/review-handoff/SKILL.md` → `/skill:review-handoff`
 
 Archiving happens on **read**, not completion — a resumed session that runs out of context again can create a fresh handoff without colliding with the previous one.
+
+## `.atlas/` Directory Convention
+
+All project-local Atlas artifacts live under `.atlas/`:
+
+| Path                          | Purpose                                    |
+|-------------------------------|--------------------------------------------|
+| `.atlas/plans/`               | Active plan/design docs                    |
+| `.atlas/plans/archive/`       | Completed plans                            |
+| `.atlas/handoffs/`            | Session handoff docs                       |
+| `.atlas/handoffs/archive/`    | Consumed handoffs (archived on read)       |
+
+To migrate a project from the old `.atlas-plans/` layout, run **`/MigrateAtlasDir`** (dry-run by default; append `execute` to perform). See the command docs in each agent package for details.
 
 ## For Humans
 
