@@ -7,7 +7,7 @@ description: Personal AI Infrastructure core. The authoritative reference for ho
   🔨 GENERATED FILE - Do not edit directly
   Edit:   ~/.claude/skills/PAI/Components/
   Build:  bun ~/.claude/skills/PAI/Tools/RebuildPAI.ts
-  Built:  17 April 2026 17:32:54
+  Built:  18 April 2026 08:17:45
 -->
 
 
@@ -34,7 +34,7 @@ The CapabilityRecommender hook uses AI inference to classify depth. Its classifi
 
 🔧 CHANGE: [What you're doing differently]
 ✅ VERIFY: [Evidence it worked]
-🗣️ PAI: [Result summary]
+🗣️ Atlas: [Result summary]
 ```
 
 **Default:** FULL. MINIMAL is rare — only pure social interaction with zero task content. Short prompts can demand FULL depth. The word "just" does not reduce depth.
@@ -481,8 +481,8 @@ When decomposing:
 ## Configuration
 
 Custom values in `settings.json`:
-- `daidentity.name` - DA's name (PAI)
-- `principal.name` - User's name (User)
+- `daidentity.name` - DA's name (Atlas)
+- `principal.name` - User's name (Ed)
 - `principal.timezone` - User's timezone
 
 ---

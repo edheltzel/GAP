@@ -20,7 +20,12 @@ const CORE_DIR = process.env.PAI_BUILD_ROOT || join(HOME, ".claude/skills/PAI");
 const COMPONENTS_DIR = join(CORE_DIR, "Components");
 const ALGORITHM_DIR = join(COMPONENTS_DIR, "Algorithm");
 const OUTPUT_FILE = join(CORE_DIR, "SKILL.md");
-const SETTINGS_PATH = join(process.env.PAI_CONFIG_DIR || join(HOME, ".claude"), "settings.json");
+// SETTINGS_PATH: always resolves to Claude Code's settings.json under $HOME/.claude.
+// Do NOT honor PAI_CONFIG_DIR here — that var is set in Ed's shell to ~/.config/PAI
+// (where PAI's .env lives, used by tools like YouTubeApi.ts) and has a different meaning
+// than Claude Code's settings directory. For worktree builds that need an alternate
+// settings source, set PAI_BUILD_SETTINGS explicitly.
+const SETTINGS_PATH = process.env.PAI_BUILD_SETTINGS || join(HOME, ".claude", "settings.json");
 
 /**
  * Load identity variables from settings.json for template resolution
