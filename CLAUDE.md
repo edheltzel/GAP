@@ -33,6 +33,21 @@ The VoiceServer is documented in [`claudecode/.claude/VoiceServer/README.md`](cl
 - **Voice conversations**: [VoiceLayer](https://github.com/EtanHey/voicelayer) MCP server provides bidirectional converse mode (Silero VAD + whisper.cpp STT + Edge TTS)
 - **Agent-agnostic**: No coding-agent-specific code in the server — integration is consumer-side
 
+## Session Handoff Workflow
+
+A cross-agent pair of slash commands for safely clearing a session when the context window is running low. Usable from Claude Code, OpenCode, or Pi — all three write to the same `.atlas-plans/handoffs/` path and dump to the same Recall database, so a handoff from any agent can be resumed in any other.
+
+- **CreateHandoff** — writes `.atlas-plans/handoffs/YYYY-MM-DD-handoff-{slug}.md` (task, done/next, key decisions, files touched, git state, open questions) and runs `mem dump` before `/clear`. Files:
+  - `claudecode/.claude/commands/CreateHandoff.md` (Claude Code) → `/CreateHandoff`
+  - `opencode/.config/opencode/command/CreateHandoff.md` (OpenCode) → `/CreateHandoff`
+  - `pi-agent/.pi/agent/skills/create-handoff/SKILL.md` (Pi) → `/skill:create-handoff`
+- **ReviewHandoff** — reads the newest (or specified) handoff, flags git-state drift, archives the file to `.atlas-plans/handoffs/archive/`, and continues the work. Files:
+  - `claudecode/.claude/commands/ReviewHandoff.md` → `/ReviewHandoff`
+  - `opencode/.config/opencode/command/ReviewHandoff.md` → `/ReviewHandoff`
+  - `pi-agent/.pi/agent/skills/review-handoff/SKILL.md` → `/skill:review-handoff`
+
+Archiving happens on **read**, not completion — a resumed session that runs out of context again can create a fresh handoff without colliding with the previous one.
+
 ## For Humans
 
 See **[README.md](README.md)** for a human-friendly overview of PAI, Atlas, all available skills, and setup instructions.

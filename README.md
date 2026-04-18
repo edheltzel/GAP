@@ -135,6 +135,15 @@ Tools for managing and improving Atlas itself.
 | **UpdateDocs**      | `/update-docs`      | Scans git history, updates README.md and CLAUDE.md to reflect current project state.                       |
 | **KeybindingsHelp** | `/keybindings-help` | Customize Claude Code keyboard shortcuts, chord bindings, and keybindings.json.                            |
 
+### Session Handoff (cross-agent)
+
+A paired workflow for safely clearing a session when the context window is running low. Works across Claude Code, OpenCode, and Pi — a handoff created in one agent can be resumed in any of them because all three write to the same `.atlas-plans/handoffs/` path and the same Recall database.
+
+| Command | Claude Code / OpenCode | Pi | What It Does |
+| ------- | ---------------------- | -- | ------------ |
+| **CreateHandoff** | `/CreateHandoff [slug]` | `/skill:create-handoff [slug]` | Writes a structured handoff doc (task, done/next, decisions, files touched, git state, open questions) to `.atlas-plans/handoffs/YYYY-MM-DD-handoff-{slug}.md` and runs `mem dump` so the session lands in Recall before `/clear`. Warns if the worktree is dirty. |
+| **ReviewHandoff** | `/ReviewHandoff [file]` | `/skill:review-handoff [file]` | Reads the newest handoff (or a specified file), summarizes it, flags any git-state drift, archives the file to `.atlas-plans/handoffs/archive/`, and continues the work. Meant to be the first thing run in a fresh session after `/clear`. |
+
 ---
 
 ## Repo Structure
