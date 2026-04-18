@@ -400,6 +400,28 @@
         ]
       }
     ],
+    "Elicitation": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/ElicitationHandler.hook.ts",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/PermissionDenied.hook.ts",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
     "PermissionRequest": [
       {
         "matcher": "*",
@@ -410,11 +432,23 @@
           }
         ]
       }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PAI_DIR}/hooks/PreCompact.hook.ts",
+            "timeout": 10000
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
     "type": "command",
-    "command": "$PAI_DIR/atlas-statusline.sh"
+    "command": "$PAI_DIR/atlas-statusline.sh",
+    "refreshInterval": 30
   },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,

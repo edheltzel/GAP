@@ -264,6 +264,7 @@ async function main() {
 
   if (!hookInput?.session_id) {
     process.exit(0);
+    return;
   }
 
   const sessionId = hookInput.session_id;
@@ -279,6 +280,12 @@ async function main() {
     const cachePath = paiPath('MEMORY', 'STATE', 'session-name-cache.sh');
     writeFileSync(cachePath, cacheContent, 'utf-8');
     console.error(`[SessionAutoName] Synced customTitle: "${customTitle}"`);
+    console.log(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "UserPromptSubmit",
+        sessionTitle: customTitle
+      }
+    }));
     process.exit(0);
   }
 
@@ -350,6 +357,12 @@ async function main() {
     const cachePath = paiPath('MEMORY', 'STATE', 'session-name-cache.sh');
     writeFileSync(cachePath, cacheContent, 'utf-8');
     console.error(`[SessionAutoName] ${isRework ? 'Rejuvenated' : 'Named'} session: "${label}" (${source})`);
+    console.log(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "UserPromptSubmit",
+        sessionTitle: label
+      }
+    }));
   }
 
   // Try AI-generated name first
