@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+- `atlas-statusline.sh`: remove duplicate worktree tag when `.worktree.name` equals the cwd basename (the worktree folder *is* the cwd, so rendering both was redundant)
+- `atlas-statusline.sh`: drop session title from header; Claude Code v2.1.114+ renders it natively as a chip above the prompt input, making the statusline copy duplicative
+
 ### Added
 - GitCleanup skill: prune stale worktrees, branches, PRs, and issues across local and remote
   - SweepLocal: remove stale worktrees and associated local branches

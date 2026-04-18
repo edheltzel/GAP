@@ -397,9 +397,12 @@ ver_suffix_plain="${model_name_short}"
 }
 
 # Build context tags (worktree, agent, output style) for header
+# Skip worktree tag when it duplicates the cwd basename (common case — the worktree
+# folder IS the cwd, so showing both is redundant).
 ctx_tags=""
 ctx_tags_plain=""
-[ -n "${worktree_name:-}" ] && {
+cwd_basename="${current_dir##*/}"
+[ -n "${worktree_name:-}" ] && [ "${worktree_name}" != "${cwd_basename}" ] && {
   ctx_tags="${ctx_tags} ${SLATE_600}·${RESET} ${WORKTREE_COLOR}⎇ ${worktree_name}${RESET}"
   ctx_tags_plain="${ctx_tags_plain} · ⎇ ${worktree_name}"
 }
@@ -420,21 +423,14 @@ micro)
   printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}\n"
   ;;
 *)
-  if [ -n "$session_display" ]; then
-    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain} · ${session_display}${ctx_tags_plain} "
-    local_left_len=${#local_left}
-    local_fill=$((72 - local_left_len))
-    [ "$local_fill" -lt 2 ] && local_fill=2
-    local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
-  else
-    local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain}${ctx_tags_plain} "
-    local_left_len=${#local_left}
-    local_fill=$((72 - local_left_len))
-    [ "$local_fill" -lt 2 ] && local_fill=2
-    local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
-  fi
+  # Session title intentionally omitted — Claude Code v2.1.114+ renders it natively
+  # as a chip above the prompt input, so showing it here would duplicate.
+  local_left="▲ Atlas v${PAI_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain}${ctx_tags_plain} "
+  local_left_len=${#local_left}
+  local_fill=$((72 - local_left_len))
+  [ "$local_fill" -lt 2 ] && local_fill=2
+  local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
+  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
   ;;
 esac
 
