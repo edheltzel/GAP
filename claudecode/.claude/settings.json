@@ -70,7 +70,7 @@
       "Write(~/.ssh/*)",
       "Edit(~/.ssh/*)"
     ],
-    "defaultMode": "default"
+    "defaultMode": "auto"
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [],
@@ -907,6 +907,7 @@
   "effortLevel": "high",
   "plansDirectory": "./.atlas-plans",
   "skipDangerousModePermissionPrompt": true,
+  "skipAutoPermissionPrompt": true,
   "_docs": {
     "_env": {
       "BASH_DEFAULT_TIMEOUT_MS": "Default timeout for bash commands in milliseconds.",
@@ -1024,10 +1025,20 @@
       "topic": "${NTFY_TOPIC}"
     },
     "routing": {
-      "backgroundAgent": ["ntfy"],
-      "error": ["ntfy", "discord"],
-      "longTask": ["ntfy"],
-      "security": ["ntfy", "discord"],
+      "backgroundAgent": [
+        "ntfy"
+      ],
+      "error": [
+        "ntfy",
+        "discord"
+      ],
+      "longTask": [
+        "ntfy"
+      ],
+      "security": [
+        "ntfy",
+        "discord"
+      ],
       "taskComplete": []
     },
     "thresholds": {
@@ -1069,7 +1080,11 @@
   "mcpServers": {
     "recall-memory": {
       "command": "/Users/ed/.bun/bin/bun",
-      "args": ["run", "/Users/ed/.bun/bin/mem-mcp"]
+      "args": [
+        "run",
+        "/Users/ed/.bun/bin/mem-mcp"
+      ]
     }
-  }
+  },
+  "awaySummaryEnabled": false
 }
