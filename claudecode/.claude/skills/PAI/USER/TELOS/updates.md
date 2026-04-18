@@ -1,5 +1,38 @@
 # TELOS Update Log
 
+## 2026-04-18 — TELOS Chat Session (Conversation)
+
+Atlas and Ed had a long, grounded conversation about current business pressures. Ed did most of the thinking; Atlas mostly reflected, reframed, and captured what emerged. Ended with "nothing to fix" — the session itself was the work.
+
+**Key state changes:**
+- **Phoenix Fabricators (PFE)**, a ~$60K/yr Rainy Day Media customer, ended the relationship since 2026-03-25. Financial hit was real; the felt relief was the signal — RDM sunset is emotionally overdue even though not yet financially viable.
+- **New suppliers found for PeptideWare** — previous single-supplier / single-carrier risk is resolved.
+- **PeptideWare "Sales Decline" reframed** as an operational *variance* problem rather than a demand problem. Averages ~$3K/month but inconsistently; KPI goal is 1 order/day consistently.
+- **Payment processing is structurally constrained**: high-risk merchant classification means CC descriptor and chargeback mechanics are federally regulated and not fixable at the merchant level. LinkMoney (bank-to-bank) has ~12% fallback-to-CC rate; fees lowest available and accepted in exchange.
+- **"Duplicate orders"** clarified as Ed's deliberate customer-service choice (reship-on-issue), not a broken operational pattern.
+
+**The Four-Pressure Frame** (surfaced in conversation):
+1. Strategic bet — MyChron loan + collateral decision (with Jason, Puerto Rico jurisdiction).
+2. Operational grind — PeptideWare consistency. *Ed picked this as the "1% this week" lever.*
+3. Identity shift — RDM sunset, BJJ reconsideration.
+4. Health co-management — Ed + Kristina, diet, Parkinson's, RA.
+
+**TELOS files updated:**
+- `PROBLEMS.md` — PeptideWare entry reframed to variance/consistency focus; Business Structure entry updated with Phoenix context.
+- `PROJECTS.md` — PeptideWare description corrected (peptide sales DBA Detogo Research Group, not creative services/hosting — that was misattributed from RDM in earlier iterations); RDM entry updated with Phoenix loss.
+- `CHALLENGES.md` — added BJJ reconsideration and financial-variance anxiety sections; corrected RDM vs PeptideWare attribution on AI-disruption note.
+- `STRATEGIES.md` — added "Customer Service as Instinct" and "Shield Kristina From Money Stress".
+- `WISDOM.md` — added three new entries: relief-as-data, irritation-vs-stress, variance-as-enemy.
+
+**Correction:** "Alionsa" --> "Alianza" across PROJECTS.md and PROBLEMS.md (historical `updates.md` entries left unchanged).
+
+**Key observations not yet captured as TELOS entries (worth watching):**
+- MyChron remains "the golden goose egg" in Ed's framing — highest-stakes, slowest-clock decision.
+- $4K lost shipment from supplier / FedEx: formal claims filed; pending resolution.
+- The "Four-Pressure Frame" itself may be worth adding to FRAMES.md if it keeps being useful in future conversations.
+
+**Backups:** timestamp 20260418-163110 (initial spelling correction) and 20260418-171214 (full session batch)
+
 ## 2026-03-25 — Major TELOS Expansion (Voice Interview)
 
 Atlas conducted a voice interview with Ed to fill empty placeholders and deepen thin areas.

@@ -1,8 +1,11 @@
 # Active Projects
 
 ## PeptideWare
-- Creative services industry and hosting technology
-- Revenue engine to fund MyChron
+- Peptide sales business (DBA of Detogo Research Group)
+- High-risk merchant classification — payment processing constraints are structural, not solvable
+- Revenue engine intended to fund MyChron development
+- Current operational focus: *consistency* (1 order/day as floor), not growth
+- Customer service as core differentiator (reship-on-issue policy)
 - Currently Ed's primary business
 
 ## MyChron
@@ -19,10 +22,11 @@
 
 ## Rainy Day Media (RDM)
 - Client work arm — web development and creative services
-- Targeted for sunset so Ed can focus on PeptideWare, MyChron, and Alionsa Health Partners
+- Targeted for sunset so Ed can focus on PeptideWare, MyChron, and Alianza Health Partners
 - Currently still needed for income while MyChron seeks funding
+- **April 2026:** Lost Phoenix Fabricators (PFE), a ~$60K/yr customer. Financial hit was real; the felt relief was notable — the body decided on sunset before strategy did. Remaining RDM clients are less demanding and closer to Ed's values.
 
-## Alionsa Health Partners
+## Alianza Health Partners
 - New entity co-founded with business partner Jason
 - Related to the MyChron health ecosystem
 - Starting to gain traction but will likely require a loan to scale

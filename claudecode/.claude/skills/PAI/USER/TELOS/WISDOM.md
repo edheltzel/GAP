@@ -12,3 +12,8 @@
 - Life is more than what's in front of your screen. Touch grass. Be around people. Build things. Use your hands. You don't know when you're going to lose all of that.
 - Have the ability to think clearly without fog and have the motivation to do things without additional chemicals like caffeine. Just do.
 - Don't waste time planning the rest of your life because none of that means anything. Just do the things you want.
+
+## On Business and Self
+- **A loss that feels freeing is data.** When a big obligation ends and the first feeling is relief, the body decided on exit before the strategy did. Listen to that signal — it's usually ahead of the spreadsheet.
+- **Keep irritation and stress separate.** Operational irritations (chargebacks, mis-shipments, processor quirks) are solvable or acceptable. Stress is about things that actually threaten the foundation. Don't let irritations dress themselves up as stress — they borrow weight they haven't earned.
+- **Variance is the enemy, not volume.** Averaging a KPI while missing it inconsistently is a variance problem, not a demand problem. The fix is anti-fragility (redundancy in supply, payment, and fulfillment), not more effort at the top of the funnel.

@@ -1,0 +1,83 @@
+# TELOS Update Log
+
+## 2026-04-18 — Spelling Correction + Phoenix Fabricators Context (Voice Chat)
+
+Atlas and Ed chatted through current weight on TELOS.
+
+**Correction:**
+- "Alionsa" --> "Alianza" across PROJECTS.md and PROBLEMS.md (historical entries in updates.md left unchanged)
+
+**New context captured in chat (to be written into TELOS on next pass):**
+- Phoenix Fabricators (PFE), a ~$60K/yr Rainy Day Media customer, ended the relationship since March 25. Hit was real, but the relief was notable — signal that the RDM sunset is overdue in body if not in finance.
+- PeptideWare had its second-biggest month (~$3K) despite three hits: $4K lost to FedEx/supplier delivery failure (wrong address, no investigation), free-sample delivery inconsistencies via USPS, and chargebacks driven by DBA-name mismatch on card statements.
+- Focus choice (the "1% this week" answer): **operational consistency of PeptideWare — 1 order/day shipped consistently would mitigate most non-MyChron financial concerns.**
+- MyChron loan remains the weightiest strategic decision; personal equity with Jason, potential collateral, Puerto Rico jurisdictional wrinkle.
+- Health is framed as lifelong ongoing co-management (Ed + Kristina), not a problem to solve.
+- BJJ: considering dialing back competing and possibly coaching — grief-adjacent identity shift, not urgent.
+
+**Backups:** PROJECTS.md and PROBLEMS.md backed up with timestamp 20260418-163110
+
+## 2026-03-25 — Major TELOS Expansion (Voice Interview)
+
+Atlas conducted a voice interview with Ed to fill empty placeholders and deepen thin areas.
+
+**Files rewritten (from placeholder):**
+- FRAMES.md — 4 frames: Family Protection Filter, Scenario Simulation, Read the Room, Gut vs. Emotion Check
+- NARRATIVES.md — 3 narratives: The Imposter (self-perception), The Tree (family's perception), Faith-Driven Family Unit
+- PROBLEMS.md — 3 active problems: Recall (agent-agnostic memory), PeptideWare sales decline, sunset Rainy Day Media
+
+**Files expanded:**
+- BOOKS.md — Added 5: The Bible, Art of War, Art of the Deal, 1984, formative technical books
+- MOVIES.md — Added 7: NeverEnding Story, BeastMaster, Star Wars OT, Star Trek TNG, Casino, Reservoir Dogs, Ren & Stimpy
+- WRONG.md — Added 3: BJJ friend betrayal, political trust (Trump), pricing/client selection
+- PREDICTIONS.md — Added AI Bubble section (investment/utility correction, anti-hype not anti-AI)
+- PROJECTS.md — Added 3: Rainy Day Media (sunset target), Alionsa Health Partners (with Jason), Recall
+
+**Corrections:**
+- CHALLENGES.md — Fixed wife's name from Evelyn to Kristina
+- All files — Wife's name is Kristina (with K), son is Lucas
+
+**Key insights:**
+- Star Trek TNG's ship computer is the direct inspiration for Atlas voice mode
+- Business partner Jason co-founded Alionsa Health Partners
+- Ed self-identifies with imposter syndrome despite evidence of capability
+- Conservative communication style: speak when spoken to, read the room first
+
+**Backups:** All files backed up to Backups/ with timestamp 20260325-*
+
+## 2026-03-16 — AI Lessons (Voice Interview)
+
+Atlas conducted a voice interview with Ed to extract AI and coding agent lessons.
+
+**File updated:**
+- LEARNED.md — Added 7 AI lessons:
+  1. Never trust first-pass AI output — always verify
+  2. One-shotting is marketing theater — most AI Twitter is performative
+  3. Treat AI like a new hire, not a mind reader — onboarding is the workflow
+  4. Community packages are starting points, not destinations
+  5. Agent-agnostic systems win — PAI should work on CC, OpenCode, and PI
+  6. Multi-model strategy — Opus for planning, efficient models for execution
+  7. Prompts, skills, and MCPs are a layered architecture
+
+**Backup:** LEARNED.md.20260316-132127
+
+## 2026-03-06 — Initial Population (Voice Interview)
+
+Atlas conducted a voice interview with Ed to populate Telos from scratch.
+
+**Files created:**
+- TELOS.md — Framework overview
+- MISSION.md — Life mission (1% better daily, legacy of mutual support)
+- BELIEFS.md — Faith, golden rule, technology as service, build-for-reuse
+- GOALS.md — PeptideWare, MyChron, cure Parkinson's/RA, retire by ~2033
+- CHALLENGES.md — Health/mobility, MyChron fundraising, AI industry disruption
+- WISDOM.md — 8 life wisdom entries from experience
+- MODELS.md — Stay between the lanes, gut decisions, need-driven building, double duty
+- STRATEGIES.md — Double duty business, PeptideWare-to-MyChron pipeline, AI-first dev
+- BOOKS.md — Building a Second Brain
+- MOVIES.md — Forrest Gump
+- PREDICTIONS.md — Personal OS era, SaaS decline, digital warfare, AI displacement
+- WRONG.md — Humility with age, physical limitations
+- PROJECTS.md — PeptideWare, MyChron, Atlas
+
+**Placeholder files:** FRAMES.md, NARRATIVES.md, PROBLEMS.md, LEARNED.md, TRAUMAS.md
