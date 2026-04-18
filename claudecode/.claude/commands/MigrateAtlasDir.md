@@ -1,5 +1,5 @@
 ---
-description: "Migrate a project's .atlas-plans/ layout to the new .atlas/ namespace (plans + handoffs)"
+description: "Migrate .atlas-plans/ to .atlas/ (plans + handoffs). Dry-run by default; append `execute` to perform."
 ---
 
 # Migrate Atlas Dir
