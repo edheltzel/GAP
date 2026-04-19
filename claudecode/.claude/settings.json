@@ -314,6 +314,24 @@
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/TelosSync.ts",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionRecall.ts"
+          }
+        ]
       }
     ],
     "InstructionsLoaded": [
@@ -439,6 +457,16 @@
           {
             "type": "command",
             "command": "${PAI_DIR}/hooks/PreCompact.hook.ts",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionPreCompact.ts",
             "timeout": 10000
           }
         ]
@@ -940,14 +968,14 @@
   "counts": {
     "skills": 38,
     "workflows": 0,
-    "hooks": 4,
-    "signals": 1307,
+    "hooks": 5,
+    "signals": 1313,
     "files": 50,
-    "work": 4205,
+    "work": 4213,
     "sessions": 106,
     "research": 0,
-    "ratings": 1307,
-    "updatedAt": "2026-04-18T21:15:54.811Z"
+    "ratings": 1313,
+    "updatedAt": "2026-04-19T13:20:21.239Z"
   },
   "daidentity": {
     "color": "#A48CF2",
