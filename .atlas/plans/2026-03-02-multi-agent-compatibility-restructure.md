@@ -1,3 +1,13 @@
+---
+title: PAI Multi-Agent Compatibility Restructure
+status: Not Started
+percent_complete: 0
+last_updated: 2026-04-19
+phase: Multi-agent restructure
+blockers: none
+next_action: Approve plan and begin Phase 0
+---
+
 # PRD: PAI Multi-Agent Compatibility Restructure
 
 > Migrate PAI/Atlas from Claude Code-only to work across Claude Code, OpenCode, and pi.dev — with pi.dev as the primary migration target.

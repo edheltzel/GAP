@@ -1,3 +1,13 @@
+---
+title: PAI Upgrade Execution Plan — 2026-04-17
+status: In Review
+percent_complete: 100
+last_updated: 2026-04-19
+phase: Tiers 1-3 + infrastructure
+blockers: awaiting review
+next_action: Ed reviews worktree-pai-upgrade-2026-04-17 and approves merge
+---
+
 # PAI Upgrade Execution Plan — 2026-04-17
 
 **Source:** `/PAIUpgrade` report run 2026-04-17

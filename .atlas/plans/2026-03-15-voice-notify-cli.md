@@ -1,3 +1,13 @@
+---
+title: voice-notify CLI — Universal TTS Notifications for All Coding Agents
+status: Complete
+percent_complete: 100
+last_updated: 2026-04-19
+phase: Superseded by 2026-04-10
+blockers: none
+next_action: none — superseded
+---
+
 # Plan: voice-notify CLI — Universal TTS Notifications for All Coding Agents
 
 > **Scope note:** This plan covers the TTS notification layer only — the foundation of a broader audio feedback system Ed plans to build. voicemode (already installed) and agent-cli were evaluated and confirmed as complementary tools for different use cases (conversational voice and productivity toolkit respectively), not replacements for this notification system.

@@ -36,8 +36,10 @@ just up   # restow after changes
 
 - **Create:** `/x-plan-create` — interactive plan creation with research agents
 - **Implement:** `/x-plan-implement` — execute an approved plan phase by phase
-- **List:** `/list-plans` — show active and archived plans
-- **Archive:** `/archive-plan` — move completed plans to `.atlas/plans/archive/`
+- **Standup:** `/Standup` — review active plans, pick what to work on, archive handoffs on pickup
+- **List:** `/Standup list-plans` — quick read-only listing of active and archived plans
+- **Migrate:** `/Standup migrate` — move legacy `.atlas-plans/` → `.atlas/`
+- **Archive:** handled automatically — plans archive on completion, handoffs archive on pickup via `/Standup`
 
 All plan commands target `.atlas/plans/` at the project root.
 

@@ -1,3 +1,13 @@
+---
+title: Implement InstructionsLoaded Hook + Commit PAIUpgrade Changes
+status: Complete
+percent_complete: 100
+last_updated: 2026-04-19
+phase: Hook system expansion
+blockers: none
+next_action: none — implemented and committed
+---
+
 # Plan: Implement InstructionsLoaded Hook + Commit PAIUpgrade Changes
 
 ## Context

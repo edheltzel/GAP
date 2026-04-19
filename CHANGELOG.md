@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
+- **Consolidated plan/handoff commands into `/Standup`.** Replaces `/MigrateAtlasDir`, `/list-plans`, `/archive-plan`, and `/ReviewHandoff` across all three agent packages. `/Standup` (default) runs the daily review and auto-archives handoffs on pickup + plans on completion. `/Standup migrate` handles the legacy `.atlas-plans/` → `.atlas/` migration. `/Standup list-plans` prints a read-only listing. Manual archive command removed — archiving is automatic during flow or on request in conversation.
+- **`/CreateHandoff` simplified.** Now interview-driven with frontmatter (`parent_plan`, `phase`, `status`, `percent_complete`, `next_action`, `blockers`) so handoffs integrate with the Standup board. Still runs `mem dump` on completion, now gracefully skipped when the Recall CLI (`mem`) isn't installed.
 - **BREAKING convention:** project-local Atlas artifacts moved from `.atlas-plans/` to `.atlas/` namespace. Plans live at `.atlas/plans/` (archive at `.atlas/plans/archive/`), handoffs at `.atlas/handoffs/` (archive at `.atlas/handoffs/archive/`). Singular `archive/`, not `archived/`.
 - Updated all rule surfaces: `CLAUDE.md` (root + `claudecode/.claude/`), `opencode/.config/opencode/AGENTS.md`, `pi-agent/.pi/agent/AGENTS.md`
 - Updated all handoff + plan skills: `CreateHandoff`, `ReviewHandoff`, `list-plans`, `archive-plan` across claudecode, opencode, and pi-agent packages
@@ -16,7 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Physical migration of atlas-config's own plans: `.atlas-plans/` → `.atlas/plans/` at repo root, and `pi-agent/.pi/agent/.atlas-plans/` → `pi-agent/.pi/agent/.atlas/plans/` (via `git mv` so history follows the rename)
 
 ### Added
-- **`/MigrateAtlasDir`** slash command (Claude Code + OpenCode) and `/skill:migrate-atlas-dir` Pi skill for per-project `.atlas-plans/` → `.atlas/` migration. Dry-run by default; pass `execute` to perform. Uses `git mv` when in a repo, refuses to clobber existing destination files, and leaves the rename staged for the user to commit.
+- **`/Standup`** unified command (Claude Code + OpenCode) and `/skill:standup` Pi skill. Default flow reviews active plans, drills into in-progress work, surfaces handoffs, and prompts for pickup (auto-archives on selection). Subcommands: `migrate`, `list-plans`.
+
+### Removed
+- `/MigrateAtlasDir`, `/list-plans`, `/archive-plan`, `/ReviewHandoff` slash commands from all three packages. Functionality merged into `/Standup` (archiving is now automatic, not an explicit step). Manual `/skill:migrate-atlas-dir` and `/skill:review-handoff` Pi skills removed as well.
 - GitCleanup skill: prune stale worktrees, branches, PRs, and issues across local and remote
   - SweepLocal: remove stale worktrees and associated local branches
   - SweepRemote: delete merged remote branches via `gh` CLI (GitHub-first)

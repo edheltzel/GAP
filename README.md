@@ -135,14 +135,14 @@ Tools for managing and improving Atlas itself.
 | **UpdateDocs**      | `/update-docs`      | Scans git history, updates README.md and CLAUDE.md to reflect current project state.                       |
 | **KeybindingsHelp** | `/keybindings-help` | Customize Claude Code keyboard shortcuts, chord bindings, and keybindings.json.                            |
 
-### Session Handoff (cross-agent)
+### Standup + Session Handoff (cross-agent)
 
-A paired workflow for safely clearing a session when the context window is running low. Works across Claude Code, OpenCode, and Pi — a handoff created in one agent can be resumed in any of them because all three write to the same `.atlas/handoffs/` path and the same Recall database.
+A unified workflow for daily project pickup and safe session clearing. Works across Claude Code, OpenCode, and Pi — a handoff created in one agent can be resumed in any of them because all three write to the same `.atlas/` path and the same Recall database.
 
 | Command | Claude Code / OpenCode | Pi | What It Does |
 | ------- | ---------------------- | -- | ------------ |
-| **CreateHandoff** | `/CreateHandoff [slug]` | `/skill:create-handoff [slug]` | Writes a structured handoff doc (task, done/next, decisions, files touched, git state, open questions) to `.atlas/handoffs/YYYY-MM-DD-handoff-{slug}.md` and runs `mem dump` so the session lands in Recall before `/clear`. Warns if the worktree is dirty. |
-| **ReviewHandoff** | `/ReviewHandoff [file]` | `/skill:review-handoff [file]` | Reads the newest handoff (or a specified file), summarizes it, flags any git-state drift, archives the file to `.atlas/handoffs/archive/`, and continues the work. Meant to be the first thing run in a fresh session after `/clear`. |
+| **Standup** | `/Standup [migrate\|list-plans]` | `/skill:standup [migrate\|list-plans]` | Default: reviews active plans + handoffs in `.atlas/`, drills into in-progress work, and prompts you to pick what to work on. Archives handoffs automatically on pickup and plans automatically on completion. Subcommand `migrate` moves legacy `.atlas-plans/` → `.atlas/` (asks before touching files). Subcommand `list-plans` prints a quick read-only listing. |
+| **CreateHandoff** | `/CreateHandoff [title]` | `/skill:create-handoff [title]` | Interviews for parent plan, phase, next action, blockers, and context; writes a frontmatter-stamped handoff to `.atlas/handoffs/YYYY-MM-DD-<slug>.md`. Runs `mem dump` if the Recall CLI is installed (skipped gracefully if not). Warns if the worktree is dirty. |
 
 ---
 

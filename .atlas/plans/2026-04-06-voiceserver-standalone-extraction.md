@@ -1,3 +1,13 @@
+---
+title: VoiceServer Standalone Extraction
+status: Complete
+percent_complete: 100
+last_updated: 2026-04-19
+phase: Superseded by 2026-04-10
+blockers: none
+next_action: none — superseded
+---
+
 # VoiceServer Standalone Extraction — Deep Dive & Implementation Plan
 
 > Extract VoiceServer from atlas-config into a standalone, agent-agnostic application that gives any AI coding agent a voice.

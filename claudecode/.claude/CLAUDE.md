@@ -24,7 +24,7 @@ All project-local Atlas artifacts MUST live under `.atlas/` at the project root:
 - File naming: `YYYY-MM-DD-description.md` (kebab-case) — use today's date and a clear rundown of the plan title (e.g., `2026-04-05-migrate-auth-to-jwt.md`), never arbitrary or cryptic names
 - This applies to ALL projects, ALL agents, no exceptions
 
-**Legacy migration:** projects that still use the old `.atlas-plans/` layout can be migrated in-place with `/MigrateAtlasDir` (Claude Code / OpenCode) or `/skill:migrate-atlas-dir` (Pi). Dry-run by default; append `execute` to perform.
+**Legacy migration:** projects that still use the old `.atlas-plans/` layout can be migrated in-place with `/Standup migrate` (Claude Code / OpenCode) or `/skill:standup migrate` (Pi). The flow confirms the proposed moves before touching files.
 
 ## Git Worktrees (MANDATORY)
 

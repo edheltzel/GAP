@@ -1,102 +1,85 @@
 ---
 name: create-handoff
-description: Create a session handoff doc in .atlas/handoffs/ and dump the session to Recall so /clear is safe. Use when context is running low and you want to resume cleanly in a new session. Invoke directly with /skill:create-handoff [optional-slug].
-allowed-tools: Read, Write, Bash(git:*), Bash(mkdir:*), Bash(mem:*), Bash(date:*)
+description: Create a one-time briefing handoff in .atlas/handoffs/ linked to an active plan and phase, and dump the session to Recall (if installed). Handoffs surface in /skill:standup and are archived on pickup. Invoke with /skill:create-handoff [optional title].
+allowed-tools: Read, Write, Edit, Bash(mkdir:*), Bash(mem:*), Bash(command:*), Bash(date:*), Bash(git:*)
 ---
 
 # Create Handoff
 
-Capture the current session so it can be resumed cleanly after `/clear`. Writes a structured handoff document to `.atlas/handoffs/` **and** dumps the session to the Recall database so nothing is lost when the context window is reset.
+Create a one-time briefing handoff document under `.atlas/handoffs/`. Handoffs are consumed by `/skill:standup` — the moment one is picked up, it is archived. So write them self-contained: enough context for the next session to start cold.
 
-Arguments are appended as user input after this skill loads. If the user supplied text after `/skill:create-handoff`, treat it as a slug/title hint. If not, infer a short slug from the current task (3–6 words, kebab-case).
+Arguments are appended as user input after this skill loads. If the user supplied text after `/skill:create-handoff`, treat it as a title hint. Otherwise ask during the interview.
 
-## Behavior
+## Pre-flight
+1. Confirm `.atlas/` exists. If only `.atlas-plans/` exists, tell the user to run `/skill:standup migrate` first and stop.
+2. Ensure `.atlas/handoffs/` exists (create if missing).
 
-1. **Derive slug.** If user supplied args, slugify them (lowercase, kebab-case, strip punctuation). Otherwise infer from current task context. Compute today's date via `date +%Y-%m-%d` and the target path: `.atlas/handoffs/YYYY-MM-DD-handoff-{slug}.md`.
+## Interview the user
 
-2. **Ensure directories exist:**
-   ```bash
-   mkdir -p .atlas/handoffs/archive
-   ```
+Ask these in a single message (not one-at-a-time), then wait:
 
-3. **Capture git state.** Run these and include the output in the handoff doc:
-   ```bash
-   git rev-parse --abbrev-ref HEAD
-   git status --short
-   git diff --stat
-   git worktree list 2>/dev/null
-   ```
-   Do NOT run full `git diff` — only the stat summary. If the repo is dirty, warn the user in the final summary that they may want to commit or stash before `/clear`.
+1. **Parent plan** — list `.atlas/plans/*.md` files (title + filename, exclude `archive/`). Ask which one this handoff belongs to.
+2. **Phase / epic** — read the parent plan's frontmatter `phase` field as default. Confirm or override.
+3. **Title** — use args if provided; otherwise ask.
+4. **Next action** — one line, the very first concrete step.
+5. **Blockers** — anything blocking, or "none".
+6. **Context body** — scope, files touched, decisions made, links, anything future-self needs to start cold. Long-form OK.
 
-4. **Write the handoff document** using this structure:
+## Generate the file
 
-   ```markdown
-   # Handoff: {Human-readable title}
+Slugify the title to `kebab-case.md` and write to `.atlas/handoffs/YYYY-MM-DD-<slug>.md`:
 
-   **Date:** {YYYY-MM-DD}
-   **Project:** {basename of cwd}
-   **Branch:** {current branch}
-   **Worktree:** {path if in worktree, else "main tree"}
+```yaml
+---
+title: <title>
+parent_plan: <plan-filename.md>
+phase: <phase or epic>
+status: Not Started
+percent_complete: 0
+last_updated: <today YYYY-MM-DD>
+blockers: <text or "none">
+next_action: <one line>
+---
 
-   ## Task / Context
-   {1–3 sentences: active goal and why. Written so a fresh session can
-    pick up cold — no shorthand, no "as discussed above".}
+# <title>
 
-   ## Progress
+**Parent plan:** [<plan title>](../plans/<plan-filename.md>) · **Phase:** <phase>
 
-   ### Done
-   - {completed step 1}
-   - {completed step 2}
+## Context
+<body content from the interview>
 
-   ### Next
-   - {remaining step 1 — specific: file paths, function names, exact changes}
-   - {remaining step 2}
+## Next action
+<next_action expanded with specifics>
 
-   ## Key Decisions
-   - **{decision}** — {why}
-   - **{decision}** — {why}
+## Blockers
+<blockers expanded, or "None.">
 
-   ## Files Touched
-   - `{path/to/file.ts}` — {one-line description of change}
+## Resume
+After `/clear`, run `/skill:standup` — this handoff will surface in the next standup board and be archived on pickup.
+```
 
-   ## Git State
-   ```
-   Branch: {branch}
-   Status:
-   {git status --short output}
+## Dump session to Recall (conditional)
 
-   Diff stat:
-   {git diff --stat output}
-   ```
+Check whether the Recall CLI is installed before attempting the dump:
 
-   ## Open Questions / Blockers
-   - {question needing Ed's decision}
-   - {blocker that stopped progress}
+```bash
+if command -v mem >/dev/null 2>&1; then
+  mem dump "Handoff: <title>" --skip-fabric
+else
+  echo "Recall CLI (mem) not installed — skipping session dump. Handoff file still created."
+fi
+```
 
-   (If none: write "None.")
+`--skip-fabric` is used for speed. For exceptionally valuable sessions, omit the flag to capture Fabric wisdom.
 
-   ## Resume
-   After `/clear`, run:
-   ```
-   /skill:review-handoff {filename}
-   ```
-   Or just `/skill:review-handoff` — it defaults to the newest handoff in `.atlas/handoffs/`.
-   ```
+Handoff file = source of truth for next session. Recall dump = backstop for ad-hoc details, when available.
 
-5. **Dump the session to Recall:**
-   ```bash
-   mem dump "Handoff: {Human-readable title}" --skip-fabric
-   ```
-   Use `--skip-fabric` for speed. For exceptionally valuable sessions, omit the flag.
+## Post-create
+1. Apply project CLAUDE.md ownership/permissions convention to the new file if one exists.
+2. Update the parent plan's `last_updated` to today.
+3. Warn if the git tree is dirty — recommend committing or stashing before `/clear`.
+4. Tell the user: *"Handoff created at `.atlas/handoffs/<slug>.md`. Will surface in next `/skill:standup`."* Confirm whether the Recall dump ran or was skipped.
 
-6. **Report to Ed** with:
-   - The handoff file path
-   - Confirmation that Recall dump succeeded
-   - The exact resume command (`/skill:review-handoff {filename}`)
-   - A warning if the git tree is dirty: recommend committing/stashing before `/clear`
-
-## Notes
-
-- Handoff doc = source of truth for next session. Recall dump = backstop for ad-hoc details.
-- Do not summarize the entire conversation — focus on what's needed to continue. The Recall dump captures the rest.
-- Create `.atlas/handoffs/` and `archive/` if they don't yet exist.
+## Output style
+- Single interview message, single confirmation message after creation.
+- No preamble. No trailing summary beyond the create confirmation.

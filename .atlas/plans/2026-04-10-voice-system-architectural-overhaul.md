@@ -1,3 +1,13 @@
+---
+title: Voice System Architectural Overhaul
+status: Not Started
+percent_complete: 0
+last_updated: 2026-04-19
+phase: Planning — awaiting approval and open questions
+blockers: 8 open questions for Ed before implementation begins (see Section 9)
+next_action: get Ed's answers to open questions in Section 9, then begin Phase 0 — worktree + voice/ package skeleton
+---
+
 # Voice System Architectural Overhaul
 
 > Complete architectural overhaul of the atlas-config voice infrastructure. Not a feature rollout — a deliberate restructure that fixes coupling, unifies config, eliminates dead code, and makes voice truly agent-agnostic within atlas-config.
