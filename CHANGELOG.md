@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `atlas-statusline.sh`: remove duplicate worktree tag when `.worktree.name` equals the cwd basename (the worktree folder *is* the cwd, so rendering both was redundant)
 - `atlas-statusline.sh`: drop session title from header; Claude Code v2.1.114+ renders it natively as a chip above the prompt input, making the statusline copy duplicative
+- `atlas-statusline.sh`: truncate pwd basename at 20 chars (tail + ellipsis) and git branch at 24 chars (middle-truncation preserves date suffixes on worktree branches like `worktree-pai-upgrade-2026-04-17`)
+- `atlas-statusline.sh`: split identity (Atlas/model/cc) and location (pwd/branch/tags) onto separate lines at `micro` (35-54 cols) and `mini` (55-79 cols) modes to avoid ugly wrap when the terminal is resized below half-screen; `normal` (80+) stays inline with trailing dashes
 
 ### Changed (other)
 - `.atlas-plans/` entries renamed from cryptic codenames to `YYYY-MM-DD-description.md` format per CLAUDE.md convention; 7 completed plans moved to `.atlas-plans/archive/` (superseded by the `.atlas/` namespace rename above)

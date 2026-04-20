@@ -371,10 +371,19 @@ session_display=""
 [ -n "$SESSION_LABEL" ] && session_display=$(echo "$SESSION_LABEL" | tr '[:lower:]' '[:upper:]')
 
 # Display just the directory basename (e.g., /atlas-config)
+# Tail-truncate to 20 chars with ellipsis if basename is long.
 dir_display="/${current_dir##*/}"
+if [ ${#dir_display} -gt 20 ]; then
+  dir_display="${dir_display:0:19}…"
+fi
 
 # Get current git branch (runs each refresh — always up to date)
+# Middle-truncate to 24 chars (head + … + tail) to preserve date suffixes
+# on worktree branches like `worktree-pai-upgrade-2026-04-17`.
 git_branch=$(git -C "$current_dir" rev-parse --abbrev-ref HEAD 2>/dev/null)
+if [ -n "$git_branch" ] && [ ${#git_branch} -gt 24 ]; then
+  git_branch="${git_branch:0:11}…${git_branch: -12}"
+fi
 git_display=""
 git_display_plain=""
 if [ -n "$git_branch" ]; then
@@ -420,7 +429,14 @@ nano)
   printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
   ;;
 micro)
-  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}\n"
+  # Identity on line 1, location (pwd + branch) on line 2 — avoids wrap at narrow widths.
+  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
+  printf "${DIR_DISPLAY}${dir_display}${RESET}${git_display}\n"
+  ;;
+mini)
+  # Identity on line 1, location + context tags on line 2.
+  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${PAI_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
+  printf "${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags}\n"
   ;;
 *)
   # Session title intentionally omitted — Claude Code v2.1.114+ renders it natively
