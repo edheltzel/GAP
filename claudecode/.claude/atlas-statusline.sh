@@ -240,108 +240,208 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # COLOR PALETTE
 # ─────────────────────────────────────────────────────────────────────────────
-# Eldritch theme — https://github.com/eldritch-theme
-# bg:#212337  line:#323449  fg:#ebfafa
-# cyan:#04d1f9  green:#37f499  purple:#a48cf2  muted-purple:#7081d0
-# orange:#f7c67f  pink:#f265b5  red:#f16c75  yellow:#f1fc79
+# Dual-theme: Eldritch (dark) and Rosé Pine Dawn (light).
+# Theme auto-detects from $COLORFGBG → macOS system appearance → "dark" default.
+# Override via settings.json: "statusline": { "theme": "auto"|"light"|"dark" }
+#
+# Eldritch    — https://github.com/eldritch-theme
+# Rosé Pine Dawn — https://rosepinetheme.com/palette/ingredients/
 
 RESET='\033[0m'
 
-# Structural (chrome, labels, separators)
-SLATE_300='\033[38;2;235;250;250m' # Lighthouse White (fg)
-SLATE_500='\033[38;2;112;129;208m' # The Old One Purple (muted)
-SLATE_600='\033[38;2;50;52;73m'    # Shallow Depths Grey (separators)
-
-# Semantic colors
-EMERALD='\033[38;2;55;244;153m' # Great Old One Green (positive/success)
-ROSE='\033[38;2;241;108;117m'   # R'lyeh Red (error/negative)
-
-# Header / Branding (Lovecraft Purple theme)
-GREET_PRIMARY='\033[38;2;164;140;242m' # Lovecraft Purple
-PAI_SESSION='\033[38;2;4;209;249m'     # Watery Tomb Cyan for session name
-
-# Icons and accents
-CACHE_ICON='\033[38;2;164;140;242m'     # Lovecraft Purple for cache icon
-CC_ICON='\033[38;2;232;97;32m'          # Anthropic Orange for ✱ CC icon
-DIR_DISPLAY='\033[38;2;4;209;249m'      # Watery Tomb Cyan for PWD
-GIT_BRANCH_COLOR='\033[38;2;242;101;181m' # Pustule Pink for git branch
-WORKTREE_COLOR='\033[38;2;4;209;249m'   # Watery Tomb Cyan for worktree
-WARN_COLOR='\033[38;2;241;108;117m'     # R'lyeh Red for warnings
-
-# Nerd font icons
+# Nerd font icons (theme-independent)
 NF_CACHE=$(printf '\xef\x92\x9b')        # nf-oct-cache           U+F49B
 NF_GAUGE=$(printf '\xf3\xb0\x8a\x9a')    # nf-md-gauge            U+F029A
 NF_BRANCH=$(printf '\xef\x90\x98')       # nf-oct-git_branch      U+F418
 
-# Context bar
-CTX_BUCKET_EMPTY='\033[38;2;50;52;73m' # Shallow Depths Grey (empty bucket)
+# Resolve active theme: settings override > COLORFGBG > macOS defaults > "dark"
+detect_appearance() {
+  local override
+  override=$(jq -r '.statusline.theme // "auto"' "$SETTINGS_FILE" 2>/dev/null)
+  if [ "$override" = "light" ] || [ "$override" = "dark" ]; then
+    echo "$override"
+    return
+  fi
 
-# Usage (Orange/Yellow theme)
-USAGE_PRIMARY='\033[38;2;247;198;127m' # Dreaming Orange icon
-USAGE_RESET='\033[38;2;112;129;208m'   # The Old One Purple for reset time
-USAGE_EXTRA='\033[38;2;242;101;181m'   # Pustule Pink for overage
+  # COLORFGBG format is "fg;bg" with 0-15 palette indices; bg < 8 = dark, >= 8 = light
+  if [ -n "${COLORFGBG:-}" ]; then
+    local bg="${COLORFGBG##*;}"
+    case "$bg" in
+      0|1|2|3|4|5|6|7|8) echo "dark"; return ;;
+      9|10|11|12|13|14|15|default) echo "light"; return ;;
+    esac
+  fi
 
-# PAI Branding
-PAI_A='\033[38;2;164;140;242m' # Lovecraft Purple
+  # macOS: `defaults` prints "Dark" in dark mode, exits non-zero in light mode
+  if defaults read -g AppleInterfaceStyle 2>/dev/null | grep -qi dark; then
+    echo "dark"
+  elif [ "$(uname)" = "Darwin" ]; then
+    echo "light"
+  else
+    echo "dark"
+  fi
+}
+
+STATUSLINE_THEME=$(detect_appearance)
+
+if [ "$STATUSLINE_THEME" = "light" ]; then
+  # ── Rosé Pine Dawn ──────────────────────────────────────────────────────
+  # base:#faf4ed  text:#575279  subtle:#797593  muted:#9893a5
+  # love:#b4637a  gold:#ea9d34  rose:#d7827e  pine:#286983  foam:#56949f  iris:#907aa9
+
+  SLATE_300='\033[38;2;87;82;121m'    # text (primary fg)
+  SLATE_500='\033[38;2;121;117;147m'  # subtle (muted labels)
+  SLATE_600='\033[38;2;223;218;217m'  # highlight med (separators)
+
+  EMERALD='\033[38;2;40;105;131m'     # pine (positive/success)
+  ROSE='\033[38;2;180;99;122m'        # love (error/negative)
+
+  GREET_PRIMARY='\033[38;2;144;122;169m'  # iris (header/brand)
+  PAI_SESSION='\033[38;2;86;148;159m'     # foam (session name)
+
+  CACHE_ICON='\033[38;2;144;122;169m'       # iris
+  CC_ICON='\033[38;2;234;157;52m'           # gold (✱ CC icon)
+  DIR_DISPLAY='\033[38;2;86;148;159m'       # foam (PWD)
+  GIT_BRANCH_COLOR='\033[38;2;215;130;126m' # rose (git branch)
+  WORKTREE_COLOR='\033[38;2;86;148;159m'    # foam (worktree)
+  WARN_COLOR='\033[38;2;180;99;122m'        # love (warnings)
+
+  CTX_BUCKET_EMPTY='\033[38;2;223;218;217m' # highlight med (empty bucket)
+
+  USAGE_PRIMARY='\033[38;2;234;157;52m'     # gold (usage icon)
+  USAGE_RESET='\033[38;2;121;117;147m'      # subtle (reset time)
+  USAGE_EXTRA='\033[38;2;215;130;126m'      # rose (overage)
+
+  PAI_A='\033[38;2;144;122;169m'            # iris (branding)
+
+  # Gradient stops for get_bucket_color (pine → gold → rose → love)
+  GRAD_LOW_R=40;  GRAD_LOW_G=105; GRAD_LOW_B=131
+  GRAD_MID_R=234; GRAD_MID_G=157; GRAD_MID_B=52
+  GRAD_WRN_R=215; GRAD_WRN_G=130; GRAD_WRN_B=126
+  GRAD_HI_R=180;  GRAD_HI_G=99;   GRAD_HI_B=122
+
+  # Thresholded accents for get_cache_color (high→low)
+  CACHE_TIER_HI="$EMERALD"                     # pine
+  CACHE_TIER_MH='\033[38;2;86;148;159m'        # foam
+  CACHE_TIER_MD='\033[38;2;234;157;52m'        # gold
+  CACHE_TIER_ML='\033[38;2;215;130;126m'       # rose
+  CACHE_TIER_LO="$ROSE"                        # love
+
+  # Thresholded accents for get_usage_color (low→high severity)
+  USAGE_TIER_OK="$EMERALD"                     # pine
+  USAGE_TIER_MD='\033[38;2;234;157;52m'        # gold
+  USAGE_TIER_WARN='\033[38;2;215;130;126m'     # rose
+  USAGE_TIER_CRIT="$ROSE"                      # love
+
+else
+  # ── Eldritch (dark, default) ────────────────────────────────────────────
+  # bg:#212337  line:#323449  fg:#ebfafa
+  # cyan:#04d1f9  green:#37f499  purple:#a48cf2  muted-purple:#7081d0
+  # orange:#f7c67f  pink:#f265b5  red:#f16c75  yellow:#f1fc79
+
+  SLATE_300='\033[38;2;235;250;250m' # Lighthouse White (fg)
+  SLATE_500='\033[38;2;112;129;208m' # The Old One Purple (muted)
+  SLATE_600='\033[38;2;50;52;73m'    # Shallow Depths Grey (separators)
+
+  EMERALD='\033[38;2;55;244;153m' # Great Old One Green (positive/success)
+  ROSE='\033[38;2;241;108;117m'   # R'lyeh Red (error/negative)
+
+  GREET_PRIMARY='\033[38;2;164;140;242m' # Lovecraft Purple
+  PAI_SESSION='\033[38;2;4;209;249m'     # Watery Tomb Cyan for session name
+
+  CACHE_ICON='\033[38;2;164;140;242m'     # Lovecraft Purple for cache icon
+  CC_ICON='\033[38;2;232;97;32m'          # Anthropic Orange for ✱ CC icon
+  DIR_DISPLAY='\033[38;2;4;209;249m'      # Watery Tomb Cyan for PWD
+  GIT_BRANCH_COLOR='\033[38;2;242;101;181m' # Pustule Pink for git branch
+  WORKTREE_COLOR='\033[38;2;4;209;249m'   # Watery Tomb Cyan for worktree
+  WARN_COLOR='\033[38;2;241;108;117m'     # R'lyeh Red for warnings
+
+  CTX_BUCKET_EMPTY='\033[38;2;50;52;73m' # Shallow Depths Grey (empty bucket)
+
+  USAGE_PRIMARY='\033[38;2;247;198;127m' # Dreaming Orange icon
+  USAGE_RESET='\033[38;2;112;129;208m'   # The Old One Purple for reset time
+  USAGE_EXTRA='\033[38;2;242;101;181m'   # Pustule Pink for overage
+
+  PAI_A='\033[38;2;164;140;242m' # Lovecraft Purple
+
+  # Gradient stops for get_bucket_color (green → yellow → orange → red)
+  GRAD_LOW_R=55;  GRAD_LOW_G=244; GRAD_LOW_B=153
+  GRAD_MID_R=241; GRAD_MID_G=252; GRAD_MID_B=121
+  GRAD_WRN_R=247; GRAD_WRN_G=198; GRAD_WRN_B=127
+  GRAD_HI_R=241;  GRAD_HI_G=108;  GRAD_HI_B=117
+
+  CACHE_TIER_HI="$EMERALD"
+  CACHE_TIER_MH='\033[38;2;4;209;249m'        # Watery Tomb Blue (cyan)
+  CACHE_TIER_MD='\033[38;2;241;252;121m'      # Gold of Yuggoth (yellow)
+  CACHE_TIER_ML='\033[38;2;247;198;127m'      # Dreaming Orange
+  CACHE_TIER_LO="$ROSE"
+
+  USAGE_TIER_OK="$EMERALD"
+  USAGE_TIER_MD='\033[38;2;251;191;36m'       # amber
+  USAGE_TIER_WARN='\033[38;2;251;146;60m'     # orange
+  USAGE_TIER_CRIT="$ROSE"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPER FUNCTIONS
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Get gradient color for context bar bucket
-# Green(55,244,153) → Yellow(241,252,121) → Orange(247,198,127) → Red(241,108,117)
+# Get gradient color for context bar bucket.
+# Interpolates across 4 theme-defined stops: low → mid → warn → hi.
+# Eldritch: green → yellow → orange → red.
+# Rosé Pine Dawn: pine → gold → rose → love.
 get_bucket_color() {
   local pos=$1 max=$2
   local pct=$((pos * 100 / max))
   local r g b
 
   if [ "$pct" -le 33 ]; then
-    r=$((55 + (241 - 55) * pct / 33))
-    g=$((244 + (252 - 244) * pct / 33))
-    b=$((153 + (121 - 153) * pct / 33))
+    r=$((GRAD_LOW_R + (GRAD_MID_R - GRAD_LOW_R) * pct / 33))
+    g=$((GRAD_LOW_G + (GRAD_MID_G - GRAD_LOW_G) * pct / 33))
+    b=$((GRAD_LOW_B + (GRAD_MID_B - GRAD_LOW_B) * pct / 33))
   elif [ "$pct" -le 66 ]; then
     local t=$((pct - 33))
-    r=$((241 + (247 - 241) * t / 33))
-    g=$((252 + (198 - 252) * t / 33))
-    b=$((121 + (127 - 121) * t / 33))
+    r=$((GRAD_MID_R + (GRAD_WRN_R - GRAD_MID_R) * t / 33))
+    g=$((GRAD_MID_G + (GRAD_WRN_G - GRAD_MID_G) * t / 33))
+    b=$((GRAD_MID_B + (GRAD_WRN_B - GRAD_MID_B) * t / 33))
   else
     local t=$((pct - 66))
-    r=$((247 + (241 - 247) * t / 34))
-    g=$((198 + (108 - 198) * t / 34))
-    b=$((127 + (117 - 127) * t / 34))
+    r=$((GRAD_WRN_R + (GRAD_HI_R - GRAD_WRN_R) * t / 34))
+    g=$((GRAD_WRN_G + (GRAD_HI_G - GRAD_WRN_G) * t / 34))
+    b=$((GRAD_WRN_B + (GRAD_HI_B - GRAD_WRN_B) * t / 34))
   fi
   printf '\033[38;2;%d;%d;%dm' "$r" "$g" "$b"
 }
 
-# Get gradient color for cache hit rate (green=high → red=low)
+# Get gradient color for cache hit rate (high quality → low quality)
 get_cache_color() {
   local pct_int="$1"
   [ -z "$pct_int" ] && pct_int=0
   if [ "$pct_int" -ge 80 ]; then
-    echo "$EMERALD"
+    echo "$CACHE_TIER_HI"
   elif [ "$pct_int" -ge 60 ]; then
-    echo '\033[38;2;4;209;249m' # Watery Tomb Blue (cyan)
+    echo "$CACHE_TIER_MH"
   elif [ "$pct_int" -ge 40 ]; then
-    echo '\033[38;2;241;252;121m' # Gold of Yuggoth (yellow)
+    echo "$CACHE_TIER_MD"
   elif [ "$pct_int" -ge 20 ]; then
-    echo '\033[38;2;247;198;127m' # Dreaming Orange
+    echo "$CACHE_TIER_ML"
   else
-    echo "$ROSE"
+    echo "$CACHE_TIER_LO"
   fi
 }
 
-# Get color for usage percentage (green→yellow→orange→red)
+# Get color for usage percentage (ok → critical)
 get_usage_color() {
   local pct_int=${1%%.*}
   [ -z "$pct_int" ] && pct_int=0
   if [ "$pct_int" -ge 80 ]; then
-    echo "$ROSE"
+    echo "$USAGE_TIER_CRIT"
   elif [ "$pct_int" -ge 60 ]; then
-    echo '\033[38;2;251;146;60m'
+    echo "$USAGE_TIER_WARN"
   elif [ "$pct_int" -ge 40 ]; then
-    echo '\033[38;2;251;191;36m'
+    echo "$USAGE_TIER_MD"
   else
-    echo "$EMERALD"
+    echo "$USAGE_TIER_OK"
   fi
 }
 
@@ -466,13 +566,13 @@ else
   display_pct="$raw_pct"
 fi
 if [ "$display_pct" -ge 80 ]; then
-  pct_color="$ROSE"
+  pct_color="$USAGE_TIER_CRIT"
 elif [ "$display_pct" -ge 60 ]; then
-  pct_color='\033[38;2;251;146;60m'
+  pct_color="$USAGE_TIER_WARN"
 elif [ "$display_pct" -ge 40 ]; then
-  pct_color='\033[38;2;251;191;36m'
+  pct_color="$USAGE_TIER_MD"
 else
-  pct_color="$EMERALD"
+  pct_color="$USAGE_TIER_OK"
 fi
 
 # exceeds_200k warning prefix
