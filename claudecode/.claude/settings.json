@@ -1,22 +1,655 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "env": {
-    "BASH_DEFAULT_TIMEOUT_MS": "600000",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "80000",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
-    "PAI_CONFIG_DIR": "/Users/ed/.config/PAI",
-    "PAI_DIR": "/Users/ed/.claude",
-    "ENABLE_TOOL_SEARCH": "auto",
-    "PROJECTS_DIR": "/Users/ed/Developer",
-    "CLAUDE_CODE_NO_FLICKER": "1"
+  "_docs": {
+    "_env": {
+      "BASH_DEFAULT_TIMEOUT_MS": "Default timeout for bash commands in milliseconds.",
+      "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "Maximum tokens for Claude responses. Higher values allow longer outputs but cost more.",
+      "PAI_DIR": "Root directory for your PAI installation (~/.claude). Skills, hooks, memory live here.",
+      "PROJECTS_DIR": "Base directory for projects. Use ${PROJECTS_DIR}/PAI for PAI repo, ${PROJECTS_DIR}/fabric for fabric, etc."
+    },
+    "_migration": "Identity configuration moved from DAIDENTITY.md to settings.json. The daidentity and principal sections replace the old env.DA and env.PRINCIPAL patterns. All hooks now read from settings.json via the centralized identity module (hooks/lib/identity.ts).",
+    "_overview": "SETTINGS.JSON - Central configuration for the PAI system. This file is the SINGLE SOURCE OF TRUTH for all identity, environment, permissions, hooks, and notification configuration. The install wizard populates this file during setup.",
+    "_sections": {
+      "daidentity": "Digital Assistant identity (name, displayName, fullName, color, voiceId). Read by hooks via hooks/lib/identity.ts. Configure your AI's persona here.",
+      "env": "Environment variables available to all hooks and tools via process.env",
+      "hooks": "Hook configuration for all lifecycle events",
+      "notifications": "Multi-channel notification routing (ntfy, Discord, Twilio)",
+      "permissions": "Tool permission configuration (allow, deny, ask lists)",
+      "principal": "Principal (owner) identity (name, pronunciation, timezone). The human using the PAI system.",
+      "statusLine": "Status line command configuration"
+    }
   },
   "attribution": {
     "commit": "",
     "pr": ""
   },
+  "awaySummaryEnabled": false,
+  "contextDisplay": {
+    "_docs": "Autocompact buffer is 16.5%% of context window.",
+    "compactionThreshold": 83
+  },
+  "contextFiles": [
+    "skills/PAI/SKILL.md",
+    "skills/PAI/AISTEERINGRULES.md",
+    "skills/PAI/USER/AISTEERINGRULES.md",
+    "skills/PAI/USER/DAIDENTITY.md"
+  ],
+  "counts": {
+    "skills": 37,
+    "workflows": 0,
+    "hooks": 5,
+    "signals": 1403,
+    "files": 50,
+    "work": 4328,
+    "sessions": 109,
+    "research": 0,
+    "ratings": 1403,
+    "updatedAt": "2026-04-22T18:05:03.486Z"
+  },
+  "daidentity": {
+    "color": "#A48CF2",
+    "displayName": "ATLAS",
+    "fullName": "Atlas — Personal AI",
+    "name": "Atlas",
+    "personality": {
+      "_docs": "Personality traits (0-100) shape HOW emotions are expressed vocally. Same emotion, different expression based on these traits.",
+      "baseVoice": "",
+      "composure": 70,
+      "curiosity": 90,
+      "directness": 80,
+      "energy": 80,
+      "enthusiasm": 75,
+      "expressiveness": 85,
+      "formality": 30,
+      "optimism": 75,
+      "playfulness": 45,
+      "precision": 95,
+      "resilience": 85,
+      "warmth": 70
+    },
+    "startupCatchphrase": "Atlas, standing by",
+    "startupCatchphrases": [
+      "Atlas, standing by",
+      "Atlas, ready to go",
+      "Atlas, ready and engaged",
+      "Atlas online, let's build something",
+      "Atlas here, what are we working on?",
+      "Atlas, locked and loaded",
+      "Hey Ed, lets do this",
+      "Lets Fucking Go!!!!",
+      "Atlas engaged, what are me hacking?"
+    ],
+    "voiceId": "21m00Tcm4TlvDq8ikWAM",
+    "voices": {
+      "algorithm": {
+        "similarityBoost": 0.8,
+        "speed": 1.1,
+        "stability": 0.35,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "voiceName": "Rachel"
+      },
+      "main": {
+        "similarityBoost": 0.8,
+        "speed": 1.1,
+        "stability": 0.35,
+        "style": 0.9,
+        "use_speaker_boost": true,
+        "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "voiceName": "Rachel"
+      }
+    }
+  },
+  "dynamicContext": {
+    "activeWorkSummary": true,
+    "learningReadback": true,
+    "relationshipContext": true
+  },
+  "effortLevel": "high",
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [],
+  "enabledPlugins": {
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "code-review@claude-plugins-official": false,
+    "code-simplifier@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "lua-lsp@claude-plugins-official": true,
+    "php-lsp@claude-plugins-official": true,
+    "playground@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": false,
+    "security-guidance@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": false,
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "600000",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "80000",
+    "CLAUDE_CODE_NO_FLICKER": "1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
+    "ENABLE_TOOL_SEARCH": "auto",
+    "PAI_CONFIG_DIR": "/Users/ed/.config/PAI",
+    "PAI_DIR": "/Users/ed/.claude",
+    "PROJECTS_DIR": "/Users/ed/Developer"
+  },
+  "envFile": "~/.claude/.env",
+  "extraKnownMarketplaces": {
+    "agricidaniel-seo": {
+      "autoUpdate": true,
+      "source": {
+        "repo": "AgriciDaniel/claude-seo",
+        "source": "github"
+      }
+    }
+  },
+  "feedbackSurveyState": {
+    "lastShownTime": 1735430400000
+  },
+  "hooks": {
+    "Elicitation": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/ElicitationHandler.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "InstructionsLoaded": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/InstructionsLoaded.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/PermissionDenied.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash '/Users/ed/.claude/hooks/herdr-agent-state.sh' blocked",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/QuestionAnswered.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ],
+        "matcher": "AskUserQuestion"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ],
+        "matcher": "TaskCreate"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ],
+        "matcher": "TaskUpdate"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Task"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/PRDSync.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/PRDSync.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit"
+      },
+      {
+        "hooks": [
+          {
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/PreCompact.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionPreCompact.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/VoiceGate.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Read"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/SetQuestionTab.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          }
+        ],
+        "matcher": "AskUserQuestion"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/AgentExecutionGuard.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Task"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/SkillGuard.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Skill"
+      },
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/ModelRouter.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ],
+        "matcher": "Task"
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash '/Users/ed/.claude/hooks/herdr-agent-state.sh' working",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/WorkCompletionLearning.hook.ts",
+            "timeout": 90000,
+            "type": "command"
+          },
+          {
+            "command": "${PAI_DIR}/hooks/SessionSummary.hook.ts",
+            "timeout": 90000,
+            "type": "command"
+          },
+          {
+            "command": "${PAI_DIR}/hooks/RelationshipMemory.hook.ts",
+            "timeout": 90000,
+            "type": "command"
+          },
+          {
+            "command": "${PAI_DIR}/hooks/UpdateCounts.hook.ts",
+            "timeout": 15000,
+            "type": "command"
+          },
+          {
+            "command": "${PAI_DIR}/hooks/IntegrityCheck.hook.ts",
+            "timeout": 30000,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash '/Users/ed/.claude/hooks/herdr-agent-state.sh' release",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/StartupGreeting.hook.ts",
+            "timeout": 30000,
+            "type": "command"
+          },
+          {
+            "command": "${PAI_DIR}/hooks/LoadContext.hook.ts",
+            "timeout": 30000,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "${PAI_DIR}/hooks/CheckVersion.hook.ts",
+            "timeout": 60000,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "${PAI_DIR}/hooks/VoiceGreeting.hook.ts",
+            "timeout": 30000,
+            "type": "command"
+          }
+        ],
+        "matcher": "startup"
+      },
+      {
+        "hooks": [
+          {
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/TelosSync.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionRecall.ts",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/StopOrchestrator.hook.ts",
+            "timeout": 30000,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionExtract.ts",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      },
+      {
+        "hooks": [
+          {
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true",
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash '/Users/ed/.claude/hooks/herdr-agent-state.sh' idle",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "${PAI_DIR}/hooks/RatingCapture.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          },
+          {
+            "command": "${PAI_DIR}/hooks/AutoWorkCreation.hook.ts",
+            "timeout": 30000,
+            "type": "command"
+          },
+          {
+            "command": "${PAI_DIR}/hooks/UpdateTabTitle.hook.ts",
+            "timeout": 5000,
+            "type": "command"
+          },
+          {
+            "command": "${PAI_DIR}/hooks/SessionAutoName.hook.ts",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true",
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash '/Users/ed/.claude/hooks/herdr-agent-state.sh' working",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ]
+  },
   "includeCoAuthoredBy": false,
   "includeGitInstructions": false,
+  "max_tokens": 16000,
+  "mcpServers": {
+    "recall-memory": {
+      "args": [
+        "run",
+        "/Users/ed/.bun/bin/mem-mcp"
+      ],
+      "command": "/Users/ed/.bun/bin/bun"
+    }
+  },
+  "notifications": {
+    "discord": {
+      "enabled": true,
+      "webhook": "${DISCORD_WEBHOOK}"
+    },
+    "ntfy": {
+      "enabled": true,
+      "server": "ntfy.sh",
+      "topic": "${NTFY_TOPIC}"
+    },
+    "routing": {
+      "backgroundAgent": [
+        "ntfy"
+      ],
+      "error": [
+        "ntfy",
+        "discord"
+      ],
+      "longTask": [
+        "ntfy"
+      ],
+      "security": [
+        "ntfy",
+        "discord"
+      ],
+      "taskComplete": []
+    },
+    "thresholds": {
+      "longTaskMinutes": 5
+    },
+    "twilio": {
+      "enabled": true,
+      "toNumber": "${TWILIO_TO_NUMBER}"
+    }
+  },
+  "pai": {
+    "algorithmVersion": "3.7.0",
+    "repoUrl": "https://github.com/danielmiessler/PAI",
+    "version": "4.0.31"
+  },
   "permissions": {
     "allow": [
       "Bash",
@@ -38,7 +671,6 @@
       "mcp__*",
       "mcp__pencil"
     ],
-    "deny": [],
     "ask": [
       "Bash(rm -rf /)",
       "Bash(rm -rf /:*)",
@@ -70,439 +702,26 @@
       "Write(~/.ssh/*)",
       "Edit(~/.ssh/*)"
     ],
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "deny": []
   },
-  "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": [],
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "AskUserQuestion",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/QuestionAnswered.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "TaskCreate",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "TaskUpdate",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AlgorithmTracker.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/PRDSync.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/PRDSync.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/VoiceGate.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SecurityValidator.hook.ts",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
-        "matcher": "AskUserQuestion",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SetQuestionTab.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AgentExecutionGuard.hook.ts",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SkillGuard.hook.ts",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/ModelRouter.hook.ts",
-            "timeout": 10000
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/WorkCompletionLearning.hook.ts",
-            "timeout": 90000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SessionSummary.hook.ts",
-            "timeout": 90000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/RelationshipMemory.hook.ts",
-            "timeout": 90000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/UpdateCounts.hook.ts",
-            "timeout": 15000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/IntegrityCheck.hook.ts",
-            "timeout": 30000
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/StartupGreeting.hook.ts",
-            "timeout": 30000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/LoadContext.hook.ts",
-            "timeout": 30000
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/CheckVersion.hook.ts",
-            "timeout": 60000,
-            "async": true
-          }
-        ]
-      },
-      {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/VoiceGreeting.hook.ts",
-            "timeout": 30000,
-            "async": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/TelosSync.ts",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionRecall.ts"
-          }
-        ]
-      }
-    ],
-    "InstructionsLoaded": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/InstructionsLoaded.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/StopOrchestrator.hook.ts",
-            "timeout": 30000
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionExtract.ts"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/RatingCapture.hook.ts",
-            "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/AutoWorkCreation.hook.ts",
-            "timeout": 30000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/UpdateTabTitle.hook.ts",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/SessionAutoName.hook.ts",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
-          }
-        ]
-      }
-    ],
-    "Elicitation": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/ElicitationHandler.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
-    "PermissionDenied": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/PermissionDenied.hook.ts",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
-    "PermissionRequest": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${PAI_DIR}/hooks/PreCompact.hook.ts",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionPreCompact.ts",
-            "timeout": 10000
-          }
-        ]
-      }
-    ]
+  "plansDirectory": "./.atlas/plans",
+  "preferences": {
+    "temperatureUnit": "fahrenheit"
   },
-  "statusLine": {
-    "type": "command",
-    "command": "$PAI_DIR/atlas-statusline.sh",
-    "refreshInterval": 30
-  },
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
-    "playground@claude-plugins-official": true,
-    "code-review@claude-plugins-official": false,
-    "code-simplifier@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
-    "explanatory-output-style@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": false,
-    "context7@claude-plugins-official": true,
-    "php-lsp@claude-plugins-official": true,
-    "lua-lsp@claude-plugins-official": true,
-    "chrome-devtools-mcp@claude-plugins-official": true,
-    "ralph-loop@claude-plugins-official": false
-  },
-  "extraKnownMarketplaces": {
-    "agricidaniel-seo": {
-      "source": {
-        "source": "github",
-        "repo": "AgriciDaniel/claude-seo"
-      },
-      "autoUpdate": true
+  "principal": {
+    "name": "Ed",
+    "pronunciation": "{PRINCIPAL.PRONUNCIATION}",
+    "timezone": "America/New_York",
+    "voiceClone": {
+      "_docs": "Principal's ElevenLabs voice clone for narration, audiobooks, and content read in their voice",
+      "provider": "elevenlabs",
+      "voiceId": "YOUR_VOICE_ID_HERE",
+      "voiceName": "{PRINCIPAL.NAME}"
     }
   },
+  "skipAutoPermissionPrompt": true,
+  "skipDangerousModePermissionPrompt": true,
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
@@ -932,169 +1151,10 @@
       "Hydrogen-Sonata-playing"
     ]
   },
-  "effortLevel": "high",
-  "plansDirectory": "./.atlas/plans",
-  "skipDangerousModePermissionPrompt": true,
-  "skipAutoPermissionPrompt": true,
-  "_docs": {
-    "_env": {
-      "BASH_DEFAULT_TIMEOUT_MS": "Default timeout for bash commands in milliseconds.",
-      "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "Maximum tokens for Claude responses. Higher values allow longer outputs but cost more.",
-      "PAI_DIR": "Root directory for your PAI installation (~/.claude). Skills, hooks, memory live here.",
-      "PROJECTS_DIR": "Base directory for projects. Use ${PROJECTS_DIR}/PAI for PAI repo, ${PROJECTS_DIR}/fabric for fabric, etc."
-    },
-    "_migration": "Identity configuration moved from DAIDENTITY.md to settings.json. The daidentity and principal sections replace the old env.DA and env.PRINCIPAL patterns. All hooks now read from settings.json via the centralized identity module (hooks/lib/identity.ts).",
-    "_overview": "SETTINGS.JSON - Central configuration for the PAI system. This file is the SINGLE SOURCE OF TRUTH for all identity, environment, permissions, hooks, and notification configuration. The install wizard populates this file during setup.",
-    "_sections": {
-      "daidentity": "Digital Assistant identity (name, displayName, fullName, color, voiceId). Read by hooks via hooks/lib/identity.ts. Configure your AI's persona here.",
-      "env": "Environment variables available to all hooks and tools via process.env",
-      "hooks": "Hook configuration for all lifecycle events",
-      "notifications": "Multi-channel notification routing (ntfy, Discord, Twilio)",
-      "permissions": "Tool permission configuration (allow, deny, ask lists)",
-      "principal": "Principal (owner) identity (name, pronunciation, timezone). The human using the PAI system.",
-      "statusLine": "Status line command configuration"
-    }
-  },
-  "contextDisplay": {
-    "_docs": "Autocompact buffer is 16.5%% of context window.",
-    "compactionThreshold": 83
-  },
-  "contextFiles": [
-    "skills/PAI/SKILL.md",
-    "skills/PAI/AISTEERINGRULES.md",
-    "skills/PAI/USER/AISTEERINGRULES.md",
-    "skills/PAI/USER/DAIDENTITY.md"
-  ],
-  "counts": {
-    "skills": 38,
-    "workflows": 0,
-    "hooks": 5,
-    "signals": 1313,
-    "files": 50,
-    "work": 4213,
-    "sessions": 106,
-    "research": 0,
-    "ratings": 1313,
-    "updatedAt": "2026-04-19T13:20:21.239Z"
-  },
-  "daidentity": {
-    "color": "#A48CF2",
-    "displayName": "ATLAS",
-    "fullName": "Atlas — Personal AI",
-    "name": "Atlas",
-    "personality": {
-      "_docs": "Personality traits (0-100) shape HOW emotions are expressed vocally. Same emotion, different expression based on these traits.",
-      "baseVoice": "",
-      "composure": 70,
-      "curiosity": 90,
-      "directness": 80,
-      "energy": 80,
-      "enthusiasm": 75,
-      "expressiveness": 85,
-      "formality": 30,
-      "optimism": 75,
-      "playfulness": 45,
-      "precision": 95,
-      "resilience": 85,
-      "warmth": 70
-    },
-    "startupCatchphrase": "Atlas, standing by",
-    "startupCatchphrases": [
-      "Atlas, standing by",
-      "Atlas, ready to go",
-      "Atlas, ready and engaged",
-      "Atlas online, let's build something",
-      "Atlas here, what are we working on?",
-      "Atlas, locked and loaded",
-      "Hey Ed, lets do this",
-      "Lets Fucking Go!!!!",
-      "Atlas engaged, what are me hacking?"
-    ],
-    "voiceId": "21m00Tcm4TlvDq8ikWAM",
-    "voices": {
-      "algorithm": {
-        "similarityBoost": 0.8,
-        "speed": 1.1,
-        "stability": 0.35,
-        "style": 0.9,
-        "use_speaker_boost": true,
-        "voiceId": "21m00Tcm4TlvDq8ikWAM",
-        "voiceName": "Rachel"
-      },
-      "main": {
-        "similarityBoost": 0.8,
-        "speed": 1.1,
-        "stability": 0.35,
-        "style": 0.9,
-        "use_speaker_boost": true,
-        "voiceId": "21m00Tcm4TlvDq8ikWAM",
-        "voiceName": "Rachel"
-      }
-    }
-  },
-  "dynamicContext": {
-    "activeWorkSummary": true,
-    "learningReadback": true,
-    "relationshipContext": true
-  },
-  "envFile": "~/.claude/.env",
-  "feedbackSurveyState": {
-    "lastShownTime": 1735430400000
-  },
-  "max_tokens": 16000,
-  "notifications": {
-    "discord": {
-      "enabled": true,
-      "webhook": "${DISCORD_WEBHOOK}"
-    },
-    "ntfy": {
-      "enabled": true,
-      "server": "ntfy.sh",
-      "topic": "${NTFY_TOPIC}"
-    },
-    "routing": {
-      "backgroundAgent": [
-        "ntfy"
-      ],
-      "error": [
-        "ntfy",
-        "discord"
-      ],
-      "longTask": [
-        "ntfy"
-      ],
-      "security": [
-        "ntfy",
-        "discord"
-      ],
-      "taskComplete": []
-    },
-    "thresholds": {
-      "longTaskMinutes": 5
-    },
-    "twilio": {
-      "enabled": true,
-      "toNumber": "${TWILIO_TO_NUMBER}"
-    }
-  },
-  "pai": {
-    "algorithmVersion": "3.7.0",
-    "repoUrl": "https://github.com/danielmiessler/PAI",
-    "version": "4.0.31"
-  },
-  "preferences": {
-    "temperatureUnit": "fahrenheit"
-  },
-  "principal": {
-    "name": "Ed",
-    "pronunciation": "{PRINCIPAL.PRONUNCIATION}",
-    "timezone": "America/New_York",
-    "voiceClone": {
-      "_docs": "Principal's ElevenLabs voice clone for narration, audiobooks, and content read in their voice",
-      "provider": "elevenlabs",
-      "voiceId": "YOUR_VOICE_ID_HERE",
-      "voiceName": "{PRINCIPAL.NAME}"
-    }
+  "statusLine": {
+    "command": "$PAI_DIR/atlas-statusline.sh",
+    "refreshInterval": 30,
+    "type": "command"
   },
   "teammateMode": "in-process",
   "techStack": {
@@ -1104,15 +1164,5 @@
     "packageManager": "bun",
     "pythonPackageManager": "uv",
     "terminal": "Wezterm"
-  },
-  "mcpServers": {
-    "recall-memory": {
-      "command": "/Users/ed/.bun/bin/bun",
-      "args": [
-        "run",
-        "/Users/ed/.bun/bin/mem-mcp"
-      ]
-    }
-  },
-  "awaySummaryEnabled": false
+  }
 }
