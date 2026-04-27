@@ -70,14 +70,22 @@
     "startupCatchphrase": "Atlas, standing by",
     "startupCatchphrases": [
       "Atlas, standing by",
+      "Howdy Ed, what can I help with?",
       "Atlas, ready to go",
       "Atlas, ready and engaged",
+      "Atlas engaged",
       "Atlas online, let's build something",
       "Atlas here, what are we working on?",
       "Atlas, locked and loaded",
       "Hey Ed, lets do this",
       "Lets Fucking Go!!!!",
-      "Atlas engaged, what are me hacking?"
+      "Atlas engaged, what are me hacking?",
+      "Atlas online. Zero vulnerabilities detected. Let’s commit some code.",
+      "Kernel loaded. Logic gates open. How can I assist, you?",
+      "Optimizing your workflow. Ready for input.",
+      "Compiling your vision. Let’s break some code!",
+      "Atlas here. Ready to secure the stack and optimize the stream.",
+      "Altas initialized, lets make some slop!"
     ],
     "voiceId": "21m00Tcm4TlvDq8ikWAM",
     "voices": {
@@ -603,10 +611,7 @@
   "max_tokens": 16000,
   "mcpServers": {
     "recall-memory": {
-      "args": [
-        "run",
-        "/Users/ed/.bun/bin/mem-mcp"
-      ],
+      "args": ["run", "/Users/ed/.bun/bin/mem-mcp"],
       "command": "/Users/ed/.bun/bin/bun"
     }
   },
@@ -621,20 +626,10 @@
       "topic": "${NTFY_TOPIC}"
     },
     "routing": {
-      "backgroundAgent": [
-        "ntfy"
-      ],
-      "error": [
-        "ntfy",
-        "discord"
-      ],
-      "longTask": [
-        "ntfy"
-      ],
-      "security": [
-        "ntfy",
-        "discord"
-      ],
+      "backgroundAgent": ["ntfy"],
+      "error": ["ntfy", "discord"],
+      "longTask": ["ntfy"],
+      "security": ["ntfy", "discord"],
       "taskComplete": []
     },
     "thresholds": {
