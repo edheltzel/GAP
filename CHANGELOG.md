@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Physical migration of atlas-config's own plans: `.atlas-plans/` → `.atlas/plans/` at repo root, and `pi-agent/.pi/agent/.atlas-plans/` → `pi-agent/.pi/agent/.atlas/plans/` (via `git mv` so history follows the rename)
 
 ### Added
+- **`/meow`** anti-sycophancy correction trigger ([AgriciDaniel/meowmeow](https://github.com/AgriciDaniel/meowmeow)). One signal, four context-sensitive modes — `Continue` (resume mid-task), `Proceed` (pick and act), `Retry` (different angle), `Recheck` (re-evaluate a claim). Holds correct answers under bare skepticism; only revises on concrete evidence. Installed as a Claude Code skill at `claudecode/.claude/skills/meow/SKILL.md` (per repo's recommended path) and as an OpenCode slash command at `opencode/.config/opencode/command/meow.md`. `disable-model-invocation: true` keeps it user-only.
 - **`/Standup`** unified command (Claude Code + OpenCode) and `/skill:standup` Pi skill. Default flow reviews active plans, drills into in-progress work, surfaces handoffs, and prompts for pickup (auto-archives on selection). Subcommands: `migrate`, `list-plans`.
 
 ### Removed
