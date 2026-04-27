@@ -44,3 +44,7 @@ Tool syntax:
 - `memory_search({ query: "search terms" })`
 - `memory_add({ type: "decision", content: "what", detail: "why" })`
 - `context_for_agent({ task_description: "what the agent will do" })`
+
+## karpathy-guidelines & PAI ISC
+
+The `karpathy-guidelines` skill (installed via Claude Code plugin marketplace from `forrestchang/andrej-karpathy-skills`) is **supplemental** to PAI ISC, not parallel. PAI's "Nothing escapes the Algorithm" rule means ISC is always active. Where karpathy Section 4 (Goal-Driven Execution) overlaps with ISC, **ISC governs**. Sections 1-3 (assumption surfacing, simplicity-first, surgical changes) are additive discipline that reinforce ISC habits without competing with them.

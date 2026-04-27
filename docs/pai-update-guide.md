@@ -29,6 +29,17 @@ The PAIUpgrade skill now includes a **SyncUpstream** workflow for syncing atlas-
 
 Use this workflow instead of manual diffing when upstream PAI updates arrive.
 
+## External Skills (non-PAI)
+
+Skills adopted from outside the upstream PAI repo are managed through Claude Code's **plugin marketplace** (`/plugin marketplace add <user>/<repo>` then `/plugin install <plugin>@<marketplace>`), NOT through stow into atlas-config. This keeps third-party content out of the PAI sync surface entirely — `~/.claude/plugins/` is independent of `~/.claude/skills/` and is not in the protected-files list above.
+
+Currently installed via this path:
+- `andrej-karpathy-skills@karpathy-skills` — behavioral coding guidelines from `forrestchang/andrej-karpathy-skills` (MIT). Subsumption relationship to PAI ISC documented in `claudecode/.claude/CLAUDE.md`.
+
+**Cross-agent parity (OpenCode, Pi):** Claude Code plugins do NOT auto-propagate to OpenCode or Pi — they read from their own skill trees. Cross-agent parity for external skills is currently deferred; revisit when needed by either (a) appending principles directly into the agent's instructions file (e.g., `opencode/.config/opencode/AGENTS.md`), or (b) stowing a copy of the SKILL.md into the agent's skills tree.
+
+To remove a plugin: `/plugin uninstall <name>@<marketplace>`. To update: `/plugin update`.
+
 ## v4.0.3 Integration Decisions (2026-03-02)
 
 ### Algorithm: v3.7.0-atlas (upgraded 2026-03-16 from v3.5.0-atlas)
