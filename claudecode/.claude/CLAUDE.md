@@ -24,8 +24,6 @@ All project-local Atlas artifacts MUST live under `.atlas/` at the project root:
 - File naming: `YYYY-MM-DD-description.md` (kebab-case) — use today's date and a clear rundown of the plan title (e.g., `2026-04-05-migrate-auth-to-jwt.md`), never arbitrary or cryptic names
 - This applies to ALL projects, ALL agents, no exceptions
 
-**Legacy migration:** projects that still use the old `.atlas-plans/` layout can be migrated in-place with `/Standup migrate` (Claude Code / OpenCode) or `/skill:standup migrate` (Pi). The flow confirms the proposed moves before touching files.
-
 ## Git Worktrees (MANDATORY)
 
 Always use git worktrees for implementation work unless Ed explicitly says otherwise. Use the built-in `EnterWorktree` tool to create an isolated worktree before starting feature work. This creates a worktree under `.claude/worktrees/` with a new branch based on HEAD. Use `ExitWorktree` when done (keep or remove). This keeps the main working tree clean and enables parallel development.
@@ -35,7 +33,7 @@ Always use git worktrees for implementation work unless Ed explicitly says other
 You have persistent memory via Recall. **Read the full guide:** /Users/ed/.claude/Recall_GUIDE.md
 
 Core rules:
-1. Before asking user to repeat anything → search first with `memory_search`
+1. **MANDATORY: Always use `memory_search` FIRST** — before git, file reads, shell commands, or any other source — when answering any question about past events, decisions, installations, or prior work. No exceptions.
 2. Before spawning agents (Task tool) → call `context_for_agent`
 3. When decisions are made → record with `memory_add`
 4. End of session when user says `/dump` → run `mem dump "Descriptive Title"`

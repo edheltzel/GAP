@@ -37,10 +37,10 @@ The VoiceServer is documented in [`claudecode/.claude/VoiceServer/README.md`](cl
 
 A cross-agent pair of commands for daily project pickup and safe session clearing. Usable from Claude Code, OpenCode, or Pi — all three write to the same `.atlas/` path and dump to the same Recall database, so work from any agent can be resumed in any other.
 
-- **Standup** — the daily entry point. Reviews active plans in `.atlas/plans/`, surfaces live handoffs, and lets you pick what to work on. Archives handoffs automatically on pickup and plans automatically on completion. Two subcommands: `migrate` (legacy `.atlas-plans/` → `.atlas/`), `list-plans` (quick read-only listing). Files:
-  - `claudecode/.claude/commands/Standup.md` (Claude Code) → `/Standup [migrate|list-plans]`
-  - `opencode/.config/opencode/command/Standup.md` (OpenCode) → `/Standup [migrate|list-plans]`
-  - `pi-agent/.pi/agent/skills/standup/SKILL.md` (Pi) → `/skill:standup [migrate|list-plans]`
+- **Standup** — the daily entry point. Reviews active plans in `.atlas/plans/`, surfaces live handoffs, and lets you pick what to work on. Archives handoffs automatically on pickup and plans automatically on completion. One subcommand: `list-plans` (quick read-only listing). Files:
+  - `claudecode/.claude/commands/Standup.md` (Claude Code) → `/Standup [list-plans]`
+  - `opencode/.config/opencode/command/Standup.md` (OpenCode) → `/Standup [list-plans]`
+  - `pi-agent/.pi/agent/skills/standup/SKILL.md` (Pi) → `/skill:standup [list-plans]`
 - **CreateHandoff** — interviews the user and writes a frontmatter-stamped handoff to `.atlas/handoffs/YYYY-MM-DD-<slug>.md`, then runs `mem dump` (skipped gracefully if the Recall CLI isn't installed). Files:
   - `claudecode/.claude/commands/CreateHandoff.md` (Claude Code) → `/CreateHandoff`
   - `opencode/.config/opencode/command/CreateHandoff.md` (OpenCode) → `/CreateHandoff`
@@ -58,8 +58,6 @@ All project-local Atlas artifacts live under `.atlas/`:
 | `.atlas/plans/archive/`       | Completed plans                            |
 | `.atlas/handoffs/`            | Session handoff docs                       |
 | `.atlas/handoffs/archive/`    | Consumed handoffs (archived on read)       |
-
-To migrate a project from the old `.atlas-plans/` layout, run **`/Standup migrate`** (Claude Code / OpenCode) or **`/skill:standup migrate`** (Pi). The migration flow shows the proposed moves and waits for confirmation before touching files.
 
 ## For Humans
 

@@ -1,6 +1,6 @@
 ---
 description: Daily standup — review active plans, surface live handoffs, pick what to work on
-argument-hint: [migrate | list-plans]
+argument-hint: [list-plans]
 ---
 
 # /Standup
@@ -9,7 +9,6 @@ You are running a daily standup for the user. This is NOT a client-facing report
 
 ## Subcommand routing
 
-- `$ARGUMENTS` contains `migrate` → **MIGRATION FLOW**
 - `$ARGUMENTS` contains `list-plans` → **LIST-PLANS FLOW**
 - Otherwise → **STANDUP FLOW**
 
@@ -68,8 +67,7 @@ next_action: one-line description
 ## STANDUP FLOW
 
 ### Step 1 — Verify namespace
-1. Check that `.atlas/` exists in the working directory. If only `.atlas-plans/` exists, tell the user: *"Legacy `.atlas-plans/` directory detected. Run `/Standup migrate` first."* and stop.
-2. Ensure `.atlas/plans/`, `.atlas/plans/archive/`, `.atlas/handoffs/`, `.atlas/handoffs/archive/` all exist (create silently if missing).
+1. Ensure `.atlas/plans/`, `.atlas/plans/archive/`, `.atlas/handoffs/`, `.atlas/handoffs/archive/` all exist (create silently if missing).
 
 ### Step 2 — Inventory
 1. Read frontmatter from every `.atlas/plans/*.md` (top-level only, not `archive/`).
@@ -151,44 +149,6 @@ eza -1 .atlas/plans/archive/*.md 2>/dev/null | wc -l | xargs echo "Archived plan
 ```
 
 Stop after printing — do not enter the standup drill-down flow unless the user asks.
-
----
-
-## MIGRATION FLOW (`/Standup migrate`)
-
-This is a one-time operation. Be careful — it moves files and rewrites path references.
-
-### Step 1 — Pre-flight
-1. Confirm `.atlas-plans/` exists. If not, tell the user nothing to migrate and stop.
-2. Confirm `.atlas/` does NOT already exist. If it does, ask the user whether to merge into it or abort.
-3. Show the user the proposed move plan BEFORE executing:
-   - `.atlas-plans/*HANDOFF*.md` → `.atlas/handoffs/`
-   - `.atlas-plans/*.md` (remaining) → `.atlas/plans/`
-   - `.atlas-plans/<everything else>` (subdirs, scripts, etc.) → `.atlas/`
-4. Wait for explicit user confirmation before any `mv`.
-
-### Step 2 — Execute moves
-Use `mkdir -p` to create the new structure, then `mv` everything according to the plan. Preserve the inner structure of subdirectories.
-
-### Step 3 — Backfill frontmatter
-For each migrated plan and handoff that lacks the required frontmatter:
-1. Read the file.
-2. Infer best-guess values: `title` from H1 or filename, `status: In Progress` (safe default), `percent_complete: 50`, `last_updated: <today>`, `next_action: "review and update"`, `blockers: "none"`.
-3. For handoffs, prompt the user to identify the `parent_plan` (offer the list of plans).
-4. Insert the frontmatter block at the top of the file.
-
-### Step 4 — Rewrite path references
-Search the entire project for occurrences of `.atlas-plans` (use Grep across all text files). For each hit:
-1. Show the user the file + line.
-2. Replace `.atlas-plans/` → `.atlas/` (and update sub-paths if a file moved into `plans/` or `handoffs/`).
-3. **Critical files to check explicitly**: `CLAUDE.md`, any `*.sh` scripts, and the user's project-scoped memory files at `~/.claude/projects/<project-slug>/memory/*.md` if they exist.
-
-### Step 5 — Permissions (project-specific)
-If the project's CLAUDE.md defines an ownership/permissions convention, apply it recursively to `.atlas/`. Otherwise skip.
-
-### Step 6 — Verify and report
-1. Confirm `.atlas-plans/` is empty, then ask the user before removing it.
-2. Print a summary: N plans migrated, N handoffs migrated, N path references rewritten, N files needing manual frontmatter review.
 
 ---
 
