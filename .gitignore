@@ -1,5 +1,6 @@
 .DS_Store
 ._*
+
 # API keys and secrets
 .env
 .env.local
@@ -25,23 +26,17 @@ node_modules/
 *.swo
 *~
 
-/.stow-local-ignore
-
-claudecode/.claude/MEMORY/**
-!claudecode/.claude/MEMORY/README.md
+# Atlas project-local artifacts
 .claude/worktrees/
-claudecode/.claude/pai_updates/
-claudecode/.claude/pai_backups/
-claudecode/.claude/.pai-sync-history
-claudecode/.claude/Observability/MenuBarApp/Observability.app/
-claudecode/.claude/.sidecar/
-claudecode/.claude/skills/VisualExplainer/
-opencode/.config/opencode/superpowers/
+.atlas/worktrees/
 .todos/
 .sidecar/
-.audit-backup/
 
-# Pi agent
+# Pi agent runtime state (never commit)
 **/auth.json
 **/.update-check
 **/.pi-settings.json
+
+# Local backups containing secrets — never commit
+oldSetup/
+.audit-backup/

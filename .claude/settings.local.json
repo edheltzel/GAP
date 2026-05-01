@@ -1,8 +1,5 @@
 {
-	"permissions": {
-		"allow": [
-			"mcp__recall-memory__context_for_agent",
-			"mcp__recall-memory__memory_add"
-		]
-	}
+  "permissions": {
+    "allow": ["mcp__recall-memory__context_for_agent", "mcp__recall-memory__memory_add"]
+  }
 }

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="eldritch">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Atlas — Agent Workflow Tooling Ranking (2026-04-29)</title>
+<style>
+  :root[data-theme="eldritch"] {
+    --bg: #16161e;
+    --bg-alt: #1a1b26;
+    --bg-card: #1e2030;
+    --bg-elevated: #24283b;
+    --fg: #c0caf5;
+    --fg-dim: #a9b1d6;
+    --fg-mute: #565f89;
+    --border: #2f3349;
+    --accent: #7aa2f7;
+    --accent-2: #bb9af7;
+    --good: #9ece6a;
+    --warn: #e0af68;
+    --bad: #f7768e;
+    --info: #7dcfff;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  :root[data-theme="rose-pine-dawn"] {
+    --bg: #faf4ed;
+    --bg-alt: #fffaf3;
+    --bg-card: #f2e9e1;
+    --bg-elevated: #f4ede4;
+    --fg: #575279;
+    --fg-dim: #797593;
+    --fg-mute: #9893a5;
+    --border: #cecacd;
+    --accent: #286983;
+    --accent-2: #907aa9;
+    --good: #56949f;
+    --warn: #ea9d34;
+    --bad: #b4637a;
+    --info: #56949f;
+    --shadow: 0 4px 24px rgba(87,82,121,0.12);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.55;
+    transition: background 0.2s, color 0.2s;
+  }
+  .container { max-width: 1280px; margin: 0 auto; padding: 32px 24px; }
+  header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border);
+  }
+  h1 {
+    font-size: 28px; margin: 0 0 4px 0; font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .subtitle { color: var(--fg-dim); font-size: 14px; margin: 0; }
+  .theme-toggle {
+    background: var(--bg-card); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .theme-toggle:hover { background: var(--bg-elevated); border-color: var(--accent); }
+  h2 {
+    font-size: 20px; margin: 40px 0 16px 0; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; display: inline-block; width: 4px; height: 20px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    border-radius: 2px;
+  }
+  h3 { font-size: 16px; margin: 24px 0 8px 0; color: var(--fg); }
+
+  .grid-cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px; margin: 16px 0;
+  }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; box-shadow: var(--shadow);
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .card-rank {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 3px 8px; border-radius: 999px; margin-bottom: 8px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .rank-1 { background: rgba(158,206,106,0.18); color: var(--good); }
+  .rank-2 { background: rgba(187,154,247,0.18); color: var(--accent-2); }
+  .rank-3 { background: rgba(122,162,247,0.18); color: var(--accent); }
+  .rank-4 { background: rgba(125,207,255,0.18); color: var(--info); }
+  .rank-5 { background: rgba(224,175,104,0.18); color: var(--warn); }
+  .rank-6 { background: rgba(86,95,137,0.25); color: var(--fg-mute); }
+  .card-title { font-size: 17px; font-weight: 600; margin: 0 0 4px 0; }
+  .card-stars { font-size: 12px; color: var(--fg-mute); margin-bottom: 12px; }
+  .card-desc { font-size: 13px; color: var(--fg-dim); margin: 8px 0; }
+  .scores {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 6px 8px; font-size: 12px; margin-top: 12px;
+    padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .scores .label { color: var(--fg-mute); }
+  .scores .val { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+  .bar {
+    height: 4px; background: var(--bg-elevated); border-radius: 2px;
+    overflow: hidden; grid-column: 1 / -1; margin-top: -2px;
+  }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 16px 0;
+    font-size: 13px; background: var(--bg-card); border-radius: 12px;
+    overflow: hidden; box-shadow: var(--shadow);
+  }
+  th { background: var(--bg-elevated); color: var(--accent); text-align: left;
+    padding: 12px 14px; font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--fg-dim); }
+  tr:last-child td { border-bottom: none; }
+  td.tool { color: var(--fg); font-weight: 600; }
+  td.good { color: var(--good); }
+  td.warn { color: var(--warn); }
+  td.bad { color: var(--bad); }
+  td.dim { color: var(--fg-mute); }
+
+  .pill {
+    display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: var(--bg-elevated); color: var(--fg-dim); margin-right: 4px;
+  }
+  .pill.good { background: rgba(158,206,106,0.16); color: var(--good); }
+  .pill.warn { background: rgba(224,175,104,0.16); color: var(--warn); }
+  .pill.bad { background: rgba(247,118,142,0.16); color: var(--bad); }
+  .pill.info { background: rgba(125,207,255,0.16); color: var(--info); }
+
+  .stack-diagram {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; margin: 16px 0;
+    box-shadow: var(--shadow);
+  }
+  .layer {
+    display: grid; grid-template-columns: 60px 1fr 2fr;
+    gap: 16px; align-items: center; padding: 16px;
+    background: var(--bg-elevated); border-radius: 10px;
+    margin-bottom: 8px; border-left: 4px solid var(--accent);
+  }
+  .layer-num {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: var(--bg);
+  }
+  .layer-name { font-weight: 600; font-size: 15px; }
+  .layer-purpose { font-size: 12px; color: var(--fg-mute); margin-top: 2px; }
+  .layer-tool { font-size: 13px; color: var(--fg-dim); }
+  .layer-tool code {
+    background: var(--bg-card); padding: 2px 6px; border-radius: 4px;
+    font-size: 12px; color: var(--accent-2);
+  }
+
+  .recommendation {
+    background: linear-gradient(135deg, rgba(158,206,106,0.08), rgba(122,162,247,0.08));
+    border: 1px solid var(--good); border-radius: 12px; padding: 24px;
+    margin: 24px 0;
+  }
+  .recommendation h2 { color: var(--good); margin-top: 0; }
+  .recommendation h2::before { background: var(--good); }
+  .question-box {
+    background: rgba(224,175,104,0.08); border-left: 4px solid var(--warn);
+    border-radius: 8px; padding: 16px 20px; margin: 16px 0;
+  }
+  .question-box strong { color: var(--warn); }
+
+  .key { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px;
+    background: var(--bg-elevated); padding: 1px 6px; border-radius: 4px;
+    color: var(--accent-2); }
+  ul.tight { margin: 8px 0; padding-left: 22px; }
+  ul.tight li { margin: 3px 0; color: var(--fg-dim); font-size: 13px; }
+  ul.tight li strong { color: var(--fg); }
+
+  footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border);
+    color: var(--fg-mute); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Agent Workflow Tooling — Ranked &amp; Recommended</h1>
+        <p class="subtitle">Atlas research synthesis · 2026-04-29 · Three parallel researchers (Perplexity / Gemini / Claude)</p>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()">☾ Toggle theme</button>
+    </header>
+
+    <h2>Top 8 Tools — Adoption-Weighted Ranking</h2>
+    <p style="color:var(--fg-dim); font-size:14px; margin-bottom:20px;">
+      Scored 1-10 by Gemini researcher across 5 axes. Stars/status as of April 2026.
+    </p>
+
+    <div class="grid-cards">
+
+      <div class="card">
+        <span class="card-rank rank-1">#1 · Mainstream</span>
+        <div class="card-title">BMAD-METHOD</div>
+        <div class="card-stars">⭐ ~43,000 · agile-AI framework</div>
+        <div class="card-desc">Spec-driven dev with 7 AI personas (Analyst, PM, Architect, SM, Dev, QA). Strongest planning rigor; not a state tracker.</div>
+        <div class="scores">
+          <span class="label">Popularity</span><span class="val">9</span><div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+          <span class="label">Agent compat</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+          <span class="label">Plan fit</span><span class="val">9</span><div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+          <span class="label">Cockpit fit</span><span class="val">4</span><div class="bar"><div class="bar-fill" style="width:40%"></div></div>
+          <span class="label">Future-proof</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="card-rank rank-2">#2 · Rising · ⚠ sunsetting</span>
+        <div class="card-title">vibe-kanban</div>
+        <div class="card-stars">⭐ ~24,000 · BloopAI · YC</div>
+        <div class="card-desc">Kanban with parallel agents in worktrees. Best multi-agent execution UI. <strong>Commercial sunsetting late April 2026</strong> — adoption risk.</div>
+        <div class="scores">
+          <span class="label">Popularity</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+          <span class="label">Agent compat</span><span class="val">9</span><div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+          <span class="label">Plan fit</span><span class="val">7</span><div class="bar"><div class="bar-fill" style="width:70%"></div></div>
+          <span class="label">Cockpit fit</span><span class="val">9</span><div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+          <span class="label">Future-proof</span><span class="val">5</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="card-rank rank-3">#3 · Mainstream · 💵 paid</span>
+        <div class="card-title">Linear (for Agents)</div>
+        <div class="card-stars">cloud · MCP-native · cycles + initiatives</div>
+        <div class="card-desc">Most polished agent-MCP integration. Cycles auto-rollover incomplete work. 25% of new issues now agent-created. Vendor lock-in + cost.</div>
+        <div class="scores">
+          <span class="label">Popularity</span><span class="val">7</span><div class="bar"><div class="bar-fill" style="width:70%"></div></div>
+          <span class="label">Agent compat</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+          <span class="label">Plan fit</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+          <span class="label">Cockpit fit</span><span class="val">6</span><div class="bar"><div class="bar-fill" style="width:60%"></div></div>
+          <span class="label">Future-proof</span><span class="val">9</span><div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="card-rank rank-3">#4 · Mainstream · current</span>
+        <div class="card-title">GitHub Issues + Coding Agent</div>
+        <div class="card-stars">platform · gh-dash cockpit · sub-issues</div>
+        <div class="card-desc">Boring infrastructure win. Issue → assign to Copilot/Claude/Codex → draft PR. Milestones are flat (no nested phases). Weak "what's next" without custom fields.</div>
+        <div class="scores">
+          <span class="label">Popularity</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+          <span class="label">Agent compat</span><span class="val">7</span><div class="bar"><div class="bar-fill" style="width:70%"></div></div>
+          <span class="label">Plan fit</span><span class="val">7</span><div class="bar"><div class="bar-fill" style="width:70%"></div></div>
+          <span class="label">Cockpit fit</span><span class="val">5</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div>
+          <span class="label">Future-proof</span><span class="val">9</span><div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="card-rank rank-4">#5 · Rising fast · standard</span>
+        <div class="card-title">AGENTS.md + spec workflow</div>
+        <div class="card-stars">Linux Foundation standard · cross-agent</div>
+        <div class="card-desc">Donated to Agentic AI Foundation Dec 2025 alongside MCP. Native: Codex, Cursor, Aider, Zed, Warp, Roo, Jules. Claude Code uses CLAUDE.md (coexist).</div>
+        <div class="scores">
+          <span class="label">Popularity</span><span class="val">6</span><div class="bar"><div class="bar-fill" style="width:60%"></div></div>
+          <span class="label">Agent compat</span><span class="val">9</span><div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+          <span class="label">Plan fit</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+          <span class="label">Cockpit fit</span><span class="val">2</span><div class="bar"><div class="bar-fill" style="width:20%"></div></div>
+          <span class="label">Future-proof</span><span class="val">9</span><div class="bar"><div class="bar-fill" style="width:90%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="card-rank rank-1">#6 · Niche → Mainstream · ⭐ underrated</span>
+        <div class="card-title">Backlog.md</div>
+        <div class="card-stars">⭐ ~3,000 · MIT · MCP-native · git-native</div>
+        <div class="card-desc">Tasks as markdown files with frontmatter. MCP server exposes CRUD to all agents. Zero external service. <strong>Right architecture for solo CIO/CTO running heterogeneous agents.</strong></div>
+        <div class="scores">
+          <span class="label">Popularity</span><span class="val">5</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div>
+          <span class="label">Agent compat</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+          <span class="label">Plan fit</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+          <span class="label">Cockpit fit</span><span class="val">5</span><div class="bar"><div class="bar-fill" style="width:50%"></div></div>
+          <span class="label">Future-proof</span><span class="val">7</span><div class="bar"><div class="bar-fill" style="width:70%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="card-rank rank-5">#7 · Rising · session mgmt</span>
+        <div class="card-title">Claude Squad / CCManager</div>
+        <div class="card-stars">⭐ ~5,800 / ~2,500 · TUI multi-agent</div>
+        <div class="card-desc">Manages multiple CC/Codex/Gemini/Aider/OpenCode sessions in tmux + worktrees. Pure cockpit, no task layer — bring your own work queue.</div>
+        <div class="scores">
+          <span class="label">Popularity</span><span class="val">6</span><div class="bar"><div class="bar-fill" style="width:60%"></div></div>
+          <span class="label">Agent compat</span><span class="val">7</span><div class="bar"><div class="bar-fill" style="width:70%"></div></div>
+          <span class="label">Plan fit</span><span class="val">4</span><div class="bar"><div class="bar-fill" style="width:40%"></div></div>
+          <span class="label">Cockpit fit</span><span class="val">8</span><div class="bar"><div class="bar-fill" style="width:80%"></div></div>
+          <span class="label">Future-proof</span><span class="val">6</span><div class="bar"><div class="bar-fill" style="width:60%"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="card-rank rank-6">#8 · Stable · GitHub TUI</span>
+        <div class="card-title">gh-dash</div>
+        <div class="card-stars">⭐ ~11,300 · gh extension · vim keys</div>
+        <div class="card-desc">PR + issue cockpit you already know. Predates AI agents — no native agent concepts. Excellent <em>complement</em>, not a replacement.</div>
+        <div class="scores">
+          <span class="label">Popularity</span><span class="val">6</span><div class="bar"><div class="bar-fill" style="width:60%"></div></div>
+          <span class="label">Agent compat</span><span class="val">4</span><div class="bar"><div class="bar-fill" style="width:40%"></div></div>
+          <span class="label">Plan fit</span><span class="val">3</span><div class="bar"><div class="bar-fill" style="width:30%"></div></div>
+          <span class="label">Cockpit fit</span><span class="val">7</span><div class="bar"><div class="bar-fill" style="width:70%"></div></div>
+          <span class="label">Future-proof</span><span class="val">6</span><div class="bar"><div class="bar-fill" style="width:60%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Honorable Mentions</h2>
+    <table>
+      <thead>
+        <tr><th>Tool</th><th>What it is</th><th>Why it didn't make top 8</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="tool">Beads (Steve Yegge)</td><td>JSONL+SQLite issue tracker, <code>bd next</code> deterministic resolution</td><td class="dim">Architecturally elegant but very young (v0.59, 2025-Q4 launch). Watch list.</td></tr>
+        <tr><td class="tool">claude-task-master</td><td>MCP server with <code>next_task</code>, <code>set_task_status</code> tools</td><td class="dim">Strong MCP fit, but ties workflow to Claude branding/ecosystem.</td></tr>
+        <tr><td class="tool">Plane.so</td><td>Open-source self-hostable Linear/Jira (~50k stars)</td><td class="dim">Heavier ops than Backlog.md; UI not as polished as Linear.</td></tr>
+        <tr><td class="tool">GitHub Spec Kit</td><td>/specify /plan /tasks /implement slash commands</td><td class="dim">VS Code/Copilot-centric; integration story for CC/Pi is DIY.</td></tr>
+        <tr><td class="tool">Kiro (AWS)</td><td>Spec-driven IDE with requirements+design+tasks trinity</td><td class="dim">IDE lock-in; doesn't fit a multi-agent CLI workflow.</td></tr>
+        <tr><td class="tool">Conductor</td><td>macOS-only multi-agent worktree runner</td><td class="dim">Platform-locked; no task layer.</td></tr>
+        <tr><td class="tool">Notion 3.0 Agents</td><td>Workspace agents with custom triggers + workers</td><td class="dim">State decoupled from code repo; per-project setup expensive.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Where each tool wins</h2>
+    <table>
+      <thead>
+        <tr><th>Need</th><th>Best answer</th><th>Runner-up</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Cockpit across repos</td><td class="good">Claude Squad / CCManager</td><td class="dim">gh-dash for the GitHub view</td></tr>
+        <tr><td>Phase / initiative hierarchy</td><td class="good">Linear or Plane (Cycles + Initiatives)</td><td class="dim">BMAD phase gates</td></tr>
+        <tr><td>Cross-agent state read/write</td><td class="good">Backlog.md (MCP)</td><td class="dim">Linear MCP</td></tr>
+        <tr><td>Deterministic "what's next"</td><td class="good">Linear Cycles + Triage</td><td class="dim">Backlog.md frontmatter query</td></tr>
+        <tr><td>Zero vendor lock-in</td><td class="good">Backlog.md + AGENTS.md + .atlas/</td><td class="dim">Plane self-hosted</td></tr>
+        <tr><td>Parallel agent execution</td><td class="good">Claude Squad (or vibe-kanban*)</td><td class="dim">Conductor (mac-only)</td></tr>
+        <tr><td>Spec-driven phase gating</td><td class="good">BMAD-METHOD</td><td class="dim">Agent-OS, GitHub Spec Kit</td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--fg-mute); font-size:12px; margin-top:-8px;">
+      *vibe-kanban excellent today, but commercial sunsetting introduces 12-month survival uncertainty.
+    </p>
+
+    <h2>Recommended Stack — Five Layers</h2>
+    <p style="color:var(--fg-dim);">
+      All three researchers converged on a layered architecture. No single tool wins; the stack does.
+    </p>
+
+    <div class="stack-diagram">
+      <div class="layer">
+        <div class="layer-num">1</div>
+        <div>
+          <div class="layer-name">Conventions</div>
+          <div class="layer-purpose">Per-project agent contract (build cmds, test runners, style rules)</div>
+        </div>
+        <div class="layer-tool">
+          <code>AGENTS.md</code> (cross-agent) +<br/>
+          <code>CLAUDE.md</code> (Claude Code-specific, coexists)<br/>
+          <span class="pill good">free</span><span class="pill info">standard</span><span class="pill">~150 lines max</span>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-num">2</div>
+        <div>
+          <div class="layer-name">Plans (Why)</div>
+          <div class="layer-purpose">Long-form rationale, architecture, decisions</div>
+        </div>
+        <div class="layer-tool">
+          <code>.atlas/plans/</code> · existing schema retained<br/>
+          <code>.atlas/handoffs/</code> · existing<br/>
+          <span class="pill good">already in place</span><span class="pill info">git-native</span>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-num">3</div>
+        <div>
+          <div class="layer-name">State (What's next)</div>
+          <div class="layer-purpose">Queryable task graph with deterministic next-up resolution</div>
+        </div>
+        <div class="layer-tool">
+          <strong>Path A (recommended):</strong> <code>Backlog.md</code> + MCP<br/>
+          <strong>Path B:</strong> Linear MCP (paid, polished)<br/>
+          <span class="pill good">cross-agent via MCP</span><span class="pill warn">choose one</span>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-num">4</div>
+        <div>
+          <div class="layer-name">Session Switcher</div>
+          <div class="layer-purpose">Cross-project cockpit — pick up where you left off</div>
+        </div>
+        <div class="layer-tool">
+          <code>Claude Squad</code> or <code>CCManager</code> (TUI)<br/>
+          + custom <code>atlas next</code> command<br/>
+          <span class="pill good">free</span><span class="pill info">multi-agent</span>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-num">5</div>
+        <div>
+          <div class="layer-name">External / GitHub</div>
+          <div class="layer-purpose">Public collaboration, PR review, milestone-level coordination</div>
+        </div>
+        <div class="layer-tool">
+          <code>GitHub Issues + Milestones</code> (demoted to external view)<br/>
+          <code>gh-dash</code> for triage<br/>
+          <span class="pill">existing</span><span class="pill info">PR layer</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="recommendation">
+      <h2>Final Recommendation</h2>
+      <p style="margin-top:0;">
+        Adopt <strong>Path A</strong> (Backlog.md) as the state layer. Rationale:
+      </p>
+      <ul class="tight">
+        <li><strong>Zero vendor lock-in</strong> — tasks live in git alongside code, MCP-accessible by every agent you use</li>
+        <li><strong>Offline-capable</strong> — fits your distributed multi-agent reality (CC + OpenCode + Pi + Codex)</li>
+        <li><strong>Cheapest reversibility</strong> — adopting Backlog.md doesn't preclude later Linear migration; Linear has a Backlog.md import path</li>
+        <li><strong>Schema continuity</strong> — your existing <code>.atlas/plans/</code> frontmatter (<code>phase</code>, <code>percent_complete</code>, <code>next_action</code>) maps cleanly to Backlog.md task fields</li>
+      </ul>
+      <p>
+        Add a small Atlas-native <code>atlas next</code> command that aggregates across <code>~/Developer/*/. atlas/plans/*.md</code> + <code>backlog/*</code> per project, returning a single ranked answer. This is the "what's next" function the data shows is missing from every off-the-shelf tool.
+      </p>
+      <p style="margin-bottom:0;">
+        <strong>Do NOT</strong> migrate GitHub issues yet. Keep GitHub for external/public-facing work (PRs, public bug reports, OSS contributions). Backlog.md handles your <em>private</em> per-project task state — the layer that's currently rotting.
+      </p>
+    </div>
+
+    <h2>Open Questions for Ed</h2>
+    <div class="question-box">
+      <p style="margin-top:0;"><strong>Q1 (must answer before implementation)</strong> · State-layer choice:</p>
+      <ul class="tight">
+        <li><strong>Path A</strong> — Backlog.md (git-native, free, zero lock-in) ← <em>recommended</em></li>
+        <li><strong>Path B</strong> — Linear MCP (paid, most polished, cycles/initiatives, vendor lock-in)</li>
+        <li><strong>Path C</strong> — Hybrid: Linear for cross-business roadmap (Alianza/MyChron/Peptideware), Backlog.md per-project</li>
+      </ul>
+      <p><strong>Q2</strong> · Session switcher: Claude Squad (more stars) vs CCManager (more multi-agent breadth)?</p>
+      <p style="margin-bottom:0;"><strong>Q3</strong> · Build the <code>atlas next</code> resolver as a Justfile recipe, a standalone Bun CLI, or a Standup skill enhancement?</p>
+    </div>
+
+    <h2>Migration Path (if Path A approved)</h2>
+    <ul class="tight">
+      <li><strong>Phase 1 — Layer 1 + 2</strong> (1 day): write/audit AGENTS.md per repo. <code>.atlas/plans/</code> already in place.</li>
+      <li><strong>Phase 2 — Layer 3</strong> (½ day): install Backlog.md + MCP server in atlas-config and one pilot project (atlas-recall recommended). Convert one in-progress plan's action items to Backlog.md tasks.</li>
+      <li><strong>Phase 3 — Layer 4</strong> (1 day): install Claude Squad. Build <code>atlas next</code> as a Bun CLI under <code>claudecode/.claude/skills/AtlasNext/</code>. Wire into Standup skill.</li>
+      <li><strong>Phase 4 — Pilot &amp; iterate</strong> (1 week): use Backlog.md on one project for a full week before rolling to all 5+. Evaluate friction.</li>
+      <li><strong>Phase 5 — Rollout</strong>: extend to atlas-recall, alianza, mychron/peptideware, srcd, rainy day media as pilot validates.</li>
+    </ul>
+
+    <footer>
+      Sources synthesized from 3 parallel research agents (Perplexity / Gemini / Claude). 30+ tools/patterns surveyed.<br/>
+      Generated 2026-04-29 · companion plan: <code>.atlas/plans/2026-04-29-agent-workflow-orchestration.md</code>
+    </footer>
+  </div>
+<script>
+  function toggleTheme() {
+    const root = document.documentElement;
+    const cur = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", cur === "eldritch" ? "rose-pine-dawn" : "eldritch");
+    try { localStorage.setItem("atlas-theme", root.getAttribute("data-theme")); } catch(e){}
+  }
+  try {
+    const saved = localStorage.getItem("atlas-theme");
+    if (saved) document.documentElement.setAttribute("data-theme", saved);
+  } catch(e){}
+</script>
+</body>
+</html>

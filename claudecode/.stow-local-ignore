@@ -14,3 +14,8 @@ node_modules
 
 # Templates (not needed at runtime)
 \.env\.example
+
+# Repo-only files (not needed in ~/.claude at runtime)
+\.claude/README\.md
+\.claude/install\.sh
+\.claude/PAI-Install

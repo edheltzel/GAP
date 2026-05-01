@@ -1,1 +1,0 @@
-@../../Art/Tools/CLAUDE.md
