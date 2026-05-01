@@ -8,7 +8,8 @@
       "Bash(mv '~/.claude/Recall_GUIDE.md' /Users/ed/Developer/atlas-config/claudecode/.claude/Recall_GUIDE.md)",
       "Bash(mv '~/.claude/atlas-statusline.sh' /Users/ed/Developer/atlas-config/claudecode/.claude/atlas-statusline.sh)",
       "Bash(mv '~/.claude/settings.json' /Users/ed/Developer/atlas-config/claudecode/.claude/settings.json)",
-      "Bash(just up *)"
+      "Bash(just up *)",
+      "Bash(git *)"
     ]
   }
 }
