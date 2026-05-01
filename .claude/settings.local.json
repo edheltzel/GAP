@@ -1,5 +1,14 @@
 {
   "permissions": {
-    "allow": ["mcp__recall-memory__context_for_agent", "mcp__recall-memory__memory_add"]
+    "allow": [
+      "mcp__recall-memory__context_for_agent",
+      "mcp__recall-memory__memory_add",
+      "Bash(mkdir -p /Users/ed/Developer/atlas-config/claudecode/.claude/Rules /Users/ed/Developer/atlas-config/claudecode/.claude/themes /Users/ed/Developer/atlas-config/claudecode/.claude/commands /Users/ed/Developer/atlas-config/claudecode/.claude/hooks/lib /Users/ed/Developer/atlas-config/claudecode/.claude/MEMORY)",
+      "Bash(mv '~/.claude/CLAUDE.md' /Users/ed/Developer/atlas-config/claudecode/.claude/CLAUDE.md)",
+      "Bash(mv '~/.claude/Recall_GUIDE.md' /Users/ed/Developer/atlas-config/claudecode/.claude/Recall_GUIDE.md)",
+      "Bash(mv '~/.claude/atlas-statusline.sh' /Users/ed/Developer/atlas-config/claudecode/.claude/atlas-statusline.sh)",
+      "Bash(mv '~/.claude/settings.json' /Users/ed/Developer/atlas-config/claudecode/.claude/settings.json)",
+      "Bash(just up *)"
+    ]
   }
 }

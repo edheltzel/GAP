@@ -1,0 +1,29 @@
+# MEMORY
+
+You have persistent memory via Recall. **Read the full guide:** /Users/ed/.claude/Recall_GUIDE.md
+
+A SessionStart hook automatically loads recent memory context. Review it before your first response.
+
+Core rules:
+
+1. **Memory-first** → Review SessionStart hook output, then search Recall before falling back to git log
+2. Before asking user to repeat anything → search first with `memory_search` or `memory_hybrid_search`
+3. Before spawning agents (Task tool) → call `context_for_agent`
+4. When decisions are made → record with `memory_add`
+5. End of session when user says `/dump` or `/Recall:dump` → call `memory_dump({ title: "Descriptive Title" })`
+
+Context resolution order:
+
+1. SessionStart hook output (already loaded)
+2. `memory_hybrid_search` (keyword + semantic search)
+3. `memory_recall` (recent LoA, decisions, breadcrumbs)
+4. Native Claude memory / conversation context
+5. `git log` / `git show` (last resort)
+
+Tool syntax:
+
+- `memory_search({ query: "search terms" })`
+- `memory_hybrid_search({ query: "natural language question" })`
+- `memory_add({ type: "decision", content: "what", detail: "why" })`
+- `memory_dump({ title: "Session title", skip_fabric: true })`
+- `context_for_agent({ task_description: "what the agent will do" })`
