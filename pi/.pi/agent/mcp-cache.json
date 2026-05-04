@@ -1,0 +1,257 @@
+{
+  "version": 1,
+  "servers": {
+    "recall-memory": {
+      "configHash": "99f3f5dd8dc08ecf18f01ed950885bc7b886327ff97db5296db3473bd4c3d34d",
+      "tools": [
+        {
+          "name": "memory_search",
+          "description": "Search memory using FTS5 full-text search. Use this BEFORE asking the user to repeat anything. Searches across messages, LoA entries, decisions, learnings, and breadcrumbs.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "Search query (keywords, phrases). FTS5 supports AND, OR, NOT, prefix*, \"exact phrase\""
+              },
+              "project": {
+                "type": "string",
+                "description": "Filter by project name"
+              },
+              "table": {
+                "type": "string",
+                "enum": [
+                  "messages",
+                  "loa",
+                  "decisions",
+                  "learnings",
+                  "breadcrumbs"
+                ],
+                "description": "Search specific table only"
+              },
+              "limit": {
+                "type": "number",
+                "default": 10,
+                "description": "Max results to return"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          }
+        },
+        {
+          "name": "memory_hybrid_search",
+          "description": "Hybrid search combining keywords (FTS5) and semantics (embeddings) with Reciprocal Rank Fusion. Best for natural language queries. Falls back to keyword-only if embeddings unavailable.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "Natural language search query"
+              },
+              "project": {
+                "type": "string",
+                "description": "Filter by project name"
+              },
+              "limit": {
+                "type": "number",
+                "default": 10,
+                "description": "Max results to return"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          }
+        },
+        {
+          "name": "memory_recall",
+          "description": "Recall recent memory entries. Use at session start or when context is needed. Returns recent LoA entries, decisions, and breadcrumbs.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "number",
+                "default": 5,
+                "description": "Number of recent entries per category"
+              },
+              "project": {
+                "type": "string",
+                "description": "Filter by project name"
+              }
+            },
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          }
+        },
+        {
+          "name": "loa_show",
+          "description": "Show a full Library of Alexandria entry with its Fabric extract_wisdom content.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number",
+                "description": "LoA entry ID"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          }
+        },
+        {
+          "name": "memory_add",
+          "description": "Add a structured memory record (decision, learning, or breadcrumb). Use to capture important context during sessions.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "decision",
+                  "learning",
+                  "breadcrumb"
+                ],
+                "description": "Type of record to add"
+              },
+              "content": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Main content (decision text, problem description, or breadcrumb note)"
+              },
+              "detail": {
+                "type": "string",
+                "description": "Additional detail (reasoning for decisions, solution for learnings)"
+              },
+              "project": {
+                "type": "string",
+                "description": "Project name"
+              },
+              "tags": {
+                "type": "string",
+                "description": "Comma-separated tags (for learnings)"
+              },
+              "confidence": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "description": "Confidence level (for decisions and learnings). HIGH=explicit/discussed, MEDIUM=implied/reasonable, LOW=speculative/uncertain"
+              },
+              "importance": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "description": "Importance 1-10 (default: 5). Used by tiered SessionRecall to rank L1 records. Set 8-10 for explicit user decisions/preferences, 2-3 for routine context."
+              }
+            },
+            "required": [
+              "type",
+              "content"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          }
+        },
+        {
+          "name": "decision_update",
+          "description": "Update a decision's lifecycle status. Use 'supersede' when a newer decision replaces an older one. Use 'revert' when a decision was wrong and rolled back. Only active decisions can be transitioned.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number",
+                "description": "The decision ID to update"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "supersede",
+                  "revert"
+                ],
+                "description": "The lifecycle action: 'supersede' (replaced by newer) or 'revert' (was wrong)"
+              }
+            },
+            "required": [
+              "id",
+              "action"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          }
+        },
+        {
+          "name": "memory_dump",
+          "description": "Dump the current conversation session into SQLite for immediate searchability. Works across Claude Code, OpenCode, and Pi. Use when the user says /dump or you need to persist the current session mid-conversation. Messages are immediately searchable via memory_search after dumping.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Descriptive title for this session dump"
+              },
+              "project": {
+                "type": "string",
+                "description": "Override project name"
+              },
+              "skip_fabric": {
+                "type": "boolean",
+                "default": true,
+                "description": "Skip Fabric extract_wisdom (faster, uses basic summary). Default: true for speed."
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          }
+        },
+        {
+          "name": "memory_stats",
+          "description": "Get RECALL database statistics.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          }
+        },
+        {
+          "name": "context_for_agent",
+          "description": "Prepare rich context before spawning any agent via Task tool. Uses hybrid search (keywords + semantics) to find relevant memory. Returns context to include in agent prompt.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "agent_task": {
+                "type": "string",
+                "description": "The task/prompt you plan to give the agent"
+              },
+              "project": {
+                "type": "string",
+                "description": "Current project name for filtering"
+              }
+            },
+            "required": [
+              "agent_task"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+          }
+        }
+      ],
+      "resources": [],
+      "cachedAt": 1777916076439
+    }
+  }
+}

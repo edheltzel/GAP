@@ -1,0 +1,5 @@
+{
+	"powerbar": {
+		"left": "pwd,git-branch,tokens,context-usage"
+	}
+}

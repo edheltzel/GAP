@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "recall-memory": {
+      "command": "/Users/ed/.bun/bin/mem-mcp",
+      "args": [],
+      "lifecycle": "lazy",
+      "environment": {
+        "MEM_DB_PATH": "/Users/ed/.claude/memory.db"
+      }
+    }
+  }
+}
