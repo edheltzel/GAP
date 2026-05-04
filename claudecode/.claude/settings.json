@@ -166,9 +166,14 @@
       "autoUpdate": true
     }
   },
+  "voice": {
+    "enabled": false,
+    "mode": "hold"
+  },
   "skipDangerousModePermissionPrompt": true,
   "theme": "custom:eldritch",
   "skipAutoPermissionPrompt": true,
+  "voiceEnabled": false,
   "disableTelemetry": true,
   "disableErrorReporting": true,
   "disableFeedbackDisplay": true
