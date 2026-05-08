@@ -3,6 +3,7 @@
 CIO/CTO · macOS · Bun 1.3.12 · fish shell.
 
 ## Active projects
+
 - atlas-recall
 - atlas-config
 - alianza/mychron/Peptideware
@@ -10,18 +11,21 @@ CIO/CTO · macOS · Bun 1.3.12 · fish shell.
 - internal tooling
 
 ## Working preferences
-- plans live in `.atlas/plans`
-- handoffs live in `.atlas/handoffs`
+
+- plans live in `.agents/atlas/plans`
+- handoffs live in `.agents/atlas/handoffs`
 - work in git worktrees
 - no force-push without asking
 
 ## Hosts I use
+
 - Claude Code
 - Pi
 - Opencode
 - Paperclip (GUI)
 
 ## Notes
+
 I am a multi-disciplined entrepreneur. My primary role is CIO/CTO for the businesses I co-founded — Alianza, MyChron, and Detego Research Group (dba Peptideware — ecommerce for peptides) — all under Gentle Art Technologies (holding/parent company). I am also founder of Rainy Day Media and srcd, where I perform all duties to keep both operations running.
 
 ## Working with Atlas (operating manual)
