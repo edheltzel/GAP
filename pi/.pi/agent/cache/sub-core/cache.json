@@ -28,15 +28,15 @@
     }
   },
   "codex": {
-    "fetchedAt": 1778936509859,
-    "statusFetchedAt": 1778936464987,
+    "fetchedAt": 1778936551377,
+    "statusFetchedAt": 1778936534976,
     "usage": {
       "provider": "codex",
       "displayName": "Codex Plan",
       "windows": [
         {
           "label": "5h",
-          "usedPercent": 13,
+          "usedPercent": 17,
           "resetDescription": "3h37m",
           "resetAt": "2026-05-16T16:39:38.000Z"
         },
