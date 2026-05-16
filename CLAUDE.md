@@ -11,6 +11,8 @@ This repo is a minimal, stow-managed config for Ed's agents. The previous Atlas/
 
 Project-local artifacts live under `.atlas/` (`plans/`, `handoffs/`, `worktrees/`). `worktrees/` is gitignored.
 
+Before changing Pi's global package set or implementing `/atlas-flow`, read `.atlas/plans/2026-05-16-atlas-flow-research-digest.md` for the minimal-global baseline, flow manifest schema direction, safety rules, and issue roadmap.
+
 ## Stow
 
 Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands. The per-package `.stow-local-ignore` files **replace** stow's built-in defaults — when adding a new one, copy from `claudecode/.stow-local-ignore` and re-include `\.git`, `\.gitignore`, etc.
