@@ -11,3 +11,7 @@ Install with:
   pi install npm:pi-subagents
   pi install npm:pi-ask-user
 <!-- END COMPOUND PI TOOL MAP -->
+
+## Atlas Flow safety note
+
+Before changing Pi's global package set or implementing `/atlas-flow`, read `/Users/ed/Developer/atlas-config/.atlas/plans/2026-05-16-atlas-flow-research-digest.md` for the minimal-global baseline, flow manifest schema direction, safety rules, and GitHub issue roadmap.
