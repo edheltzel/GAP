@@ -5,17 +5,18 @@ argument-hint: [optional title]
 
 # /CreateHandoff
 
-Create a one-time briefing handoff document under `.atlas/handoffs/`. Handoffs are consumed by `/Standup` — the moment one is picked up, it is archived. So write them to be self-contained: enough context for the next session to start cold.
+Create a one-time briefing handoff document under `.agents/atlas/handoffs/`. Handoffs are consumed by `/Standup` — the moment one is picked up, it is archived. So write them to be self-contained: enough context for the next session to start cold.
 
 ## Pre-flight
-1. Confirm `.atlas/` exists. If only `.atlas-plans/` exists, tell the user to run `/Standup migrate` first and stop.
-2. Ensure `.atlas/handoffs/` exists (create if missing).
+
+1. Confirm `.agents/atlas/` exists. If only `.atlas-plans/` or `.atlas/plans/` exists, tell the user to run `/Standup migrate` first and stop.
+2. Ensure `.agents/atlas/handoffs/` exists (create if missing).
 
 ## Interview the user
 
 Ask these in a single message (not one-at-a-time), then wait for answers:
 
-1. **Parent plan** — present the list of `.atlas/plans/*.md` files (title + filename, exclude `archive/`). Ask which one this handoff belongs to.
+1. **Parent plan** — present the list of `.agents/atlas/plans/*.md` files (title + filename, exclude `archive/`). Ask which one this handoff belongs to.
 2. **Phase / epic** — read the parent plan's frontmatter `phase` field as the default. Ask the user to confirm or override.
 3. **Title** — if `$ARGUMENTS` is set, use it as the default; otherwise ask.
 4. **Next action** — one line, the very first concrete step.
@@ -24,7 +25,7 @@ Ask these in a single message (not one-at-a-time), then wait for answers:
 
 ## Generate the file
 
-Slugify the title to `kebab-case.md` and write to `.atlas/handoffs/<slug>.md`:
+Slugify the title to `kebab-case.md` and write to `.agents/atlas/handoffs/<slug>.md`:
 
 ```yaml
 ---
@@ -53,10 +54,12 @@ next_action: <one line>
 ```
 
 ## Post-create
+
 1. `chown pwsysadmin:pwsysadmin` and `chmod 644` the new file.
 2. Update the parent plan's `last_updated` to today.
-3. Tell the user: *"Handoff created at `.atlas/handoffs/<slug>.md`. Will surface in next `/Standup`."*
+3. Tell the user: _"Handoff created at `.agents/atlas/handoffs/<slug>.md`. Will surface in next `/Standup`."_
 
 ## Output style
+
 - Single interview message, then single confirmation message after creation.
 - No preamble. No trailing summary beyond the create confirmation.

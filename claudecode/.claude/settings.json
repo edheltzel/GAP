@@ -3,7 +3,7 @@
   "env": {
     "ATLAS_DIR": "/Users/ed/.claude",
     "BASH_DEFAULT_TIMEOUT_MS": "600000",
-    "CLAUDE_AUOTCOMPACT_PCT_OVERRIDE": "80",
+    "CLAUDE_AUOTCOMPACT_PCT_OVERRIDE": "95",
     "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "80000",
@@ -13,10 +13,6 @@
     "CLAUDE_CODE_TMUX_TRUECOLOR": "1",
     "CLAUDE_DISABLE_FEEDBACK_SURVEY": "1",
     "CLAUDE_NOTIFY_SOUND": "",
-    "DISABLE_BUG_COMMAND": "1",
-    "DISABLE_COST_WARNINGS": "1",
-    "DISABLE_ERROR_REPORTING": "1",
-    "DISABLE_TELEMETRY": "1",
     "ENABLE_TOOL_SEARCH": "auto",
     "MCP_CONNECTION_NONBLOCKING": "1",
     "PROJECTS_DIR": "/Users/ed/Developer"
@@ -97,6 +93,14 @@
             "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionExtract.ts"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && SUPERSET_AGENT_ID=claude \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -118,6 +122,14 @@
             "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/SessionRecall.ts"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && SUPERSET_AGENT_ID=claude \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -131,6 +143,59 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && SUPERSET_AGENT_ID=claude \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && SUPERSET_AGENT_ID=claude \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && SUPERSET_AGENT_ID=claude \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && SUPERSET_AGENT_ID=claude \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$SUPERSET_HOME_DIR\" ] && [ -x \"$SUPERSET_HOME_DIR/hooks/notify.sh\" ] && SUPERSET_AGENT_ID=claude \"$SUPERSET_HOME_DIR/hooks/notify.sh\" || true"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
@@ -141,15 +206,15 @@
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
     "andrej-karpathy-skills@karpathy-skills": true,
-    "vercel@claude-plugins-official": true,
+    "vercel@claude-plugins-official": false,
     "VisualExplainer@visual-explainer-marketplace": true,
     "typescript-lsp@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true,
-    "gopls-lsp@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true,
-    "php-lsp@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true,
-    "lua-lsp@claude-plugins-official": true
+    "pyright-lsp@claude-plugins-official": false,
+    "gopls-lsp@claude-plugins-official": false,
+    "rust-analyzer-lsp@claude-plugins-official": false,
+    "php-lsp@claude-plugins-official": false,
+    "swift-lsp@claude-plugins-official": false,
+    "lua-lsp@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "karpathy-skills": {
@@ -164,14 +229,22 @@
         "repo": "edheltzel/VisualExplainer"
       },
       "autoUpdate": true
+    },
+    "agricidaniel-seo": {
+      "source": {
+        "source": "github",
+        "repo": "AgriciDaniel/claude-seo"
+      }
     }
   },
+  "effortLevel": "high",
+  "advisorModel": "opus",
   "voice": {
     "enabled": false,
     "mode": "hold"
   },
   "skipDangerousModePermissionPrompt": true,
-  "theme": "custom:eldritch",
+  "theme": "dark-ansi",
   "skipAutoPermissionPrompt": true,
   "voiceEnabled": false,
   "disableTelemetry": true,

@@ -6,7 +6,8 @@
       "lifecycle": "lazy",
       "environment": {
         "MEM_DB_PATH": "/Users/ed/.claude/memory.db"
-      }
+      },
+      "directTools": true
     }
   }
 }

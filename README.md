@@ -10,6 +10,7 @@ This repo intentionally starts small. Items are cherry-picked and added over tim
 | ------------ | ----------------------- | ---------------- |
 | `claudecode` | `claudecode/.claude/`   | `~/.claude/`     |
 | `pi`         | `pi/.pi/agent/`         | `~/.pi/agent/`   |
+| `codex`      | `codex/.codex/`         | `~/.codex/`      |
 
 Plans, handoffs, and worktrees live under `.atlas/` at the repo root (see `.atlas/plans/`, `.atlas/handoffs/`).
 
@@ -27,4 +28,5 @@ just push     # commit any changes and push to origin
 
 - `pi/` is a placeholder while the Pi agent is reconfigured. Add files there as needed and `just up` to stow them.
 - `oldSetup/`, `.audit-backup/`, and any `auth.json` files are gitignored — runtime state and local backups never get committed.
+- Codex runtime state stays local; only curated files like `config.toml` and `hooks.json` are stowed.
 - Worktrees (`EnterWorktree` / `ExitWorktree`) write to `.atlas/worktrees/`, which is also gitignored.

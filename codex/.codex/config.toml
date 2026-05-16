@@ -1,0 +1,30 @@
+personality = "pragmatic"
+approvals_reviewer = "user"
+
+[projects."/Users/ed/.dotfiles"]
+trust_level = "trusted"
+
+[projects."/Users/ed/Developer/atlas-config"]
+trust_level = "trusted"
+
+[projects."/Users/ed/Library/Mobile Documents/iCloud~md~obsidian/Documents/FieldNotes✱"]
+trust_level = "trusted"
+
+[projects."/Users/ed/Sites/murphysautocare.com"]
+trust_level = "trusted"
+
+[tui]
+status_line = ["model-with-reasoning", "current-dir", "git-branch", "pull-request-number"]
+status_line_use_colors = true
+
+[tui.model_availability_nux]
+"gpt-5.5" = 4
+
+[tui.keymap.list]
+
+[notice]
+hide_full_access_warning = true
+
+[features]
+terminal_resize_reflow = true
+memories = true
