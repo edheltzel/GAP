@@ -28,7 +28,7 @@
     }
   },
   "codex": {
-    "fetchedAt": 1778937017839,
+    "fetchedAt": 1778937070235,
     "statusFetchedAt": 1778937025085,
     "usage": {
       "provider": "codex",
@@ -36,13 +36,13 @@
       "windows": [
         {
           "label": "5h",
-          "usedPercent": 63,
-          "resetDescription": "3h29m",
+          "usedPercent": 68,
+          "resetDescription": "3h28m",
           "resetAt": "2026-05-16T16:39:38.000Z"
         },
         {
           "label": "Week",
-          "usedPercent": 13,
+          "usedPercent": 14,
           "resetDescription": "5d5h",
           "resetAt": "2026-05-21T18:29:39.000Z"
         }
