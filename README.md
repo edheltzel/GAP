@@ -26,6 +26,7 @@ just push     # commit any changes and push to origin
 
 ## Notes
 
+- Atlas Flow research lives at `.atlas/plans/2026-05-16-atlas-flow-research-digest.md`; read it before changing Pi's global package set or implementing `/atlas-flow`.
 - `pi/` is a placeholder while the Pi agent is reconfigured. Add files there as needed and `just up` to stow them.
 - `oldSetup/`, `.audit-backup/`, and any `auth.json` files are gitignored — runtime state and local backups never get committed.
 - Codex runtime state stays local; only curated files like `config.toml` and `hooks.json` are stowed.
