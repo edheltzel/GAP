@@ -20,3 +20,8 @@
 *.gif binary
 *.ico binary
 *.pdf binary
+
+# PAI v5: claudecode/.claude/settings.json mutates locally (counts, feedbackSurveyState
+# timestamps) on every session. merge=ours keeps local wins on `git pull`. See atlas-config
+# CLAUDE.md "Scope" section for the single-machine-canonical implication.
+claudecode/.claude/settings.json merge=ours

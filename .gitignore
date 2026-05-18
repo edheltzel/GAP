@@ -54,3 +54,21 @@ codex/.codex/skills/.system/
 # Local backups containing secrets — never commit
 oldSetup/
 .audit-backup/
+
+# PAI v5.0.0 USER/MEMORY runtime artifacts (slip-through guards — re-state because
+# ~/.claude/.gitignore patterns are rooted at ~/.claude and don't match from atlas-config root)
+claudecode/.claude/PAI/USER/CREDENTIALS/
+claudecode/.claude/PAI/MEMORY/KNOWLEDGE/_embeddings/
+claudecode/.claude/PAI/MEMORY/KNOWLEDGE/_harvest-queue/
+claudecode/.claude/PAI/MEMORY/WORK/**/.checkpoint-state.json
+
+# Recall MCP DB — lives in ~/.agents/atlas/Recall/, NEVER in atlas-config
+claudecode/.claude/memory.db*
+**/memory.db
+**/memory.db-shm
+**/memory.db-wal
+
+# R3 (v1.5): Recall MEMORY/ vault lives in ~/.agents/atlas/Recall/MEMORY/; ~/.claude/MEMORY is a
+# symlink to that runtime dir. Only the Atlas-Recall identity card is tracked in atlas-config.
+claudecode/.claude/MEMORY/*
+!claudecode/.claude/MEMORY/identity.md

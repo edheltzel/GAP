@@ -1,12 +1,22 @@
 # atlas-config — Agent Instructions
 
-This repo is a minimal, stow-managed config for Ed's agents. The previous Atlas/PAI build (skills, hooks, VoiceServer, Observability, multi-agent coordination) was removed on 2026-05-01 — the goal now is to cherry-pick configuration as needs arise rather than ship a pre-built framework.
+This repo is a minimal, stow-managed config for Ed's agents. On 2026-05-18 the `claudecode/` package was populated with Ed's PAI v5.0.0 USER-CONFIG (identity, TELOS, durable MEMORY, SYSTEM-OVERRIDE hooks/Pulse/TOOLS); prior to that the previous Atlas/PAI build was soft-reset on 2026-05-01.
+
+## PAI v5.0.0 migration
+
+This repo tracks Ed's PAI v5.0.0 configuration (identity, TELOS, durable memory, SYSTEM-OVERRIDE hooks). See `.atlas/plans/2026-05-18-pai-to-atlas-config-migration-plan.md` for the canonical migration spec (supersedes the archived MANIFEST at `.atlas/plans/archive/2026-05-17-pai-migration-manifest.md`).
+
+## Scope
+
+**atlas-config is single-machine-canonical.** The `merge=ours` rule on `claudecode/.claude/settings.json` (see `.gitattributes`) means changes to that file do not propagate across machines via `git pull` — local edits always win. Multi-machine sync requires explicit `git checkout origin/master -- claudecode/.claude/settings.json` on the receiving Mac, then a re-personalization pass if needed. This is intentional: `settings.json` carries per-session mutating fields (`counts`, `feedbackSurveyState.lastShownTime`) that would otherwise churn the repo.
+
+The Recall MCP database (`~/.agents/atlas/Recall/memory.db`) and the Recall MEMORY/ vault (`~/.agents/atlas/Recall/MEMORY/`) also live **outside** atlas-config — they are out-of-band like `~/.env`. Cold-archive these to an external location on a schedule (1Password vault, Time Machine, external drive); they are the only USER content not in git.
 
 ## Repo layout
 
 | Package      | Source                  | Stowed to        | Status                                           |
 | ------------ | ----------------------- | ---------------- | ------------------------------------------------ |
-| `claudecode` | `claudecode/.claude/`   | `~/.claude/`     | Empty — Claude Code itself was freshly installed |
+| `claudecode` | `claudecode/.claude/`   | `~/.claude/`     | Populated with PAI v5.0.0 USER-CONFIG (2026-05-18) |
 | `pi`         | `pi/.pi/agent/`         | `~/.pi/agent/`   | Placeholder — Pi will be reconfigured over time  |
 
 Project-local artifacts live under `.atlas/` (`plans/`, `handoffs/`, `worktrees/`). `worktrees/` is gitignored.

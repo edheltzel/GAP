@@ -1,0 +1,50 @@
+# Recall SQLite Refactor — Forge Review
+
+## Top findings (ranked)
+
+### 1. [CRITICAL] Old DB schemas can block the hook before any legacy write runs
+**Where:** `hooks/SessionExtract.ts:1304`, `hooks/lib/extraction-semaphore.ts:110`  
+**What:** The parent unconditionally calls `acquireSemaphore()`, which immediately touches `extraction_locks`; there is no table-exists guard or migration here.  
+**Why it matters:** On an existing `memory.db` that predates migration 4/5, `no such table: extraction_locks` will hit `main()`’s outer catch and exit before spawning the child, so legacy markdown/JSON writes never happen. That violates the additive-write invariant.  
+**Fix:** Guard semaphore usage behind a table check, or treat lock-table absence as “no SQLite locking available” and continue with legacy extraction.
+
+### 2. [HIGH] Several early-return paths leak the held lock/semaphore slot
+**Where:** `hooks/SessionExtract.ts:866`, `hooks/SessionExtract.ts:874`, `hooks/SessionExtract.ts:1024`, `hooks/SessionExtract.ts:1030`, `hooks/SessionExtract.ts:1037`  
+**What:** These returns exit without calling `releaseChildLockSafe()`.  
+**Why it matters:** In `--extract` the parent’s row stays held; in `--reextract*` the standalone child’s row stays held. That can stall future work until TTL expiry.  
+**Fix:** Put lock release in a `finally`, or release before every non-terminal return.
+
+### 3. [HIGH] TTL sweeping can delete a live extractor and admit a duplicate run
+**Where:** `hooks/lib/extraction-semaphore.ts:114`, `hooks/lib/extraction-lock.ts:45`, `hooks/SessionExtract.ts:742`  
+**What:** Both lock paths delete rows purely by age before checking PID liveness. Chunked extraction can exceed 10 minutes.  
+**Why it matters:** A still-running worker can lose its row, a second extractor can start for the same conversation, and later `releaseSemaphore()` can delete the other worker’s row.  
+**Fix:** Never time-delete a row without confirming the PID is dead, or add a heartbeat/refresh of `started_at`.
+
+### 4. [MEDIUM] Post-acquire parent failures leak the semaphore row `[unverified trigger]`
+**Where:** `hooks/SessionExtract.ts:1304`, `hooks/SessionExtract.ts:1333`, `hooks/SessionExtract.ts:1342`  
+**What:** After `acquireSemaphore()` succeeds, the outer catch just logs and exits; it does not release the row.  
+**Why it matters:** Any synchronous failure during handoff leaves capacity reduced until TTL cleanup.  
+**Fix:** Release the row in `main()`’s catch if acquisition already happened.
+
+### 5. [MEDIUM] Confidence probing does not handle a wrong existing constraint shape
+**Where:** `hooks/lib/sqlite-writers.ts:109`, `hooks/lib/sqlite-writers.ts:169`  
+**What:** The probe only checks whether `confidence` exists, then always writes `'high'|'medium'|'low'`.  
+**Why it matters:** If a hand-modified/stale DB has the column with an incompatible CHECK, decisions/learnings writes will fail every run. Legacy writes still survive, but SQLite silently degrades.  
+**Fix:** On constraint failure, retry without `confidence`, or validate the table SQL, not just column presence.
+
+### 6. [LOW] Malformed tracker JSON is retried forever and never quarantined
+**Where:** `hooks/SessionExtract.ts:77`, `hooks/lib/extraction-migration.ts:70`  
+**What:** A bad `.extraction_tracker.json` is caught and logged, but not renamed aside.  
+**Why it matters:** Old dedup state is never imported, and every stop-hook run re-attempts the same failing parse.  
+**Fix:** Rename malformed tracker files to a `.corrupt-<ts>` suffix after first failure.
+
+## Answers to your 5 questions
+
+**Correctness:** I did not find a verified path where SQLite dual-write exceptions reach `markAsFailed`; `runDualWrite()` is contained. I did find one verified path where SQLite lock-table failure blocks legacy writes entirely: finding 1.  
+**Type safety:** `clampImportance` is applied on every importance-bearing SQLite write path. The confidence-column probe does not handle a wrong CHECK shape; that is a real gap.  
+**Resource leaks:** Yes: verified leaks on early returns (finding 2), plus a post-acquire parent leak if handoff throws (finding 4).  
+**Backwards compat:** Malformed tracker JSON degrades dedup but does not block extraction; a pre-migration DB missing `extraction_locks` can block the normal stop-hook path entirely.  
+**Anything else:** The TTL model is too aggressive for long chunked runs and can create duplicate extraction of the same conversation.
+
+## Verdict
+Hold-and-iterate. The additive dual-write path itself is mostly well-contained, but the lock/semaphore changes introduced two load-bearing regressions: old-schema DBs can block the hook outright, and several exit paths leak slots or permit duplicate runs under long execution.

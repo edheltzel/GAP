@@ -20,3 +20,13 @@ scripts/
 \.claude/README\.md
 \.claude/install\.sh
 \.claude/PAI-Install
+
+# PAI v5.0.0 runtime carve-outs (never link these into ~/)
+\.claude/PAI/USER/CREDENTIALS
+\.claude/PAI/MEMORY/KNOWLEDGE/_embeddings
+\.claude/PAI/MEMORY/KNOWLEDGE/_harvest-queue
+
+# auth.json equivalents — Atlas/PAI internal secrets (mirror codex/ pattern)
+\.claude/.*\.env
+\.claude/.*auth\.json
+\.claude/.*\.sqlite.*
