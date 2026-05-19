@@ -35,6 +35,12 @@ node_modules/
 **/auth.json
 **/.update-check
 **/.pi-settings.json
+pi/.pi/agent/autoresearch.jsonl
+pi/.pi/agent/mcp-cache.json
+pi/.pi/agent/cache/
+pi/.pi/agent/sessions/
+pi/.pi/agent/settings.json.lazypi.*.bak
+pi/.pi/agent/*.lazypi.*.bak
 
 # Codex runtime state (never commit)
 codex/.codex/history.jsonl

@@ -15,4 +15,11 @@ node_modules
 # Templates (not needed at runtime)
 \.env\.example
 
+# Pi runtime state (live versions are written by Pi itself; never link from atlas-config)
+\.pi/agent/autoresearch\.jsonl
+\.pi/agent/mcp-cache\.json
+\.pi/agent/cache
+\.pi/agent/sessions
+\.pi/agent/.*\.lazypi\..*\.bak
+
 # Repo-only files (not needed in ~/.pi/)
