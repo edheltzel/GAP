@@ -1174,7 +1174,7 @@
   "awaySummaryEnabled": false,
   "plansDirectory": "Plans/",
   "skipDangerousModePermissionPrompt": true,
-  "theme": "dark-ansi",
+  "theme": "custom:eldritch",
   "teammateMode": "in-process",
   "skipAutoPermissionPrompt": true,
   "autoMode": {
