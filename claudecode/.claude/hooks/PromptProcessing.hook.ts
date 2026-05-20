@@ -965,7 +965,7 @@ async function main() {
         if (voiceContent) {
           const identity = getIdentity();
           try {
-            await fetch('http://localhost:8888/notify', {
+            await fetch('http://localhost:31337/notify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

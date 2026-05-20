@@ -358,7 +358,7 @@ function checkHookCounts(docsToCheck: string[], actualCount: number): DriftItem[
 
 async function notifyVoice(message: string): Promise<void> {
   try {
-    await fetch('http://localhost:8888/notify', {
+    await fetch('http://localhost:31337/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(3000),
