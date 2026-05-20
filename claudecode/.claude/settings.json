@@ -386,7 +386,9 @@
   "enabledPlugins": {
     "code-review@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
-    "VisualExplainer@visual-explainer-marketplace": true
+    "VisualExplainer@visual-explainer-marketplace": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "claude-seo@agricidaniel-seo": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -401,6 +403,12 @@
         "repo": "edheltzel/VisualExplainer"
       },
       "autoUpdate": true
+    },
+    "agricidaniel-seo": {
+      "source": {
+        "source": "github",
+        "repo": "AgriciDaniel/claude-seo"
+      }
     }
   },
   "spinnerVerbs": {
@@ -1363,17 +1371,17 @@
     }
   },
   "counts": {
-    "skills": 46,
-    "skillsPublic": 46,
+    "skills": 48,
+    "skillsPublic": 48,
     "skillsPrivate": 0,
     "workflows": 171,
     "hooks": 26,
-    "signals": 69,
+    "signals": 84,
     "files": 0,
     "work": 9,
-    "sessions": 283,
+    "sessions": 298,
     "research": 1,
-    "ratings": 130,
-    "updatedAt": "2026-05-19T01:02:02.626Z"
+    "ratings": 156,
+    "updatedAt": "2026-05-19T23:23:15.385Z"
   }
 }
