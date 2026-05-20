@@ -1,0 +1,8 @@
+{
+  "rating": 3,
+  "summary": "Frustrated repeat—same request asked twice",
+  "detailed_context": "Ed has repeated the exact same message word-for-word, indicating Atlas either failed to execute the commit, didn't acknowledge it properly, or there was miscommunication. The user shouldn't need to ask twice. This is a classic repeated-request signal (rating 2-3 per guidelines). Not extreme anger, but clear frustration that the task wasn't completed on the first attempt. Atlas should confirm execution or explain what went wrong.",
+  "session_id": "b42768fd-6249-43c4-bf84-b96c5e4c9e74",
+  "captured_at": "2026-05-20T00:56:01.135Z",
+  "transcript_source": "b42768fd-6249-43c4-bf84-b96c5e4c9e74.jsonl"
+}

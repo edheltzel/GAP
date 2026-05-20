@@ -16,8 +16,14 @@
           "startedAt": 1779238540769
         }
       ],
-      "ratings": [],
-      "minimalCount": 0,
+      "ratings": [
+        {
+          "value": 3,
+          "timestamp": 1779238551129,
+          "message": "Frustrated repeat—same request a"
+        }
+      ],
+      "minimalCount": 1,
       "lastToolActivity": "2026-05-20T00:55:44.095Z"
     }
   }

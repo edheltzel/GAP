@@ -1,10 +1,69 @@
-personality = "pragmatic"
 approvals_reviewer = "user"
+personality = "pragmatic"
+
+[features]
+memories = true
+terminal_resize_reflow = true
+
+[marketplaces.openai-bundled]
+last_updated = "2026-05-20T13:40:48Z"
+source = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled"
+source_type = "local"
+
+[marketplaces.openai-primary-runtime]
+last_updated = "2026-05-20T13:41:07Z"
+source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
+source_type = "local"
+
+[marketplaces.claude-plugins-official]
+last_updated = "2026-05-20T13:42:23Z"
+source_type = "git"
+source = "https://github.com/anthropics/claude-plugins-official.git"
+
+[mcp_servers.recall-memory]
+args = [
+    "run",
+    "/Users/ed/.bun/bin/mem-mcp",
+]
+command = "/Users/ed/.bun/bin/bun"
+
+[notice]
+hide_full_access_warning = true
+
+[plugins."browser@openai-bundled"]
+enabled = true
+
+[plugins."documents@openai-primary-runtime"]
+enabled = true
+
+[plugins."presentations@openai-primary-runtime"]
+enabled = true
+
+[plugins."spreadsheets@openai-primary-runtime"]
+enabled = true
+
+[plugins."code-review@claude-plugins-official"]
+enabled = true
+
+[plugins."pr-review-toolkit@claude-plugins-official"]
+enabled = true
+
+[plugins."computer-use@openai-bundled"]
+enabled = true
+
+[plugins."chrome@openai-bundled"]
+enabled = true
 
 [projects."/Users/ed/.dotfiles"]
 trust_level = "trusted"
 
+[projects."/Users/ed/Developer/AI/PersonalAI"]
+trust_level = "trusted"
+
 [projects."/Users/ed/Developer/atlas-config"]
+trust_level = "trusted"
+
+[projects."/Users/ed/Developer/atlas-recall"]
 trust_level = "trusted"
 
 [projects."/Users/ed/Library/Mobile Documents/iCloud~md~obsidian/Documents/FieldNotes✱"]
@@ -13,24 +72,27 @@ trust_level = "trusted"
 [projects."/Users/ed/Sites/murphysautocare.com"]
 trust_level = "trusted"
 
-[projects."/Users/ed/Developer/AI/PersonalAI"]
-trust_level = "trusted"
+[shell_environment_policy]
+inherit = "core"
 
-[projects."/Users/ed/Developer/atlas-recall"]
-trust_level = "trusted"
+[shell_environment_policy.set]
+API_TIMEOUT_MS = "1800000"
+BASH_DEFAULT_TIMEOUT_MS = "600000"
+GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE = "/Users/ed/.claude/PAI/USER/CREDENTIALS/google/your-domain.example.com.json"
+PAI_CONFIG_DIR = "/Users/ed/.config/PAI"
+PAI_DIR = "/Users/ed/.claude/PAI"
+PROJECTS_DIR = "/Users/ed/Developer"
 
 [tui]
-status_line = ["model-with-reasoning", "current-dir", "git-branch", "pull-request-number"]
+status_line = [
+    "model-with-reasoning",
+    "current-dir",
+    "git-branch",
+    "pull-request-number",
+]
 status_line_use_colors = true
-
-[tui.model_availability_nux]
-"gpt-5.5" = 4
 
 [tui.keymap.list]
 
-[notice]
-hide_full_access_warning = true
-
-[features]
-terminal_resize_reflow = true
-memories = true
+[tui.model_availability_nux]
+"gpt-5.5" = 4
