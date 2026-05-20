@@ -1,4 +1,4 @@
-# Principal Identity — Ed
+# Principal Identity — User
 
 > Bootstrap default — functional before interview. Run `/interview` to personalize.
 

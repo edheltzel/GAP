@@ -1,1 +1,0 @@
-/Users/ed/Developer/atlas-recall/.atlas/specs/clearextract-hook-ISA.md

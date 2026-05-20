@@ -15,7 +15,7 @@ type FinalInput = { verdict: "success" | "error" | "timeout"; exitCode: number |
 const PULSE_TIMEOUT_MS = 2000;
 const HTTP_ERROR_BODY_TIMEOUT_MS = 2000;
 function parseArgs(argv: string[]): Args {
-  const args: Partial<Args> = { model: "kimi-k2.6", timeoutMs: 300000, pulseUrl: "http://localhost:8888/notify", temperature: 1, maxTokens: 16000 };
+  const args: Partial<Args> = { model: "kimi-k2.6", timeoutMs: 300000, pulseUrl: "http://localhost:31337/notify", temperature: 1, maxTokens: 16000 };
   const seen = new Set<string>();
   const valueFor = (flag: string, inline: string | undefined, index: number): [string, number] => {
     if (inline !== undefined) return [inline, index];

@@ -1,0 +1,2 @@
+{"ts":"2026-05-20T00:55:11.144Z","hook":"VoiceGreeting","event":"SessionStart","msg":"source=\"startup\"","meta":{"pid":78053}}
+{"ts":"2026-05-20T00:55:11.145Z","hook":"VoiceGreeting","event":"SessionStart","msg":"speaking: \"Atlas, standing by.\"","meta":{"url":"http://localhost:8888/notify/personality","pid":78053}}

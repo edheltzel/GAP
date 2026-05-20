@@ -1374,7 +1374,7 @@
     "skills": 48,
     "skillsPublic": 48,
     "skillsPrivate": 0,
-    "workflows": 171,
+    "workflows": 0,
     "hooks": 26,
     "signals": 84,
     "files": 0,
@@ -1382,6 +1382,6 @@
     "sessions": 298,
     "research": 1,
     "ratings": 156,
-    "updatedAt": "2026-05-19T23:23:15.385Z"
+    "updatedAt": "2026-05-20T00:43:18.969Z"
   }
 }

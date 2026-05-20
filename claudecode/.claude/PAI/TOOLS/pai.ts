@@ -32,7 +32,7 @@ const CLAUDE_DIR = join(homedir(), ".claude");
 const MCP_DIR = join(CLAUDE_DIR, "MCPs");
 const ACTIVE_MCP = join(CLAUDE_DIR, ".mcp.json");
 const BANNER_SCRIPT = join(homedir(), ".claude", "PAI", "Tools", "Banner.ts");
-const VOICE_SERVER = "http://localhost:8888/notify/personality";
+const VOICE_SERVER = "http://localhost:31337/notify/personality";
 const WALLPAPER_DIR = join(homedir(), "Projects", "Wallpaper");
 // Note: RAW archiving removed - Claude Code handles its own cleanup (30-day retention in projects/)
 
@@ -86,7 +86,7 @@ function notifyVoice(message: string) {
 
   if (!personality?.baseVoice) {
     // Fall back to simple notify if no personality configured
-    fetch("http://localhost:8888/notify", {
+    fetch("http://localhost:31337/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, play: true }),

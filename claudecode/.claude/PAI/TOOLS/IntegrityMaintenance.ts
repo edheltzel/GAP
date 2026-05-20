@@ -791,7 +791,7 @@ async function sendVoiceNotification(message: string): Promise<void> {
 
     if (!personality?.baseVoice) {
       // Fall back to simple notify if no personality configured
-      await fetch('http://localhost:8888/notify', {
+      await fetch('http://localhost:31337/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, play: true }),
@@ -799,7 +799,7 @@ async function sendVoiceNotification(message: string): Promise<void> {
       return;
     }
 
-    await fetch('http://localhost:8888/notify/personality', {
+    await fetch('http://localhost:31337/notify/personality', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

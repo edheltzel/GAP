@@ -36,7 +36,7 @@ const HOME = process.env.HOME || "";
 const PAI_DIR = process.env.PAI_DIR || join(HOME, ".claude", "PAI");
 const STATE_FILE = join(PAI_DIR, "Pulse", "state", "notification-governor.json");
 const LOG_FILE = join(PAI_DIR, "MEMORY", "OBSERVABILITY", "notification-governor.jsonl");
-const NOTIFY_URL = "http://localhost:8888/notify";
+const NOTIFY_URL = "http://localhost:31337/notify";
 const VOICE_ID = "fTtv3eikoepIosk8dTZ5";
 
 type Priority = "critical" | "event" | "light";

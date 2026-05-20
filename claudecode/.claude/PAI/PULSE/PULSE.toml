@@ -1,4 +1,4 @@
-#PAI Pulse — Unified Daemon Configuration
+# PAI Pulse — Unified Daemon Configuration
 #
 # Pulse is THE daemon for every PAI installation.
 # One process handles: cron jobs, voice, chat, observability, hooks, DA.
@@ -11,7 +11,7 @@
 # ── Module Configuration ──
 
 [voice]
-enabled = false  # 2026-05-15: voice now handled by atlas-voicesystem on :8888 (see ~/Developer/atlas-voicesystem/MIGRATIONS.md)
+enabled = true
 
 [telegram]
 enabled = true

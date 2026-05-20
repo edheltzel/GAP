@@ -19,7 +19,7 @@ const RING_SIZE = 5;
 const PULSE_TIMEOUT_MS = 2000;
 const ESCALATE_MS = 5000;
 function parseArgs(argv: string[]): Args {
-  const args: Partial<Args> = { model: "gpt-5.4", effort: "high", sandbox: "workspace-write", timeoutMs: 300000, pulseUrl: "http://localhost:8888/notify" };
+  const args: Partial<Args> = { model: "gpt-5.4", effort: "high", sandbox: "workspace-write", timeoutMs: 300000, pulseUrl: "http://localhost:31337/notify" };
   const seen = new Set<string>();
   const valueFor = (flag: string, inline: string | undefined, index: number): [string, number] => {
     if (inline !== undefined) return [inline, index];
