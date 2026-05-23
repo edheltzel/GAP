@@ -9,7 +9,10 @@
       "Bash(mv '~/.claude/atlas-statusline.sh' /Users/ed/Developer/atlas-config/claudecode/.claude/atlas-statusline.sh)",
       "Bash(mv '~/.claude/settings.json' /Users/ed/Developer/atlas-config/claudecode/.claude/settings.json)",
       "Bash(just up *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "mcp__recall-memory__memory_recall",
+      "Read(//Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/**)",
+      "Bash(sed -n '60,$p' /Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/install.sh)"
     ]
   }
 }
