@@ -23,6 +23,25 @@ Project-local artifacts live under `.atlas/` (`plans/`, `handoffs/`, `worktrees/
 
 Before changing Pi's global package set or implementing `/atlas-flow`, read `.atlas/plans/2026-05-16-atlas-flow-research-digest.md` for the minimal-global baseline, flow manifest schema direction, safety rules, and issue roadmap.
 
+## Voice system
+
+Voice lives in a separate repo at `~/Developer/atlas-voicesystem` — stowed alongside, not inside atlas-config. The TTS daemon listens on **port 8888**, not Pulse's `31337`. `localhost:31337/notify` returns `Not found` because Pulse's voice module is disabled; all voice traffic must target `localhost:8888/notify`.
+
+**Install (two-step):**
+
+```
+cd ~/Developer/atlas-voicesystem && stow -v -t ~ claudecode
+bash ~/.claude/PAI/USER/Voice/install.sh
+```
+
+`stow` creates the symlink `~/.claude/PAI/USER/Voice → ~/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice`. `install.sh` writes `~/Library/LaunchAgents/com.pai.voice-server.plist` (Label `com.pai.voice-server`, `RunAtLoad`, `KeepAlive`) and starts the Bun daemon.
+
+Provider chain: edge-tts → ElevenLabs → Kokoro → macOS `say`. **ElevenLabs is disabled by policy** — library voices require paid tier and previously produced ~80 HTTP 402 failures. edge-tts is the active provider with `say` as the floor.
+
+**Live management:** `~/.claude/PAI/USER/Voice/{start,stop,restart,status}.sh`, or `launchctl kickstart -k "gui/$UID/com.pai.voice-server"`. Logs at `~/Library/Logs/pai-voice-server.log`. Health: `curl http://localhost:8888/health`. Full docs in the voicesystem repo's `AGENTS.md`.
+
+**Gotcha — wrong-port curls:** PAI Algorithm doctrine (`PAI/ALGORITHM/v6.3.0.md`) and many skills curl `http://localhost:31337/notify`. That's Pulse, which has voice off. Until those are migrated, voice announcements from the Algorithm side silently no-op. Real voice = `:8888`.
+
 ## Stow
 
 Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands. The per-package `.stow-local-ignore` files **replace** stow's built-in defaults — when adding a new one, copy from `Codex/.stow-local-ignore` and re-include `\.git`, `\.gitignore`, etc.
