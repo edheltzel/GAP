@@ -1325,18 +1325,18 @@
   },
   "contextFiles": [],
   "counts": {
-    "skills": 48,
-    "skillsPublic": 48,
+    "skills": 65,
+    "skillsPublic": 65,
     "skillsPrivate": 0,
     "workflows": 171,
     "hooks": 35,
-    "signals": 13,
+    "signals": 15,
     "files": 0,
     "work": 0,
-    "sessions": 17,
+    "sessions": 20,
     "research": 1,
-    "ratings": 38,
-    "updatedAt": "2026-05-23T13:27:45.305Z"
+    "ratings": 45,
+    "updatedAt": "2026-05-24T15:19:17.418Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
