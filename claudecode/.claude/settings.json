@@ -1330,13 +1330,13 @@
     "skillsPrivate": 0,
     "workflows": 171,
     "hooks": 35,
-    "signals": 15,
+    "signals": 20,
     "files": 0,
     "work": 0,
-    "sessions": 20,
+    "sessions": 24,
     "research": 1,
-    "ratings": 45,
-    "updatedAt": "2026-05-24T15:19:17.418Z"
+    "ratings": 57,
+    "updatedAt": "2026-05-24T16:59:30.922Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
