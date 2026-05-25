@@ -1,21 +1,42 @@
 {
   "hooks": {
-    "SessionStart": [
+    "PermissionRequest": [
       {
         "hooks": [
           {
-            "type": "command",
-            "command": "SUPERSET_AGENT_ID=codex \"/Users/ed/.superset/hooks/notify.sh\""
+            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' blocked",
+            "timeout": 10,
+            "type": "command"
           }
         ]
       }
     ],
-    "UserPromptSubmit": [
+    "PreToolUse": [
       {
         "hooks": [
           {
-            "type": "command",
-            "command": "SUPERSET_AGENT_ID=codex \"/Users/ed/.superset/hooks/notify.sh\""
+            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' working",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "SUPERSET_AGENT_ID=codex \"/Users/ed/.superset/hooks/notify.sh\"",
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' idle",
+            "timeout": 10,
+            "type": "command"
           }
         ]
       }
@@ -24,8 +45,36 @@
       {
         "hooks": [
           {
-            "type": "command",
-            "command": "SUPERSET_AGENT_ID=codex \"/Users/ed/.superset/hooks/notify.sh\""
+            "command": "SUPERSET_AGENT_ID=codex \"/Users/ed/.superset/hooks/notify.sh\"",
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' idle",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "SUPERSET_AGENT_ID=codex \"/Users/ed/.superset/hooks/notify.sh\"",
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' working",
+            "timeout": 10,
+            "type": "command"
           }
         ]
       }

@@ -2,6 +2,7 @@ approvals_reviewer = "user"
 personality = "pragmatic"
 
 [features]
+hooks = true
 memories = true
 terminal_resize_reflow = true
 
@@ -16,7 +17,8 @@ source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-p
 source_type = "local"
 
 [marketplaces.claude-plugins-official]
-last_updated = "2026-05-20T13:42:23Z"
+last_updated = "2026-05-23T13:28:48Z"
+last_revision = "3449c10cd1f254c2529a4a7e96a094ef118a00a5"
 source_type = "git"
 source = "https://github.com/anthropics/claude-plugins-official.git"
 
