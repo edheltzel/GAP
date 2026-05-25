@@ -5,9 +5,8 @@
       "args": [],
       "lifecycle": "lazy",
       "environment": {
-        "MEM_DB_PATH": "/Users/ed/.claude/memory.db"
-      },
-      "directTools": true
+        "RECALL_DB_PATH": "/var/folders/88/3h9cyc4979d2l6p7xkn79yqr0000gn/T/recall-migrate-test-HGe75s/dest/recall.db"
+      }
     }
   }
 }
