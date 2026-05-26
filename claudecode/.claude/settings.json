@@ -79,7 +79,7 @@
     ],
     "deny": [],
     "ask": [],
-    "defaultMode": "default"
+    "defaultMode": "auto"
   },
   "hooks": {
     "PermissionRequest": [
@@ -484,7 +484,8 @@
   "enabledPlugins": {
     "code-review@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": true,
+    "lua-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -1335,8 +1336,8 @@
     "work": 0,
     "sessions": 24,
     "research": 1,
-    "ratings": 57,
-    "updatedAt": "2026-05-24T16:59:30.922Z"
+    "ratings": 60,
+    "updatedAt": "2026-05-26T15:26:57.010Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
