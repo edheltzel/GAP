@@ -12,7 +12,8 @@
       "Bash(git *)",
       "mcp__recall-memory__memory_recall",
       "Read(//Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/**)",
-      "Bash(sed -n '60,$p' /Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/install.sh)"
+      "Bash(sed -n '60,$p' /Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/install.sh)",
+      "mcp__claude_ai_Context7__resolve-library-id"
     ]
   }
 }
