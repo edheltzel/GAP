@@ -375,6 +375,16 @@
             "command": "/Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/hooks/VoiceGreeting.hook.ts"
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/ed/.claude/hooks/herdr-agent-state.sh' idle",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Stop": [
@@ -483,21 +493,30 @@
   },
   "enabledPlugins": {
     "code-review@claude-plugins-official": true,
+    "lua-lsp@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
-    "lua-lsp@claude-plugins-official": true
+    "coding-tutor@compound-engineering-plugin": true,
+    "compound-engineering@compound-engineering-plugin": true
   },
   "extraKnownMarketplaces": {
+    "agricidaniel-seo": {
+      "source": {
+        "source": "github",
+        "repo": "AgriciDaniel/claude-seo"
+      },
+      "autoUpdate": true
+    },
     "claude-plugins-official": {
       "source": {
         "source": "git",
         "url": "https://github.com/anthropics/claude-plugins-official.git"
       }
     },
-    "agricidaniel-seo": {
+    "compound-engineering-plugin": {
       "source": {
         "source": "github",
-        "repo": "AgriciDaniel/claude-seo"
+        "repo": "EveryInc/compound-engineering-plugin"
       },
       "autoUpdate": true
     }
@@ -1271,7 +1290,7 @@
     ]
   },
   "awaySummaryEnabled": false,
-  "plansDirectory": "Plans/",
+  "plansDirectory": ".agents/atlas/plans/",
   "skipDangerousModePermissionPrompt": true,
   "theme": "custom:eldritch",
   "teammateMode": "in-process",
@@ -1329,15 +1348,15 @@
     "skills": 65,
     "skillsPublic": 65,
     "skillsPrivate": 0,
-    "workflows": 171,
+    "workflows": 172,
     "hooks": 35,
-    "signals": 20,
+    "signals": 53,
     "files": 0,
-    "work": 0,
-    "sessions": 24,
+    "work": 2,
+    "sessions": 134,
     "research": 1,
-    "ratings": 60,
-    "updatedAt": "2026-05-26T15:26:57.010Z"
+    "ratings": 176,
+    "updatedAt": "2026-05-28T17:12:38.434Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
@@ -1361,6 +1380,18 @@
       "warmth": 70
     },
     "startupCatchphrase": "Atlas, Standing by.",
+    "startupCatchphrases": [
+      "{name}, standing by.",
+      "{name} online — ready when you are.",
+      "Booted up. What are we building?",
+      "Back at it. What's the move?",
+      "{name} here. Let's fucking go!",
+      "Online and listening.",
+      "Spun up. Awaiting orders.",
+      "Ready. What's shaking, Ed?",
+      "{name} reporting in.",
+      "Live. Let's make something good."
+    ],
     "voiceId": "AyCt0WmAXUcPJR11zeeP",
     "voices": {
       "algorithm": {

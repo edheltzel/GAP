@@ -1,24 +1,29 @@
 approvals_reviewer = "user"
 personality = "pragmatic"
 
+notify = ["/Users/ed/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient", "turn-ended"]
+model = "gpt-5.5"
+model_reasoning_effort = "medium"
+
 [features]
 hooks = true
 memories = true
 terminal_resize_reflow = true
+js_repl = false
 
 [marketplaces.openai-bundled]
-last_updated = "2026-05-20T13:40:48Z"
-source = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled"
+last_updated = "2026-05-28T16:26:13Z"
 source_type = "local"
+source = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled"
 
 [marketplaces.openai-primary-runtime]
-last_updated = "2026-05-20T13:41:07Z"
-source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
+last_updated = "2026-05-28T17:06:59Z"
 source_type = "local"
+source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
 [marketplaces.claude-plugins-official]
-last_updated = "2026-05-23T13:28:48Z"
-last_revision = "3449c10cd1f254c2529a4a7e96a094ef118a00a5"
+last_updated = "2026-05-28T18:00:32Z"
+last_revision = "e9b54375b8e6b83a718cebb2033caca8c01976a8"
 source_type = "git"
 source = "https://github.com/anthropics/claude-plugins-official.git"
 
@@ -29,11 +34,26 @@ args = [
 ]
 command = "/Users/ed/.bun/bin/bun"
 
+[mcp_servers.node_repl]
+args = []
+command = "/Applications/Codex.app/Contents/Resources/node_repl"
+startup_timeout_sec = 120
+
+[mcp_servers.node_repl.env]
+NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS = "1000"
+NODE_REPL_NODE_MODULE_DIRS = ""
+NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/node"
+NODE_REPL_TRUSTED_CODE_PATHS = "/Users/ed/.codex"
+CODEX_HOME = "/Users/ed/.codex"
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "496c7b3cb95b4bc20cff49b513150606e0da0000c92bf752206bee5a6c248423"
+BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"
+BROWSER_USE_MARKETPLACE_NAME = "openai-bundled"
+NODE_REPL_UNTRUSTED_ENV_ALLOWLIST = "BROWSER_USE_MARKETPLACE_NAME"
+SKY_CUA_SERVICE_PATH = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled/plugins/computer-use/Codex Computer Use.app"
+CODEX_CLI_PATH = "/Applications/Codex.app/Contents/Resources/codex"
+
 [notice]
 hide_full_access_warning = true
-
-[plugins."browser@openai-bundled"]
-enabled = true
 
 [plugins."documents@openai-primary-runtime"]
 enabled = true
@@ -53,7 +73,16 @@ enabled = true
 [plugins."computer-use@openai-bundled"]
 enabled = true
 
+[plugins."browser@openai-bundled"]
+enabled = true
+
 [plugins."chrome@openai-bundled"]
+enabled = true
+
+[plugins."hyperframes@openai-curated"]
+enabled = true
+
+[plugins."remotion@openai-curated"]
 enabled = true
 
 [projects."/Users/ed/.dotfiles"]
@@ -72,6 +101,9 @@ trust_level = "trusted"
 trust_level = "trusted"
 
 [projects."/Users/ed/Sites/murphysautocare.com"]
+trust_level = "trusted"
+
+[projects."/Users/ed/Sites/alianza.video"]
 trust_level = "trusted"
 
 [shell_environment_policy]
@@ -98,3 +130,30 @@ status_line_use_colors = true
 
 [tui.model_availability_nux]
 "gpt-5.5" = 4
+
+[hooks.state]
+
+[hooks.state."/Users/ed/.codex/hooks.json:permission_request:0:0"]
+trusted_hash = "sha256:048a84c24a4df4c7364bf508fd8915d63d48a3d262918003c94874944bbfd3b5"
+
+[hooks.state."/Users/ed/.codex/hooks.json:pre_tool_use:0:0"]
+enabled = true
+trusted_hash = "sha256:3b47d2163e788477509c6f08ecaaf957209283bc924015074c33ad1e4dc38047"
+
+[hooks.state."/Users/ed/.codex/hooks.json:session_start:0:0"]
+trusted_hash = "sha256:93c04edefcf20867c858654c6bad142fe187cbfcff822956eb0050795743af67"
+
+[hooks.state."/Users/ed/.codex/hooks.json:session_start:1:0"]
+trusted_hash = "sha256:a869593b6c35447af4c8582cedc06b6042f9cc129f4b8fa22122d8fa18bec7d9"
+
+[hooks.state."/Users/ed/.codex/hooks.json:stop:0:0"]
+trusted_hash = "sha256:c3f3472f3f34890b2b77774182de20b1778fd250073be19843b1704fb220d7ca"
+
+[hooks.state."/Users/ed/.codex/hooks.json:stop:1:0"]
+trusted_hash = "sha256:40aae5153dcb9deff561fb160fea7a087f1f5ed26a3d260a11af2c868ffb7674"
+
+[hooks.state."/Users/ed/.codex/hooks.json:user_prompt_submit:0:0"]
+trusted_hash = "sha256:f03bc6c79af7a335fdc8c3595a770a057118e59ddb99a7dfc4b311745a8557a5"
+
+[hooks.state."/Users/ed/.codex/hooks.json:user_prompt_submit:1:0"]
+trusted_hash = "sha256:82cb744fa084f9b988117a3c4ff13e398eb5001a220702db33e6b677ca192ee9"

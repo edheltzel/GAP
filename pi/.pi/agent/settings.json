@@ -47,10 +47,10 @@
       }
     }
   },
-  "lastChangelogVersion": "0.75.3",
+  "lastChangelogVersion": "0.75.5",
   "theme": "lovelace",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
   "quietStartup": true,
-  "defaultThinkingLevel": "off"
+  "defaultThinkingLevel": "medium"
 }
