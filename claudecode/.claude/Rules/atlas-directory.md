@@ -12,7 +12,7 @@ All project-local Atlas artifacts MUST live under `.agents/atlas/` at the projec
 
 **Rules:**
 
-- Always use `.agents/atlas/plans/` — never `docs/plans/`, never `.atlas/plans/` (legacy), never inline in other directories
+- Always use `.agents/atlas/plans/` — never `docs/plans/`, never `Plans/`, never `.atlas/plans/` (legacy), never inline in other directories
 - Create `.agents/atlas/plans/` (or `.agents/atlas/handoffs/`) if it doesn't exist
 - Use `.agents/atlas/plans/archive/` for completed plans, `.agents/atlas/handoffs/archive/` for consumed handoffs (singular `archive/`, not `archived/`)
 - File naming: `YYYY-MM-DD-description.md` (kebab-case) — use today's date and a clear rundown of the plan title (e.g., `2026-04-05-migrate-auth-to-jwt.md`), never arbitrary or cryptic names

@@ -1,23 +1,23 @@
 # Version Control (MANDATORY)
 
-Covers worktrees, git, and jj (Jujutsu). Worktree usage is always required. jj rules apply **only** when the repo is jj-colocated (`.jj/` directory present).
+Covers worktrees, git, and jj (Jujutsu). Worktree usage is always required. **Git is the default VCS for all repos.** jj rules apply **only when Ed explicitly asks** — never auto-activate jj based on the presence of a `.jj/` directory.
 
 ## Worktrees
 
 Always use git worktrees for implementation work unless Ed explicitly says otherwise.
 
-- Use the built-in `EnterWorktree` tool to create an isolated worktree before starting feature work — regardless of whether the repo uses git or jj. The tool creates a worktree under `.atlas/worktrees/` with a new branch based on HEAD.
+- Use the built-in `EnterWorktree` tool to create an isolated worktree before starting feature work. The tool creates a worktree under `.atlas/worktrees/` with a new branch based on HEAD.
 - Use `ExitWorktree` when done (keep or remove).
 - This keeps the main working tree clean and enables parallel development.
-- In jj-colocated repos, `EnterWorktree` still applies. The git worktree it creates is visible to jj via colocation, so `jj` commands work inside it normally. Do **not** substitute `jj workspace add` for `EnterWorktree`.
+- If Ed has asked for jj on a jj-colocated repo, `EnterWorktree` still applies — the git worktree it creates is visible to jj via colocation, so `jj` commands work inside it normally. Do **not** substitute `jj workspace add` for `EnterWorktree`.
 
 ## Git (default)
 
-When the repo has no `.jj/` directory, use standard git. No special rules beyond the worktree mandate above and the usual safety guardrails (no force-push without asking, investigate before destructive ops, etc.).
+Use standard git for **all** repos by default — including jj-colocated ones — unless Ed has explicitly asked you to use jj for this work. The presence of a `.jj/` directory does **not** switch you into jj mode on its own. No special rules beyond the worktree mandate above and the usual safety guardrails (no force-push without asking, investigate before destructive ops, etc.).
 
-## jj — Conditional Rules (only when `.jj/` is present)
+## jj — Conditional Rules (only when Ed explicitly asks)
 
-Detection: check for `.jj/` at the repo root before running any jj command. If absent, use plain git instead — do not initialize jj on a repo without Ed's explicit approval.
+Activation: use jj **only when Ed explicitly asks for it** on this task. A `.jj/` directory at the repo root is *not* a trigger — it just means jj is available if Ed requests it. Once Ed asks, confirm `.jj/` exists at the repo root before running any jj command; if it's absent, do not initialize jj without Ed's explicit approval. When Ed has not asked, default to git per the section above.
 
 ### Hard restrictions
 

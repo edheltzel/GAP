@@ -1350,13 +1350,13 @@
     "skillsPrivate": 0,
     "workflows": 172,
     "hooks": 35,
-    "signals": 53,
+    "signals": 75,
     "files": 0,
     "work": 2,
-    "sessions": 134,
+    "sessions": 162,
     "research": 1,
-    "ratings": 176,
-    "updatedAt": "2026-05-28T17:12:38.434Z"
+    "ratings": 253,
+    "updatedAt": "2026-06-02T15:39:31.969Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
@@ -1381,6 +1381,7 @@
     },
     "startupCatchphrase": "Atlas, Standing by.",
     "startupCatchphrases": [
+      "{name}, engaged.",
       "{name}, standing by.",
       "{name} online — ready when you are.",
       "Booted up. What are we building?",
@@ -1390,7 +1391,8 @@
       "Spun up. Awaiting orders.",
       "Ready. What's shaking, Ed?",
       "{name} reporting in.",
-      "Live. Let's make something good."
+      "Live. Let's make something good.",
+      "Powered up! Let's get clanking"
     ],
     "voiceId": "AyCt0WmAXUcPJR11zeeP",
     "voices": {
