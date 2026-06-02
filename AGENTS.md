@@ -10,7 +10,7 @@ This repo tracks Ed's PAI v5.0.0 configuration (identity, TELOS, durable memory,
 
 **atlas-config is single-machine-canonical.** The `merge=ours` rule on `Codex/.Codex/settings.json` (see `.gitattributes`) means changes to that file do not propagate across machines via `git pull` — local edits always win. Multi-machine sync requires explicit `git checkout origin/master -- Codex/.Codex/settings.json` on the receiving Mac, then a re-personalization pass if needed. This is intentional: `settings.json` carries per-session mutating fields (`counts`, `feedbackSurveyState.lastShownTime`) that would otherwise churn the repo.
 
-The Recall MCP database (`~/.agents/atlas/Recall/memory.db`) and the Recall MEMORY/ vault (`~/.agents/atlas/Recall/MEMORY/`) also live **outside** atlas-config — they are out-of-band like `~/.env`. Cold-archive these to an external location on a schedule (1Password vault, Time Machine, external drive); they are the only USER content not in git.
+The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and the Recall MEMORY/ vault (`~/.agents/Recall/MEMORY/`) also live **outside** atlas-config — they are out-of-band like `~/.env`. Cold-archive these to an external location on a schedule (1Password vault, Time Machine, external drive); they are the only USER content not in git.
 
 ## Repo layout
 
