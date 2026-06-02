@@ -12,18 +12,18 @@ terminal_resize_reflow = true
 js_repl = false
 
 [marketplaces.openai-bundled]
-last_updated = "2026-05-28T16:26:13Z"
+last_updated = "2026-06-01T22:03:31Z"
 source_type = "local"
 source = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled"
 
 [marketplaces.openai-primary-runtime]
-last_updated = "2026-05-28T17:06:59Z"
+last_updated = "2026-06-01T22:07:00Z"
 source_type = "local"
 source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
 [marketplaces.claude-plugins-official]
-last_updated = "2026-05-28T18:00:32Z"
-last_revision = "e9b54375b8e6b83a718cebb2033caca8c01976a8"
+last_updated = "2026-06-01T21:19:19Z"
+last_revision = "12b3721b22bca24449e142c8740c7f025b955926"
 source_type = "git"
 source = "https://github.com/anthropics/claude-plugins-official.git"
 
@@ -45,11 +45,12 @@ NODE_REPL_NODE_MODULE_DIRS = ""
 NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/node"
 NODE_REPL_TRUSTED_CODE_PATHS = "/Users/ed/.codex"
 CODEX_HOME = "/Users/ed/.codex"
-NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "496c7b3cb95b4bc20cff49b513150606e0da0000c92bf752206bee5a6c248423"
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "0b0d41e7a14a4903d2f95b0b3f427ed796b12c8edca2fa392a03df43997075ae"
 BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"
-BROWSER_USE_MARKETPLACE_NAME = "openai-bundled"
-NODE_REPL_UNTRUSTED_ENV_ALLOWLIST = "BROWSER_USE_MARKETPLACE_NAME"
-SKY_CUA_SERVICE_PATH = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled/plugins/computer-use/Codex Computer Use.app"
+NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = "Control the in-app browser in conjunction with the Browser Plugin."
+NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = "Control the Chrome browser in conjunction with the Chrome Plugin. Prefer this method of controlling Chrome over alternatives (such as Computer Use) unless the user explicitly mentions an alternative."
+BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
+SKY_CUA_SERVICE_PATH = "/Users/ed/.codex/plugins/cache/openai-bundled/computer-use/1.0.799/Codex Computer Use.app"
 CODEX_CLI_PATH = "/Applications/Codex.app/Contents/Resources/codex"
 
 [notice]
@@ -73,16 +74,16 @@ enabled = true
 [plugins."computer-use@openai-bundled"]
 enabled = true
 
-[plugins."browser@openai-bundled"]
-enabled = true
-
-[plugins."chrome@openai-bundled"]
-enabled = true
-
 [plugins."hyperframes@openai-curated"]
 enabled = true
 
 [plugins."remotion@openai-curated"]
+enabled = true
+
+[plugins."browser@openai-bundled"]
+enabled = true
+
+[plugins."chrome@openai-bundled"]
 enabled = true
 
 [projects."/Users/ed/.dotfiles"]
