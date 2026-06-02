@@ -5,7 +5,7 @@
       "args": [],
       "lifecycle": "lazy",
       "environment": {
-        "RECALL_DB_PATH": "/var/folders/88/3h9cyc4979d2l6p7xkn79yqr0000gn/T/recall-migrate-test-HGe75s/dest/recall.db"
+        "RECALL_DB_PATH": "/var/folders/88/3h9cyc4979d2l6p7xkn79yqr0000gn/T/recall-migrate-test-XNIUt1/dest/recall.db"
       }
     }
   }
