@@ -42,6 +42,7 @@ pi/.pi/agent/sessions/
 pi/.pi/agent/settings.json.lazypi.*.bak
 pi/.pi/agent/*.lazypi.*.bak
 pi/.pi/agent/run-history.jsonl
+pi/.pi/agent/memory/
 pi/.pi/agent/compound-engineering/legacy-backup/
 
 # Codex runtime state (never commit)
