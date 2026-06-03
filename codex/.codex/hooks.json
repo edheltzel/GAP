@@ -1,27 +1,5 @@
 {
   "hooks": {
-    "PermissionRequest": [
-      {
-        "hooks": [
-          {
-            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' blocked",
-            "timeout": 10,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' working",
-            "timeout": 10,
-            "type": "command"
-          }
-        ]
-      }
-    ],
     "SessionStart": [
       {
         "hooks": [
@@ -34,7 +12,7 @@
       {
         "hooks": [
           {
-            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' idle",
+            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' session",
             "timeout": 10,
             "type": "command"
           }
@@ -49,15 +27,6 @@
             "type": "command"
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' idle",
-            "timeout": 10,
-            "type": "command"
-          }
-        ]
       }
     ],
     "UserPromptSubmit": [
@@ -65,15 +34,6 @@
         "hooks": [
           {
             "command": "SUPERSET_AGENT_ID=codex \"/Users/ed/.superset/hooks/notify.sh\"",
-            "type": "command"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "command": "bash '/Users/ed/.codex/herdr-agent-state.sh' working",
-            "timeout": 10,
             "type": "command"
           }
         ]

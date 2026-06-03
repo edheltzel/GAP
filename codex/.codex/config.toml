@@ -22,8 +22,8 @@ source_type = "local"
 source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
 [marketplaces.claude-plugins-official]
-last_updated = "2026-06-01T21:19:19Z"
-last_revision = "12b3721b22bca24449e142c8740c7f025b955926"
+last_updated = "2026-06-03T19:28:02Z"
+last_revision = "ab91f484de05e330953c932d32b3f877dc747151"
 source_type = "git"
 source = "https://github.com/anthropics/claude-plugins-official.git"
 
