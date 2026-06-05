@@ -47,8 +47,8 @@
       }
     }
   },
-  "lastChangelogVersion": "0.78.0",
-  "theme": "lovelace",
+  "lastChangelogVersion": "0.78.1",
+  "theme": "light",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
   "quietStartup": true,
