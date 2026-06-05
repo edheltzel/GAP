@@ -3,7 +3,7 @@ set shell := ["bash", "-cu"]
 stow_dir := justfile_directory()
 stow_target := env("HOME")
 stow_cmd := "stow -d " + stow_dir + " -t " + stow_target
-pkgs := "claudecode pi codex"
+pkgs := "claude pi codex"
 
 yellow := '\033[33m'
 green := '\033[32m'
