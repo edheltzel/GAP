@@ -1299,13 +1299,13 @@
     "skillsPrivate": 0,
     "workflows": 172,
     "hooks": 32,
-    "signals": 122,
+    "signals": 124,
     "files": 0,
     "work": 2,
-    "sessions": 275,
+    "sessions": 278,
     "research": 1,
-    "ratings": 388,
-    "updatedAt": "2026-06-08T14:56:55.946Z"
+    "ratings": 391,
+    "updatedAt": "2026-06-08T19:54:39.760Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
