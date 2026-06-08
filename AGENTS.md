@@ -4,7 +4,7 @@ This repo is a minimal, stow-managed config for Ed's agents. On 2026-05-18 the `
 
 ## PAI v5.0.0 migration
 
-This repo tracks Ed's PAI v5.0.0 configuration (identity, TELOS, durable memory, SYSTEM-OVERRIDE hooks). See `.atlas/plans/2026-05-18-pai-to-atlas-config-migration-plan.md` for the canonical migration spec (supersedes the archived MANIFEST at `.atlas/plans/archive/2026-05-17-pai-migration-manifest.md`).
+This repo tracks Ed's PAI v5.0.0 configuration (identity, TELOS, durable memory, SYSTEM-OVERRIDE hooks). See `.agents/plans/2026-05-18-pai-to-atlas-config-migration-plan.md` for the canonical migration spec (supersedes the archived MANIFEST at `.agents/atlas/plans/archive/2026-05-17-pai-migration-manifest.md`).
 
 ## Scope
 
@@ -14,14 +14,15 @@ The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and
 
 ## Repo layout
 
-| Package      | Source                  | Stowed to        | Status                                           |
-| ------------ | ----------------------- | ---------------- | ------------------------------------------------ |
-| `Codex` | `Codex/.Codex/`   | `~/.Codex/`     | Populated with PAI v5.0.0 USER-CONFIG (2026-05-18) |
-| `pi`         | `pi/.pi/agent/`         | `~/.pi/agent/`   | Placeholder — Pi will be reconfigured over time  |
+| Package | Source | Stowed to | Status |
+|---|---|---|---|
+| `Codex` | `Codex/.Codex/` | `~/.Codex/` | Populated with PAI v5.0.0 USER-CONFIG (2026-05-18) |
+| `pi` | `pi/.pi/agent/` | `~/.pi/agent/` | Curated Pi config only; stowed with `--no-folding` so runtime state stays local |
+| `omp` | `omp/.omp/agent/` | `~/.omp/agent/` | Curated OMP-native config only; runtime DBs, sessions, blobs, memories, and secrets stay local |
 
-Project-local artifacts live under `.atlas/` (`plans/`, `handoffs/`, `worktrees/`). `worktrees/` is gitignored.
+Project-local artifacts live under `.agents/` (`plans/`, `atlas/handoffs/`, `worktrees/`). `worktrees/` is gitignored.
 
-Before changing Pi's global package set or implementing `/atlas-flow`, read `.atlas/plans/2026-05-16-atlas-flow-research-digest.md` for the minimal-global baseline, flow manifest schema direction, safety rules, and issue roadmap.
+Before changing Pi's global package set or implementing `/atlas-flow`, read `.agents/plans/2026-05-16-atlas-flow-research-digest.md` for the minimal-global baseline, flow manifest schema direction, safety rules, and issue roadmap.
 
 ## Voice system
 
@@ -44,20 +45,22 @@ Provider chain: edge-tts → ElevenLabs → Kokoro → macOS `say`. **ElevenLabs
 
 ## Stow
 
-Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands. The per-package `.stow-local-ignore` files **replace** stow's built-in defaults — when adding a new one, copy from `Codex/.stow-local-ignore` and re-include `\.git`, `\.gitignore`, etc.
+Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands. Pi is stowed with `--no-folding`: `~/.pi/agent` must remain a real directory, with only curated config files symlinked into it. The per-package `.stow-local-ignore` files **replace** stow's built-in defaults — when adding a new one, copy from `Codex/.stow-local-ignore` and re-include `\.git`, `\.gitignore`, etc.
 
 ## When adding files
 
-- Adding to `Codex/.Codex/` or `pi/.pi/agent/` → run `just up` to restow.
+- Adding to `Codex/.Codex/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow.
 - Anything that should not be symlinked into the runtime location → add a pattern to that package's `.stow-local-ignore`.
+- Pi runtime/package state (`auth.json`, `sessions/`, `cache/`, `mcp*.json`, `run-history.jsonl`, `memory/`, `npm/`, `git/`) stays in the real `~/.pi/agent`, not in atlas-config.
+- OMP runtime state (`agent.db*`, `history.db*`, `models.db*`, `sessions/`, `blobs/`, `terminal-sessions/`, `memories/`, `cache/`, `secrets.yml`, `.env`, auth broker/gateway tokens) stays in the real `~/.omp`, not in atlas-config. See `docs/agents/omp.md`.
 - Secrets (`auth.json`, `*.env`, keys) → already covered by `.gitignore`. Do not weaken those rules.
 
 ## Notable conventions
 
-- `.atlas/plans/` for active plan/design docs, `.atlas/plans/archive/` for completed.
-- `.atlas/handoffs/` for live handoffs, archived to `.atlas/handoffs/archive/` when consumed.
+- `.agents/plans/` for active plan/design docs, `.agents/atlas/plans/archive/` for completed.
+- `.agents/atlas/handoffs/` for live handoffs, archived to `.agents/atlas/handoffs/archive/` when consumed.
 - File naming: `YYYY-MM-DD-description.md`.
-- Use git worktrees (`EnterWorktree` / `ExitWorktree`) for implementation work — they land in `.atlas/worktrees/`.
+- Use git worktrees (`EnterWorktree` / `ExitWorktree`) for implementation work — they land in `.agents/worktrees/`.
 
 ## Agent skills
 
@@ -68,6 +71,10 @@ Issues are tracked as GitHub issues in `edheltzel/atlas-config` via the `gh` CLI
 ### Triage labels
 
 Five canonical triage roles using default label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### OMP config
+
+OMP-native config is stowed from `omp/.omp/agent/` to `~/.omp/agent/`. Track authored config only; keep runtime DBs, sessions, blobs, memories, and secrets local. See `docs/agents/omp.md`.
 
 ### Domain docs
 
