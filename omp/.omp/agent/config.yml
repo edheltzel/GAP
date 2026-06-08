@@ -1,0 +1,56 @@
+lastChangelogVersion: 15.10.5
+symbolPreset: nerd
+theme: 
+  dark: dark-tokyo-night
+  light: light-catppuccin
+setupVersion: 1
+power: 
+  preventDisplaySleep: false
+steeringMode: one-at-a-time
+memory: 
+  backend: mnemopi
+edit: 
+  mode: hashline
+colorBlindMode: false
+statusLine: 
+  preset: default
+  separator: ascii
+  sessionAccent: true
+modelRoles: 
+  default: openai-codex/gpt-5.5
+  commit: deepseek/deepseek-v4-flash
+  plan: anthropic/claude-opus-4-8
+  slow: openai-codex/gpt-5.5:xhigh
+  smol: openai-codex/gpt-5.4-nano
+browser: 
+  headless: false
+  screenshotDir: ~/Pictures/agent-screenshots
+tui: 
+  hyperlinks: auto
+  textSizing: false
+marketplace: 
+  autoUpdate: auto
+todo: 
+  reminders: 
+    max: 5
+search: 
+  contextAfter: 3
+vault: 
+  enabled: true
+github: 
+  enabled: true
+  cache: 
+    enabled: true
+task: 
+  isolation: 
+    mode: auto
+  enableLsp: true
+commands: 
+  enableOpencodeUser: false
+  enableOpencodeProject: false
+secrets: 
+  enabled: true
+display: 
+  shimmer: classic
+  showTokenUsage: true
+defaultThinkingLevel: auto

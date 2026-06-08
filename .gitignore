@@ -36,15 +36,23 @@ node_modules/
 **/.update-check
 **/.pi-settings.json
 pi/.pi/agent/autoresearch.jsonl
+pi/.pi/agent/mcp.json
 pi/.pi/agent/mcp-cache.json
+pi/.pi/agent/run-history.jsonl
 pi/.pi/agent/cache/
 pi/.pi/agent/sessions/
+pi/.pi/agent/memory/
 pi/.pi/agent/settings.json.lazypi.*.bak
 pi/.pi/agent/*.lazypi.*.bak
-pi/.pi/agent/run-history.jsonl
-pi/.pi/agent/memory/
-pi/.pi/agent/mcp.json
 pi/.pi/agent/compound-engineering/legacy-backup/
+pi/.pi/agent/npm/*
+!pi/.pi/agent/npm/.gitignore
+pi/.pi/agent/git/*
+!pi/.pi/agent/git/.gitignore
+# Recall installs these as local runtime symlinks/files under ~/.pi/agent
+pi/.pi/agent/Recall_GUIDE.md
+pi/.pi/agent/extensions/RecallExtract.ts
+pi/.pi/agent/extensions/RecallPreCompact.ts
 
 # Codex runtime state (never commit)
 codex/.codex/history.jsonl
@@ -60,6 +68,23 @@ codex/.codex/shell_snapshots/
 codex/.codex/tmp/
 codex/.codex/.tmp/
 codex/.codex/skills/.system/
+
+# OMP runtime state (never commit)
+omp/.omp/install-id
+omp/.omp/.env
+omp/.omp/agent/.env
+omp/.omp/agent/secrets.yml
+omp/.omp/agent/agent.db*
+omp/.omp/agent/history.db*
+omp/.omp/agent/models.db*
+omp/.omp/agent/sessions/
+omp/.omp/agent/blobs/
+omp/.omp/agent/terminal-sessions/
+omp/.omp/agent/memories/
+omp/.omp/agent/cache/
+omp/.omp/cache/
+omp/.omp/auth-broker.token
+omp/.omp/auth-gateway.token
 
 # Local backups containing secrets — never commit
 oldSetup/

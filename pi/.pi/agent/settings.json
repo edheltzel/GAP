@@ -8,22 +8,7 @@
     "npm:@devkade/pi-plan",
     "npm:pi-simplify",
     "npm:pi-add-dir",
-    "npm:pi-prompt-template-model",
-    "npm:pi-claude-cli",
-    "npm:@victor-software-house/pi-curated-themes",
-    "npm:@tmustier/pi-usage-extension",
-    "git:github.com/tintinweb/pi-manage-todo-list@b75c449aa85ce328e9a8b632f62bf642aed40359",
-    "npm:pi-btw",
-    "git:github.com/davebcn87/pi-autoresearch",
-    "npm:@plannotator/pi-extension",
-    "npm:pi-slopchop",
-    "npm:@juanibiapina/pi-powerbar",
-    "npm:@juanibiapina/pi-extension-settings",
-    "npm:@tmustier/pi-raw-paste",
-    "npm:pi-interactive-shell",
-    "npm:@tmustier/pi-ralph-wiggum",
-    "git:github.com/javierportillo/pi-hackerman@63b0a3ef2c7b14985ffeb6cac44614ba59cd5693",
-    "npm:pi-terminal-theme"
+    "npm:pi-prompt-template-model"
   ],
   "subagents": {
     "agentOverrides": {
@@ -47,11 +32,11 @@
       }
     }
   },
-  "lastChangelogVersion": "0.78.1",
-  "theme": "light",
+  "theme": "terminal",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
   "quietStartup": true,
   "defaultThinkingLevel": "xhigh",
-  "hideThinkingBlock": false
+  "hideThinkingBlock": false,
+  "lastChangelogVersion": "0.79.0"
 }

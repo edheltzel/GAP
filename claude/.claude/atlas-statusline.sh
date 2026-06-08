@@ -37,7 +37,13 @@ EXTRA_USAGE_CACHE_TTL=300
 # PARSE INPUT (single jq call extracts everything from stdin)
 # ─────────────────────────────────────────────────────────────────────────────
 
-input=$(cat)
+# --print-theme resolves the active theme and exits (used by atlas-statusline.test.sh).
+# Skip the blocking stdin read in that mode; theme detection needs no stdin.
+if [ "${1:-}" = "--print-theme" ]; then
+  input="{}"
+else
+  input=$(cat)
+fi
 
 # Get PAI version from settings
 ATLAS_VERSION=$(jq -r '.pai.version // "—"' "$SETTINGS_FILE" 2>/dev/null)
@@ -240,19 +246,16 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # COLOR PALETTE
 # ─────────────────────────────────────────────────────────────────────────────
-# Multi-theme: Eldritch (dark), Vesper (dark warm-mono), Rosé Pine Dawn (light),
+# Multi-theme: Eldritch (dark), Rosé Pine Dawn (light),
 # Catppuccin Latte (light) and Catppuccin Mocha (dark — covers frappe/macchiato/mocha).
 #
 # Resolution priority:
-#   1. settings.json override → "statusline": { "theme": "auto"|"light"|"dark"|"vesper" }
+#   1. settings.json override → "statusline": { "theme": "auto"|"light"|"dark" }
 #   2. dotfiles theme-switcher state file (~/.config/theme-switcher/current)
 #   3. $COLORFGBG
 #   4. macOS system appearance
 #   5. "dark" default
 #
-# Eldritch       — https://github.com/eldritch-theme
-# Vesper         — https://github.com/datsfilipe/vesper.nvim
-# Rosé Pine Dawn — https://rosepinetheme.com/palette/ingredients/
 
 RESET='\033[0m'
 
@@ -266,7 +269,7 @@ detect_appearance() {
   local override
   override=$(jq -r '.statusline.theme // "auto"' "$SETTINGS_FILE" 2>/dev/null)
   case "$override" in
-  light | dark | vesper)
+  light | dark)
     echo "$override"
     return
     ;;
@@ -276,15 +279,11 @@ detect_appearance() {
   local theme_state="$HOME/.config/theme-switcher/current"
   if [ -f "$theme_state" ]; then
     case "$(cat "$theme_state" 2>/dev/null)" in
-    vesper)
-      echo "vesper"
-      return
-      ;;
     rose-pine-dawn)
       echo "light"
       return
       ;;
-    eldritch | aura | rose-pine | rose-pine-moon | tokyo-night | tokyo-night-moon)
+    eldritch | tokyonight | rose-pine | rose-pine-moon)
       echo "dark"
       return
       ;;
@@ -325,6 +324,12 @@ detect_appearance() {
 }
 
 STATUSLINE_THEME=$(detect_appearance)
+
+# --print-theme: emit the resolved theme name and exit before rendering (unit-test hook).
+if [ "${1:-}" = "--print-theme" ]; then
+  printf '%s\n' "$STATUSLINE_THEME"
+  exit 0
+fi
 
 if [ "$STATUSLINE_THEME" = "light" ]; then
   # ── Rosé Pine Dawn ──────────────────────────────────────────────────────
@@ -383,91 +388,35 @@ if [ "$STATUSLINE_THEME" = "light" ]; then
   USAGE_TIER_WARN='\033[38;2;215;130;126m' # rose
   USAGE_TIER_CRIT="$ROSE"                  # love
 
-elif [ "$STATUSLINE_THEME" = "vesper" ]; then
-  # ── Vesper (dark, warm-monochrome) ──────────────────────────────────────
-  # bg:#101010  bgDark:#161616  bgFloat:#282828  fg:#cccccc
-  # comment:#7d7d7d  inactive:#65737e  border:#505050
-  # red:#ff8080  yellowDark:#ffc799  orange:#ffcfa8  green:#82d9c2  cyan:#99ffe4
-
-  SLATE_300='\033[38;2;204;204;204m' # fg (primary)
-  SLATE_500='\033[38;2;125;125;125m' # comment (muted labels)
-  SLATE_600='\033[38;2;40;40;40m'    # bgFloat (separators)
-
-  EMERALD='\033[38;2;130;217;194m' # green (positive/success)
-  ROSE='\033[38;2;255;128;128m'    # red (error/negative)
-
-  GREET_PRIMARY='\033[38;2;255;207;168m' # orange (header/brand)
-  PAI_SESSION='\033[38;2;153;255;228m'   # cyan (session name)
-
-  CACHE_ICON='\033[38;2;255;207;168m'        # orange
-  CC_ICON='\033[38;2;255;199;153m'           # yellowDark (✱ CC icon)
-  DIR_DISPLAY='\033[38;2;153;255;228m'       # cyan (PWD)
-  GIT_BRANCH_COLOR='\033[38;2;255;207;168m'  # orange (git branch)
-  WORKTREE_COLOR='\033[38;2;153;255;228m'    # cyan (worktree)
-  WARN_COLOR='\033[38;2;255;128;128m'        # red (warnings)
-
-  CTX_BUCKET_EMPTY='\033[38;2;40;40;40m' # bgFloat (empty bucket)
-
-  USAGE_PRIMARY='\033[38;2;255;199;153m' # yellowDark (usage icon)
-  USAGE_RESET='\033[38;2;101;115;126m'   # inactive (reset time)
-  USAGE_EXTRA='\033[38;2;255;207;168m'   # orange (overage)
-
-  PAI_A='\033[38;2;255;207;168m' # orange (branding)
-
-  # Gradient stops for get_bucket_color (green → yellowDark → orange → red)
-  GRAD_LOW_R=130
-  GRAD_LOW_G=217
-  GRAD_LOW_B=194
-  GRAD_MID_R=255
-  GRAD_MID_G=199
-  GRAD_MID_B=153
-  GRAD_WRN_R=255
-  GRAD_WRN_G=207
-  GRAD_WRN_B=168
-  GRAD_HI_R=255
-  GRAD_HI_G=128
-  GRAD_HI_B=128
-
-  CACHE_TIER_HI="$EMERALD"               # green
-  CACHE_TIER_MH='\033[38;2;153;255;228m' # cyan
-  CACHE_TIER_MD='\033[38;2;255;199;153m' # yellowDark
-  CACHE_TIER_ML='\033[38;2;255;207;168m' # orange
-  CACHE_TIER_LO="$ROSE"                  # red
-
-  USAGE_TIER_OK="$EMERALD"
-  USAGE_TIER_MD='\033[38;2;255;199;153m'   # yellowDark
-  USAGE_TIER_WARN='\033[38;2;255;207;168m' # orange
-  USAGE_TIER_CRIT="$ROSE"
-
 elif [ "$STATUSLINE_THEME" = "catppuccin-light" ]; then
   # ── Catppuccin Latte (light) ──────────────────────────────────────────────
   # text:#4c4f69  subtext0:#6c6f85  surface1:#bcc0cc
   # green:#40a02b  red:#d20f39  mauve:#8839ef  sky:#04a5e5  peach:#fe640b  pink:#ea76cb  yellow:#df8e1d
 
-  SLATE_300='\033[38;2;76;79;105m' # text (primary fg)
-  SLATE_500='\033[38;2;108;111;133m' # subtext0 (muted labels)
-  SLATE_600='\033[38;2;188;192;204m' # surface1 (separators)
+  SLATE_300='\033[1;38;2;76;79;105m'   # text (primary fg)
+  SLATE_500='\033[1;38;2;108;111;133m' # subtext0 (muted labels)
+  SLATE_600='\033[1;38;2;188;192;204m' # surface1 (separators)
 
-  EMERALD='\033[38;2;64;160;43m' # green (positive/success)
-  ROSE='\033[38;2;210;15;57m' # red (error/negative)
+  EMERALD='\033[1;38;2;64;160;43m' # green (positive/success)
+  ROSE='\033[1;38;2;210;15;57m'    # red (error/negative)
 
-  GREET_PRIMARY='\033[38;2;136;57;239m' # mauve (header/brand)
-  PAI_SESSION='\033[38;2;4;165;229m' # sky (session name)
+  GREET_PRIMARY='\033[1;38;2;136;57;239m' # mauve (header/brand)
+  PAI_SESSION='\033[1;38;2;4;165;229m'    # sky (session name)
 
-  CACHE_ICON='\033[38;2;136;57;239m' # mauve
-  CC_ICON='\033[38;2;254;100;11m' # peach (✱ CC icon)
-  DIR_DISPLAY='\033[38;2;4;165;229m' # sky (PWD)
-  GIT_BRANCH_COLOR='\033[38;2;234;118;203m' # pink (git branch)
-  WORKTREE_COLOR='\033[38;2;4;165;229m' # sky (worktree)
-  WARN_COLOR='\033[38;2;210;15;57m' # red (warnings)
+  CACHE_ICON='\033[1;38;2;136;57;239m'        # mauve
+  CC_ICON='\033[1;38;2;254;100;11m'           # peach (✱ CC icon)
+  DIR_DISPLAY='\033[1;38;2;4;165;229m'        # sky (PWD)
+  GIT_BRANCH_COLOR='\033[1;38;2;234;118;203m' # pink (git branch)
+  WORKTREE_COLOR='\033[1;38;2;4;165;229m'     # sky (worktree)
+  WARN_COLOR='\033[1;38;2;210;15;57m'         # red (warnings)
 
-  CTX_BUCKET_EMPTY='\033[38;2;188;192;204m' # surface1 (empty bucket)
+  CTX_BUCKET_EMPTY='\033[1;38;2;188;192;204m' # surface1 (empty bucket)
 
-  USAGE_PRIMARY='\033[38;2;254;100;11m' # peach (usage icon)
-  USAGE_RESET='\033[38;2;140;143;161m' # overlay1 (reset time)
-  USAGE_EXTRA='\033[38;2;234;118;203m' # pink (overage)
+  USAGE_PRIMARY='\033[1;38;2;254;100;11m' # peach (usage icon)
+  USAGE_RESET='\033[1;38;2;140;143;161m'  # overlay1 (reset time)
+  USAGE_EXTRA='\033[1;38;2;234;118;203m'  # pink (overage)
 
-  PAI_A='\033[38;2;136;57;239m' # mauve (branding)
+  PAI_A='\033[1;38;2;136;57;239m' # mauve (branding)
 
   # Gradient stops for get_bucket_color (green → yellow → peach → red)
   GRAD_LOW_R=64
@@ -483,15 +432,15 @@ elif [ "$STATUSLINE_THEME" = "catppuccin-light" ]; then
   GRAD_HI_G=15
   GRAD_HI_B=57
 
-  CACHE_TIER_HI="$EMERALD"        # green
-  CACHE_TIER_MH='\033[38;2;4;165;229m' # sky
-  CACHE_TIER_MD='\033[38;2;223;142;29m' # yellow
-  CACHE_TIER_ML='\033[38;2;254;100;11m' # peach
-  CACHE_TIER_LO="$ROSE"           # red
+  CACHE_TIER_HI="$EMERALD"                # green
+  CACHE_TIER_MH='\033[1;38;2;4;165;229m'  # sky
+  CACHE_TIER_MD='\033[1;38;2;223;142;29m' # yellow
+  CACHE_TIER_ML='\033[1;38;2;254;100;11m' # peach
+  CACHE_TIER_LO="$ROSE"                   # red
 
   USAGE_TIER_OK="$EMERALD"
-  USAGE_TIER_MD='\033[38;2;223;142;29m' # yellow
-  USAGE_TIER_WARN='\033[38;2;254;100;11m' # peach
+  USAGE_TIER_MD='\033[1;38;2;223;142;29m'   # yellow
+  USAGE_TIER_WARN='\033[1;38;2;254;100;11m' # peach
   USAGE_TIER_CRIT="$ROSE"
 
 elif [ "$STATUSLINE_THEME" = "catppuccin-dark" ]; then
@@ -501,26 +450,26 @@ elif [ "$STATUSLINE_THEME" = "catppuccin-dark" ]; then
 
   SLATE_300='\033[38;2;205;214;244m' # text (primary fg)
   SLATE_500='\033[38;2;166;173;200m' # subtext0 (muted labels)
-  SLATE_600='\033[38;2;69;71;90m' # surface1 (separators)
+  SLATE_600='\033[38;2;69;71;90m'    # surface1 (separators)
 
   EMERALD='\033[38;2;166;227;161m' # green (positive/success)
-  ROSE='\033[38;2;243;139;168m' # red (error/negative)
+  ROSE='\033[38;2;243;139;168m'    # red (error/negative)
 
   GREET_PRIMARY='\033[38;2;203;166;247m' # mauve (header/brand)
-  PAI_SESSION='\033[38;2;137;220;235m' # sky (session name)
+  PAI_SESSION='\033[38;2;137;220;235m'   # sky (session name)
 
-  CACHE_ICON='\033[38;2;203;166;247m' # mauve
-  CC_ICON='\033[38;2;250;179;135m' # peach (✱ CC icon)
-  DIR_DISPLAY='\033[38;2;137;220;235m' # sky (PWD)
+  CACHE_ICON='\033[38;2;203;166;247m'       # mauve
+  CC_ICON='\033[38;2;250;179;135m'          # peach (✱ CC icon)
+  DIR_DISPLAY='\033[38;2;137;220;235m'      # sky (PWD)
   GIT_BRANCH_COLOR='\033[38;2;245;194;231m' # pink (git branch)
-  WORKTREE_COLOR='\033[38;2;137;220;235m' # sky (worktree)
-  WARN_COLOR='\033[38;2;243;139;168m' # red (warnings)
+  WORKTREE_COLOR='\033[38;2;137;220;235m'   # sky (worktree)
+  WARN_COLOR='\033[38;2;243;139;168m'       # red (warnings)
 
   CTX_BUCKET_EMPTY='\033[38;2;69;71;90m' # surface1 (empty bucket)
 
   USAGE_PRIMARY='\033[38;2;250;179;135m' # peach (usage icon)
-  USAGE_RESET='\033[38;2;127;132;156m' # overlay1 (reset time)
-  USAGE_EXTRA='\033[38;2;245;194;231m' # pink (overage)
+  USAGE_RESET='\033[38;2;127;132;156m'   # overlay1 (reset time)
+  USAGE_EXTRA='\033[38;2;245;194;231m'   # pink (overage)
 
   PAI_A='\033[38;2;203;166;247m' # mauve (branding)
 
@@ -538,14 +487,14 @@ elif [ "$STATUSLINE_THEME" = "catppuccin-dark" ]; then
   GRAD_HI_G=139
   GRAD_HI_B=168
 
-  CACHE_TIER_HI="$EMERALD"        # green
+  CACHE_TIER_HI="$EMERALD"               # green
   CACHE_TIER_MH='\033[38;2;137;220;235m' # sky
   CACHE_TIER_MD='\033[38;2;249;226;175m' # yellow
   CACHE_TIER_ML='\033[38;2;250;179;135m' # peach
-  CACHE_TIER_LO="$ROSE"           # red
+  CACHE_TIER_LO="$ROSE"                  # red
 
   USAGE_TIER_OK="$EMERALD"
-  USAGE_TIER_MD='\033[38;2;249;226;175m' # yellow
+  USAGE_TIER_MD='\033[38;2;249;226;175m'   # yellow
   USAGE_TIER_WARN='\033[38;2;250;179;135m' # peach
   USAGE_TIER_CRIT="$ROSE"
 
@@ -687,6 +636,20 @@ render_context_bar() {
   echo "$output"
 }
 
+# Render the shared tail of LINE 2: context bar + percentage, then cache hit rate.
+# Identical across every width mode — only the bar width differs.
+# Reads display_pct, ctx_warn, pct_color, cache_total, cache_hit_rate from scope.
+render_ctx_cache_tail() {
+  local bar_width=$1 ctx_bar cache_num_color
+  ctx_bar=$(render_context_bar "$bar_width" "$display_pct")
+  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  if [ "$cache_total" -gt 0 ]; then
+    cache_num_color=$(get_cache_color "$cache_hit_rate")
+    printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
+  fi
+  printf "\n"
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 1: ATLAS HEADER
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -789,15 +752,7 @@ if [ "$COMPACTION_THRESHOLD" -lt 100 ] && [ "$COMPACTION_THRESHOLD" -gt 0 ]; the
 else
   display_pct="$raw_pct"
 fi
-if [ "$display_pct" -ge 80 ]; then
-  pct_color="$USAGE_TIER_CRIT"
-elif [ "$display_pct" -ge 60 ]; then
-  pct_color="$USAGE_TIER_WARN"
-elif [ "$display_pct" -ge 40 ]; then
-  pct_color="$USAGE_TIER_MD"
-else
-  pct_color="$USAGE_TIER_OK"
-fi
+pct_color=$(get_usage_color "$display_pct")
 
 # exceeds_200k warning prefix
 ctx_warn=""
@@ -811,47 +766,23 @@ usage_7d_color=$(get_usage_color "$usage_7d_int")
 case "$MODE" in
 nano)
   [ "$has_rate_limits" = "true" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
-  ctx_bar=$(render_context_bar 6 $display_pct)
-  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
-  if [ "$cache_total" -gt 0 ]; then
-    cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
-  fi
-  printf "\n"
+  render_ctx_cache_tail 6
   ;;
 micro)
   [ "$has_rate_limits" = "true" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
-  ctx_bar=$(render_context_bar 8 $display_pct)
-  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
-  if [ "$cache_total" -gt 0 ]; then
-    cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
-  fi
-  printf "\n"
+  render_ctx_cache_tail 8
   ;;
 mini)
   if [ "$has_rate_limits" = "true" ]; then
     printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
   fi
-  ctx_bar=$(render_context_bar 16 $display_pct)
-  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
-  if [ "$cache_total" -gt 0 ]; then
-    cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
-  fi
-  printf "\n"
+  render_ctx_cache_tail 16
   ;;
 normal)
   if [ "$has_rate_limits" = "true" ]; then
     printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
     [ -n "$extra_display" ] && printf " ${SLATE_600}·${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
   fi
-  ctx_bar=$(render_context_bar 24 $display_pct)
-  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
-  if [ "$cache_total" -gt 0 ]; then
-    cache_num_color=$(get_cache_color "$cache_hit_rate")
-    printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
-  fi
-  printf "\n"
+  render_ctx_cache_tail 24
   ;;
 esac

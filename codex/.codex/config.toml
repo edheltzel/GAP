@@ -12,7 +12,7 @@ terminal_resize_reflow = true
 js_repl = false
 
 [marketplaces.openai-bundled]
-last_updated = "2026-06-05T00:40:58Z"
+last_updated = "2026-06-08T15:27:02Z"
 source_type = "local"
 source = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled"
 
@@ -22,8 +22,8 @@ source_type = "local"
 source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
 [marketplaces.claude-plugins-official]
-last_updated = "2026-06-05T14:19:23Z"
-last_revision = "435820146b71802f2e406c22608a3b7419b1a2ae"
+last_updated = "2026-06-08T19:06:31Z"
+last_revision = "bbbff6ab54f0d4b62dad2df25536ed05a418b3ff"
 source_type = "git"
 source = "https://github.com/anthropics/claude-plugins-official.git"
 
@@ -45,12 +45,12 @@ NODE_REPL_NODE_MODULE_DIRS = ""
 NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/node"
 NODE_REPL_TRUSTED_CODE_PATHS = "/Users/ed/.codex"
 CODEX_HOME = "/Users/ed/.codex"
-NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "a0dc4b6aaefe6a6a82d9a34fb524e77df6e0bf71387f0d4760157a46f52e6a93"
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "2de792ebdf729e85542c94275f6654821dddce546d9c7374c915f2297529e313"
 BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"
 NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = "Control the in-app browser in conjunction with the Browser Plugin."
 NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = "Control the Chrome browser in conjunction with the Chrome Plugin. Prefer this method of controlling Chrome over alternatives (such as Computer Use) unless the user explicitly mentions an alternative."
 BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
-BROWSER_USE_CODEX_APP_VERSION = "26.602.30954"
+BROWSER_USE_CODEX_APP_VERSION = "26.602.40724"
 SKY_CUA_SERVICE_PATH = "/Users/ed/.codex/plugins/cache/openai-bundled/computer-use/1.0.809/Codex Computer Use.app"
 CODEX_CLI_PATH = "/Applications/Codex.app/Contents/Resources/codex"
 

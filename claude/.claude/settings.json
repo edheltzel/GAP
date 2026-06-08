@@ -69,7 +69,8 @@
       "Agent(Algorithm)",
       "Agent(pr-review-toolkit:*)",
       "Agent(statusline-setup)",
-      "mcp__*",
+      "mcp__recall-memory__*",
+      "mcp__claude_ai_Context7__*",
       "Write(~/Projects/**)",
       "Edit(~/Projects/**)",
       "MultiEdit(~/Projects/**)",
@@ -1240,7 +1241,7 @@
   "awaySummaryEnabled": false,
   "plansDirectory": ".agents/atlas/plans/",
   "skipDangerousModePermissionPrompt": true,
-  "theme": "custom:catppuccin-latte",
+  "theme": "custom:eldritch",
   "teammateMode": "in-process",
   "skipAutoPermissionPrompt": true,
   "autoMode": {
@@ -1298,13 +1299,13 @@
     "skillsPrivate": 0,
     "workflows": 172,
     "hooks": 32,
-    "signals": 109,
+    "signals": 122,
     "files": 0,
     "work": 2,
-    "sessions": 256,
+    "sessions": 275,
     "research": 1,
-    "ratings": 354,
-    "updatedAt": "2026-06-05T13:38:24.719Z"
+    "ratings": 388,
+    "updatedAt": "2026-06-08T14:56:55.946Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
@@ -1455,5 +1456,6 @@
     "packageManager": "bun",
     "pythonPackageManager": "uv",
     "terminal": "Kitty"
-  }
+  },
+  "skipWorkflowUsageWarning": true
 }

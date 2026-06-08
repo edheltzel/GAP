@@ -3,7 +3,8 @@ set shell := ["bash", "-cu"]
 stow_dir := justfile_directory()
 stow_target := env("HOME")
 stow_cmd := "stow -d " + stow_dir + " -t " + stow_target
-pkgs := "claude pi codex"
+pkgs := "claude codex omp"
+pi_pkg := "pi"
 
 yellow := '\033[33m'
 green := '\033[32m'
@@ -17,6 +18,7 @@ update:
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} --restow $pkg; done
+    {{ stow_cmd }} --no-folding --restow {{ pi_pkg }}
     echo -e "{{ green }}All packages restowed{{ clr }}"
 
 alias up := update
@@ -27,7 +29,8 @@ link:
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} $pkg; done
-    echo -e "{{ green }}Packages linked: {{ pkgs }}{{ clr }}"
+    {{ stow_cmd }} --no-folding {{ pi_pkg }}
+    echo -e "{{ green }}Packages linked: {{ pkgs }} {{ pi_pkg }}{{ clr }}"
 
 # Remove all symlinks
 [group('stow')]
@@ -35,6 +38,7 @@ unlink:
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} --delete $pkg; done
+    {{ stow_cmd }} --no-folding --delete {{ pi_pkg }}
     echo -e "{{ white }}All package symlinks removed{{ clr }}"
 
 # Show what stow would do (dry run)
@@ -47,6 +51,9 @@ status:
         {{ stow_cmd }} --restow -n -v $pkg 2>&1 || true
         echo ""
     done
+    echo -e "{{ cyan }}Package: {{ pi_pkg }} (no-folding){{ clr }}"
+    {{ stow_cmd }} --no-folding --restow -n -v {{ pi_pkg }} 2>&1 || true
+    echo ""
 
 # Commit and push config changes
 [group('git')]

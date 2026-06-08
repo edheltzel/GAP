@@ -2,7 +2,7 @@
 
 Minimal config for the agents Ed uses, managed with [GNU Stow](https://www.gnu.org/software/stow/) and [`just`](https://github.com/casey/just).
 
-This repo intentionally starts small. Items are cherry-picked and added over time as needed — no pre-built skill/hook bundles, no auto-loaded frameworks. If it's here, it's because it earned its keep.
+This repo intentionally starts small. Items are cherry-picked and added over time as needed.
 
 ## Layout
 
@@ -11,8 +11,9 @@ This repo intentionally starts small. Items are cherry-picked and added over tim
 | `claudecode` | `claudecode/.claude/`   | `~/.claude/`     |
 | `pi`         | `pi/.pi/agent/`         | `~/.pi/agent/`   |
 | `codex`      | `codex/.codex/`         | `~/.codex/`      |
+| `omp`        | `omp/.omp/agent/`       | `~/.omp/agent/`  |
 
-Plans, handoffs, and worktrees live under `.atlas/` at the repo root (see `.atlas/plans/`, `.atlas/handoffs/`).
+Plans, handoffs, worktrees, and artifacts live under `.agents.agents/atlas\` at the repo root (see `.agents.agents/atlas\plans/`, `.agents.agents/atlas\handoffs/`).
 
 ## Commands
 
@@ -26,8 +27,9 @@ just push     # commit any changes and push to origin
 
 ## Notes
 
-- Atlas Flow research lives at `.atlas/plans/2026-05-16-atlas-flow-research-digest.md`; read it before changing Pi's global package set or implementing `/atlas-flow`.
+- Atlas Flow research lives at `.agents.agents/atlas\plans/2026-05-16-atlas-flow-research-digest.md`; read it before changing Pi's global package set or implementing `/atlas-flow`.
 - `pi/` is a placeholder while the Pi agent is reconfigured. Add files there as needed and `just up` to stow them.
 - `oldSetup/`, `.audit-backup/`, and any `auth.json` files are gitignored — runtime state and local backups never get committed.
 - Codex runtime state stays local; only curated files like `config.toml` and `hooks.json` are stowed.
-- Worktrees (`EnterWorktree` / `ExitWorktree`) write to `.atlas/worktrees/`, which is also gitignored.
+- OMP runtime state stays local; only curated files like `config.yml`, `models.yml`, `mcp.json`, keybindings, skills, commands, tools, extensions, and themes should be stowed. See `docs/agents/omp.md`.
+- Worktrees (`EnterWorktree` / `ExitWorktree`) write to `.agents/atlas\worktrees/`, which is also gitignored.
