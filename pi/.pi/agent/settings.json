@@ -4,11 +4,12 @@
     "npm:pi-subagents",
     "npm:pi-ask-user",
     "npm:pi-web-access",
-    "git:github.com/VandeeFeng/pi-memory-md",
     "npm:@devkade/pi-plan",
     "npm:pi-simplify",
     "npm:pi-add-dir",
-    "npm:pi-prompt-template-model"
+    "npm:pi-prompt-template-model",
+    "npm:@narumitw/pi-goal",
+    "npm:pi-hermes-memory"
   ],
   "subagents": {
     "agentOverrides": {
@@ -36,7 +37,7 @@
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
   "quietStartup": true,
-  "defaultThinkingLevel": "xhigh",
+  "defaultThinkingLevel": "medium",
   "hideThinkingBlock": false,
-  "lastChangelogVersion": "0.79.0"
+  "lastChangelogVersion": "0.79.1"
 }

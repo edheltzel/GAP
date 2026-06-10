@@ -1,7 +1,7 @@
-lastChangelogVersion: 15.10.5
+lastChangelogVersion: 15.10.10
 symbolPreset: nerd
 theme: 
-  dark: dark-tokyo-night
+  dark: atlas-statusline
   light: light-catppuccin
 setupVersion: 1
 power: 
@@ -13,9 +13,26 @@ edit:
   mode: hashline
 colorBlindMode: false
 statusLine: 
-  preset: default
+  preset: custom
   separator: ascii
   sessionAccent: true
+  leftSegments: 
+    - pi
+    - model
+    - mode
+    - path
+    - git
+    - pr
+    - context_pct
+    - cache_hit
+  rightSegments: 
+    - session_name
+  segmentOptions: 
+    model: 
+      showThinkingLevel: true
+    path: 
+      abbreviate: true
+      maxLength: 24
 modelRoles: 
   default: openai-codex/gpt-5.5
   commit: deepseek/deepseek-v4-flash
