@@ -22,8 +22,8 @@ source_type = "local"
 source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
 [marketplaces.claude-plugins-official]
-last_updated = "2026-06-08T19:06:31Z"
-last_revision = "bbbff6ab54f0d4b62dad2df25536ed05a418b3ff"
+last_updated = "2026-06-10T14:26:50Z"
+last_revision = "cf6decf9e8befc69c3c4d5a1251986842aba96e1"
 source_type = "git"
 source = "https://github.com/anthropics/claude-plugins-official.git"
 
@@ -108,6 +108,12 @@ trust_level = "trusted"
 [projects."/Users/ed/Sites/alianza.video"]
 trust_level = "trusted"
 
+[projects."/Users/ed/Developer/_AI"]
+trust_level = "trusted"
+
+[projects."/Users/ed/Developer"]
+trust_level = "trusted"
+
 [shell_environment_policy]
 inherit = "core"
 
@@ -120,12 +126,7 @@ PAI_DIR = "/Users/ed/.claude/PAI"
 PROJECTS_DIR = "/Users/ed/Developer"
 
 [tui]
-status_line = [
-    "model-with-reasoning",
-    "current-dir",
-    "git-branch",
-    "pull-request-number",
-]
+status_line = ["model-with-reasoning", "current-dir", "git-branch", "pull-request-number", "context-used", "codex-version", "task-progress"]
 status_line_use_colors = true
 theme = "ansi"
 
