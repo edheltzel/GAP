@@ -45,6 +45,11 @@ pi/.pi/agent/memory/
 pi/.pi/agent/settings.json.lazypi.*.bak
 pi/.pi/agent/*.lazypi.*.bak
 pi/.pi/agent/compound-engineering/legacy-backup/
+# Skills installed via skills.sh / Compound Engineering are package-managed runtime files
+pi/.pi/agent/agents/ce-*.md
+pi/.pi/agent/skills/ce-*/
+pi/.pi/agent/skills/lfg/
+pi/.pi/agent/compound-engineering/
 pi/.pi/agent/npm/*
 !pi/.pi/agent/npm/.gitignore
 pi/.pi/agent/git/*

@@ -25,7 +25,11 @@ node_modules
 \.pi/agent/cache(/.*)?
 \.pi/agent/sessions(/.*)?
 \.pi/agent/memory(/.*)?
-\.pi/agent/compound-engineering/legacy-backup(/.*)?
+# Skills installed via skills.sh / Compound Engineering are managed by Pi in ~/.pi/agent
+\.pi/agent/agents/ce-.*\.md
+\.pi/agent/skills/ce-[^/]+(/.*)?
+\.pi/agent/skills/lfg(/.*)?
+\.pi/agent/compound-engineering(/.*)?
 \.pi/agent/.*\.lazypi\..*\.bak
 
 # Pi package install caches/checkouts are reconstructed from settings.json packages
