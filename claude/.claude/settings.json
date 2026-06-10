@@ -82,6 +82,7 @@
     "ask": [],
     "defaultMode": "auto"
   },
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "PostToolUse": [
       {
@@ -446,7 +447,8 @@
     "compound-engineering@compound-engineering-plugin": true,
     "lua-lsp@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": true,
+    "VisualExplainer@visual-explainer-marketplace": true
   },
   "extraKnownMarketplaces": {
     "agricidaniel-seo": {
@@ -468,6 +470,12 @@
         "repo": "EveryInc/compound-engineering-plugin"
       },
       "autoUpdate": true
+    },
+    "visual-explainer-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "edheltzel/VisualExplainer"
+      }
     }
   },
   "spinnerVerbs": {
@@ -1238,9 +1246,11 @@
       "Context compaction at phase boundaries prevents context rot — the #1 cause of late-phase failures."
     ]
   },
+  "effortLevel": "high",
   "awaySummaryEnabled": false,
   "plansDirectory": ".agents/atlas/plans/",
   "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
   "theme": "custom:eldritch",
   "teammateMode": "in-process",
   "skipAutoPermissionPrompt": true,
@@ -1294,18 +1304,18 @@
   },
   "contextFiles": [],
   "counts": {
-    "skills": 64,
-    "skillsPublic": 64,
+    "skills": 79,
+    "skillsPublic": 79,
     "skillsPrivate": 0,
     "workflows": 172,
     "hooks": 32,
-    "signals": 124,
+    "signals": 151,
     "files": 0,
-    "work": 2,
-    "sessions": 278,
+    "work": 3,
+    "sessions": 318,
     "research": 1,
-    "ratings": 391,
-    "updatedAt": "2026-06-08T19:54:39.760Z"
+    "ratings": 438,
+    "updatedAt": "2026-06-10T19:15:56.562Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
@@ -1456,6 +1466,5 @@
     "packageManager": "bun",
     "pythonPackageManager": "uv",
     "terminal": "Kitty"
-  },
-  "skipWorkflowUsageWarning": true
+  }
 }
