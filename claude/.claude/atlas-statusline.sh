@@ -55,6 +55,7 @@ eval "$(echo "$input" | jq -r '
   "session_id=" + (.session_id // "" | @sh) + "\n" +
   "model_id=" + (.model.id // "" | @sh) + "\n" +
   "model_name=" + (.model.display_name // "unknown" | @sh) + "\n" +
+  "effort_level=" + (.effort.level // "" | @sh) + "\n" +
   "cc_version_json=" + (.version // "" | @sh) + "\n" +
   "context_max=" + (.context_window.context_window_size // 200000 | tostring) + "\n" +
   "context_pct=" + (.context_window.used_percentage // 0 | tostring) + "\n" +
@@ -686,6 +687,10 @@ ver_suffix_plain="${model_name_short}"
 [ -n "$model_ver_str" ] && {
   ver_suffix="${ver_suffix} ${SLATE_300}${model_ver_str}${RESET}"
   ver_suffix_plain="${ver_suffix_plain} ${model_ver_str}"
+}
+[ -n "${effort_level:-}" ] && {
+  ver_suffix="${ver_suffix} ${SLATE_500}⚡${effort_level}${RESET}"
+  ver_suffix_plain="${ver_suffix_plain} ⚡${effort_level}"
 }
 [ -n "$cc_version" ] && {
   ver_suffix="${ver_suffix} ${SLATE_600}·${RESET} ${CC_ICON}✱ ${SLATE_300}${cc_version}${RESET}"
