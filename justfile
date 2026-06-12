@@ -14,7 +14,7 @@ clr := '\033[0m'
 
 # Restow all packages (use after adding/removing files)
 [group('stow')]
-update:
+update: && skills-link
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} --restow $pkg; done
@@ -25,7 +25,7 @@ alias up := update
 
 # Create symlinks (first time setup)
 [group('stow')]
-link:
+link: && skills-link
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} $pkg; done
