@@ -11,6 +11,7 @@
   "includeGitInstructions": false,
   "permissions": {
     "allow": [
+      "Bash(bash /Users/ed/.claude/plugins/cache/visual-explainer-marketplace/VisualExplainer/0.7.2/skills/visual-explainer/scripts/share.sh *)",
       "Read",
       "Glob",
       "Grep",
@@ -76,7 +77,15 @@
       "MultiEdit(~/Projects/**)",
       "Write(~/Downloads/**)",
       "Edit(~/Downloads/**)",
-      "MultiEdit(~/Downloads/**)"
+      "MultiEdit(~/Downloads/**)",
+      "mcp__codegraph__codegraph_explore",
+      "mcp__codegraph__codegraph_search",
+      "mcp__codegraph__codegraph_node",
+      "mcp__codegraph__codegraph_callers",
+      "mcp__codegraph__codegraph_callees",
+      "mcp__codegraph__codegraph_impact",
+      "mcp__codegraph__codegraph_files",
+      "mcp__codegraph__codegraph_status"
     ],
     "deny": [],
     "ask": [],
@@ -448,7 +457,9 @@
     "lua-lsp@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
-    "VisualExplainer@visual-explainer-marketplace": true
+    "VisualExplainer@visual-explainer-marketplace": true,
+    "understand-anything@understand-anything": true,
+    "vercel@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "agricidaniel-seo": {
@@ -475,6 +486,13 @@
       "source": {
         "source": "github",
         "repo": "edheltzel/VisualExplainer"
+      },
+      "autoUpdate": true
+    },
+    "understand-anything": {
+      "source": {
+        "source": "github",
+        "repo": "Egonex-AI/Understand-Anything"
       }
     }
   },
@@ -1246,7 +1264,7 @@
       "Context compaction at phase boundaries prevents context rot — the #1 cause of late-phase failures."
     ]
   },
-  "effortLevel": "high",
+  "effortLevel": "xhigh",
   "awaySummaryEnabled": false,
   "plansDirectory": ".agents/atlas/plans/",
   "skipDangerousModePermissionPrompt": true,
@@ -1309,13 +1327,13 @@
     "skillsPrivate": 0,
     "workflows": 172,
     "hooks": 32,
-    "signals": 151,
+    "signals": 200,
     "files": 0,
-    "work": 3,
-    "sessions": 318,
+    "work": 12,
+    "sessions": 597,
     "research": 1,
-    "ratings": 438,
-    "updatedAt": "2026-06-10T19:15:56.562Z"
+    "ratings": 553,
+    "updatedAt": "2026-06-12T18:15:13.309Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
