@@ -51,6 +51,11 @@ Runtime state, credentials, generated caches, and local identity stay out of git
 
 ## Current tracked baseline
 
-The only tracked OMP runtime config today is `omp/.omp/agent/config.yml`.
+Tracked OMP-authored config currently includes:
+
+- `omp/.omp/agent/config.yml`
+- `omp/.omp/agent/extensions/atlas-statusline.ts`
+- `omp/.omp/agent/extensions/codegraph.ts`
+- `omp/.omp/agent/themes/atlas-statusline.json`
 
 `~/.omp/agent/extensions/herdr-omp-agent-state.ts` is intentionally not tracked because its header says it is installed and overwritten by herdr.

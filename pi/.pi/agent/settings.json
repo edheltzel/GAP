@@ -9,7 +9,8 @@
     "npm:pi-add-dir",
     "npm:pi-prompt-template-model",
     "npm:@narumitw/pi-goal",
-    "npm:pi-hermes-memory"
+    "npm:pi-hermes-memory",
+    "npm:@sean_pedersen/pi-codegraph"
   ],
   "subagents": {
     "agentOverrides": {
