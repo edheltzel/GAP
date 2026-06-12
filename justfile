@@ -55,6 +55,42 @@ status:
     {{ stow_cmd }} --no-folding --restow -n -v {{ pi_pkg }} 2>&1 || true
     echo ""
 
+# Link ~/.agents/skills to the repo-backed skills.sh store (idempotent)
+[group('skills')]
+skills-link:
+    #!/usr/bin/env bash
+    set -eu
+    store="{{ stow_dir }}/skills"
+    target="$HOME/.agents/skills"
+    if [ -L "$target" ]; then
+        echo -e "{{ green }}Already linked: $target → $(readlink "$target"){{ clr }}"
+    elif [ -e "$target" ]; then
+        echo -e "{{ yellow }}$target exists and is not a symlink — move its contents into $store first{{ clr }}"
+        exit 1
+    else
+        ln -s "$store" "$target"
+        echo -e "{{ green }}Linked $target → $store{{ clr }}"
+    fi
+
+# Review and commit changes to the skills store
+[group('skills')]
+skills-sync:
+    #!/usr/bin/env bash
+    set -eu
+    if [ ! -L "$HOME/.agents/skills" ]; then
+        echo -e "{{ yellow }}~/.agents/skills is not a symlink — store has diverged from the repo. Run 'just skills-link'{{ clr }}"
+        exit 1
+    fi
+    cd "{{ stow_dir }}"
+    if git status --porcelain skills/ | grep -q .; then
+        git status --short skills/
+        git add skills/
+        git commit -m "skills: sync store"
+        echo -e "{{ green }}Skills store synced{{ clr }}"
+    else
+        echo -e "{{ yellow }}Nothing to sync{{ clr }}"
+    fi
+
 # Commit and push config changes
 [group('git')]
 push:

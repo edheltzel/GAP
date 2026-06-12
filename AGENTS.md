@@ -64,6 +64,12 @@ Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands
 
 ## Agent skills
 
+### Skills store (skills.sh)
+
+The [skills.sh](https://skills.sh) global store is repo-backed: the real files live in `skills/` at the repo root, and `~/.agents/skills` is a plain symlink to it (created by `just skills-link`, **not** stow). skills.sh keeps working unchanged — `npx skills add owner/repo` writes through the symlink straight into the repo, and its per-agent symlinks (`~/.claude/skills/<name> → ../../.agents/skills/<name>`, etc.) resolve through the chain.
+
+Workflow: `npx skills add`/`update` as usual → `just skills-sync` to review and commit the diff. The sync target refuses to run if `~/.agents/skills` is no longer a symlink (i.e. skills.sh recreated it as a real dir — relink and reconcile manually). `node_modules/` and `.DS_Store` inside the store are gitignored; do not track Pi CE runtime skills here (they stay under `~/.pi/agent`, see decision 2026-06-09). `git diff` review after `update` is the guard against skills.sh's known false-success/silent-skip bugs — see `.agents/atlas/artifacts/skills-sh-research.md`.
+
 ### Issue tracker
 
 Issues are tracked as GitHub issues in `edheltzel/atlas-config` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
