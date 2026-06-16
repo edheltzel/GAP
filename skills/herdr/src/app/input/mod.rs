@@ -23,23 +23,13 @@ enum WheelRouting {
 const WORKSPACE_DRAG_THRESHOLD: u16 = 1;
 const TAB_DRAG_THRESHOLD: u16 = 1;
 
-#[cfg(target_os = "macos")]
-fn modified_url_click_modifier() -> KeyModifiers {
-    KeyModifiers::SUPER
-}
-
-#[cfg(not(target_os = "macos"))]
 fn modified_url_click_modifier() -> KeyModifiers {
     KeyModifiers::CONTROL
 }
 
 #[cfg(test)]
 #[test]
-fn modified_url_click_modifier_matches_platform_primary_modifier() {
-    #[cfg(target_os = "macos")]
-    assert_eq!(modified_url_click_modifier(), KeyModifiers::SUPER);
-
-    #[cfg(not(target_os = "macos"))]
+fn modified_url_click_modifier_matches_terminal_mouse_reporting() {
     assert_eq!(modified_url_click_modifier(), KeyModifiers::CONTROL);
 }
 
@@ -341,6 +331,13 @@ impl App {
         };
 
         self.last_pane_click = None;
+        match self.invoke_plugin_link_handler_for_url(&url, info.id) {
+            Ok(true) => return true,
+            Ok(false) => {}
+            Err(err) => {
+                tracing::warn!(err = %err, url = %url, "failed to invoke plugin link handler");
+            }
+        }
         if let Err(err) = crate::platform::open_url(&url) {
             tracing::warn!(err = %err, url = %url, "failed to open pane URL");
         }
@@ -514,6 +511,7 @@ impl AppState {
                 self.pane_scrollback_limit_bytes,
                 self.host_terminal_theme,
                 crate::pane::PaneShellConfig::new(&self.default_shell, self.shell_mode),
+                Vec::new(),
             ) {
                 let new_id = new_pane.pane_id;
                 terminal_runtimes.insert(new_pane.terminal.id.clone(), new_pane.runtime);
@@ -622,7 +620,9 @@ fn wait_for_file(path: &std::path::Path) -> String {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
     while std::time::Instant::now() < deadline {
         if let Ok(content) = std::fs::read_to_string(path) {
-            return content;
+            if !content.is_empty() {
+                return content;
+            }
         }
         std::thread::sleep(std::time::Duration::from_millis(20));
     }

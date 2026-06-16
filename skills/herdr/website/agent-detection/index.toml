@@ -25,6 +25,10 @@ id = "cursor"
 path = "cursor.toml"
 
 [[agents]]
+id = "devin"
+path = "devin.toml"
+
+[[agents]]
 id = "droid"
 path = "droid.toml"
 

@@ -51,6 +51,7 @@ pub enum CommandKeybindType {
     #[default]
     Shell,
     Pane,
+    PluginAction,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -82,6 +83,7 @@ impl Default for CommandKeybindConfig {
 pub enum CustomCommandAction {
     Shell,
     Pane,
+    PluginAction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -541,6 +543,7 @@ impl Config {
             let action = match command.action_type {
                 CommandKeybindType::Shell => CustomCommandAction::Shell,
                 CommandKeybindType::Pane => CustomCommandAction::Pane,
+                CommandKeybindType::PluginAction => CustomCommandAction::PluginAction,
             };
             let label = bindings.label().unwrap_or_else(|| "unset".to_string());
             keybinds.custom_commands.push(CustomCommandKeybind {
@@ -964,7 +967,7 @@ fn parse_modifier_combo(s: &str) -> Option<KeyModifiers> {
     }
 }
 
-pub(super) fn parse_key_combo(s: &str) -> Option<KeyCombo> {
+pub(crate) fn parse_key_combo(s: &str) -> Option<KeyCombo> {
     let parts: Vec<&str> = s.split('+').collect();
     let mut modifiers = KeyModifiers::empty();
     let mut key_str: Option<&str> = None;

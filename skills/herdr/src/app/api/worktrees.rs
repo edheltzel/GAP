@@ -148,6 +148,13 @@ impl App {
         let worktree = self
             .worktree_info_for_checkout(&source, ws_idx)
             .expect("created worktree workspace should have worktree info");
+        self.emit_event(EventEnvelope {
+            event: EventKind::WorktreeCreated,
+            data: EventData::WorktreeCreated {
+                workspace: self.workspace_info(ws_idx),
+                worktree: worktree.clone(),
+            },
+        });
         encode_success(
             id,
             ResponseResult::WorktreeCreated {
@@ -244,6 +251,15 @@ impl App {
         }
 
         let tab_idx = self.state.workspaces[ws_idx].active_tab;
+        let worktree = self.worktree_info_for_entry(&source, entry);
+        self.emit_event(EventEnvelope {
+            event: EventKind::WorktreeOpened,
+            data: EventData::WorktreeOpened {
+                workspace: self.workspace_info(ws_idx),
+                worktree: worktree.clone(),
+                already_open: already_open.is_some(),
+            },
+        });
         encode_success(
             id,
             ResponseResult::WorktreeOpened {
@@ -254,7 +270,7 @@ impl App {
                 root_pane: self
                     .root_pane_info(ws_idx, tab_idx)
                     .expect("opened worktree workspace should have an active root pane"),
-                worktree: self.worktree_info_for_entry(&source, entry),
+                worktree,
                 already_open: already_open.is_some(),
             },
         )
@@ -313,6 +329,8 @@ impl App {
             &space.checkout_path,
             params.force,
         );
+        let workspace_snapshot = self.workspace_info(ws_idx);
+        let worktree = self.worktree_info_for_membership(&space, None);
         if let Err(err) = crate::worktree::run_worktree_command(&command) {
             let code = if !params.force && crate::worktree::is_dirty_worktree_remove_error(&err) {
                 "dirty_worktree_requires_force"
@@ -337,9 +355,18 @@ impl App {
                 event: EventKind::WorkspaceClosed,
                 data: EventData::WorkspaceClosed {
                     workspace_id: workspace_id.clone(),
+                    workspace: Some(workspace_snapshot),
                 },
             });
         }
+        self.emit_event(EventEnvelope {
+            event: EventKind::WorktreeRemoved,
+            data: EventData::WorktreeRemoved {
+                workspace_id: workspace_id.clone(),
+                worktree,
+                forced: params.force,
+            },
+        });
 
         encode_success(
             id,
@@ -747,6 +774,25 @@ impl App {
         })
     }
 
+    fn worktree_info_for_membership(
+        &self,
+        membership: &crate::workspace::WorktreeSpaceMembership,
+        open_workspace_id: Option<String>,
+    ) -> WorktreeInfo {
+        let branch = crate::workspace::git_branch(&membership.checkout_path);
+        let is_detached = branch.is_none();
+        WorktreeInfo {
+            path: membership.checkout_path.display().to_string(),
+            branch,
+            is_bare: false,
+            is_detached,
+            is_prunable: false,
+            is_linked_worktree: membership.is_linked_worktree,
+            open_workspace_id,
+            label: membership.label.clone(),
+        }
+    }
+
     fn open_workspace_idx_for_checkout(&self, checkout_path: &Path) -> Option<usize> {
         let canonical_checkout = crate::worktree::canonical_or_original(checkout_path);
         let checkout_key = canonical_checkout.display().to_string();
@@ -777,7 +823,7 @@ impl App {
         })
     }
 
-    fn emit_workspace_open_events(&self, ws_idx: usize) {
+    fn emit_workspace_open_events(&mut self, ws_idx: usize) {
         let workspace_info = self.workspace_info(ws_idx);
         let Some(tab) = self.tab_info(ws_idx, 0) else {
             return;
@@ -801,7 +847,7 @@ impl App {
         });
     }
 
-    fn emit_workspace_updated(&self, ws_idx: usize) {
+    fn emit_workspace_updated(&mut self, ws_idx: usize) {
         self.emit_event(EventEnvelope {
             event: EventKind::WorkspaceUpdated,
             data: EventData::WorkspaceUpdated {
@@ -940,7 +986,14 @@ mod tests {
     async fn api_worktree_create_opens_workspace_and_marks_membership() {
         let repo = create_committed_repo("api-worktree-create-repo");
         let worktree_root = unique_temp_path("api-worktree-create-root");
-        let mut app = app_with_parent(&repo);
+        let event_hub = crate::api::EventHub::default();
+        let mut app = test_app_with_event_hub(event_hub.clone());
+        let mut parent = Workspace::test_new("main");
+        parent.identity_cwd = repo.clone();
+        app.state.workspaces = vec![parent];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        app.state.selected = 0;
         app.state.worktree_directory = worktree_root.clone();
 
         let response = app.handle_api_request(Request {
@@ -980,6 +1033,17 @@ mod tests {
                 .is_linked_worktree
         );
         assert!(workspace.worktree.unwrap().is_linked_worktree);
+        assert!(event_hub.events_after(0).iter().any(|(_, event)| {
+            matches!(
+                &event.data,
+                EventData::WorktreeCreated {
+                    workspace: event_workspace,
+                    worktree: event_worktree,
+                } if event_workspace.workspace_id == workspace.workspace_id
+                    && event_worktree.branch.as_deref() == Some("worktree/api-create")
+                    && event_worktree.is_linked_worktree
+            )
+        }));
 
         for (_, runtime) in app.terminal_runtimes.drain() {
             runtime.shutdown();
@@ -1140,7 +1204,11 @@ mod tests {
         let subdir = checkout.join("nested");
         std::fs::create_dir_all(&subdir).unwrap();
 
-        let mut app = app_with_parent(&repo);
+        let event_hub = crate::api::EventHub::default();
+        let mut app = test_app_with_event_hub(event_hub.clone());
+        let mut parent = Workspace::test_new("main");
+        parent.identity_cwd = repo.clone();
+        app.state.workspaces = vec![parent];
         let mut child = Workspace::test_new("child");
         child.identity_cwd = subdir;
         app.state.workspaces.push(child);
@@ -1175,6 +1243,19 @@ mod tests {
                 .unwrap()
                 .is_linked_worktree
         );
+        assert!(event_hub.events_after(0).iter().any(|(_, event)| {
+            matches!(
+                &event.data,
+                EventData::WorktreeOpened {
+                    workspace: event_workspace,
+                    worktree: event_worktree,
+                    already_open,
+                } if event_workspace.workspace_id == workspace.workspace_id
+                    && event_worktree.branch.as_deref() == Some("worktree/api-open")
+                    && event_worktree.is_linked_worktree
+                    && *already_open
+            )
+        }));
 
         let remove = crate::worktree::build_worktree_remove_command(&repo, &checkout, false);
         crate::worktree::run_worktree_command(&remove).unwrap();
@@ -1578,7 +1659,28 @@ mod tests {
         assert!(event_hub.events_after(0).iter().any(|(_, event)| {
             matches!(
                 &event.data,
-                EventData::WorkspaceClosed { workspace_id } if workspace_id == &child_id
+                EventData::WorkspaceClosed {
+                    workspace_id,
+                    workspace: Some(workspace),
+                } if workspace_id == &child_id
+                    && workspace
+                        .worktree
+                        .as_ref()
+                        .is_some_and(|worktree| worktree.is_linked_worktree)
+            )
+        }));
+        assert!(event_hub.events_after(0).iter().any(|(_, event)| {
+            matches!(
+                &event.data,
+                EventData::WorktreeRemoved {
+                    workspace_id,
+                    worktree,
+                    forced,
+                } if workspace_id == &child_id
+                    && worktree.branch.as_deref() == Some("worktree/api-remove-event")
+                    && worktree.is_linked_worktree
+                    && worktree.open_workspace_id.is_none()
+                    && !forced
             )
         }));
 

@@ -7,8 +7,6 @@ on:
         description: Optional master commit SHA to publish
         required: false
         type: string
-  schedule:
-    - cron: "0 3 * * 3,5"
 
 permissions:
   contents: read
@@ -274,13 +272,18 @@ jobs:
           if [ -z "$previous" ]; then
             previous="$(git describe --tags --match 'v[0-9]*' --abbrev=0)"
           fi
+          range_base="$(python3 scripts/preview.py range-base \
+            --previous "$previous" \
+            --commit '${{ needs.preflight.outputs.commit }}')"
           echo "commit=$previous" >> "$GITHUB_OUTPUT"
+          echo "range_base=$range_base" >> "$GITHUB_OUTPUT"
 
       - name: Generate notes and checksums
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/preview.py notes \
+            --previous '${{ steps.previous-preview.outputs.range_base }}' \
             --commit '${{ needs.preflight.outputs.commit }}' \
             --build-id '${{ needs.preflight.outputs.build_id }}' \
             --base-version '${{ needs.preflight.outputs.base_version }}' \
@@ -351,10 +354,12 @@ jobs:
           PREVIEW_TAG='${{ needs.preflight.outputs.tag }}'
           PREVIEW_BUILD_ID='${{ needs.preflight.outputs.build_id }}'
           PREVIOUS_PREVIEW_COMMIT='${{ steps.previous-preview.outputs.commit }}'
+          PREVIEW_RANGE_BASE='${{ steps.previous-preview.outputs.range_base }}'
 
-          echo "Scanning preview commits in $PREVIOUS_PREVIEW_COMMIT..$PREVIEW_COMMIT for refs #<issue> mentions."
+          echo "Previous preview commit: $PREVIOUS_PREVIEW_COMMIT"
+          echo "Scanning preview commits in $PREVIEW_RANGE_BASE..$PREVIEW_COMMIT for refs #<issue> mentions."
           mapfile -t ISSUES < <(
-            git log --format='%s%n%b' "$PREVIOUS_PREVIEW_COMMIT..$PREVIEW_COMMIT" \
+            git log --format='%s%n%b' "$PREVIEW_RANGE_BASE..$PREVIEW_COMMIT" \
               | perl -ne 'print "$1\n" if /\brefs\s+#([0-9]+)\b/i' \
               | sort -nu
           )

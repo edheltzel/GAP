@@ -7,11 +7,16 @@ use ratatui::layout::Direction;
 use tokio::sync::{mpsc, Notify};
 
 use crate::events::AppEvent;
-use crate::layout::{PaneId, TileLayout};
-use crate::pane::PaneState;
+use crate::layout::{Node, PaneId, TileLayout};
+use crate::pane::{PaneLaunchEnv, PaneState};
 use crate::terminal::{TerminalId, TerminalRuntime, TerminalRuntimeRegistry, TerminalState};
 
 pub(crate) type DetachedPane = (PaneId, TerminalId);
+
+pub(crate) struct MovedPane {
+    pub pane_id: PaneId,
+    pub pane_state: PaneState,
+}
 
 pub struct NewPane {
     pub pane_id: PaneId,
@@ -22,10 +27,11 @@ pub struct NewPane {
 enum SplitCommand<'a> {
     Shell {
         command: &'a str,
-        extra_env: &'a [(String, String)],
+        launch_env: &'a PaneLaunchEnv,
     },
     Argv {
         argv: &'a [String],
+        launch_env: &'a PaneLaunchEnv,
     },
 }
 
@@ -54,6 +60,7 @@ impl Tab {
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
         shell_config: crate::pane::PaneShellConfig<'_>,
+        launch_env: &PaneLaunchEnv,
         events: mpsc::Sender<AppEvent>,
         render_notify: Arc<Notify>,
         render_dirty: Arc<AtomicBool>,
@@ -66,6 +73,7 @@ impl Tab {
             scrollback_limit_bytes,
             host_terminal_theme,
             shell_config,
+            launch_env,
             events,
             render_notify,
             render_dirty,
@@ -81,6 +89,7 @@ impl Tab {
         argv: &[String],
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
+        launch_env: &PaneLaunchEnv,
         events: mpsc::Sender<AppEvent>,
         render_notify: Arc<Notify>,
         render_dirty: Arc<AtomicBool>,
@@ -93,6 +102,7 @@ impl Tab {
             scrollback_limit_bytes,
             host_terminal_theme,
             crate::pane::PaneShellConfig::new("", crate::config::ShellModeConfig::NonLogin),
+            launch_env,
             events,
             render_notify,
             render_dirty,
@@ -109,6 +119,7 @@ impl Tab {
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
         shell_config: crate::pane::PaneShellConfig<'_>,
+        launch_env: &PaneLaunchEnv,
         events: mpsc::Sender<AppEvent>,
         render_notify: Arc<Notify>,
         render_dirty: Arc<AtomicBool>,
@@ -122,6 +133,7 @@ impl Tab {
                 cols,
                 initial_cwd.clone(),
                 argv,
+                launch_env,
                 scrollback_limit_bytes,
                 host_terminal_theme,
                 events.clone(),
@@ -137,6 +149,7 @@ impl Tab {
                 scrollback_limit_bytes,
                 host_terminal_theme,
                 shell_config,
+                launch_env,
                 events.clone(),
                 render_notify.clone(),
                 render_dirty.clone(),
@@ -172,12 +185,6 @@ impl Tab {
         ))
     }
 
-    pub fn display_name(&self) -> String {
-        self.custom_name
-            .clone()
-            .unwrap_or_else(|| self.number.to_string())
-    }
-
     pub fn is_auto_named(&self) -> bool {
         self.custom_name.is_none()
     }
@@ -195,6 +202,7 @@ impl Tab {
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
         shell_config: crate::pane::PaneShellConfig<'_>,
+        launch_env: &PaneLaunchEnv,
     ) -> std::io::Result<NewPane> {
         self.split_focused_with_runtime(
             direction,
@@ -205,6 +213,7 @@ impl Tab {
             scrollback_limit_bytes,
             host_terminal_theme,
             shell_config,
+            launch_env,
             None,
         )
     }
@@ -219,6 +228,7 @@ impl Tab {
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
         shell_config: crate::pane::PaneShellConfig<'_>,
+        launch_env: &PaneLaunchEnv,
     ) -> std::io::Result<NewPane> {
         self.split_focused_with_runtime(
             direction,
@@ -229,6 +239,7 @@ impl Tab {
             scrollback_limit_bytes,
             host_terminal_theme,
             shell_config,
+            launch_env,
             None,
         )
     }
@@ -240,7 +251,7 @@ impl Tab {
         cols: u16,
         cwd: Option<PathBuf>,
         command: &str,
-        extra_env: &[(String, String)],
+        launch_env: &PaneLaunchEnv,
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
     ) -> std::io::Result<NewPane> {
@@ -253,7 +264,11 @@ impl Tab {
             scrollback_limit_bytes,
             host_terminal_theme,
             crate::pane::PaneShellConfig::new("", crate::config::ShellModeConfig::NonLogin),
-            Some(SplitCommand::Shell { command, extra_env }),
+            launch_env,
+            Some(SplitCommand::Shell {
+                command,
+                launch_env,
+            }),
         )
     }
 
@@ -264,6 +279,7 @@ impl Tab {
         cols: u16,
         cwd: Option<PathBuf>,
         argv: &[String],
+        launch_env: &PaneLaunchEnv,
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
     ) -> std::io::Result<NewPane> {
@@ -276,7 +292,34 @@ impl Tab {
             scrollback_limit_bytes,
             host_terminal_theme,
             crate::pane::PaneShellConfig::new("", crate::config::ShellModeConfig::NonLogin),
-            Some(SplitCommand::Argv { argv }),
+            launch_env,
+            Some(SplitCommand::Argv { argv, launch_env }),
+        )
+    }
+
+    pub fn split_focused_argv_command_with_ratio(
+        &mut self,
+        direction: Direction,
+        ratio: f32,
+        rows: u16,
+        cols: u16,
+        cwd: Option<PathBuf>,
+        argv: &[String],
+        launch_env: &PaneLaunchEnv,
+        scrollback_limit_bytes: usize,
+        host_terminal_theme: crate::terminal_theme::TerminalTheme,
+    ) -> std::io::Result<NewPane> {
+        self.split_focused_with_runtime(
+            direction,
+            Some(ratio),
+            rows,
+            cols,
+            cwd,
+            scrollback_limit_bytes,
+            host_terminal_theme,
+            crate::pane::PaneShellConfig::new("", crate::config::ShellModeConfig::NonLogin),
+            launch_env,
+            Some(SplitCommand::Argv { argv, launch_env }),
         )
     }
 
@@ -290,6 +333,7 @@ impl Tab {
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
         shell_config: crate::pane::PaneShellConfig<'_>,
+        launch_env: &PaneLaunchEnv,
         command: Option<SplitCommand<'_>>,
     ) -> std::io::Result<NewPane> {
         let previous_focus = self.layout.focused();
@@ -299,33 +343,35 @@ impl Tab {
         };
         let actual_cwd =
             cwd.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| "/".into()));
-        let launch_argv = if let Some(SplitCommand::Argv { argv }) = &command {
+        let launch_argv = if let Some(SplitCommand::Argv { argv, .. }) = &command {
             Some((*argv).to_vec())
         } else {
             None
         };
         let runtime = match command {
-            Some(SplitCommand::Shell { command, extra_env }) => {
-                TerminalRuntime::spawn_shell_command(
-                    new_id,
-                    rows,
-                    cols,
-                    actual_cwd.clone(),
-                    command,
-                    extra_env,
-                    scrollback_limit_bytes,
-                    host_terminal_theme,
-                    self.events.clone(),
-                    self.render_notify.clone(),
-                    self.render_dirty.clone(),
-                )
-            }
-            Some(SplitCommand::Argv { argv }) => TerminalRuntime::spawn_argv_command(
+            Some(SplitCommand::Shell {
+                command,
+                launch_env,
+            }) => TerminalRuntime::spawn_shell_command(
+                new_id,
+                rows,
+                cols,
+                actual_cwd.clone(),
+                command,
+                launch_env,
+                scrollback_limit_bytes,
+                host_terminal_theme,
+                self.events.clone(),
+                self.render_notify.clone(),
+                self.render_dirty.clone(),
+            ),
+            Some(SplitCommand::Argv { argv, launch_env }) => TerminalRuntime::spawn_argv_command(
                 new_id,
                 rows,
                 cols,
                 actual_cwd.clone(),
                 argv,
+                launch_env,
                 scrollback_limit_bytes,
                 host_terminal_theme,
                 self.events.clone(),
@@ -340,6 +386,7 @@ impl Tab {
                 scrollback_limit_bytes,
                 host_terminal_theme,
                 shell_config,
+                launch_env,
                 self.events.clone(),
                 self.render_notify.clone(),
                 self.render_dirty.clone(),
@@ -380,6 +427,79 @@ impl Tab {
 
     pub fn remove_pane(&mut self, pane_id: PaneId) -> Option<DetachedPane> {
         self.detach_pane(pane_id)
+    }
+
+    pub(crate) fn from_existing_pane(
+        number: usize,
+        custom_name: Option<String>,
+        moved: MovedPane,
+        events: mpsc::Sender<AppEvent>,
+        render_notify: Arc<Notify>,
+        render_dirty: Arc<AtomicBool>,
+    ) -> Self {
+        let mut panes = HashMap::new();
+        let pane_id = moved.pane_id;
+        panes.insert(pane_id, moved.pane_state);
+        Self {
+            custom_name,
+            number,
+            root_pane: pane_id,
+            layout: TileLayout::from_saved(Node::Pane(pane_id), pane_id),
+            panes,
+            #[cfg(test)]
+            runtimes: HashMap::new(),
+            zoomed: false,
+            events,
+            render_notify,
+            render_dirty,
+        }
+    }
+
+    pub(crate) fn take_pane_for_move(&mut self, pane_id: PaneId) -> Option<MovedPane> {
+        if !self.panes.contains_key(&pane_id) {
+            return None;
+        }
+
+        if self.layout.pane_count() > 1 {
+            let next_root = self.promoted_root_if_needed(pane_id);
+            if self.layout.focused() == pane_id {
+                self.layout.close_focused();
+            } else {
+                let prev_focus = self.layout.focused();
+                self.layout.focus_pane(pane_id);
+                self.layout.close_focused();
+                self.layout.focus_pane(prev_focus);
+            }
+            if let Some(next_root) = next_root {
+                self.root_pane = next_root;
+            }
+        }
+
+        let pane_state = self.panes.remove(&pane_id)?;
+        self.zoomed = false;
+        Some(MovedPane {
+            pane_id,
+            pane_state,
+        })
+    }
+
+    pub(crate) fn insert_existing_pane(
+        &mut self,
+        target_pane_id: PaneId,
+        moved: MovedPane,
+        direction: Direction,
+        ratio: f32,
+    ) -> Result<PaneId, MovedPane> {
+        if !self
+            .layout
+            .insert_pane_near(target_pane_id, moved.pane_id, direction, ratio)
+        {
+            return Err(moved);
+        }
+        let pane_id = moved.pane_id;
+        self.panes.insert(pane_id, moved.pane_state);
+        self.zoomed = false;
+        Ok(pane_id)
     }
 
     fn detach_pane(&mut self, pane_id: PaneId) -> Option<DetachedPane> {

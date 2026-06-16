@@ -28,6 +28,7 @@ jobs:
             const issueAuthor = context.payload.issue.user.login;
             const commenter = context.payload.comment.user.login;
             const commentBody = context.payload.comment.body || '';
+            const action = context.payload.action;
             const approvedFile = '.github/APPROVED_CONTRIBUTORS';
             const approveMatch = commentBody.match(/(^|\s)\/approve(?:\s+@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?))?(?=$|\s)/i);
             const maintainerPermissions = ['admin', 'maintain', 'write'];
@@ -67,6 +68,10 @@ jobs:
 
             if (approvedList.includes(approvedUser.toLowerCase())) {
               console.log(`${approvedUser} is already approved`);
+              if (action === 'edited') {
+                core.setOutput('status', 'skipped');
+                return;
+              }
               core.setOutput('status', 'already');
               await github.rest.issues.createComment({
                 owner: context.repo.owner,

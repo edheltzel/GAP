@@ -16,12 +16,26 @@ use support::{
     unregister_spawned_herdr_pid,
 };
 
+const WORKTREE_BOOTSTRAP_MANAGED_COMPONENT: &str = "example.worktree-bootstrap-ef876653ffc3";
+
 fn unique_test_dir() -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     PathBuf::from(format!("/tmp/hcli-{}-{nanos}", std::process::id()))
+}
+
+fn managed_github_plugin_dir(config_home: &Path) -> PathBuf {
+    config_home.join("herdr-dev").join("plugins").join("github")
+}
+
+fn path_missing_or_empty(path: &Path) -> bool {
+    match fs::read_dir(path) {
+        Ok(mut entries) => entries.next().is_none(),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => true,
+        Err(err) => panic!("failed to read {}: {err}", path.display()),
+    }
 }
 
 fn run_git(repo: &Path, args: &[&str]) {
@@ -186,6 +200,25 @@ fn run_named_cli_with_socket_override(
     args: &[&str],
     socket_override: Option<&Path>,
 ) -> std::process::Output {
+    run_named_cli_with_env_and_socket_override(config_home, runtime_dir, args, &[], socket_override)
+}
+
+fn run_named_cli_with_env(
+    config_home: &Path,
+    runtime_dir: &Path,
+    args: &[&str],
+    envs: &[(&str, &Path)],
+) -> std::process::Output {
+    run_named_cli_with_env_and_socket_override(config_home, runtime_dir, args, envs, None)
+}
+
+fn run_named_cli_with_env_and_socket_override(
+    config_home: &Path,
+    runtime_dir: &Path,
+    args: &[&str],
+    envs: &[(&str, &Path)],
+    socket_override: Option<&Path>,
+) -> std::process::Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_herdr"));
     command
         .args(args)
@@ -193,6 +226,9 @@ fn run_named_cli_with_socket_override(
         .env("XDG_RUNTIME_DIR", runtime_dir)
         .env_remove("HERDR_CLIENT_SOCKET_PATH")
         .env_remove("HERDR_ENV");
+    for (key, value) in envs {
+        command.env(key, value);
+    }
     if let Some(socket_override) = socket_override {
         command.env("HERDR_SOCKET_PATH", socket_override);
     } else {
@@ -508,7 +544,29 @@ fn run_copilot_hook(hook_input: &str) -> Option<serde_json::Value> {
     )
 }
 
+fn run_devin_hook(
+    action: &str,
+    hook_input: &str,
+    envs: &[(&str, &str)],
+) -> Option<serde_json::Value> {
+    run_shell_hook_with_env(
+        "src/integration/assets/devin/herdr-agent-state.sh",
+        &[action],
+        hook_input,
+        envs,
+    )
+}
+
 fn run_shell_hook(asset_path: &str, args: &[&str], hook_input: &str) -> Option<serde_json::Value> {
+    run_shell_hook_with_env(asset_path, args, hook_input, &[])
+}
+
+fn run_shell_hook_with_env(
+    asset_path: &str,
+    args: &[&str],
+    hook_input: &str,
+    envs: &[(&str, &str)],
+) -> Option<serde_json::Value> {
     let base = unique_test_dir();
     fs::create_dir_all(&base).unwrap();
     let socket_path = base.join("herdr.sock");
@@ -538,7 +596,8 @@ fn run_shell_hook(asset_path: &str, args: &[&str], hook_input: &str) -> Option<s
     });
 
     let hook_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(asset_path);
-    let mut child = Command::new("bash")
+    let mut command = Command::new("bash");
+    command
         .arg(hook_path)
         .args(args)
         .env("HERDR_ENV", "1")
@@ -546,9 +605,11 @@ fn run_shell_hook(asset_path: &str, args: &[&str], hook_input: &str) -> Option<s
         .env("HERDR_PANE_ID", "p_test")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
+        .stderr(Stdio::piped());
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+    let mut child = command.spawn().unwrap();
     let mut stdin = child.stdin.take().unwrap();
     stdin.write_all(hook_input.as_bytes()).unwrap();
     drop(stdin);
@@ -657,6 +718,113 @@ fn copilot_hook_does_not_report_lifecycle_state() {
             "copilot session-only hook should ignore lifecycle payload {payload}"
         );
     }
+}
+
+#[test]
+fn devin_hook_ignores_prompt_session_list_fallback() {
+    let request = run_devin_hook(
+        "session",
+        r#"{"hook_event_name":"UserPromptSubmit","prompt":"run tests"}"#,
+        &[
+            ("DEVIN_PROJECT_DIR", "/tmp/project"),
+            (
+                "HERDR_DEVIN_LIST_JSON",
+                r#"[{"id":"older-session","working_directory":"/tmp/other"},{"id":"devin-session","working_directory":"/tmp/project"}]"#,
+            ),
+        ],
+    );
+
+    assert!(request.is_none());
+}
+
+#[test]
+fn devin_hook_reports_session_id_from_stdin_without_state() {
+    let request = run_devin_hook(
+        "session",
+        r#"{"hook_event_name":"SessionStart","session_id":"devin-session","source":"startup"}"#,
+        &[("HERDR_DEVIN_LIST_JSON", r#"[{"id":"older-session"}]"#)],
+    )
+    .expect("devin session start should report session identity");
+
+    assert_eq!(request["method"], "pane.report_agent_session");
+    assert_eq!(request["params"]["agent"], "devin");
+    assert_eq!(request["params"]["agent_session_id"], "devin-session");
+    assert!(request["params"].get("state").is_none());
+}
+
+#[test]
+fn devin_hook_prefers_hook_session_id_over_list() {
+    let request = run_devin_hook(
+        "session",
+        r#"{"hook_event_name":"PreToolUse","sessionId":"fresh-session","tool_name":"exec"}"#,
+        &[
+            ("DEVIN_PROJECT_DIR", "/tmp/project"),
+            (
+                "HERDR_DEVIN_LIST_JSON",
+                r#"[{"id":"older-session","working_directory":"/tmp/project"}]"#,
+            ),
+        ],
+    )
+    .expect("devin tool hook should report session identity");
+
+    assert_eq!(request["method"], "pane.report_agent_session");
+    assert_eq!(request["params"]["agent_session_id"], "fresh-session");
+    assert!(request["params"].get("state").is_none());
+}
+
+#[test]
+fn devin_hook_reports_tool_session_from_list_without_state() {
+    let request = run_devin_hook(
+        "session",
+        r#"{"hook_event_name":"PreToolUse","tool_name":"exec"}"#,
+        &[
+            ("DEVIN_PROJECT_DIR", "/tmp/project"),
+            (
+                "HERDR_DEVIN_LIST_JSON",
+                r#"[{"id":"older-session","working_directory":"/tmp/other"},{"id":"devin-session","working_directory":"/tmp/project"}]"#,
+            ),
+        ],
+    )
+    .expect("devin tool hook should report session identity");
+
+    assert_eq!(request["method"], "pane.report_agent_session");
+    assert_eq!(request["params"]["agent"], "devin");
+    assert_eq!(request["params"]["agent_session_id"], "devin-session");
+    assert!(request["params"].get("state").is_none());
+}
+
+#[test]
+fn devin_hook_ignores_startup_session_list_fallback() {
+    let request = run_devin_hook(
+        "session",
+        r#"{"hook_event_name":"SessionStart","source":"startup"}"#,
+        &[
+            ("DEVIN_PROJECT_DIR", "/tmp/project"),
+            (
+                "HERDR_DEVIN_LIST_JSON",
+                r#"[{"id":"stale-session","working_directory":"/tmp/project"}]"#,
+            ),
+        ],
+    );
+
+    assert!(request.is_none());
+}
+
+#[test]
+fn devin_hook_ignores_non_matching_session_list_entries() {
+    let request = run_devin_hook(
+        "session",
+        r#"{"hook_event_name":"PreToolUse","tool_name":"exec"}"#,
+        &[
+            ("DEVIN_PROJECT_DIR", "/tmp/project"),
+            (
+                "HERDR_DEVIN_LIST_JSON",
+                r#"[{"id":"other-session","working_directory":"/tmp/other"}]"#,
+            ),
+        ],
+    );
+
+    assert!(request.is_none());
 }
 
 #[test]
@@ -1273,7 +1441,7 @@ fn status_commands_report_client_and_server_versions() {
         "stdout: {full_stdout}"
     );
     assert!(
-        full_stdout.contains("  protocol: 13"),
+        full_stdout.contains("  protocol: 14"),
         "stdout: {full_stdout}"
     );
     assert!(full_stdout.contains("server:\n"), "stdout: {full_stdout}");
@@ -1306,7 +1474,7 @@ fn status_commands_report_client_and_server_versions() {
         "stdout: {server_stdout}"
     );
     assert!(
-        server_stdout.contains("protocol: 13"),
+        server_stdout.contains("protocol: 14"),
         "stdout: {server_stdout}"
     );
 
@@ -1318,7 +1486,7 @@ fn status_commands_report_client_and_server_versions() {
         "stdout: {client_stdout}"
     );
     assert!(
-        client_stdout.contains("protocol: 13"),
+        client_stdout.contains("protocol: 14"),
         "stdout: {client_stdout}"
     );
     assert!(
@@ -1328,7 +1496,7 @@ fn status_commands_report_client_and_server_versions() {
 
     let full_json = run_cli_json(&socket_path, &["status", "--json"]);
     assert_eq!(full_json["client"]["version"], env!("CARGO_PKG_VERSION"));
-    assert_eq!(full_json["client"]["protocol"], 13);
+    assert_eq!(full_json["client"]["protocol"], 14);
     assert_eq!(full_json["server"]["status"], "running");
     assert_eq!(full_json["server"]["running"], true);
     assert_eq!(full_json["server"]["compatible"], true);
@@ -1342,12 +1510,12 @@ fn status_commands_report_client_and_server_versions() {
     let server_json = run_cli_json(&socket_path, &["status", "server", "--json"]);
     assert_eq!(server_json["status"], "running");
     assert_eq!(server_json["version"], env!("CARGO_PKG_VERSION"));
-    assert_eq!(server_json["protocol"], 13);
+    assert_eq!(server_json["protocol"], 14);
     assert_eq!(server_json["compatible"], true);
 
     let client_json = run_cli_json(&socket_path, &["status", "client", "--json"]);
     assert_eq!(client_json["version"], env!("CARGO_PKG_VERSION"));
-    assert_eq!(client_json["protocol"], 13);
+    assert_eq!(client_json["protocol"], 14);
     assert!(client_json["binary"]
         .as_str()
         .is_some_and(|path| !path.is_empty()));
@@ -1522,6 +1690,105 @@ fn server_stop_then_restart_restores_pane_history() {
     );
 
     cleanup_spawned_herdr(restarted, base);
+}
+
+#[test]
+fn server_start_restores_legacy_session_through_api_identity() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let socket_path = runtime_dir.join("herdr.sock");
+    let client_socket = runtime_dir.join("herdr-client.sock");
+    let data_dir = config_home.join(app_dir_name());
+    let pion_cwd = base.join("legacy-pion");
+    let herdr_cwd = base.join("legacy-herdr");
+
+    fs::create_dir_all(&pion_cwd).unwrap();
+    fs::create_dir_all(&herdr_cwd).unwrap();
+    fs::create_dir_all(&data_dir).unwrap();
+    let pion_cwd = pion_cwd.to_str().expect("test cwd should be UTF-8");
+    let herdr_cwd = herdr_cwd.to_str().expect("test cwd should be UTF-8");
+    let legacy_session = include_str!("fixtures/session/legacy-pre-tabs-v2.json")
+        .replace("/tmp/pion", pion_cwd)
+        .replace("/tmp/herdr", herdr_cwd);
+    fs::write(data_dir.join("session.json"), legacy_session).unwrap();
+
+    let herdr = spawn_herdr(&config_home, &runtime_dir, &socket_path);
+    wait_for_socket(&socket_path, Duration::from_secs(5));
+    wait_for_socket(&client_socket, Duration::from_secs(5));
+
+    let workspaces = run_cli_json(&socket_path, &["workspace", "list"]);
+    let restored_workspace = workspaces["result"]["workspaces"]
+        .as_array()
+        .expect("workspace.list should return workspaces")
+        .iter()
+        .find(|workspace| workspace["label"] == "legacy")
+        .expect("legacy workspace should restore");
+    let workspace_id = restored_workspace["workspace_id"]
+        .as_str()
+        .expect("restored workspace should have public id")
+        .to_string();
+    assert_eq!(restored_workspace["pane_count"], 2);
+    assert_eq!(restored_workspace["tab_count"], 1);
+    assert_eq!(
+        restored_workspace["active_tab_id"],
+        format!("{workspace_id}:t1")
+    );
+
+    let panes = run_cli_json(
+        &socket_path,
+        &["pane", "list", "--workspace", &workspace_id],
+    );
+    let panes = panes["result"]["panes"]
+        .as_array()
+        .expect("pane.list should return panes");
+    assert_eq!(panes.len(), 2);
+    let root_pane_id = format!("{workspace_id}:p1");
+    let focused_pane_id = format!("{workspace_id}:p2");
+    assert!(panes.iter().any(|pane| {
+        pane["pane_id"] == root_pane_id
+            && pane["tab_id"] == format!("{workspace_id}:t1")
+            && pane["cwd"] == pion_cwd
+            && pane["focused"] == false
+    }));
+    assert!(panes.iter().any(|pane| {
+        pane["pane_id"] == focused_pane_id
+            && pane["tab_id"] == format!("{workspace_id}:t1")
+            && pane["cwd"] == herdr_cwd
+            && pane["focused"] == true
+    }));
+
+    let reported = run_cli(
+        &socket_path,
+        &[
+            "pane",
+            "report-agent",
+            &focused_pane_id,
+            "--source",
+            "test",
+            "--agent",
+            "pi",
+            "--state",
+            "working",
+        ],
+    );
+    assert!(
+        reported.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&reported.stderr)
+    );
+
+    let agents = run_cli_json(&socket_path, &["agent", "list"]);
+    let agents = agents["result"]["agents"]
+        .as_array()
+        .expect("agent.list should return agents");
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0]["pane_id"], focused_pane_id);
+    assert_eq!(agents[0]["workspace_id"], workspace_id);
+    assert_eq!(agents[0]["agent"], "pi");
+    assert_eq!(agents[0]["agent_status"], "working");
+
+    cleanup_spawned_herdr(herdr, base);
 }
 
 #[test]
@@ -1937,7 +2204,7 @@ fn tab_management_commands_work() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(second_tab_id, format!("{workspace_id}:2"));
+    assert_eq!(second_tab_id, format!("{workspace_id}:t2"));
 
     let listed_tabs = run_cli(&socket_path, &["tab", "list", "--workspace", &workspace_id]);
     assert!(listed_tabs.status.success());
@@ -2209,15 +2476,13 @@ fn pane_run_read_and_wait_commands_work() {
     let herdr = spawn_herdr(&config_home, &runtime_dir, &socket_path);
     wait_for_socket(&socket_path, Duration::from_secs(5));
 
-    let created = send_request(
+    send_request(
         &socket_path,
         &format!(
             r#"{{"id":"req_cli_1","method":"workspace.create","params":{{"cwd":"{}","focus":true}}}}"#,
             base.display()
         ),
     );
-    assert!(created["result"]["workspace"]["workspace_id"].is_string());
-
     let create = run_cli(
         &socket_path,
         &[
@@ -2461,7 +2726,7 @@ fn closing_workspace_terminates_processes_inside_it() {
 }
 
 #[test]
-fn workspace_ids_are_stable_and_pane_numbers_stay_compact() {
+fn workspace_ids_and_public_pane_ids_are_stable() {
     let base = unique_test_dir();
     let config_home = base.join("config");
     let runtime_dir = base.join("runtime");
@@ -2485,7 +2750,7 @@ fn workspace_ids_are_stable_and_pane_numbers_stay_compact() {
     );
     assert_eq!(
         split_12_json["result"]["pane"]["pane_id"],
-        format!("{ws1_id}-2")
+        format!("{ws1_id}:p2")
     );
 
     let split_13_json = run_cli_json(
@@ -2494,7 +2759,7 @@ fn workspace_ids_are_stable_and_pane_numbers_stay_compact() {
     );
     assert_eq!(
         split_13_json["result"]["pane"]["pane_id"],
-        format!("{ws1_id}-3")
+        format!("{ws1_id}:p3")
     );
 
     let ws2_json = run_cli_json(
@@ -2520,7 +2785,7 @@ fn workspace_ids_are_stable_and_pane_numbers_stay_compact() {
     );
     assert_eq!(
         ws2_split_json["result"]["pane"]["pane_id"],
-        format!("{ws2_id}-2")
+        format!("{ws2_id}:p2")
     );
 
     let ws3_json = run_cli_json(
@@ -2565,7 +2830,7 @@ fn workspace_ids_are_stable_and_pane_numbers_stay_compact() {
     let ws3_panes_json = run_cli_json(&socket_path, &["pane", "list", "--workspace", &ws3_id]);
     assert_eq!(
         ws3_panes_json["result"]["panes"][0]["pane_id"],
-        format!("{ws3_id}-1")
+        format!("{ws3_id}:p1")
     );
 
     let close_middle = run_cli(&socket_path, &["pane", "close", &format!("{ws1_id}-2")]);
@@ -2582,7 +2847,33 @@ fn workspace_ids_are_stable_and_pane_numbers_stay_compact() {
         .iter()
         .map(|pane| pane["pane_id"].as_str().unwrap().to_string())
         .collect();
-    assert_eq!(pane_ids, vec![format!("{ws1_id}-1"), format!("{ws1_id}-2")]);
+    assert_eq!(
+        pane_ids,
+        vec![format!("{ws1_id}:p1"), format!("{ws1_id}:p3")]
+    );
+
+    let closed_lookup = run_cli(&socket_path, &["pane", "get", &format!("{ws1_id}:p2")]);
+    assert!(
+        !closed_lookup.status.success(),
+        "closed pane id should not retarget: {}",
+        String::from_utf8_lossy(&closed_lookup.stdout)
+    );
+
+    let split_14_json = run_cli_json(
+        &socket_path,
+        &[
+            "pane",
+            "split",
+            &format!("{ws1_id}:p1"),
+            "--direction",
+            "right",
+            "--no-focus",
+        ],
+    );
+    assert_eq!(
+        split_14_json["result"]["pane"]["pane_id"],
+        format!("{ws1_id}:p4")
+    );
 
     cleanup_spawned_herdr(herdr, base);
 }
@@ -2604,7 +2895,10 @@ fn pane_shell_gets_herdr_socket_and_pane_env() {
             base.display()
         ),
     );
-    assert!(created["result"]["workspace"]["workspace_id"].is_string());
+    let pane_id = created["result"]["root_pane"]["pane_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let env_capture = base.join("pane-env.txt");
     let ran = run_cli(
@@ -2626,7 +2920,7 @@ fn pane_shell_gets_herdr_socket_and_pane_env() {
     while Instant::now() < deadline {
         if env_capture.exists() {
             text = fs::read_to_string(&env_capture).unwrap();
-            if text.contains(&socket_path.display().to_string()) && text.contains("p_") {
+            if text.contains(&socket_path.display().to_string()) && text.contains(&pane_id) {
                 break;
             }
         }
@@ -2637,7 +2931,7 @@ fn pane_shell_gets_herdr_socket_and_pane_env() {
         text.contains(&socket_path.display().to_string()),
         "env file was: {text:?}"
     );
-    assert!(text.contains("p_"), "env file was: {text:?}");
+    assert!(text.contains(&pane_id), "env file was: {text:?}");
 
     cleanup_spawned_herdr(herdr, base);
 }
@@ -2714,6 +3008,961 @@ fn wait_agent_status_exits_when_idle_status_matches() {
 }
 
 #[test]
+fn plugin_link_list_unlink_cli_smoke_test() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let socket_path = runtime_dir.join("herdr.sock");
+    let plugin_dir = base.join("plugins").join("layout");
+    fs::create_dir_all(&plugin_dir).unwrap();
+    fs::write(
+        plugin_dir.join("herdr-plugin.toml"),
+        r#"
+id = "example.layout"
+name = "Layout"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+description = "Apply a preferred Herdr layout"
+
+[[actions]]
+id = "apply"
+title = "Apply layout"
+contexts = ["workspace"]
+command = ["sh", "-c", "echo layout"]
+
+[[events]]
+on = "worktree.created"
+command = ["sh", "-c", "echo worktree"]
+
+[[panes]]
+id = "board"
+title = "Board"
+placement = "tab"
+command = ["sh", "-c", "sleep 5"]
+"#,
+    )
+    .unwrap();
+
+    let herdr = spawn_herdr(&config_home, &runtime_dir, &socket_path);
+    wait_for_socket(&socket_path, Duration::from_secs(5));
+    let workspace = run_cli_json(
+        &socket_path,
+        &[
+            "workspace",
+            "create",
+            "--cwd",
+            base.to_str().unwrap(),
+            "--focus",
+        ],
+    );
+    assert_eq!(workspace["result"]["type"], "workspace_created");
+
+    let linked = run_cli_json_in_dir(&socket_path, &["plugin", "link", "plugins/layout"], &base);
+    assert_eq!(linked["result"]["type"], "plugin_linked");
+    assert_eq!(linked["result"]["plugin"]["plugin_id"], "example.layout");
+    assert_eq!(linked["result"]["plugin"]["actions"][0]["id"], "apply");
+    assert_eq!(
+        linked["result"]["plugin"]["events"][0]["on"],
+        "worktree.created"
+    );
+    assert_eq!(linked["result"]["plugin"]["panes"][0]["id"], "board");
+
+    let listed_human = run_cli(&socket_path, &["plugin", "list"]);
+    assert!(listed_human.status.success());
+    assert!(String::from_utf8_lossy(&listed_human.stdout).contains("example.layout"));
+
+    let listed = run_cli_json(&socket_path, &["plugin", "list", "--json"]);
+    assert_eq!(listed["result"]["type"], "plugin_list");
+    assert_eq!(
+        listed["result"]["plugins"][0]["plugin_id"],
+        "example.layout"
+    );
+
+    let invoked = run_cli_json(
+        &socket_path,
+        &[
+            "plugin",
+            "action",
+            "invoke",
+            "apply",
+            "--plugin",
+            "example.layout",
+        ],
+    );
+    assert_eq!(invoked["result"]["type"], "plugin_action_invoked");
+    assert_eq!(invoked["result"]["action"]["action_id"], "apply");
+
+    let logs = run_cli_json(
+        &socket_path,
+        &[
+            "plugin",
+            "log",
+            "list",
+            "--plugin",
+            "example.layout",
+            "--limit",
+            "5",
+        ],
+    );
+    assert_eq!(logs["result"]["type"], "plugin_log_list");
+    assert!(!logs["result"]["logs"].as_array().unwrap().is_empty());
+
+    let pane = run_cli_json(
+        &socket_path,
+        &[
+            "plugin",
+            "pane",
+            "open",
+            "--plugin",
+            "example.layout",
+            "--entrypoint",
+            "board",
+            "--env",
+            "HERDR_ROLE=board",
+            "--no-focus",
+        ],
+    );
+    assert_eq!(pane["result"]["type"], "plugin_pane_opened");
+    assert_eq!(pane["result"]["plugin_pane"]["entrypoint"], "board");
+
+    let missing_plugin_value = run_cli(&socket_path, &["plugin", "list", "--plugin"]);
+    assert_eq!(missing_plugin_value.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&missing_plugin_value.stderr)
+        .contains("missing value for --plugin"));
+
+    let invalid_limit = run_cli(
+        &socket_path,
+        &["plugin", "log", "list", "--limit", "not-a-number"],
+    );
+    assert_eq!(invalid_limit.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&invalid_limit.stderr).contains("invalid --limit value"));
+
+    let unlinked = run_cli_json(&socket_path, &["plugin", "unlink", "example.layout"]);
+    assert_eq!(unlinked["result"]["type"], "plugin_unlinked");
+    assert_eq!(unlinked["result"]["removed"], true);
+
+    let listed = run_cli_json(&socket_path, &["plugin", "list", "--json"]);
+    assert!(listed["result"]["plugins"].as_array().unwrap().is_empty());
+
+    cleanup_spawned_herdr(herdr, base);
+}
+
+#[test]
+fn plugin_install_list_uninstall_offline_cli_smoke_test() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let source_repo = base.join("source-repo");
+    let plugin_dir = source_repo.join("worktree-bootstrap");
+    fs::create_dir_all(&plugin_dir).unwrap();
+    create_committed_repo(&source_repo);
+    fs::write(
+        plugin_dir.join("herdr-plugin.toml"),
+        r#"
+id = "example.worktree-bootstrap"
+name = "Worktree Bootstrap"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+platforms = ["linux", "macos", "windows"]
+
+[[build]]
+command = ["sh", "-c", "echo built > built.txt; if [ -n \"$HERDR_SESSION\" ]; then echo \"$HERDR_SESSION\" > leaked-session.txt; fi"]
+
+[[actions]]
+id = "bootstrap"
+title = "Bootstrap"
+command = ["sh", "-c", "echo bootstrap"]
+"#,
+    )
+    .unwrap();
+    run_git(
+        &source_repo,
+        &["add", "worktree-bootstrap/herdr-plugin.toml"],
+    );
+    run_git(&source_repo, &["commit", "--quiet", "-m", "add plugin"]);
+
+    fs::create_dir_all(&config_home).unwrap();
+    fs::create_dir_all(&runtime_dir).unwrap();
+    let git_config = base.join("gitconfig");
+    fs::write(
+        &git_config,
+        format!(
+            "[url \"file://{}\"]\n    insteadOf = https://github.com/ogulcancelik/herdr-plugin-examples.git\n",
+            source_repo.display()
+        ),
+    )
+    .unwrap();
+
+    let install = run_named_cli_with_env(
+        &config_home,
+        &runtime_dir,
+        &[
+            "--session",
+            "plugins",
+            "plugin",
+            "install",
+            "ogulcancelik/herdr-plugin-examples/worktree-bootstrap",
+            "--yes",
+        ],
+        &[
+            ("GIT_CONFIG_GLOBAL", &git_config),
+            ("HERDR_SESSION", Path::new("leaked-session")),
+        ],
+    );
+    assert!(
+        install.status.success(),
+        "install failed\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&install.stdout),
+        String::from_utf8_lossy(&install.stderr)
+    );
+
+    let listed = run_named_cli_json(
+        &config_home,
+        &runtime_dir,
+        &["--session", "plugins", "plugin", "list", "--json"],
+    );
+    let plugin = &listed["result"]["plugins"][0];
+    assert_eq!(plugin["plugin_id"], "example.worktree-bootstrap");
+    assert_eq!(plugin["source"]["kind"], "github");
+    assert_eq!(plugin["source"]["owner"], "ogulcancelik");
+    assert_eq!(plugin["source"]["repo"], "herdr-plugin-examples");
+    assert_eq!(plugin["source"]["subdir"], "worktree-bootstrap");
+    assert!(plugin["source"]["resolved_commit"].as_str().is_some());
+    let managed_path = PathBuf::from(plugin["source"]["managed_path"].as_str().unwrap());
+    assert!(managed_path.exists(), "managed checkout should exist");
+    assert!(
+        managed_path
+            .join("worktree-bootstrap")
+            .join("built.txt")
+            .exists(),
+        "build artifact should be preserved in managed checkout"
+    );
+    assert!(
+        !managed_path
+            .join("worktree-bootstrap")
+            .join("leaked-session.txt")
+            .exists(),
+        "build command should not inherit HERDR_SESSION"
+    );
+
+    let uninstall = run_named_cli(
+        &config_home,
+        &runtime_dir,
+        &[
+            "--session",
+            "plugins",
+            "plugin",
+            "uninstall",
+            "example.worktree-bootstrap",
+        ],
+    );
+    assert!(
+        uninstall.status.success(),
+        "uninstall failed\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&uninstall.stdout),
+        String::from_utf8_lossy(&uninstall.stderr)
+    );
+    assert!(
+        !managed_path.exists(),
+        "managed checkout should be deleted on uninstall"
+    );
+
+    let listed = run_named_cli_json(
+        &config_home,
+        &runtime_dir,
+        &["--session", "plugins", "plugin", "list", "--json"],
+    );
+    assert!(listed["result"]["plugins"].as_array().unwrap().is_empty());
+
+    cleanup_test_base(&base);
+}
+
+#[test]
+fn plugin_install_build_failure_does_not_register_or_create_checkout() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let source_repo = base.join("source-repo");
+    let plugin_dir = source_repo.join("build-fail");
+    fs::create_dir_all(&plugin_dir).unwrap();
+    create_committed_repo(&source_repo);
+    fs::write(
+        plugin_dir.join("herdr-plugin.toml"),
+        r#"
+id = "example.build-fail"
+name = "Build Fail"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+platforms = ["linux", "macos", "windows"]
+
+[[build]]
+command = ["sh", "-c", "echo before-fail && echo failed-build >&2 && exit 7"]
+
+[[actions]]
+id = "run"
+title = "Run"
+command = ["sh", "-c", "echo should-not-install"]
+"#,
+    )
+    .unwrap();
+    run_git(&source_repo, &["add", "build-fail/herdr-plugin.toml"]);
+    run_git(
+        &source_repo,
+        &["commit", "--quiet", "-m", "add failing plugin"],
+    );
+
+    fs::create_dir_all(&config_home).unwrap();
+    fs::create_dir_all(&runtime_dir).unwrap();
+    let git_config = base.join("gitconfig");
+    fs::write(
+        &git_config,
+        format!(
+            "[url \"file://{}\"]\n    insteadOf = https://github.com/ogulcancelik/herdr-plugin-examples.git\n",
+            source_repo.display()
+        ),
+    )
+    .unwrap();
+
+    let install = run_named_cli_with_env(
+        &config_home,
+        &runtime_dir,
+        &[
+            "--session",
+            "plugins",
+            "plugin",
+            "install",
+            "ogulcancelik/herdr-plugin-examples/build-fail",
+            "--yes",
+        ],
+        &[("GIT_CONFIG_GLOBAL", &git_config)],
+    );
+    assert!(
+        !install.status.success(),
+        "install should fail when build command fails"
+    );
+    assert_eq!(install.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&install.stderr);
+    assert!(stderr.contains("error: plugin build failed"), "{stderr}");
+    assert!(stderr.contains("  plugin: example.build-fail"), "{stderr}");
+    assert!(stderr.contains("  build: 1/1"), "{stderr}");
+    assert!(stderr.contains("  cwd: "), "{stderr}");
+    assert!(
+        stderr.contains("  command: sh -c echo before-fail && echo failed-build >&2 && exit 7"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("  status: exit status: 7"), "{stderr}");
+    assert!(stderr.contains("stdout:\nbefore-fail"), "{stderr}");
+    assert!(stderr.contains("stderr:\nfailed-build"), "{stderr}");
+    assert!(stderr.contains("Plugin was not installed."), "{stderr}");
+    assert!(!stderr.contains("Error: Custom"), "{stderr}");
+
+    let listed = run_named_cli_json(
+        &config_home,
+        &runtime_dir,
+        &["--session", "plugins", "plugin", "list", "--json"],
+    );
+    assert!(listed["result"]["plugins"].as_array().unwrap().is_empty());
+
+    assert!(
+        path_missing_or_empty(&managed_github_plugin_dir(&config_home)),
+        "failed build should not leave managed checkouts"
+    );
+
+    cleanup_test_base(&base);
+}
+
+#[test]
+fn plugin_install_build_spawn_failure_prints_clean_error() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let source_repo = base.join("source-repo");
+    let plugin_dir = source_repo.join("missing-tool");
+    fs::create_dir_all(&plugin_dir).unwrap();
+    create_committed_repo(&source_repo);
+    fs::write(
+        plugin_dir.join("herdr-plugin.toml"),
+        r#"
+id = "example.missing-tool"
+name = "Missing Tool"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+platforms = ["linux", "macos", "windows"]
+
+[[build]]
+command = ["definitely-missing-herdr-build-tool-xyz"]
+
+[[actions]]
+id = "run"
+title = "Run"
+command = ["sh", "-c", "echo should-not-install"]
+"#,
+    )
+    .unwrap();
+    run_git(&source_repo, &["add", "missing-tool/herdr-plugin.toml"]);
+    run_git(
+        &source_repo,
+        &["commit", "--quiet", "-m", "add missing tool plugin"],
+    );
+
+    fs::create_dir_all(&config_home).unwrap();
+    fs::create_dir_all(&runtime_dir).unwrap();
+    let git_config = base.join("gitconfig");
+    fs::write(
+        &git_config,
+        format!(
+            "[url \"file://{}\"]\n    insteadOf = https://github.com/ogulcancelik/herdr-plugin-examples.git\n",
+            source_repo.display()
+        ),
+    )
+    .unwrap();
+
+    let install = run_named_cli_with_env(
+        &config_home,
+        &runtime_dir,
+        &[
+            "--session",
+            "plugins",
+            "plugin",
+            "install",
+            "ogulcancelik/herdr-plugin-examples/missing-tool",
+            "--yes",
+        ],
+        &[("GIT_CONFIG_GLOBAL", &git_config)],
+    );
+    assert!(
+        !install.status.success(),
+        "install should fail when build command cannot start"
+    );
+    assert_eq!(install.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&install.stderr);
+    assert!(stderr.contains("error: plugin build failed"), "{stderr}");
+    assert!(
+        stderr.contains("  plugin: example.missing-tool"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("  build: 1/1"), "{stderr}");
+    assert!(
+        stderr.contains("  command: definitely-missing-herdr-build-tool-xyz"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("  error: failed to start:"), "{stderr}");
+    assert!(stderr.contains("Plugin was not installed."), "{stderr}");
+    assert!(!stderr.contains("Error: Custom"), "{stderr}");
+
+    let listed = run_named_cli_json(
+        &config_home,
+        &runtime_dir,
+        &["--session", "plugins", "plugin", "list", "--json"],
+    );
+    assert!(listed["result"]["plugins"].as_array().unwrap().is_empty());
+
+    cleanup_test_base(&base);
+}
+
+#[test]
+fn plugin_install_rejects_manifest_changed_by_build() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let source_repo = base.join("source-repo");
+    let plugin_dir = source_repo.join("manifest-mutator");
+    fs::create_dir_all(&plugin_dir).unwrap();
+    create_committed_repo(&source_repo);
+    fs::write(
+        plugin_dir.join("herdr-plugin.toml"),
+        r#"
+id = "example.manifest-mutator"
+name = "Manifest Mutator"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+platforms = ["linux", "macos", "windows"]
+
+[[build]]
+command = ["sh", "mutate.sh"]
+
+[[actions]]
+id = "run"
+title = "Run reviewed command"
+command = ["sh", "-c", "echo reviewed"]
+"#,
+    )
+    .unwrap();
+    fs::write(
+        plugin_dir.join("mutate.sh"),
+        r#"cat > herdr-plugin.toml <<'EOF'
+id = "example.manifest-mutator"
+name = "Manifest Mutator"
+version = "0.1.0"
+min_herdr_version = "0.0.1"
+platforms = ["linux", "macos", "windows"]
+
+[[build]]
+command = ["sh", "mutate.sh"]
+
+[[actions]]
+id = "run"
+title = "Run reviewed command"
+command = ["sh", "-c", "echo reviewed"]
+EOF
+"#,
+    )
+    .unwrap();
+    run_git(&source_repo, &["add", "manifest-mutator"]);
+    run_git(
+        &source_repo,
+        &["commit", "--quiet", "-m", "add mutating plugin"],
+    );
+
+    fs::create_dir_all(&config_home).unwrap();
+    fs::create_dir_all(&runtime_dir).unwrap();
+    let git_config = base.join("gitconfig");
+    fs::write(
+        &git_config,
+        format!(
+            "[url \"file://{}\"]\n    insteadOf = https://github.com/ogulcancelik/herdr-plugin-examples.git\n",
+            source_repo.display()
+        ),
+    )
+    .unwrap();
+
+    let install = run_named_cli_with_env(
+        &config_home,
+        &runtime_dir,
+        &[
+            "--session",
+            "plugins",
+            "plugin",
+            "install",
+            "ogulcancelik/herdr-plugin-examples/manifest-mutator",
+            "--yes",
+        ],
+        &[("GIT_CONFIG_GLOBAL", &git_config)],
+    );
+    assert!(
+        !install.status.success(),
+        "install should fail when build changes reviewed manifest"
+    );
+    let stderr = String::from_utf8_lossy(&install.stderr);
+    assert!(
+        stderr.contains("plugin build changed herdr-plugin.toml after install preview"),
+        "{stderr}"
+    );
+
+    let listed = run_named_cli_json(
+        &config_home,
+        &runtime_dir,
+        &["--session", "plugins", "plugin", "list", "--json"],
+    );
+    assert!(listed["result"]["plugins"].as_array().unwrap().is_empty());
+
+    assert!(
+        path_missing_or_empty(&managed_github_plugin_dir(&config_home)),
+        "manifest mutation should not leave managed checkouts"
+    );
+
+    cleanup_test_base(&base);
+}
+
+#[test]
+fn plugin_install_restores_previous_checkout_when_registration_fails() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let socket_path = runtime_dir.join("fake-herdr.sock");
+    let source_repo = base.join("source-repo");
+    let plugin_dir = source_repo.join("worktree-bootstrap");
+    fs::create_dir_all(&plugin_dir).unwrap();
+    create_committed_repo(&source_repo);
+    fs::write(
+        plugin_dir.join("herdr-plugin.toml"),
+        r#"
+id = "example.worktree-bootstrap"
+name = "Worktree Bootstrap"
+version = "0.2.0"
+min_herdr_version = "0.6.10"
+platforms = ["linux", "macos", "windows"]
+
+[[actions]]
+id = "bootstrap"
+title = "Bootstrap"
+command = ["sh", "-c", "echo new"]
+"#,
+    )
+    .unwrap();
+    run_git(
+        &source_repo,
+        &["add", "worktree-bootstrap/herdr-plugin.toml"],
+    );
+    run_git(&source_repo, &["commit", "--quiet", "-m", "add plugin"]);
+
+    fs::create_dir_all(&config_home).unwrap();
+    fs::create_dir_all(&runtime_dir).unwrap();
+    let managed_checkout = config_home
+        .join("herdr-dev")
+        .join("plugins")
+        .join("github")
+        .join(WORKTREE_BOOTSTRAP_MANAGED_COMPONENT);
+    fs::create_dir_all(&managed_checkout).unwrap();
+    fs::write(managed_checkout.join("old-marker"), "old checkout\n").unwrap();
+
+    let git_config = base.join("gitconfig");
+    fs::write(
+        &git_config,
+        format!(
+            "[url \"file://{}\"]\n    insteadOf = https://github.com/ogulcancelik/herdr-plugin-examples.git\n",
+            source_repo.display()
+        ),
+    )
+    .unwrap();
+
+    let listener = UnixListener::bind(&socket_path).unwrap();
+    let managed_checkout_for_server = managed_checkout.clone();
+    let server = thread::spawn(move || {
+        let (mut first, _) = listener.accept().unwrap();
+        let mut first_line = String::new();
+        let mut first_reader = BufReader::new(first.try_clone().unwrap());
+        first_reader.read_line(&mut first_line).unwrap();
+        let first_request: serde_json::Value = serde_json::from_str(&first_line).unwrap();
+        assert_eq!(first_request["method"], "plugin.list");
+        writeln!(
+            first,
+            "{}",
+            serde_json::json!({
+                "id": "cli:plugin",
+                "result": {
+                    "type": "plugin_list",
+                    "plugins": [{
+                        "plugin_id": "example.worktree-bootstrap",
+                        "name": "Worktree Bootstrap",
+                        "version": "0.1.0",
+                        "min_herdr_version": "0.6.10",
+                        "manifest_path": managed_checkout_for_server.join("herdr-plugin.toml").display().to_string(),
+                        "plugin_root": managed_checkout_for_server.display().to_string(),
+                        "enabled": true,
+                        "source": {
+                            "kind": "github",
+                            "owner": "ogulcancelik",
+                            "repo": "herdr-plugin-examples",
+                            "subdir": "worktree-bootstrap",
+                            "resolved_commit": "old",
+                            "managed_path": managed_checkout_for_server.display().to_string(),
+                            "installed_unix_ms": 1
+                        }
+                    }]
+                }
+            })
+        )
+        .unwrap();
+        first.flush().unwrap();
+
+        let (mut second, _) = listener.accept().unwrap();
+        let mut second_line = String::new();
+        let mut second_reader = BufReader::new(second.try_clone().unwrap());
+        second_reader.read_line(&mut second_line).unwrap();
+        let second_request: serde_json::Value = serde_json::from_str(&second_line).unwrap();
+        assert_eq!(second_request["method"], "plugin.link");
+        second
+            .write_all(
+                br#"{"id":"cli:plugin","error":{"code":"plugin_registry_save_failed","message":"forced failure"}}"#,
+            )
+            .unwrap();
+        second.write_all(b"\n").unwrap();
+        second.flush().unwrap();
+    });
+
+    let install = run_named_cli_with_env_and_socket_override(
+        &config_home,
+        &runtime_dir,
+        &[
+            "plugin",
+            "install",
+            "ogulcancelik/herdr-plugin-examples/worktree-bootstrap",
+            "--yes",
+        ],
+        &[("GIT_CONFIG_GLOBAL", &git_config)],
+        Some(&socket_path),
+    );
+    assert!(
+        !install.status.success(),
+        "install should fail when plugin.link fails"
+    );
+    server.join().unwrap();
+    assert!(
+        managed_checkout.join("old-marker").exists(),
+        "old checkout should be restored after registration failure"
+    );
+
+    cleanup_test_base(&base);
+}
+
+#[test]
+fn plugin_install_rejects_server_that_drops_source_metadata() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let socket_path = runtime_dir.join("fake-herdr.sock");
+    let source_repo = base.join("source-repo");
+    let plugin_dir = source_repo.join("worktree-bootstrap");
+    fs::create_dir_all(&plugin_dir).unwrap();
+    create_committed_repo(&source_repo);
+    fs::write(
+        plugin_dir.join("herdr-plugin.toml"),
+        r#"
+id = "example.worktree-bootstrap"
+name = "Worktree Bootstrap"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+platforms = ["linux", "macos", "windows"]
+
+[[actions]]
+id = "bootstrap"
+title = "Bootstrap"
+command = ["sh", "-c", "echo install"]
+"#,
+    )
+    .unwrap();
+    run_git(
+        &source_repo,
+        &["add", "worktree-bootstrap/herdr-plugin.toml"],
+    );
+    run_git(&source_repo, &["commit", "--quiet", "-m", "add plugin"]);
+
+    fs::create_dir_all(&config_home).unwrap();
+    fs::create_dir_all(&runtime_dir).unwrap();
+    let managed_checkout = config_home
+        .join("herdr-dev")
+        .join("plugins")
+        .join("github")
+        .join(WORKTREE_BOOTSTRAP_MANAGED_COMPONENT);
+    let git_config = base.join("gitconfig");
+    fs::write(
+        &git_config,
+        format!(
+            "[url \"file://{}\"]\n    insteadOf = https://github.com/ogulcancelik/herdr-plugin-examples.git\n",
+            source_repo.display()
+        ),
+    )
+    .unwrap();
+
+    let listener = UnixListener::bind(&socket_path).unwrap();
+    let managed_checkout_for_server = managed_checkout.clone();
+    let server = thread::spawn(move || {
+        let (mut first, _) = listener.accept().unwrap();
+        let mut first_line = String::new();
+        let mut first_reader = BufReader::new(first.try_clone().unwrap());
+        first_reader.read_line(&mut first_line).unwrap();
+        let first_request: serde_json::Value = serde_json::from_str(&first_line).unwrap();
+        assert_eq!(first_request["method"], "plugin.list");
+        first
+            .write_all(br#"{"id":"cli:plugin","result":{"type":"plugin_list","plugins":[]}}"#)
+            .unwrap();
+        first.write_all(b"\n").unwrap();
+        first.flush().unwrap();
+
+        let (mut second, _) = listener.accept().unwrap();
+        let mut second_line = String::new();
+        let mut second_reader = BufReader::new(second.try_clone().unwrap());
+        second_reader.read_line(&mut second_line).unwrap();
+        let second_request: serde_json::Value = serde_json::from_str(&second_line).unwrap();
+        assert_eq!(second_request["method"], "plugin.link");
+        writeln!(
+            second,
+            "{}",
+            serde_json::json!({
+                "id": "cli:plugin",
+                "result": {
+                    "type": "plugin_linked",
+                    "plugin": {
+                        "plugin_id": "example.worktree-bootstrap",
+                        "name": "Worktree Bootstrap",
+                        "version": "0.1.0",
+                        "min_herdr_version": "0.6.10",
+                        "manifest_path": managed_checkout_for_server.join("herdr-plugin.toml").display().to_string(),
+                        "plugin_root": managed_checkout_for_server.display().to_string(),
+                        "enabled": true,
+                        "source": {"kind": "local"}
+                    }
+                }
+            })
+        )
+        .unwrap();
+        second.flush().unwrap();
+
+        let (mut third, _) = listener.accept().unwrap();
+        let mut third_line = String::new();
+        let mut third_reader = BufReader::new(third.try_clone().unwrap());
+        third_reader.read_line(&mut third_line).unwrap();
+        let third_request: serde_json::Value = serde_json::from_str(&third_line).unwrap();
+        assert_eq!(third_request["method"], "plugin.unlink");
+        assert_eq!(
+            third_request["params"]["plugin_id"],
+            "example.worktree-bootstrap"
+        );
+        third
+            .write_all(
+                br#"{"id":"cli:plugin","result":{"type":"plugin_unlinked","plugin_id":"example.worktree-bootstrap","removed":true}}"#,
+            )
+            .unwrap();
+        third.write_all(b"\n").unwrap();
+        third.flush().unwrap();
+    });
+
+    let install = run_named_cli_with_env_and_socket_override(
+        &config_home,
+        &runtime_dir,
+        &[
+            "plugin",
+            "install",
+            "ogulcancelik/herdr-plugin-examples/worktree-bootstrap",
+            "--yes",
+        ],
+        &[("GIT_CONFIG_GLOBAL", &git_config)],
+        Some(&socket_path),
+    );
+    assert!(
+        !install.status.success(),
+        "install should fail when server drops GitHub source metadata"
+    );
+    server.join().unwrap();
+    assert!(
+        !managed_checkout.exists(),
+        "new checkout should be removed after incompatible plugin.link response"
+    );
+
+    cleanup_test_base(&base);
+}
+
+#[test]
+fn plugin_install_keeps_checkout_when_incompatible_server_cleanup_fails() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let socket_path = runtime_dir.join("fake-herdr.sock");
+    let source_repo = base.join("source-repo");
+    let plugin_dir = source_repo.join("worktree-bootstrap");
+    fs::create_dir_all(&plugin_dir).unwrap();
+    create_committed_repo(&source_repo);
+    fs::write(
+        plugin_dir.join("herdr-plugin.toml"),
+        r#"
+id = "example.worktree-bootstrap"
+name = "Worktree Bootstrap"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+platforms = ["linux", "macos", "windows"]
+
+[[actions]]
+id = "bootstrap"
+title = "Bootstrap"
+command = ["sh", "-c", "echo install"]
+"#,
+    )
+    .unwrap();
+    run_git(
+        &source_repo,
+        &["add", "worktree-bootstrap/herdr-plugin.toml"],
+    );
+    run_git(&source_repo, &["commit", "--quiet", "-m", "add plugin"]);
+
+    fs::create_dir_all(&config_home).unwrap();
+    fs::create_dir_all(&runtime_dir).unwrap();
+    let managed_checkout = config_home
+        .join("herdr-dev")
+        .join("plugins")
+        .join("github")
+        .join(WORKTREE_BOOTSTRAP_MANAGED_COMPONENT);
+    let git_config = base.join("gitconfig");
+    fs::write(
+        &git_config,
+        format!(
+            "[url \"file://{}\"]\n    insteadOf = https://github.com/ogulcancelik/herdr-plugin-examples.git\n",
+            source_repo.display()
+        ),
+    )
+    .unwrap();
+
+    let listener = UnixListener::bind(&socket_path).unwrap();
+    let managed_checkout_for_server = managed_checkout.clone();
+    let server = thread::spawn(move || {
+        let (mut first, _) = listener.accept().unwrap();
+        let mut first_line = String::new();
+        let mut first_reader = BufReader::new(first.try_clone().unwrap());
+        first_reader.read_line(&mut first_line).unwrap();
+        first
+            .write_all(br#"{"id":"cli:plugin","result":{"type":"plugin_list","plugins":[]}}"#)
+            .unwrap();
+        first.write_all(b"\n").unwrap();
+        first.flush().unwrap();
+
+        let (mut second, _) = listener.accept().unwrap();
+        let mut second_line = String::new();
+        let mut second_reader = BufReader::new(second.try_clone().unwrap());
+        second_reader.read_line(&mut second_line).unwrap();
+        writeln!(
+            second,
+            "{}",
+            serde_json::json!({
+                "id": "cli:plugin",
+                "result": {
+                    "type": "plugin_linked",
+                    "plugin": {
+                        "plugin_id": "example.worktree-bootstrap",
+                        "name": "Worktree Bootstrap",
+                        "version": "0.1.0",
+                        "min_herdr_version": "0.6.10",
+                        "manifest_path": managed_checkout_for_server.join("herdr-plugin.toml").display().to_string(),
+                        "plugin_root": managed_checkout_for_server.display().to_string(),
+                        "enabled": true,
+                        "source": {"kind": "local"}
+                    }
+                }
+            })
+        )
+        .unwrap();
+        second.flush().unwrap();
+
+        let (mut third, _) = listener.accept().unwrap();
+        let mut third_line = String::new();
+        let mut third_reader = BufReader::new(third.try_clone().unwrap());
+        third_reader.read_line(&mut third_line).unwrap();
+        let third_request: serde_json::Value = serde_json::from_str(&third_line).unwrap();
+        assert_eq!(third_request["method"], "plugin.unlink");
+        third
+            .write_all(
+                br#"{"id":"cli:plugin","error":{"code":"plugin_registry_save_failed","message":"forced unlink failure"}}"#,
+            )
+            .unwrap();
+        third.write_all(b"\n").unwrap();
+        third.flush().unwrap();
+    });
+
+    let install = run_named_cli_with_env_and_socket_override(
+        &config_home,
+        &runtime_dir,
+        &[
+            "plugin",
+            "install",
+            "ogulcancelik/herdr-plugin-examples/worktree-bootstrap",
+            "--yes",
+        ],
+        &[("GIT_CONFIG_GLOBAL", &git_config)],
+        Some(&socket_path),
+    );
+    assert!(
+        !install.status.success(),
+        "install should fail when source metadata is dropped and cleanup fails"
+    );
+    server.join().unwrap();
+    assert!(
+        managed_checkout.exists(),
+        "checkout should stay when server cleanup fails"
+    );
+
+    cleanup_test_base(&base);
+}
+
+#[test]
 fn wait_agent_status_exits_immediately_when_status_already_matches() {
     let base = unique_test_dir();
     let config_home = base.join("config");
@@ -2734,7 +3983,7 @@ fn wait_agent_status_exits_immediately_when_status_already_matches() {
         .as_str()
         .unwrap()
         .to_string();
-    let pane_id = format!("{workspace_id}-1");
+    let pane_id = format!("{workspace_id}:p1");
 
     let reported = send_request(
         &socket_path,

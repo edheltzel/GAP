@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 // ---------------------------------------------------------------------------
 
 /// Current protocol version. Bumped when wire format changes incompatibly.
-pub const PROTOCOL_VERSION: u32 = 13;
+pub const PROTOCOL_VERSION: u32 = 14;
 
 /// Maximum allowed frame payload size (2 MB). Frames larger than this are
 /// rejected to prevent denial-of-service via oversized length prefixes.
@@ -628,6 +628,12 @@ pub enum ServerMessage {
         data: String,
     },
 
+    /// Set the foreground client's outer terminal window title.
+    WindowTitle {
+        /// Sanitized title to write with OSC 0. `None` restores Herdr's default title.
+        title: Option<String>,
+    },
+
     /// Client-local runtime config changed on disk; refresh it without reconnecting.
     ReloadSoundConfig,
 
@@ -929,7 +935,7 @@ mod tests {
     }
 
     #[test]
-    fn client_message_wire_tags_preserve_protocol_13_order() {
+    fn client_message_wire_tags_preserve_protocol_14_order() {
         fn tag(msg: &ClientMessage) -> u8 {
             *bincode::serde::encode_to_vec(msg, bincode::config::standard())
                 .unwrap()
@@ -1276,6 +1282,17 @@ mod tests {
         let (decoded, _): (ServerMessage, _) =
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
         assert_eq!(msg, decoded);
+    }
+
+    #[test]
+    fn server_window_title_roundtrip() {
+        for title in [Some("herdr api".to_owned()), None] {
+            let msg = ServerMessage::WindowTitle { title };
+            let encoded = bincode::serde::encode_to_vec(&msg, bincode::config::standard()).unwrap();
+            let (decoded, _): (ServerMessage, _) =
+                bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
+            assert_eq!(msg, decoded);
+        }
     }
 
     #[test]

@@ -46,7 +46,11 @@ impl App {
     }
 
     pub(super) fn handle_agent_start(&mut self, id: String, params: AgentStartParams) -> String {
-        let (agent, argv) = match self.start_agent(params) {
+        let extra_env = match super::env::normalize_launch_env(params.env.clone()) {
+            Ok(env) => env,
+            Err((code, message)) => return encode_error(id, &code, message),
+        };
+        let (agent, argv) = match self.start_agent(params, extra_env) {
             Ok(started) => started,
             Err(err) => return encode_error_body(id, self.agent_start_error_body(err)),
         };

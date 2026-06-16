@@ -895,13 +895,13 @@ pathlib.Path({received:?}).write_text(data.hex())
 }
 
 #[test]
-fn live_handoff_accepts_old_pane_id_from_child_env() {
+fn live_handoff_accepts_canonical_pane_id_from_child_env() {
     let _lock = test_lock();
     let base = unique_test_dir();
     let config_home = base.join("config");
     let runtime_dir = base.join("runtime");
     let api_socket = runtime_dir.join("herdr.sock");
-    let pane_id_marker = base.join("old-pane-id");
+    let pane_id_marker = base.join("pane-id");
 
     let spawned = spawn_server(&config_home, &runtime_dir, &api_socket);
     wait_for_socket(&api_socket, Duration::from_secs(10));
@@ -927,9 +927,9 @@ fn live_handoff_accepts_old_pane_id_from_child_env() {
             "params": {"pane_id": pane_id, "text": format!("printf '%s' \"$HERDR_PANE_ID\" > {}", pane_id_marker.display()), "keys": ["Enter"]}
         }),
     ));
-    let old_pane_id = wait_for_file_contains(&pane_id_marker, "p_", Duration::from_secs(5));
+    let old_pane_id = wait_for_file_contains(&pane_id_marker, &pane_id, Duration::from_secs(5));
     assert!(
-        old_pane_id.starts_with("p_"),
+        old_pane_id == pane_id,
         "unexpected pane id from env: {old_pane_id:?}"
     );
 

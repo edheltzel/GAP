@@ -287,7 +287,7 @@
   }
 
   function shouldShowHighlightTagTooltip() {
-    // Configure/edit carry the tag in the bar selection pill — keep only the outline.
+    // Configure/edit carry the tag in the bar selection pill, so keep only the outline.
     return state !== 'CONFIGURING' && state !== 'EDITING';
   }
 
@@ -1148,7 +1148,7 @@
     syncPageChatFocus('update-bar-content');
   }
 
-  // Configure row — the floating bar surface IS the input; modifier pills sit left of the field.
+  // Configure row: the floating bar surface IS the input; modifier pills sit left of the field.
 
   const CONFIGURE_BAR_H = '36px';
   // Compact selection pill + 7px inset balances vertical centering in the 36px bar.
@@ -1519,7 +1519,7 @@
 
   function buildConfigureCountControl({ controlsLocked, onClick }) {
     const count = el('button', configureInlineControlStyle({
-      fontFamily: MONO, fontWeight: '600', letterSpacing: '-0.02em',
+      fontFamily: MONO, fontWeight: '600', letterSpacing: '0',
     }));
     count.textContent = '\u00D7' + selectedCount;
     count.disabled = controlsLocked;
@@ -2681,12 +2681,12 @@
     });
     const check = el('span', {
       fontSize: '15px', lineHeight: '1', flexShrink: '0',
-      color: 'oklch(45% 0.15 145)',
+      color: 'oklch(45% 0.18 145)',
     });
     check.textContent = '\u2713';
     row.appendChild(check);
     const label = el('span', {
-      fontSize: '12px', color: 'oklch(35% 0.1 145)', fontWeight: '600',
+      fontSize: '12px', color: 'oklch(49% 0.08 188)', fontWeight: '600',
     });
     label.textContent = 'Variant applied';
     row.appendChild(label);
@@ -5065,6 +5065,157 @@
     }
   }
 
+  async function loadSvelteComponentVariantSource(manifest, variantNum) {
+    const dir = String(manifest?.componentDir || '').replace(/^\/+/, '');
+    if (!dir || !variantNum) return '';
+    const sourcePath = dir + '/v' + variantNum + '.svelte';
+    const url = 'http://localhost:' + PORT + '/source?token=' + TOKEN + '&path=' + encodeURIComponent(sourcePath);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return '';
+      return await res.text();
+    } catch {
+      return '';
+    }
+  }
+
+  function extractSvelteComponentStyle(source) {
+    const match = String(source || '').match(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/i);
+    return match ? match[1].trim() : '';
+  }
+
+  async function applySvelteComponentVariantStyle(variantNum) {
+    if (!svelteComponentSession || !variantNum) return;
+    const { manifest, sessionId } = svelteComponentSession;
+    const source = await loadSvelteComponentVariantSource(manifest, variantNum);
+    const css = extractSvelteComponentStyle(source);
+    removeSvelteComponentVariantStyle(svelteComponentSession);
+    if (!css) return;
+    const scopedCss = scopeCssToSveltePreview(css, sessionId);
+    if (!scopedCss) return;
+    const style = document.createElement('style');
+    style.dataset.impeccableSvelteComponentStyle = sessionId;
+    style.dataset.impeccableVariant = String(variantNum);
+    style.textContent = scopedCss;
+    document.head.appendChild(style);
+    svelteComponentSession.styleEl = style;
+  }
+
+  function removeSvelteComponentVariantStyle(session = svelteComponentSession) {
+    const style = session?.styleEl;
+    if (style?.parentNode) style.parentNode.removeChild(style);
+    if (session) session.styleEl = null;
+  }
+
+  function scopeCssToSveltePreview(css, sessionId) {
+    const prefix = '[data-impeccable-variants="' + String(sessionId).replace(/"/g, '\\"') + '"] ';
+    return scopeCssBlock(String(css || ''), prefix).trim();
+  }
+
+  function scopeCssBlock(css, prefix) {
+    let out = '';
+    let i = 0;
+    while (i < css.length) {
+      const open = css.indexOf('{', i);
+      if (open === -1) {
+        out += css.slice(i);
+        break;
+      }
+      const semi = css.indexOf(';', i);
+      if (semi !== -1 && semi < open) {
+        out += css.slice(i, semi + 1);
+        i = semi + 1;
+        continue;
+      }
+      const prelude = css.slice(i, open).trim();
+      const close = findMatchingCssBrace(css, open);
+      if (close === -1) {
+        out += css.slice(i);
+        break;
+      }
+      const body = css.slice(open + 1, close);
+      if (shouldScopeNestedCssAtRule(prelude)) {
+        out += prelude + ' {\n' + scopeCssBlock(body, prefix) + '\n}';
+      } else if (prelude.startsWith('@')) {
+        out += prelude + ' {' + body + '}';
+      } else {
+        out += prefixCssSelectors(prelude, prefix) + ' {' + body + '}';
+      }
+      i = close + 1;
+    }
+    return out;
+  }
+
+  function shouldScopeNestedCssAtRule(prelude) {
+    return /^@(media|supports|container|layer)\b/i.test(prelude || '');
+  }
+
+  function findMatchingCssBrace(css, openIndex) {
+    let depth = 0;
+    let quote = '';
+    for (let i = openIndex; i < css.length; i++) {
+      const ch = css[i];
+      const prev = css[i - 1];
+      if (quote) {
+        if (ch === quote && prev !== '\\') quote = '';
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === '{') {
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  function prefixCssSelectors(prelude, prefix) {
+    return splitCssSelectorList(prelude)
+      .map((selector) => {
+        const s = unwrapSvelteGlobalSelector(selector.trim());
+        if (!s) return '';
+        if (s.startsWith(prefix.trim())) return s;
+        if (s.startsWith(':host')) return s.replace(/^:host\b/, prefix.trim());
+        return prefix + s;
+      })
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  function splitCssSelectorList(selectorList) {
+    const selectors = [];
+    let start = 0;
+    let depth = 0;
+    let quote = '';
+    for (let i = 0; i < selectorList.length; i++) {
+      const ch = selectorList[i];
+      const prev = selectorList[i - 1];
+      if (quote) {
+        if (ch === quote && prev !== '\\') quote = '';
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === '(' || ch === '[') {
+        depth++;
+      } else if ((ch === ')' || ch === ']') && depth > 0) {
+        depth--;
+      } else if (ch === ',' && depth === 0) {
+        selectors.push(selectorList.slice(start, i));
+        start = i + 1;
+      }
+    }
+    selectors.push(selectorList.slice(start));
+    return selectors;
+  }
+
+  function unwrapSvelteGlobalSelector(selector) {
+    return selector.replace(/:global\(([^()]*)\)/g, '$1');
+  }
+
   function buildSveltePropValuesFromLiveElement(liveEl, manifest) {
     const contract = manifest?.propContract || [];
     const values = {};
@@ -5101,6 +5252,7 @@
       });
       svelteComponentSession.mountedVariant = variantNum;
       svelteComponentSession.runtime = runtime;
+      await applySvelteComponentVariantStyle(variantNum);
       if (state === 'CYCLING') syncCyclingControls();
       const nextAnchor = getMountedSvelteComponentAnchor(svelteComponentSession);
       if (nextAnchor) {
@@ -5134,6 +5286,7 @@
   function teardownSvelteComponentSession(restoreOriginal) {
     if (!svelteComponentSession) return;
     const { wrapperEl, detachedOriginal, runtime, mountedInstance } = svelteComponentSession;
+    removeSvelteComponentVariantStyle(svelteComponentSession);
     if (mountedInstance && runtime?.unmount) {
       try { runtime.unmount(mountedInstance); } catch { /* non-fatal */ }
     }
@@ -5173,6 +5326,7 @@
     if (mountedInstance && runtime?.unmount) {
       try { runtime.unmount(mountedInstance); } catch { /* non-fatal */ }
     }
+    removeSvelteComponentVariantStyle(svelteComponentSession);
     wrapperEl.parentElement.replaceChild(committed, wrapperEl);
     svelteComponentSession = null;
     svelteRuntimePromise = null;
@@ -8038,7 +8192,7 @@ void main() {
   const PAGE_CHAT_PLACEHOLDER_EXPANDED = 'Steer the page…';
   const STEER_AWAIT_TIMEOUT_MS = 120000;
   const AGENT_STATUS_POLL_MS = 5000;
-  const AGENT_DISCONNECTED_MARK = 'oklch(56% 0.032 82 / 0.78)';
+  const AGENT_DISCONNECTED_MARK = 'oklch(62% 0 0 / 0.78)';
   const AGENT_DISCONNECTED_TIP = 'Agent disconnected - run live-poll.mjs to connect';
   const GLOBAL_BAR_SECTION_GAP = 8;
   const GLOBAL_BAR_INNER_GAP = 2;
@@ -8105,8 +8259,8 @@ void main() {
       // Neutral hairline for internal control borders / dividers (was a warm
       // gold rule that read as muddy champagne edges on the pill / input / count).
       hairline: 'oklch(92% 0 0 / 0.12)',
-      text: 'oklch(84% 0.035 82)',
-      textDim: 'oklch(63% 0.024 82)',
+      text: 'oklch(91% 0 0)',
+      textDim: 'oklch(72% 0 0)',
       accent: C.brand,
       accentSoft: C.brandSoft,
       exitHover: 'oklch(58% 0.15 35 / 0.18)',
@@ -8843,7 +8997,7 @@ void main() {
       cursor: 'pointer',
       flexShrink: '0',
       width: PAGE_CHAT_COLLAPSED_W,
-      transition: 'width 0.18s ease, border-color 0.15s ease',
+      transition: 'border-color 0.15s ease',
     });
     pageChatEl.id = PREFIX + '-page-chat';
     pageChatEl.dataset.expanded = 'false';
@@ -8910,9 +9064,9 @@ void main() {
         '#' + PREFIX + '-page-chat[data-voice-listening="true"] { border-color: oklch(70% 0.12 188 / 0.45); }' +
         '#' + PREFIX + '-page-chat-voice[data-listening="true"] svg { animation: impeccable-voice-pulse 1.1s ease-in-out infinite; }' +
         '@media (prefers-reduced-motion: reduce) { #' + PREFIX + '-page-chat-voice[data-listening="true"] svg { animation: none; opacity: 1; } }' +
-        '#' + PREFIX + '-page-chat-input::placeholder { color: oklch(63% 0.024 82); opacity: 1; }' +
+        '#' + PREFIX + '-page-chat-input::placeholder { color: oklch(72% 0 0); opacity: 1; }' +
         '#' + PREFIX + '-page-chat-input { caret-color: oklch(84% 0.19 80.46); }' +
-        '#' + PREFIX + '-page-chat[data-input-focused="true"]:not([data-expanded="true"]) #' + PREFIX + '-page-chat-input::placeholder { color: oklch(72% 0.024 82); }' +
+        '#' + PREFIX + '-page-chat[data-input-focused="true"]:not([data-expanded="true"]) #' + PREFIX + '-page-chat-input::placeholder { color: oklch(72% 0 0); }' +
         '#' + PREFIX + '-page-chat-voice:hover { background: oklch(78% 0.12 82 / 0.12); }';
       uiAppendStyle(s);
     }
@@ -9152,7 +9306,7 @@ void main() {
     const agentDot = el('span', {
       position: 'absolute', right: '-1px', bottom: '7px',
       width: '6px', height: '6px', borderRadius: '50%',
-      background: 'oklch(78% 0.14 75)',
+      background: 'oklch(77% 0.13 82)',
       boxShadow: '0 0 0 2px ' + P.surface,
       display: 'none', pointerEvents: 'none',
     });
@@ -9254,11 +9408,11 @@ void main() {
     // DESIGN.md panel toggle - quartet of color squares as the mark.
     const designBtn = makeIconBtn({
       id: PREFIX + '-design-toggle',
-      svg: `<span style="display:inline-grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;width:14px;height:14px;border-radius:3px;overflow:hidden;box-shadow:inset 0 0 0 1px oklch(58% 0.065 82 / 0.55);flex-shrink:0">
+      svg: `<span style="display:inline-grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;width:14px;height:14px;border-radius:3px;overflow:hidden;box-shadow:inset 0 0 0 1px oklch(92% 0 0 / 0.13);flex-shrink:0">
         <span style="background:oklch(84% 0.19 80.46)"></span>
         <span style="background:oklch(70% 0.12 188)"></span>
-        <span style="background:oklch(84% 0.035 82)"></span>
-        <span style="background:oklch(34% 0.014 82)"></span>
+        <span style="background:oklch(91% 0 0)"></span>
+        <span style="background:oklch(34% 0 0)"></span>
       </span>`,
       label: 'DESIGN.md',
       ariaLabel: 'Toggle DESIGN.md panel',
@@ -9842,8 +9996,8 @@ void main() {
     meta:     'oklch(55% 0 0)',
     hairline: 'oklch(88% 0 0)',
     hairlineSoft: 'oklch(92% 0 0)',
-    amber:    'oklch(70% 0.13 65)',         // stale-hint accent
-    amberBg:  'oklch(95% 0.05 80)',
+    amber:    'oklch(77% 0.13 82)',         // stale-hint accent
+    amberBg:  'oklch(89% 0.055 84)',
   };
 
   function designPanelCss(BP) {
@@ -9934,7 +10088,7 @@ void main() {
       }
       .empty strong { color: ${DP.ink}; display: block; margin-bottom: 6px; font-size: 14px; }
       .empty code { font-family: ${MONO}; background: ${DP.canvas}; padding: 1px 6px; border-radius: 4px; font-size: 12px; color: ${DP.ink}; }
-      .error { color: oklch(45% 0.15 25); }
+      .error { color: oklch(58% 0.15 35); }
 
       /* Stale hint */
       .stale {
@@ -10086,8 +10240,8 @@ void main() {
         content: ''; position: absolute; left: 4px; top: 13px;
         width: 8px; height: 8px; border-radius: 50%;
       }
-      .coll .do::before { background: oklch(62% 0.16 145); }
-      .coll .dont::before { background: oklch(58% 0.22 25); }
+      .coll .do::before { background: oklch(45% 0.18 145); }
+      .coll .dont::before { background: oklch(58% 0.15 35); }
 
       .coll .overview-body {
         font-size: 12px; line-height: 1.55; color: ${DP.ink2};

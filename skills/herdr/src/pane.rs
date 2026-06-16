@@ -59,6 +59,58 @@ fn apply_pane_terminal_env(cmd: &mut CommandBuilder) {
     cmd.env("COLORTERM", PANE_COLORTERM);
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct PaneLaunchEnv {
+    extra: Vec<(String, String)>,
+    identity: Option<PaneLaunchIdentity>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PaneLaunchIdentity {
+    workspace_id: String,
+    tab_id: String,
+    pane_id: String,
+}
+
+impl PaneLaunchEnv {
+    pub(crate) fn from_extra(extra: Vec<(String, String)>) -> Self {
+        Self {
+            extra,
+            identity: None,
+        }
+    }
+
+    pub(crate) fn with_identity(
+        mut self,
+        workspace_id: String,
+        tab_id: String,
+        pane_id: String,
+    ) -> Self {
+        self.identity = Some(PaneLaunchIdentity {
+            workspace_id,
+            tab_id,
+            pane_id,
+        });
+        self
+    }
+}
+
+fn apply_pane_launch_env(cmd: &mut CommandBuilder, launch_env: &PaneLaunchEnv) {
+    for (key, value) in &launch_env.extra {
+        cmd.env(key, value);
+    }
+    cmd.env(crate::HERDR_ENV_VAR, crate::HERDR_ENV_VALUE);
+    crate::integration::apply_pane_base_env(cmd);
+    if let Some(identity) = &launch_env.identity {
+        cmd.env(
+            crate::integration::HERDR_WORKSPACE_ID_ENV_VAR,
+            &identity.workspace_id,
+        );
+        cmd.env(crate::integration::HERDR_TAB_ID_ENV_VAR, &identity.tab_id);
+        cmd.env(crate::integration::HERDR_PANE_ID_ENV_VAR, &identity.pane_id);
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct PendingAgentRelease {
     agent: Agent,
@@ -1320,6 +1372,7 @@ impl PaneRuntime {
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
         shell_config: PaneShellConfig<'_>,
+        launch_env: &PaneLaunchEnv,
         events: mpsc::Sender<AppEvent>,
         render_notify: Arc<Notify>,
         render_dirty: Arc<AtomicBool>,
@@ -1332,6 +1385,7 @@ impl PaneRuntime {
             scrollback_limit_bytes,
             host_terminal_theme,
             shell_config,
+            launch_env,
             None,
             events,
             render_notify,
@@ -1339,6 +1393,8 @@ impl PaneRuntime {
         )
     }
 
+    // Runtime construction needs to thread PTY size, environment, theme, and render hooks together.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn spawn_with_initial_history(
         pane_id: PaneId,
         rows: u16,
@@ -1347,6 +1403,7 @@ impl PaneRuntime {
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
         shell_config: PaneShellConfig<'_>,
+        launch_env: &PaneLaunchEnv,
         initial_history_ansi: Option<&str>,
         events: mpsc::Sender<AppEvent>,
         render_notify: Arc<Notify>,
@@ -1354,9 +1411,8 @@ impl PaneRuntime {
     ) -> std::io::Result<Self> {
         let mut cmd = pane_shell_command_builder(shell_config)?;
         cmd.cwd(cwd);
-        cmd.env(crate::HERDR_ENV_VAR, crate::HERDR_ENV_VALUE);
         apply_pane_terminal_env(&mut cmd);
-        crate::integration::apply_pane_env(&mut cmd, pane_id);
+        apply_pane_launch_env(&mut cmd, launch_env);
         Self::spawn_command_builder(
             pane_id,
             rows,
@@ -1375,13 +1431,15 @@ impl PaneRuntime {
         )
     }
 
+    // Runtime construction needs to thread PTY size, environment, theme, and render hooks together.
+    #[allow(clippy::too_many_arguments)]
     pub fn spawn_shell_command(
         pane_id: PaneId,
         rows: u16,
         cols: u16,
         cwd: std::path::PathBuf,
         command: &str,
-        extra_env: &[(String, String)],
+        launch_env: &PaneLaunchEnv,
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
         events: mpsc::Sender<AppEvent>,
@@ -1392,12 +1450,8 @@ impl PaneRuntime {
         cmd.arg("-c");
         cmd.arg(command);
         cmd.cwd(cwd);
-        cmd.env(crate::HERDR_ENV_VAR, crate::HERDR_ENV_VALUE);
         apply_pane_terminal_env(&mut cmd);
-        crate::integration::apply_pane_env(&mut cmd, pane_id);
-        for (key, value) in extra_env {
-            cmd.env(key, value);
-        }
+        apply_pane_launch_env(&mut cmd, launch_env);
         Self::spawn_command_builder(
             pane_id,
             rows,
@@ -1419,6 +1473,7 @@ impl PaneRuntime {
         cols: u16,
         cwd: std::path::PathBuf,
         argv: &[String],
+        launch_env: &PaneLaunchEnv,
         scrollback_limit_bytes: usize,
         host_terminal_theme: crate::terminal_theme::TerminalTheme,
         events: mpsc::Sender<AppEvent>,
@@ -1436,9 +1491,8 @@ impl PaneRuntime {
             cmd.arg(arg);
         }
         cmd.cwd(cwd);
-        cmd.env(crate::HERDR_ENV_VAR, crate::HERDR_ENV_VALUE);
         apply_pane_terminal_env(&mut cmd);
-        crate::integration::apply_pane_env(&mut cmd, pane_id);
+        apply_pane_launch_env(&mut cmd, launch_env);
         Self::spawn_command_builder(
             pane_id,
             rows,
@@ -2414,6 +2468,11 @@ impl PaneRuntime {
         }
         let pid = self.child_pid.load(Ordering::Relaxed);
         crate::platform::process_cwd(pid)
+    }
+
+    pub fn child_pid(&self) -> Option<u32> {
+        let pid = self.child_pid.load(Ordering::Acquire);
+        (pid > 0).then_some(pid)
     }
 
     /// Get the current working directory of the process group controlling the pane PTY.

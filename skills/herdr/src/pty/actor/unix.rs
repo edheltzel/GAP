@@ -12,10 +12,11 @@ use tracing::{debug, warn};
 
 use crate::pty::fd;
 
-#[cfg(not(test))]
-const ACTOR_POLL_MS: i32 = 50;
-#[cfg(test)]
-const ACTOR_POLL_MS: i32 = 1000;
+// Actor handle methods must call wake_actor() after queuing work. The idle
+// timeout is only a fallback for missed wakes; PTY and wake readiness drive
+// normal responsiveness.
+const ACTOR_IDLE_POLL_MS: i32 = 1000;
+const ACTOR_WRITE_READY_POLL_MS: i32 = 50;
 const ACTOR_COMMAND_BUFFER: usize = 1024;
 const HANDOFF_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -437,7 +438,7 @@ impl PtyIoActorRunner {
                 self.wake_read_fd.as_raw_fd(),
                 self.state == ActorState::Running,
                 !self.pending_writes.is_empty(),
-                ACTOR_POLL_MS,
+                ACTOR_IDLE_POLL_MS,
             ) {
                 Ok(readiness) => {
                     if readiness.wake_ready {
@@ -666,7 +667,7 @@ impl PtyIoActorRunner {
                     }
                 }
                 Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                    let _ = fd::poll_write_ready(self.file.as_raw_fd(), ACTOR_POLL_MS);
+                    let _ = fd::poll_write_ready(self.file.as_raw_fd(), ACTOR_WRITE_READY_POLL_MS);
                     return;
                 }
                 Err(err) if err.kind() == std::io::ErrorKind::Interrupted => return,
@@ -869,6 +870,31 @@ mod tests {
         assert!(
             start.elapsed() < Duration::from_millis(500),
             "actor write should be driven by wake fd, not the idle poll timeout"
+        );
+        handle.shutdown();
+    }
+
+    #[test]
+    fn actor_wakes_idle_poll_for_handoff_control() {
+        let (poll_tx, poll_rx) = std_mpsc::channel();
+        let (handle, _peer, _read_rx) =
+            actor_with_socket_pair_and_poll_observer(false, Some(poll_tx));
+        poll_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("actor entered idle poll");
+
+        let start = Instant::now();
+        let handoff_handle = handle.clone();
+        let handoff =
+            std::thread::spawn(move || handoff_handle.begin_handoff(Duration::from_secs(1)));
+
+        handoff
+            .join()
+            .expect("handoff thread joins")
+            .expect("handoff control should wake idle actor");
+        assert!(
+            start.elapsed() < Duration::from_millis(500),
+            "handoff control should be driven by wake fd, not the idle poll timeout"
         );
         handle.shutdown();
     }

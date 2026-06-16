@@ -120,6 +120,13 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Plugins',
+          items: [
+            { label: 'Plugins', slug: 'docs/plugins' },
+            { label: 'Marketplace', slug: 'docs/marketplace' },
+          ],
+        },
+        {
           label: 'Reference',
           items: [
             { label: 'CLI reference', slug: 'docs/cli-reference' },

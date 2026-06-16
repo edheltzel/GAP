@@ -352,3 +352,14 @@ jobs:
           git add website/latest.json docs/next/product-announcement.json
           git diff --cached --quiet || git commit -m "docs: update website manifest for v$VERSION"
           git push origin master
+
+      - name: Trigger website deploy
+        env:
+          DEPLOY_HOOK: ${{ secrets.CLOUDFLARE_PAGES_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "CLOUDFLARE_PAGES_DEPLOY_HOOK not set; relying on Cloudflare git auto-deploy"
+            exit 0
+          fi
+          curl -fsS -X POST "$DEPLOY_HOOK" > /dev/null
+          echo "Triggered Cloudflare Pages production deploy"

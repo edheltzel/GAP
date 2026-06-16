@@ -11,6 +11,7 @@ __pycache__/
 !/docs/next/
 !/docs/next/**
 /.local/
+/backlog
 
 /.pi/todos
 /.pi/issues

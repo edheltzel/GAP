@@ -55,6 +55,7 @@ pub enum AppEvent {
         agent_label: String,
         seq: Option<u64>,
         session_ref: Option<crate::agent_resume::AgentSessionRef>,
+        session_start_source: Option<String>,
     },
     /// Display-only agent metadata was reported for a pane.
     HookMetadataReported {
@@ -110,6 +111,15 @@ pub enum AppEvent {
     GitStatusRefreshed {
         results: Vec<WorkspaceGitStatus>,
         cache_updates: Vec<(std::path::PathBuf, GitStatusCacheEntry)>,
+    },
+    /// A plugin action or event command finished.
+    PluginCommandFinished {
+        log_id: String,
+        finished_unix_ms: u64,
+        exit_code: Option<i32>,
+        stdout: String,
+        stderr: String,
+        error: Option<String>,
     },
     /// Background `git worktree add` completed.
     WorktreeAddFinished(WorktreeAddResult),
