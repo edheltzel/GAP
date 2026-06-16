@@ -1,4 +1,3 @@
-lastChangelogVersion: 15.10.10
 symbolPreset: nerd
 theme: 
   dark: atlas-statusline
@@ -33,6 +32,8 @@ statusLine:
     path: 
       abbreviate: true
       maxLength: 24
+  transparent: false
+  showHookStatus: true
 modelRoles: 
   default: openai-codex/gpt-5.5
   commit: deepseek/deepseek-v4-flash
@@ -40,8 +41,9 @@ modelRoles:
   slow: openai-codex/gpt-5.5:xhigh
   smol: openai-codex/gpt-5.4-nano
 browser: 
-  headless: false
+  headless: true
   screenshotDir: ~/Pictures/agent-screenshots
+  cmux: false
 tui: 
   hyperlinks: auto
   textSizing: false
@@ -50,6 +52,7 @@ marketplace:
 todo: 
   reminders: 
     max: 5
+  eager: false
 search: 
   contextAfter: 3
 vault: 
@@ -62,12 +65,31 @@ task:
   isolation: 
     mode: auto
   enableLsp: true
+  showResolvedModelBadge: true
+  eager: false
 commands: 
   enableOpencodeUser: false
   enableOpencodeProject: false
 secrets: 
   enabled: true
 display: 
-  shimmer: classic
+  shimmer: kitt
   showTokenUsage: true
+  smoothStreaming: true
 defaultThinkingLevel: auto
+followUpMode: one-at-a-time
+interruptMode: immediate
+doubleEscapeAction: tree
+treeFilterMode: default
+autocompleteMaxVisible: 5
+eval: 
+  js: true
+providers: 
+  image: openai
+  fetch: auto
+  tinyModel: online
+  webSearch: auto
+codexResets: 
+  autoRedeem: unset
+startup: 
+  quiet: true
