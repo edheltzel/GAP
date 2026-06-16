@@ -12,20 +12,26 @@ terminal_resize_reflow = true
 js_repl = false
 
 [marketplaces.openai-bundled]
-last_updated = "2026-06-08T15:27:02Z"
+last_updated = "2026-06-16T18:44:03Z"
 source_type = "local"
 source = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled"
 
 [marketplaces.openai-primary-runtime]
-last_updated = "2026-06-01T22:07:00Z"
+last_updated = "2026-06-16T19:07:09Z"
 source_type = "local"
 source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
 [marketplaces.claude-plugins-official]
-last_updated = "2026-06-10T23:41:53Z"
-last_revision = "634ea8dfdf8e5219036ef74b9bebf73d88ceb7f1"
+last_updated = "2026-06-16T18:43:41Z"
+last_revision = "a02697f6aa54dba414198d8dbf88a4193ea3bc71"
 source_type = "git"
 source = "https://github.com/anthropics/claude-plugins-official.git"
+
+[marketplaces.compound-engineering-plugin]
+last_updated = "2026-06-16T18:43:43Z"
+last_revision = "d8d688b30d97eb5efc3142cec16dd8314ac48e47"
+source_type = "git"
+source = "https://github.com/EveryInc/compound-engineering-plugin.git"
 
 [mcp_servers.recall-memory]
 args = [
@@ -36,22 +42,21 @@ command = "/Users/ed/.bun/bin/bun"
 
 [mcp_servers.node_repl]
 args = []
-command = "/Applications/Codex.app/Contents/Resources/node_repl"
+command = "/Applications/Codex.app/Contents/Resources/cua_node/bin/node_repl"
 startup_timeout_sec = 120
 
 [mcp_servers.node_repl.env]
 NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS = "1000"
-NODE_REPL_NODE_MODULE_DIRS = ""
-NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/node"
+NODE_REPL_NODE_MODULE_DIRS = "/Applications/Codex.app/Contents/Resources/cua_node/lib/node_modules"
+NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/cua_node/bin/node"
 NODE_REPL_TRUSTED_CODE_PATHS = "/Users/ed/.codex"
 CODEX_HOME = "/Users/ed/.codex"
-NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "2de792ebdf729e85542c94275f6654821dddce546d9c7374c915f2297529e313"
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "89809670b247cbaffbc4f87d9fa9742a9038c0f4a06fb822d7f85ff19bf24215"
 BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"
 NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = "Control the in-app browser in conjunction with the Browser Plugin."
 NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = "Control the Chrome browser in conjunction with the Chrome Plugin. Prefer this method of controlling Chrome over alternatives (such as Computer Use) unless the user explicitly mentions an alternative."
 BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
-BROWSER_USE_CODEX_APP_VERSION = "26.602.40724"
-SKY_CUA_SERVICE_PATH = "/Users/ed/.codex/plugins/cache/openai-bundled/computer-use/1.0.809/Codex Computer Use.app"
+BROWSER_USE_CODEX_APP_VERSION = "26.609.71450"
 CODEX_CLI_PATH = "/Applications/Codex.app/Contents/Resources/codex"
 
 [notice]
@@ -78,13 +83,16 @@ enabled = true
 [plugins."remotion@openai-curated"]
 enabled = true
 
+[plugins."computer-use@openai-bundled"]
+enabled = true
+
 [plugins."browser@openai-bundled"]
 enabled = true
 
 [plugins."chrome@openai-bundled"]
 enabled = true
 
-[plugins."computer-use@openai-bundled"]
+[plugins."pdf@openai-primary-runtime"]
 enabled = true
 
 [projects."/Users/ed/.dotfiles"]
@@ -164,8 +172,8 @@ trusted_hash = "sha256:82cb744fa084f9b988117a3c4ff13e398eb5001a220702db33e6b677c
 
 [desktop]
 appearanceLightCodeThemeId = "catppuccin"
-appearanceTheme = "system"
-appearanceDarkCodeThemeId = "catppuccin"
+appearanceTheme = "dark"
+appearanceDarkCodeThemeId = "tokyo-night"
 usePointerCursors = false
 sansFontSize = 16
 codeFontSize = 18
@@ -437,12 +445,14 @@ EOF
 
 Run `git status` after the commit to verify success. Report the commit hash(es) and subject line(s).
 '''
+defaultTerminalLocation = "bottom"
+dock-icon-preference = "codex-dark"
 
 [desktop.appearanceLightChromeTheme]
 accent = "#8839ef"
 contrast = 100
 ink = "#4c4f69"
-opaqueWindows = true
+opaqueWindows = false
 surface = "#eff1f5"
 
 [desktop.appearanceLightChromeTheme.fonts]
@@ -454,19 +464,26 @@ diffRemoved = "#d20f39"
 skill = "#8839ef"
 
 [desktop.appearanceDarkChromeTheme]
-accent = "#cba6f7"
+accent = "#3d59a1"
 contrast = 50
-ink = "#cdd6f4"
+ink = "#a9b1d6"
 opaqueWindows = true
-surface = "#1e1e2e"
+surface = "#1a1b26"
 
 [desktop.appearanceDarkChromeTheme.fonts]
 code = "Lilex Nerd Font Mono"
+ui = "Inter"
 
 [desktop.appearanceDarkChromeTheme.semanticColors]
-diffAdded = "#a6e3a1"
-diffRemoved = "#f38ba8"
-skill = "#cba6f7"
+diffAdded = "#449dab"
+diffRemoved = "#914c54"
+skill = "#9d7cd8"
+
+[desktop.open-in-target-preferences]
+global = "ghostty"
+
+[desktop.open-in-target-preferences.perPath]
+"/Users/ed/Sites/alianza.video" = "ghostty"
 
 [mcp_servers.codegraph]
 command = "codegraph"
