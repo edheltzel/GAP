@@ -94,12 +94,12 @@ fn wait_for_socket(path: &Path, timeout: Duration) {
 fn wait_for_file(path: &Path, timeout: Duration) {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
-        if path.exists() {
+        if path.exists() && UnixStream::connect(path).is_ok() {
             return;
         }
         thread::sleep(Duration::from_millis(25));
     }
-    panic!("file did not appear at {}", path.display());
+    panic!("socket did not accept connections at {}", path.display());
 }
 
 fn spawn_server(config_home: &Path, runtime_dir: &Path, api_socket_path: &Path) -> SpawnedHerdr {
@@ -566,7 +566,7 @@ fn client_handshake(
 
 fn connect_raw_client(client_socket: &Path, cols: u16, rows: u16) -> UnixStream {
     let mut stream = UnixStream::connect(client_socket).expect("should connect to client socket");
-    client_handshake(&mut stream, 13, cols, rows).expect("handshake should succeed");
+    client_handshake(&mut stream, 14, cols, rows).expect("handshake should succeed");
     stream
 }
 

@@ -1,35 +1,64 @@
 {
   "schema_version": 1,
   "channel": "preview",
-  "base_version": "0.6.10",
-  "build_id": "2026-06-12-7ba4bfe90e7a",
-  "commit": "7ba4bfe90e7a17b11979e729d29d82723bb3b0bf",
-  "built_at": "2026-06-12T04:34:21Z",
-  "protocol": 13,
-  "notes": "Preview build 2026-06-12-7ba4bfe90e7a\n\nBuilt from `7ba4bfe90e7a` on `master`.\nBase stable: v0.6.10\nCompare: https://github.com/ogulcancelik/herdr/compare/7d6eaf5f26d1fa93b9c95c0457d43183f989fab9...7ba4bfe90e7a17b11979e729d29d82723bb3b0bf\n\n### Added\n- Add agent manifest update command\n\n### Fixed\n- Stabilize windows pane cursor rendering\n- Allow resize keys to shrink panes\n- Stop lifecycle authority detection thrash (#565)\n- Stop marking codex background terminals as working\n\n### Maintenance\n- Bump website open graph card url\n- Refresh website open graph cards\n- Add v0.6.10 hotfix changelog entry\n- Pin github actions to shas\n- Link windows beta docs in sidebar\n- Finalize release docs and add runtime blog",
+  "base_version": "0.7.0",
+  "build_id": "2026-06-15-517ca8163f7c",
+  "commit": "517ca8163f7c313bdeef565bdcb9b055ce05526c",
+  "built_at": "2026-06-15T18:09:54Z",
+  "protocol": 14,
+  "notes": "Preview build 2026-06-15-517ca8163f7c\n\nBuilt from `517ca8163f7c` on `master`.\nBase stable: v0.7.0\nCompare: https://github.com/ogulcancelik/herdr/compare/v0.7.0...517ca8163f7c313bdeef565bdcb9b055ce05526c\n\n### Maintenance\n- Fix preview release baseline after stable\n- Add plugin trust and security guidance",
   "assets": {
     "linux-x86_64": {
-      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-12-7ba4bfe90e7a/herdr-linux-x86_64",
-      "sha256": "08e89f24f105373f8ec0a335bf9234adf455b8392662bbbf8b53436f1beaa3b7"
+      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-linux-x86_64",
+      "sha256": "83813cb9d154e394cfa9ccd0c0bce958ad43a4f276e7343b38f95a829ca7f2b7"
     },
     "linux-aarch64": {
-      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-12-7ba4bfe90e7a/herdr-linux-aarch64",
-      "sha256": "cb01c595603330194bee4ccaf8e3ba24076391d504fb5b85b2effe0aff352152"
+      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-linux-aarch64",
+      "sha256": "fe27f63d437e5aa9708e9767a7354b3f59d4f901794caa6d6731c2ddd98f9724"
     },
     "macos-x86_64": {
-      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-12-7ba4bfe90e7a/herdr-macos-x86_64",
-      "sha256": "0d7a33c2c5d7734b3fff88717fca45b24de45a5e438ea90b1ccfb214ab314022"
+      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-macos-x86_64",
+      "sha256": "f624cd1ca8a8742cf0ae8eb090b814ef1c5b905d83da4142f1a34e7db3bc77ec"
     },
     "macos-aarch64": {
-      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-12-7ba4bfe90e7a/herdr-macos-aarch64",
-      "sha256": "4de019156ce125a7bd6b03d609b887db161d199ecae95d4762f4c9179ba31bc4"
+      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-macos-aarch64",
+      "sha256": "7b374b436c12b745e697229c5e1195ef011e4ed93ebb388eaa49c7b630f80f12"
     },
     "windows-x86_64": {
-      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-12-7ba4bfe90e7a/herdr-windows-x86_64.exe",
-      "sha256": "8611f6f295da398d4601433e69a1f227d1bba5b38b31504331b9e3a2e31ade87"
+      "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-windows-x86_64.exe",
+      "sha256": "9dd44fd4fb788e56e2049710f73545a7199c4eadfba4da96634e84671e5ee35a"
     }
   },
   "builds": {
+    "2026-06-15-517ca8163f7c": {
+      "base_version": "0.7.0",
+      "commit": "517ca8163f7c313bdeef565bdcb9b055ce05526c",
+      "built_at": "2026-06-15T18:09:54Z",
+      "protocol": 14,
+      "tag": "preview-2026-06-15-517ca8163f7c",
+      "assets": {
+        "linux-x86_64": {
+          "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-linux-x86_64",
+          "sha256": "83813cb9d154e394cfa9ccd0c0bce958ad43a4f276e7343b38f95a829ca7f2b7"
+        },
+        "linux-aarch64": {
+          "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-linux-aarch64",
+          "sha256": "fe27f63d437e5aa9708e9767a7354b3f59d4f901794caa6d6731c2ddd98f9724"
+        },
+        "macos-x86_64": {
+          "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-macos-x86_64",
+          "sha256": "f624cd1ca8a8742cf0ae8eb090b814ef1c5b905d83da4142f1a34e7db3bc77ec"
+        },
+        "macos-aarch64": {
+          "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-macos-aarch64",
+          "sha256": "7b374b436c12b745e697229c5e1195ef011e4ed93ebb388eaa49c7b630f80f12"
+        },
+        "windows-x86_64": {
+          "url": "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-15-517ca8163f7c/herdr-windows-x86_64.exe",
+          "sha256": "9dd44fd4fb788e56e2049710f73545a7199c4eadfba4da96634e84671e5ee35a"
+        }
+      }
+    },
     "2026-06-12-7ba4bfe90e7a": {
       "base_version": "0.6.10",
       "commit": "7ba4bfe90e7a17b11979e729d29d82723bb3b0bf",

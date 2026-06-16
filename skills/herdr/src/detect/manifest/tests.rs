@@ -156,7 +156,7 @@ line_regex = ["^exact line$"]
 #[test]
 fn remote_manifest_loads_between_local_override_and_bundled() {
     with_manifest_dirs("remote-source", || {
-        write_remote_codex(&remote_manifest("2026.06.10.3", "blocked", "remote-ready"));
+        write_remote_codex(&remote_manifest("2026.06.10.5", "blocked", "remote-ready"));
 
         let explain = explain(Agent::Codex, "remote-ready");
 
@@ -165,10 +165,10 @@ fn remote_manifest_loads_between_local_override_and_bundled() {
             explain.source,
             Some(ManifestSource::Remote { .. })
         ));
-        assert_eq!(explain.manifest_version.as_deref(), Some("2026.06.10.3"));
+        assert_eq!(explain.manifest_version.as_deref(), Some("2026.06.10.5"));
         assert_eq!(
             explain.cached_remote_version.as_deref(),
-            Some("2026.06.10.3")
+            Some("2026.06.10.5")
         );
     });
 }
@@ -176,7 +176,7 @@ fn remote_manifest_loads_between_local_override_and_bundled() {
 #[test]
 fn fallback_explain_preserves_active_manifest_version() {
     with_manifest_dirs("fallback-version", || {
-        write_remote_codex(&remote_manifest("2026.06.10.3", "blocked", "remote-ready"));
+        write_remote_codex(&remote_manifest("2026.06.10.5", "blocked", "remote-ready"));
 
         let explain = explain(Agent::Codex, "ordinary prompt text");
 
@@ -185,7 +185,7 @@ fn fallback_explain_preserves_active_manifest_version() {
             explain.fallback_reason.as_deref(),
             Some(DEFAULT_KNOWN_AGENT_IDLE_FALLBACK)
         );
-        assert_eq!(explain.manifest_version.as_deref(), Some("2026.06.10.3"));
+        assert_eq!(explain.manifest_version.as_deref(), Some("2026.06.10.5"));
         assert!(matches!(
             explain.source,
             Some(ManifestSource::Remote { .. })
@@ -216,7 +216,7 @@ fn older_cached_remote_manifest_does_not_shadow_newer_bundled_manifest() {
 #[test]
 fn local_override_shadows_cached_remote_manifest() {
     with_manifest_dirs("local-shadows-remote", || {
-        write_remote_codex(&remote_manifest("2026.06.10.3", "blocked", "remote-ready"));
+        write_remote_codex(&remote_manifest("2026.06.10.5", "blocked", "remote-ready"));
         write_local_codex(&local_manifest("idle", "local-ready"));
 
         let explain = explain(Agent::Codex, "local-ready");
@@ -226,7 +226,7 @@ fn local_override_shadows_cached_remote_manifest() {
         assert!(explain.local_override_shadowing_remote);
         assert_eq!(
             explain.cached_remote_version.as_deref(),
-            Some("2026.06.10.3")
+            Some("2026.06.10.5")
         );
     });
 }
@@ -234,7 +234,7 @@ fn local_override_shadows_cached_remote_manifest() {
 #[test]
 fn invalid_local_override_falls_back_to_cached_remote_manifest() {
     with_manifest_dirs("invalid-local-remote-fallback", || {
-        write_remote_codex(&remote_manifest("2026.06.10.3", "blocked", "remote-ready"));
+        write_remote_codex(&remote_manifest("2026.06.10.5", "blocked", "remote-ready"));
         write_local_codex("id = ");
 
         let explain = explain(Agent::Codex, "remote-ready");
@@ -251,7 +251,7 @@ fn invalid_local_override_falls_back_to_cached_remote_manifest() {
 #[test]
 fn detection_uses_cached_manifest_until_explicit_reload() {
     with_manifest_dirs("cache-boundary", || {
-        write_remote_codex(&remote_manifest("2026.06.10.3", "blocked", "cached-ready"));
+        write_remote_codex(&remote_manifest("2026.06.10.5", "blocked", "cached-ready"));
 
         let cached = explain(Agent::Codex, "cached-ready");
         assert_eq!(cached.state, AgentState::Blocked);
@@ -261,7 +261,7 @@ fn detection_uses_cached_manifest_until_explicit_reload() {
             Some("test")
         );
 
-        write_remote_codex_without_reload(&remote_manifest("2026.06.10.4", "working", "new-ready"));
+        write_remote_codex_without_reload(&remote_manifest("2026.06.10.6", "working", "new-ready"));
 
         let unchanged = explain(Agent::Codex, "new-ready");
         assert_eq!(unchanged.state, AgentState::Idle);
@@ -271,7 +271,7 @@ fn detection_uses_cached_manifest_until_explicit_reload() {
         );
         assert_eq!(
             unchanged.cached_remote_version.as_deref(),
-            Some("2026.06.10.3")
+            Some("2026.06.10.5")
         );
 
         reload_manifests();
@@ -280,7 +280,7 @@ fn detection_uses_cached_manifest_until_explicit_reload() {
         assert_eq!(reloaded.state, AgentState::Working);
         assert_eq!(
             reloaded.cached_remote_version.as_deref(),
-            Some("2026.06.10.4")
+            Some("2026.06.10.6")
         );
         assert_eq!(
             reloaded.matched_rule.as_ref().map(|rule| rule.id.as_str()),
@@ -297,6 +297,7 @@ fn all_bundled_manifests_parse_and_validate() {
         Agent::Codex,
         Agent::Gemini,
         Agent::Cursor,
+        Agent::Devin,
         Agent::Antigravity,
         Agent::Cline,
         Agent::OpenCode,
@@ -318,6 +319,65 @@ fn all_bundled_manifests_parse_and_validate() {
             agent_label(agent)
         );
     }
+}
+
+#[test]
+fn devin_manifest_detects_idle_working_and_blocked_states() {
+    let idle = explain(
+        Agent::Devin,
+        "─────────────────────────────────────────────────────\n❭ Ask Devin to build features, fix bugs, or work on\n  your code\n─────────────────────────────────────────────────────\nSWE-1.6               Context: 16k / 200k tokens (7%)",
+    );
+    assert_eq!(idle.state, AgentState::Idle);
+    assert!(idle.visible_idle);
+
+    let live_footer_idle = explain(
+        Agent::Devin,
+        "Done.\n\n────────────────────────────────────────────────── (bypass permissions on) ─\n❭\n────────────────────────────────────────────────────────────────────────────\nClaude Opus 4.6 Thinking                                    Context: 38k / 200k tokens (18%)",
+    );
+    assert_eq!(live_footer_idle.state, AgentState::Idle);
+    assert_eq!(
+        live_footer_idle
+            .matched_rule
+            .as_ref()
+            .map(|rule| rule.id.as_str()),
+        Some("live_prompt_footer")
+    );
+    assert!(live_footer_idle.visible_idle);
+
+    let welcome_footer_idle = explain(
+        Agent::Devin,
+        "⠀⠀⠀⠀⠀⣴⣾⣶⡄⠀⠀⠀⠀\n⠀⣴⣾⣶⡾⠛⠿⠟⠃⣴⣾⣶⡄  Devin CLI\n⠀⠛⠿⠟⠃⣴⣾⣶⡾⠛⠿⠟⠃  v2026.5.26-8\n⠀⣤⣶⣦⡄⠻⢿⠿⢷⣤⣶⣦⡄\n⠀⠻⢿⠿⢷⣤⣶⣦⡄⠻⢿⠿⠃  Hybrid\n⠀⠀⠀⠀⠀⠻⢿⠿⠃⠀⠀⠀⠀\n\n───────────────────────────\n❭ Ask Devin to build\n  features, fix bugs, or\n  work on your code\n───────────────────────────\nClaude Opus Looking for\n4.6 Thinkingplan mode? /\n            plan",
+    );
+    assert_eq!(welcome_footer_idle.state, AgentState::Idle);
+    assert_eq!(
+        welcome_footer_idle
+            .matched_rule
+            .as_ref()
+            .map(|rule| rule.id.as_str()),
+        Some("welcome_prompt_footer")
+    );
+    assert!(welcome_footer_idle.visible_idle);
+
+    let working = explain(
+        Agent::Devin,
+        "◔ Reading shell 91b655\n  │ Timeout: 35s\n\n⠀⡆ Running tools · 27s (esc to interrupt)\n─────────────────────────────────────────────────────\n❭ Guide Devin while it works",
+    );
+    assert_eq!(working.state, AgentState::Working);
+    assert!(working.visible_working);
+
+    let trust_prompt = explain(
+        Agent::Devin,
+        "Do you trust the authors of this directory?\nFor security, devin should not be run in directories\nwith untrusted content.\n❭ 1 Yes, trust /private/tmp/devin-hook-probe\n· 2 No, exit",
+    );
+    assert_eq!(trust_prompt.state, AgentState::Blocked);
+    assert!(trust_prompt.visible_blocker);
+
+    let permission_prompt = explain(
+        Agent::Devin,
+        "⏺ Running command\n  └ $ sleep 30\n\n❭ 1 Yes  (Approve once)\n· 2 Yes, allow `sleep` commands\n· 3 Yes, always allow `sleep` commands\n· 4 No\n↑↓ select · ↵ confirm · esc cancel",
+    );
+    assert_eq!(permission_prompt.state, AgentState::Blocked);
+    assert!(permission_prompt.visible_blocker);
 }
 
 #[test]

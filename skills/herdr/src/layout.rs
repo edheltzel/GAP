@@ -132,6 +132,30 @@ impl TileLayout {
         new_id
     }
 
+    /// Insert an existing pane id next to a target pane without allocating a new
+    /// pane or spawning a terminal runtime.
+    pub fn insert_pane_near(
+        &mut self,
+        target: PaneId,
+        moved: PaneId,
+        direction: Direction,
+        ratio: f32,
+    ) -> bool {
+        if target == moved {
+            return false;
+        }
+        let ids = self.pane_ids();
+        if !ids.contains(&target) || ids.contains(&moved) {
+            return false;
+        }
+
+        let placeholder = PaneId::from_raw(0);
+        let old = std::mem::replace(&mut self.root, Node::Pane(placeholder));
+        self.root = split_at(old, target, direction, moved, valid_split_ratio(ratio));
+        self.focus = moved;
+        true
+    }
+
     /// Close the focused pane. Returns false if it's the last pane.
     pub fn close_focused(&mut self) -> bool {
         if self.pane_count() <= 1 {
@@ -706,6 +730,22 @@ mod tests {
         assert_eq!(pane_rects(&layout), before_rects);
         assert_eq!(split_snapshot(&layout), before_splits);
         assert_eq!(layout.focused(), before_focus);
+    }
+
+    #[test]
+    fn insert_existing_pane_near_target_preserves_existing_ids_and_focuses_moved_pane() {
+        let (mut layout, root) = TileLayout::new();
+        let moved = pane(99);
+
+        assert!(layout.insert_pane_near(root, moved, Direction::Horizontal, 0.25));
+
+        assert_eq!(layout.pane_count(), 2);
+        assert_eq!(layout.pane_ids(), vec![root, moved]);
+        assert_eq!(layout.focused(), moved);
+        let splits = split_snapshot(&layout);
+        assert_eq!(splits, vec![(Direction::Horizontal, 0.25)]);
+        assert_eq!(pane_rect(&layout, root), Rect::new(0, 0, 25, 40));
+        assert_eq!(pane_rect(&layout, moved), Rect::new(25, 0, 75, 40));
     }
 
     #[test]

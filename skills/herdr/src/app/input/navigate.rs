@@ -140,6 +140,9 @@ impl App {
             crate::config::CustomCommandAction::Pane => {
                 self.spawn_pane_command(&binding.command, Vec::new())
             }
+            crate::config::CustomCommandAction::PluginAction => self
+                .invoke_plugin_action_from_keybind(binding.command.clone())
+                .map_err(std::io::Error::other),
         };
         match result {
             Ok(()) => finish_custom_command_context(&mut self.state, context, previous_mode),
@@ -317,7 +320,7 @@ impl App {
             new_cols,
             cwd,
             command,
-            &env,
+            env,
             self.state.pane_scrollback_limit_bytes,
             self.state.host_terminal_theme,
         )?;
@@ -354,6 +357,92 @@ impl App {
         self.state.remove_alias_shadowed_by_new_pane(new_pane_id);
         self.state.mode = Mode::Terminal;
         Ok(())
+    }
+
+    pub(crate) fn spawn_overlay_argv_command(
+        &mut self,
+        argv: &[String],
+        cwd: Option<std::path::PathBuf>,
+        extra_env: Vec<(String, String)>,
+        temp_files: Vec<std::path::PathBuf>,
+    ) -> std::io::Result<(usize, crate::workspace::NewPane)> {
+        let Some(ws_idx) = self.state.active else {
+            return Err(std::io::Error::other("no active workspace"));
+        };
+        let previous_focus_target = self.state.current_pane_focus_target();
+        let (rows, cols) = self.state.estimate_pane_size();
+        let new_rows = rows.max(4);
+        let new_cols = cols.max(10);
+
+        let ws = self
+            .state
+            .workspaces
+            .get(ws_idx)
+            .ok_or_else(|| std::io::Error::other("active workspace disappeared"))?;
+        let previous_focus = ws
+            .focused_pane_id()
+            .ok_or_else(|| std::io::Error::other("no focused pane"))?;
+        let cwd = cwd.or_else(|| {
+            ws.active_tab().and_then(|tab| {
+                tab.cwd_for_pane(
+                    previous_focus,
+                    &self.state.terminals,
+                    &self.terminal_runtimes,
+                )
+            })
+        });
+
+        let (tab_idx, new_pane, workspace_id) = {
+            let ws = self
+                .state
+                .workspaces
+                .get_mut(ws_idx)
+                .ok_or_else(|| std::io::Error::other("active workspace disappeared"))?;
+            let previous_zoomed = ws.active_tab().map(|tab| tab.zoomed).unwrap_or(false);
+            let result = ws.split_pane_argv_command(
+                previous_focus,
+                Direction::Horizontal,
+                new_rows,
+                new_cols,
+                cwd,
+                argv,
+                extra_env,
+                self.state.pane_scrollback_limit_bytes,
+                self.state.host_terminal_theme,
+                true,
+            );
+            let (tab_idx, new_pane) = match result {
+                Some(Ok(result)) => result,
+                Some(Err(err)) => return Err(err),
+                None => return Err(std::io::Error::other("focused pane disappeared")),
+            };
+            ws.tabs
+                .get_mut(tab_idx)
+                .ok_or_else(|| std::io::Error::other("plugin overlay tab disappeared"))?
+                .zoomed = true;
+            self.overlay_panes.insert(
+                new_pane.pane_id,
+                super::super::OverlayPaneState {
+                    ws_idx,
+                    tab_idx,
+                    previous_focus,
+                    previous_zoomed,
+                    temp_files,
+                },
+            );
+            (tab_idx, new_pane, ws.id.clone())
+        };
+
+        let new_focus_target = crate::app::state::PaneFocusTarget {
+            workspace_id,
+            pane_id: new_pane.pane_id,
+        };
+        if previous_focus_target.as_ref() != Some(&new_focus_target) {
+            self.state.previous_pane_focus = previous_focus_target;
+        }
+        self.state.switch_workspace_tab(ws_idx, tab_idx);
+        self.state.mode = Mode::Terminal;
+        Ok((ws_idx, new_pane))
     }
 }
 
@@ -1943,8 +2032,8 @@ last_pane = "prefix+tab"
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 3);
         assert_eq!(lines[0], app.state.workspaces[0].id);
-        assert_eq!(lines[1], format!("{}:1", app.state.workspaces[0].id));
-        assert_eq!(lines[2], format!("{}-1", app.state.workspaces[0].id));
+        assert_eq!(lines[1], format!("{}:t1", app.state.workspaces[0].id));
+        assert_eq!(lines[2], format!("{}:p1", app.state.workspaces[0].id));
         assert_eq!(app.state.mode, Mode::Terminal);
 
         let _ = std::fs::remove_file(output_path);

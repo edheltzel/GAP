@@ -290,7 +290,7 @@ fn render_header_status(
     } else {
         state_dot(state, seen, p)
     };
-    let tab_label = format!("tab {}/{}", ws.active_tab + 1, ws.tabs.len());
+    let tab_label = mobile_tab_status(ws);
     let row1 = Rect::new(area.x, area.y, area.width, 1);
     let tab_w = (tab_label.chars().count() as u16 + 1).min(area.width);
     let name_w = area.width.saturating_sub(tab_w);
@@ -326,6 +326,17 @@ fn render_header_status(
                 .style(Style::default().fg(p.overlay1).bg(p.panel_bg)),
             Rect::new(area.x, area.y + 1, area.width, 1),
         );
+    }
+}
+
+fn mobile_tab_status(ws: &crate::workspace::Workspace) -> String {
+    let tab_label = ws
+        .tab_display_name(ws.active_tab)
+        .unwrap_or_else(|| (ws.active_tab + 1).to_string());
+    if ws.tabs.len() <= 1 {
+        format!("tab {tab_label}")
+    } else {
+        format!("tab {tab_label} · {}/{}", ws.active_tab + 1, ws.tabs.len())
     }
 }
 
@@ -471,10 +482,9 @@ fn render_mobile_switcher_content(
             ),
         ]);
         let detail = format!(
-            "  {} · tab {}/{}",
+            "  {} · {}",
             ws.branch().unwrap_or_else(|| "shell".into()),
-            ws.active_tab + 1,
-            ws.tabs.len()
+            mobile_tab_status(ws)
         );
         render_two_line_item(
             frame,
@@ -514,10 +524,13 @@ fn render_mobile_switcher_content(
         for (idx, tab) in ws.tabs.iter().enumerate() {
             let active = idx == ws.active_tab;
             let bg = mobile_item_bg(false, active, p);
+            let display_name = ws
+                .tab_display_name(idx)
+                .unwrap_or_else(|| (idx + 1).to_string());
             let label = if tab.is_auto_named() {
-                format!("tab {}", idx + 1)
+                format!("tab {display_name}")
             } else {
-                format!("{} · {}", idx + 1, tab.display_name())
+                format!("{} · {display_name}", idx + 1)
             };
             let title = Line::from(vec![
                 Span::styled("  ", Style::default().bg(bg)),
@@ -965,6 +978,52 @@ mod tests {
         assert_eq!(mobile_agent_detail(&entry), "  idle · pi");
     }
 
+    #[test]
+    fn mobile_tab_status_uses_compact_tab_label_and_position() {
+        let mut workspace = crate::workspace::Workspace::test_new("mobile-tabs");
+        let removed_tab = workspace.test_add_tab(None);
+        workspace.test_add_tab(None);
+        assert!(workspace.close_tab(removed_tab));
+        workspace.active_tab = 1;
+
+        assert_eq!(mobile_tab_status(&workspace), "tab 2 · 2/2");
+    }
+
+    #[test]
+    fn mobile_switcher_uses_compact_tab_label_for_auto_tab_labels() {
+        let mut app = crate::app::state::AppState::test_new();
+        let mut workspace = crate::workspace::Workspace::test_new("mobile-tabs");
+        let removed_tab = workspace.test_add_tab(None);
+        workspace.test_add_tab(None);
+        assert!(workspace.close_tab(removed_tab));
+        app.workspaces = vec![workspace];
+        app.ensure_test_terminals();
+        app.active = Some(0);
+        app.selected = 0;
+        app.view.mobile_header_rect = Rect::new(0, 0, 40, 2);
+        app.view.terminal_area = Rect::new(0, 2, 40, 18);
+
+        let backend = ratatui::backend::TestBackend::new(40, 20);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| {
+                render_mobile_panel(
+                    &app,
+                    &TerminalRuntimeRegistry::new(),
+                    frame,
+                    Rect::new(0, 0, 40, 20),
+                )
+            })
+            .unwrap();
+
+        let row = (0..40)
+            .map(|x| terminal.backend().buffer()[(x, 10)].symbol())
+            .collect::<String>();
+
+        assert!(row.contains("tab 2"), "mobile tab row: {row:?}");
+        assert!(!row.contains("tab 3"), "mobile tab row: {row:?}");
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn mobile_header_uses_live_root_runtime_cwd_for_workspace_label() {
@@ -1007,6 +1066,7 @@ mod tests {
             0,
             crate::terminal_theme::TerminalTheme::default(),
             crate::pane::PaneShellConfig::new("/bin/sh", crate::config::ShellModeConfig::NonLogin),
+            &crate::pane::PaneLaunchEnv::default(),
             events,
             std::sync::Arc::new(tokio::sync::Notify::new()),
             std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),

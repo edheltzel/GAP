@@ -1,7 +1,9 @@
 import json
+import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import scripts.conventional_commits as conventional_commits
@@ -55,7 +57,84 @@ class PreviewNotesTests(unittest.TestCase):
 
     def test_hidden_subjects_include_preview_manifest_commits(self):
         self.assertTrue(preview.hidden_subject("docs: update preview manifest"))
+        self.assertTrue(preview.hidden_subject("docs: update website manifest"))
+        self.assertFalse(preview.hidden_subject("release: v0.7.0"))
         self.assertFalse(preview.hidden_subject("fix: repair preview manifest"))
+
+    def test_latest_publishable_commit_keeps_release_commits(self):
+        output = "\n".join(
+            [
+                "manifest\x00docs: update website manifest for v0.7.0",
+                "release\x00release: v0.7.0",
+                "feature\x00feat: add plugin v1 system",
+            ]
+        )
+        with mock.patch.object(preview, "run_git", return_value=output):
+            self.assertEqual(preview.latest_publishable_commit("origin/master"), "release")
+
+    def test_preview_range_base_advances_to_stable_tag(self):
+        with (
+            mock.patch.object(preview, "latest_stable_tag", return_value="v0.7.0"),
+            mock.patch.object(preview, "git_is_ancestor", return_value=True),
+        ):
+            self.assertEqual(
+                preview.preview_range_base("previous-preview", "release"),
+                "v0.7.0",
+            )
+
+    def test_preview_range_base_keeps_previous_preview_for_unreleased_work(self):
+        def is_ancestor(ancestor: str, descendant: str) -> bool:
+            return (ancestor, descendant) == ("v0.7.0", "new-feature")
+
+        with (
+            mock.patch.object(preview, "latest_stable_tag", return_value="v0.7.0"),
+            mock.patch.object(preview, "git_is_ancestor", side_effect=is_ancestor),
+        ):
+            self.assertEqual(
+                preview.preview_range_base("previous-preview", "new-feature"),
+                "previous-preview",
+            )
+
+    def test_post_stable_history_selects_release_and_bases_range_on_stable_tag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+
+            def git(*args: str) -> str:
+                return subprocess.check_output(
+                    ["git", *args],
+                    cwd=repo,
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                ).strip()
+
+            git("init")
+            git("config", "user.email", "test@example.com")
+            git("config", "user.name", "Test User")
+
+            marker = repo / "marker.txt"
+            marker.write_text("preview\n", encoding="utf-8")
+            git("add", "marker.txt")
+            git("commit", "-m", "feat: previous preview")
+            previous_preview = git("rev-parse", "HEAD")
+
+            marker.write_text("release\n", encoding="utf-8")
+            git("commit", "-am", "release: v0.7.0")
+            release = git("rev-parse", "HEAD")
+            git("tag", "v0.7.0")
+
+            marker.write_text("manifest\n", encoding="utf-8")
+            git("commit", "-am", "docs: update website manifest for v0.7.0")
+
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(repo)
+                self.assertEqual(preview.latest_publishable_commit("HEAD"), release)
+                self.assertEqual(
+                    preview.preview_range_base(previous_preview, release),
+                    "v0.7.0",
+                )
+            finally:
+                os.chdir(original_cwd)
 
     def test_preview_docs_rewrite_links_to_preview_namespace(self):
         source = """---

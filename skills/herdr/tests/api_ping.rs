@@ -304,7 +304,7 @@ fn ping_over_socket_returns_version() {
     assert_eq!(value["result"]["version"], env!("CARGO_PKG_VERSION"));
     // Intentionally hardcoded so wire protocol bumps require updating this test.
     // Changing this value means old clients/servers are no longer compatible.
-    assert_eq!(value["result"]["protocol"], 13);
+    assert_eq!(value["result"]["protocol"], 14);
 
     cleanup_spawned_herdr(child, base);
 }
@@ -406,7 +406,7 @@ fn workspace_list_and_create_round_trip() {
     assert_eq!(created["result"]["workspace"]["tab_count"], 1);
     assert_eq!(created["result"]["tab"]["tab_id"], active_tab_id);
     assert_eq!(created["result"]["root_pane"]["tab_id"], active_tab_id);
-    assert_eq!(active_tab_id, format!("{workspace_id}:1"));
+    assert_eq!(active_tab_id, format!("{workspace_id}:t1"));
 
     let listed = send_request(
         &socket_path,
@@ -436,6 +436,7 @@ fn workspace_list_and_create_round_trip() {
     let pane_id = panes[0]["pane_id"].as_str().unwrap().to_string();
     assert_eq!(pane_id, root_pane_id);
     assert_eq!(panes[0]["terminal_id"], root_terminal_id);
+    let legacy_pane_id = format!("{workspace_id}-1");
 
     let pane = send_request(
         &socket_path,
@@ -451,7 +452,7 @@ fn workspace_list_and_create_round_trip() {
         &socket_path,
         &format!(
             r#"{{"id":"req_8","method":"pane.read","params":{{"pane_id":"{}","source":"visible"}}}}"#,
-            pane_id
+            legacy_pane_id
         ),
     );
     assert_eq!(read["result"]["read"]["pane_id"], pane_id);
@@ -492,10 +493,12 @@ fn workspace_list_and_create_round_trip() {
         &socket_path,
         &format!(
             r#"{{"id":"req_12","method":"pane.wait_for_output","params":{{"pane_id":"{}","source":"recent","lines":40,"match":{{"type":"substring","value":"gamma"}},"timeout_ms":2000}}}}"#,
-            pane_id
+            legacy_pane_id
         ),
     );
     assert_eq!(waited["result"]["type"], "output_matched");
+    assert_eq!(waited["result"]["pane_id"], pane_id);
+    assert_eq!(waited["result"]["read"]["pane_id"], pane_id);
     assert!(waited["result"]["matched_line"]
         .as_str()
         .unwrap()
@@ -522,6 +525,8 @@ fn workspace_list_and_create_round_trip() {
         ),
     );
     assert_eq!(waited_delta["result"]["type"], "output_matched");
+    assert_eq!(waited_delta["result"]["pane_id"], pane_id);
+    assert_eq!(waited_delta["result"]["read"]["pane_id"], pane_id);
     assert!(waited_delta["result"]["matched_line"]
         .as_str()
         .unwrap()
@@ -535,6 +540,8 @@ fn workspace_list_and_create_round_trip() {
         ),
     );
     assert_eq!(waited_regex["result"]["type"], "output_matched");
+    assert_eq!(waited_regex["result"]["pane_id"], pane_id);
+    assert_eq!(waited_regex["result"]["read"]["pane_id"], pane_id);
     assert!(waited_regex["result"]["matched_line"]
         .as_str()
         .unwrap()
@@ -579,7 +586,7 @@ fn tab_methods_round_trip_over_socket() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(first_tab_id, format!("{workspace_id}:1"));
+    assert_eq!(first_tab_id, format!("{workspace_id}:t1"));
 
     let tab_created = send_request(
         &socket_path,
@@ -603,7 +610,7 @@ fn tab_methods_round_trip_over_socket() {
         .to_string();
     assert!(second_root_terminal_id.starts_with("term_"));
     assert_ne!(second_root_terminal_id, second_root_pane_id);
-    assert_eq!(second_tab_id, format!("{workspace_id}:2"));
+    assert_eq!(second_tab_id, format!("{workspace_id}:t2"));
     assert_eq!(tab_created["result"]["tab"]["focused"], true);
     assert_eq!(tab_created["result"]["root_pane"]["tab_id"], second_tab_id);
 
@@ -698,7 +705,6 @@ fn pane_info_reports_foreground_cwd_without_changing_pane_cwd() {
         .as_str()
         .unwrap()
         .to_string();
-
     let command = format!(
         "/bin/sh -c 'cd {} && printf %s $$ > {} && touch {} && sleep 30'",
         foreground.display(),
@@ -1044,7 +1050,7 @@ fn tab_create_with_no_focus_preserves_active_tab() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(second_tab_id, format!("{workspace_id}:2"));
+    assert_eq!(second_tab_id, format!("{workspace_id}:t2"));
     assert_eq!(tab_created["result"]["tab"]["focused"], false);
 
     let tab_list = send_request(
@@ -1140,7 +1146,7 @@ fn events_subscribe_streams_workspace_tab_and_agent_events() {
     let workspace_focused = event_by_kind(&initial_events, "workspace_focused");
     assert_eq!(workspace_focused["data"]["workspace_id"], workspace_id);
 
-    let first_tab_id = format!("{workspace_id}:1");
+    let first_tab_id = format!("{workspace_id}:t1");
     let tab_created = event_by_kind(&initial_events, "tab_created");
     assert_eq!(tab_created["data"]["tab"]["tab_id"], first_tab_id);
     let tab_focused = event_by_kind(&initial_events, "tab_focused");
@@ -1186,7 +1192,7 @@ fn events_subscribe_streams_workspace_tab_and_agent_events() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(second_tab_id, format!("{workspace_id}:2"));
+    assert_eq!(second_tab_id, format!("{workspace_id}:t2"));
 
     let created_tab_event = wait_for_event(&mut reader, "tab_created", Duration::from_secs(2));
     assert_eq!(created_tab_event["data"]["tab"]["tab_id"], second_tab_id);
@@ -1227,11 +1233,14 @@ fn events_subscribe_streams_pane_split_and_close_events() {
             base.display()
         ),
     );
+    let pane_id = created["result"]["root_pane"]["pane_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let workspace_id = created["result"]["workspace"]["workspace_id"]
         .as_str()
         .unwrap()
         .to_string();
-    let pane_id = format!("{workspace_id}-1");
 
     let mut reader = open_subscription(
         &socket_path,
@@ -1265,8 +1274,8 @@ fn events_subscribe_streams_pane_split_and_close_events() {
     let closed = send_request(
         &socket_path,
         &format!(
-            r#"{{"id":"req_pc_3","method":"pane.close","params":{{"pane_id":"{}"}}}}"#,
-            split_pane_id
+            r#"{{"id":"req_pc_3","method":"pane.close","params":{{"pane_id":"{}-2"}}}}"#,
+            workspace_id
         ),
     );
     assert_eq!(closed["result"]["type"], "ok");
@@ -1330,8 +1339,8 @@ fn events_subscribe_streams_tab_and_workspace_close_events() {
     let closed_tab = send_request(
         &socket_path,
         &format!(
-            r#"{{"id":"req_tc_3","method":"tab.close","params":{{"tab_id":"{}"}}}}"#,
-            second_tab_id
+            r#"{{"id":"req_tc_3","method":"tab.close","params":{{"tab_id":"{}:2"}}}}"#,
+            workspace_id
         ),
     );
     assert_eq!(closed_tab["result"]["type"], "ok");
@@ -1355,10 +1364,7 @@ fn events_subscribe_streams_tab_and_workspace_close_events() {
 
     let closed_ws = send_request(
         &socket_path,
-        &format!(
-            r#"{{"id":"req_tc_5","method":"workspace.close","params":{{"workspace_id":"{}"}}}}"#,
-            workspace_id
-        ),
+        r#"{"id":"req_tc_5","method":"workspace.close","params":{"workspace_id":"1"}}"#,
     );
     assert_eq!(closed_ws["result"]["type"], "ok");
 
@@ -1407,10 +1413,10 @@ fn pane_report_agent_updates_effective_state() {
             base.display()
         ),
     );
-    let pane_id = created["result"]["workspace"]["workspace_id"]
+    let pane_id = created["result"]["root_pane"]["pane_id"]
         .as_str()
-        .map(|workspace_id| format!("{}-1", workspace_id))
-        .unwrap();
+        .unwrap()
+        .to_string();
 
     let send_pi = send_request(
         &socket_path,
@@ -1549,7 +1555,7 @@ fn pane_report_agent_updates_effective_state() {
     );
     assert_eq!(
         blank_source_metadata["error"]["code"],
-        "invalid_metadata_request"
+        "invalid_metadata_source"
     );
 
     let blank_title_clear_metadata = send_request(
@@ -1573,7 +1579,7 @@ fn pane_report_agent_updates_effective_state() {
     );
     assert_eq!(
         blank_authority_source_metadata["error"]["code"],
-        "invalid_metadata_request"
+        "invalid_metadata_source"
     );
 
     cleanup_spawned_herdr(child, base);
@@ -1597,10 +1603,10 @@ fn pane_report_agent_accepts_unknown_agent_labels() {
             base.display()
         ),
     );
-    let pane_id = created["result"]["workspace"]["workspace_id"]
+    let pane_id = created["result"]["root_pane"]["pane_id"]
         .as_str()
-        .map(|workspace_id| format!("{}-1", workspace_id))
-        .unwrap();
+        .unwrap()
+        .to_string();
 
     let hook = send_request(
         &socket_path,
@@ -1670,10 +1676,10 @@ fn pane_release_agent_suppresses_reacquire_during_graceful_exit() {
             base.display()
         ),
     );
-    let pane_id = created["result"]["workspace"]["workspace_id"]
+    let pane_id = created["result"]["root_pane"]["pane_id"]
         .as_str()
-        .map(|workspace_id| format!("{}-1", workspace_id))
-        .unwrap();
+        .unwrap()
+        .to_string();
 
     let send_pi = send_request(
         &socket_path,
@@ -1810,10 +1816,10 @@ fn pane_clear_agent_authority_restores_fallback_state() {
             base.display()
         ),
     );
-    let pane_id = created["result"]["workspace"]["workspace_id"]
+    let pane_id = created["result"]["root_pane"]["pane_id"]
         .as_str()
-        .map(|workspace_id| format!("{}-1", workspace_id))
-        .unwrap();
+        .unwrap()
+        .to_string();
 
     let send_pi = send_request(
         &socket_path,
@@ -1935,7 +1941,10 @@ fn events_subscribe_streams_output_and_agent_status_events() {
             base.display()
         ),
     );
-    assert!(created["result"]["workspace"]["workspace_id"].is_string());
+    let workspace_id = created["result"]["workspace"]["workspace_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let panes = send_request(
         &socket_path,
@@ -1945,12 +1954,13 @@ fn events_subscribe_streams_output_and_agent_status_events() {
         .as_str()
         .unwrap()
         .to_string();
+    let legacy_pane_id = format!("{workspace_id}-1");
 
     let mut reader = open_subscription(
         &socket_path,
         &format!(
             r#"{{"id":"sub_1","method":"events.subscribe","params":{{"subscriptions":[{{"type":"pane.output_matched","pane_id":"{}","source":"recent","lines":40,"match":{{"type":"substring","value":"hello from socket"}}}},{{"type":"pane.agent_status_changed","pane_id":"{}","agent_status":"idle"}}]}}}}"#,
-            pane_id, pane_id,
+            legacy_pane_id, legacy_pane_id,
         ),
     );
 
@@ -1978,6 +1988,7 @@ fn events_subscribe_streams_output_and_agent_status_events() {
     let output_event = reader.read_json_line(Duration::from_secs(3));
     assert_eq!(output_event["event"], "pane.output_matched");
     assert_eq!(output_event["data"]["pane_id"], pane_id);
+    assert_eq!(output_event["data"]["read"]["pane_id"], pane_id);
     assert!(output_event["data"]["matched_line"]
         .as_str()
         .unwrap()
@@ -2062,7 +2073,10 @@ fn pane_info_and_subscriptions_expose_done_agent_status() {
         .as_str()
         .unwrap()
         .to_string();
-    let background_pane_id = format!("{}-1", workspace_id);
+    let background_pane_id = created["result"]["root_pane"]["pane_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let tab_created = send_request(
         &socket_path,
@@ -2178,10 +2192,10 @@ fn metadata_status_subscription_filter_and_ttl_expiry_are_observable() {
             base.display()
         ),
     );
-    let pane_id = created["result"]["workspace"]["workspace_id"]
+    let pane_id = created["result"]["root_pane"]["pane_id"]
         .as_str()
-        .map(|workspace_id| format!("{}-1", workspace_id))
-        .unwrap();
+        .unwrap()
+        .to_string();
 
     let report_agent = send_request(
         &socket_path,

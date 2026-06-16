@@ -95,7 +95,7 @@ pub(super) fn wait_for_output(
                 serde_json::to_string(&SuccessResponse {
                     id: request_id,
                     result: ResponseResult::OutputMatched {
-                        pane_id: params.pane_id,
+                        pane_id: read.pane_id.clone(),
                         revision,
                         matched_line,
                         read,

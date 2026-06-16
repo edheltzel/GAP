@@ -20,7 +20,6 @@ EXPECTED_ASSET_NAMES = {
     "windows-x86_64": "herdr-windows-x86_64.exe",
 }
 HIDDEN_SUBJECTS = (
-    "release:",
     "docs: update website manifest",
     "docs: update preview manifest",
     "chore: approve contributor",
@@ -48,8 +47,21 @@ def normalize_version(version: str) -> str:
     return version.strip().removeprefix("v")
 
 
-def latest_stable_tag() -> str:
-    return run_git(["describe", "--tags", "--match", "v[0-9]*", "--abbrev=0"])
+def latest_stable_tag(ref: str | None = None) -> str:
+    args = ["describe", "--tags", "--match", "v[0-9]*", "--abbrev=0"]
+    if ref:
+        args.append(ref)
+    return run_git(args)
+
+
+def git_is_ancestor(ancestor: str, descendant: str) -> bool:
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return result.returncode == 0
 
 
 def read_json(path: Path) -> dict[str, Any] | None:
@@ -93,6 +105,16 @@ def commit_subjects(previous: str, commit: str) -> list[str]:
             continue
         subjects.append(stripped)
     return subjects
+
+
+def preview_range_base(previous: str, commit: str) -> str:
+    try:
+        stable = latest_stable_tag(commit)
+    except subprocess.CalledProcessError:
+        return previous
+    if git_is_ancestor(previous, stable) and git_is_ancestor(stable, commit):
+        return stable
+    return previous
 
 
 def humanize_subject(subject: str) -> tuple[str, str]:
@@ -258,6 +280,11 @@ def cmd_select_commit(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_range_base(args: argparse.Namespace) -> int:
+    print(preview_range_base(args.previous, args.commit))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Preview channel release helpers")
     sub = parser.add_subparsers(required=True)
@@ -293,6 +320,11 @@ def main() -> int:
     select = sub.add_parser("select-commit")
     select.add_argument("--ref", default="origin/master")
     select.set_defaults(func=cmd_select_commit)
+
+    range_base = sub.add_parser("range-base")
+    range_base.add_argument("--previous", required=True)
+    range_base.add_argument("--commit", required=True)
+    range_base.set_defaults(func=cmd_range_base)
 
     args = parser.parse_args()
     return args.func(args)

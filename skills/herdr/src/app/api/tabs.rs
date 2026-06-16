@@ -52,6 +52,7 @@ impl App {
             cwd,
             focus,
             label,
+            env,
         } = params;
         let ws_idx = if let Some(workspace_id) = workspace_id {
             let Some(ws_idx) = self.parse_workspace_id(&workspace_id) else {
@@ -74,6 +75,10 @@ impl App {
         let default_shell = self.state.default_shell.clone();
         let scrollback_limit_bytes = self.state.pane_scrollback_limit_bytes;
         let host_terminal_theme = self.state.host_terminal_theme;
+        let extra_env = match super::env::normalize_launch_env(env) {
+            Ok(env) => env,
+            Err((code, message)) => return encode_error(id, &code, message),
+        };
         let result = self
             .state
             .workspaces
@@ -87,6 +92,7 @@ impl App {
                     scrollback_limit_bytes,
                     host_terminal_theme,
                     crate::pane::PaneShellConfig::new(&default_shell, self.state.shell_mode),
+                    extra_env,
                 )
             });
         match result {
@@ -98,9 +104,9 @@ impl App {
                 );
                 if let Some(label) = label {
                     let workspace_id = self.state.workspaces[ws_idx].id.clone();
-                    let tab_id = self
-                        .public_tab_id(ws_idx, tab_idx)
-                        .unwrap_or_else(|| format!("{}:{}", workspace_id, tab_idx + 1));
+                    let tab_id = self.public_tab_id(ws_idx, tab_idx).unwrap_or_else(|| {
+                        crate::workspace::public_tab_id_for_number(&workspace_id, tab_idx + 1)
+                    });
                     if let Some(tab) = self
                         .state
                         .workspaces
@@ -155,9 +161,9 @@ impl App {
             return tab_not_found(id, &params.tab_id);
         };
         let workspace_id = self.state.workspaces[ws_idx].id.clone();
-        let tab_id = self
-            .public_tab_id(ws_idx, tab_idx)
-            .unwrap_or_else(|| format!("{}:{}", workspace_id, tab_idx + 1));
+        let tab_id = self.public_tab_id(ws_idx, tab_idx).unwrap_or_else(|| {
+            crate::workspace::public_tab_id_for_number(&workspace_id, tab_idx + 1)
+        });
         let Some(tab) = self
             .state
             .workspaces
@@ -186,7 +192,18 @@ impl App {
         let Some((ws_idx, tab_idx)) = self.parse_tab_id(&target.tab_id) else {
             return tab_not_found(id, &target.tab_id);
         };
+        let Some(tab_id) = self.public_tab_id(ws_idx, tab_idx) else {
+            return tab_not_found(id, &target.tab_id);
+        };
+        let workspace_id = self.public_workspace_id(ws_idx);
         let terminal_ids = self.state.terminal_ids_for_tab(ws_idx, tab_idx);
+        let pane_ids = self
+            .state
+            .workspaces
+            .get(ws_idx)
+            .and_then(|ws| ws.tabs.get(tab_idx))
+            .map(|tab| tab.layout.pane_ids())
+            .unwrap_or_default();
         let Some(ws) = self.state.workspaces.get_mut(ws_idx) else {
             return tab_not_found(id, &target.tab_id);
         };
@@ -204,14 +221,17 @@ impl App {
                 format!("tab {} could not be closed", target.tab_id),
             );
         }
+        for pane_id in pane_ids {
+            self.state.plugin_panes.remove(&pane_id);
+        }
         self.state.remove_unattached_terminal_ids(terminal_ids);
         self.shutdown_detached_terminal_runtimes();
         self.schedule_session_save();
         self.emit_event(EventEnvelope {
             event: EventKind::TabClosed,
             data: EventData::TabClosed {
-                tab_id: target.tab_id,
-                workspace_id: self.public_workspace_id(ws_idx),
+                tab_id,
+                workspace_id,
             },
         });
 
