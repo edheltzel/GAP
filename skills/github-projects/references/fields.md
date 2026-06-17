@@ -48,7 +48,8 @@ Options:
       "options": [
         {"id": "opt1", "name": "Todo"},
         {"id": "opt2", "name": "In Progress"},
-        {"id": "opt3", "name": "Done"}
+        {"id": "opt3", "name": "In Review"},
+        {"id": "opt4", "name": "Done"}
       ]
     },
     {

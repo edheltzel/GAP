@@ -3,7 +3,7 @@ personality = "pragmatic"
 
 notify = ["/Users/ed/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient", "turn-ended"]
 model = "gpt-5.5"
-model_reasoning_effort = "medium"
+model_reasoning_effort = "xhigh"
 
 [features]
 hooks = true
@@ -12,7 +12,7 @@ terminal_resize_reflow = true
 js_repl = false
 
 [marketplaces.openai-bundled]
-last_updated = "2026-06-16T18:44:03Z"
+last_updated = "2026-06-17T14:57:54Z"
 source_type = "local"
 source = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled"
 
@@ -22,8 +22,8 @@ source_type = "local"
 source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
 [marketplaces.claude-plugins-official]
-last_updated = "2026-06-16T18:43:41Z"
-last_revision = "a02697f6aa54dba414198d8dbf88a4193ea3bc71"
+last_updated = "2026-06-17T14:57:46Z"
+last_revision = "c1ff4a139891a99e1d299ace5e92aade9dc6eece"
 source_type = "git"
 source = "https://github.com/anthropics/claude-plugins-official.git"
 
@@ -51,12 +51,12 @@ NODE_REPL_NODE_MODULE_DIRS = "/Applications/Codex.app/Contents/Resources/cua_nod
 NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/cua_node/bin/node"
 NODE_REPL_TRUSTED_CODE_PATHS = "/Users/ed/.codex"
 CODEX_HOME = "/Users/ed/.codex"
-NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "89809670b247cbaffbc4f87d9fa9742a9038c0f4a06fb822d7f85ff19bf24215"
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "eb55d24cf065cd5311af6f99b16bade2b7a670790ff2db9accf60d012dd55dd1"
 BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"
 NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = "Control the in-app browser in conjunction with the Browser Plugin."
 NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = "Control the Chrome browser in conjunction with the Chrome Plugin. Prefer this method of controlling Chrome over alternatives (such as Computer Use) unless the user explicitly mentions an alternative."
 BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
-BROWSER_USE_CODEX_APP_VERSION = "26.609.71450"
+BROWSER_USE_CODEX_APP_VERSION = "26.611.62324"
 CODEX_CLI_PATH = "/Applications/Codex.app/Contents/Resources/codex"
 
 [notice]
@@ -172,7 +172,7 @@ trusted_hash = "sha256:82cb744fa084f9b988117a3c4ff13e398eb5001a220702db33e6b677c
 
 [desktop]
 appearanceLightCodeThemeId = "catppuccin"
-appearanceTheme = "dark"
+appearanceTheme = "light"
 appearanceDarkCodeThemeId = "tokyo-night"
 usePointerCursors = false
 sansFontSize = 16
@@ -446,17 +446,16 @@ EOF
 Run `git status` after the commit to verify success. Report the commit hash(es) and subject line(s).
 '''
 defaultTerminalLocation = "bottom"
-dock-icon-preference = "codex-dark"
+dock-icon-preference = "app-default"
 
 [desktop.appearanceLightChromeTheme]
 accent = "#8839ef"
 contrast = 100
 ink = "#4c4f69"
-opaqueWindows = false
+opaqueWindows = true
 surface = "#eff1f5"
 
 [desktop.appearanceLightChromeTheme.fonts]
-code = "Lilex Nerd Font Mono"
 
 [desktop.appearanceLightChromeTheme.semanticColors]
 diffAdded = "#40a02b"
