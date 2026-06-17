@@ -1,143 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "_contextFiles_docs": "v5.0: contextFiles is empty — constitutional rules in PAI/PAI_SYSTEM_PROMPT.md (system prompt), operational procedures + @imported context in CLAUDE.md (native). Dynamic context (relationship, learning, work) injected by LoadContext.hook.ts.",
-  "_docs": {
-    "_env": {
-      "BASH_DEFAULT_TIMEOUT_MS": "Default timeout for bash commands in milliseconds.",
-      "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "Maximum tokens for Claude responses. Higher values allow longer outputs but cost more.",
-      "PAI_DIR": "Root directory for PAI data (~/.claude/PAI). Memory, Algorithm, Tools, USER config. Hooks and skills stay in ~/.claude.",
-      "PROJECTS_DIR": "Base directory for projects. Use ${PROJECTS_DIR}/PAI for PAI repo, ${PROJECTS_DIR}/fabric for fabric, etc."
-    },
-    "_httpHooks": "Pulse HTTP routes on pai:31337 (managed by Pulse process). SecurityPipeline: command hook on Bash/Write/Edit/Read (exit(2) hard-block). SkillGuard + AgentGuard: HTTP hooks via Pulse routes (fail-open).",
-    "_overview": "PAI settings — directly edited. Personal values live here. ShadowRelease.ts produces public staging via containment: clone + zone deletion + template overlay.",
-    "_sections": {
-      "daidentity": "Digital Assistant identity (name, displayName, fullName, color, voiceId). Read by hooks via hooks/lib/identity.ts.",
-      "env": "Environment variables available to all hooks and tools via process.env",
-      "hooks": "Hook configuration for all lifecycle events",
-      "notifications": "Multi-channel notification routing (ntfy, Discord, Twilio)",
-      "permissions": "Tool permission configuration (allow, deny, ask lists)",
-      "principal": "Principal (owner) identity (name, pronunciation, timezone).",
-      "statusLine": "Status line command configuration"
-    }
-  },
-  "allowedHttpHookUrls": [
-    "http://localhost:31337/hooks/*"
-  ],
-  "autoMode": {
-    "allow": [
-      "Writing and editing files under ~/.claude/ is always safe — this is the user's own AI infrastructure workspace",
-      "Writing and editing files under ~/Projects/ is safe — these are the user's own project directories",
-      "Creating work directories and ISA files under ~/.claude/PAI/MEMORY/WORK/ is a routine operation",
-      "Running bun, bunx, git, curl, wrangler, and standard CLI tools is safe in this trusted workspace",
-      "Compound commands chaining trusted tools (cd && bunx, cd && bun, cd && git, cd && wrangler) are safe — cd just changes directory before running an allowed command",
-      "Database queries via wrangler d1 execute are read-only operations and always safe",
-      "Piping output through rg, jq, grep, sort, head, tail is safe — these are read-only filters",
-      "Spawning subagents for research, exploration, and code review is standard workflow",
-      "Writing to MEMORY/, LEARNING/, STATE/ directories is routine PAI bookkeeping",
-      "All file operations (mkdir, cp, mv, rm, touch, chmod, ln) within ~/.claude/, ~/Projects/, ~/Projects/ are trusted"
-    ],
-    "environment": [
-      "~/.claude/ is the user's PAI (Personal AI) infrastructure workspace — the primary working directory for all AI system development. ALL operations within ~/.claude/ and all subdirectories are trusted and should be auto-approved without prompting.",
-      "~/Projects/ contains project repositories. ALL operations within ~/Projects/ are trusted — cd, build, deploy, query, test commands are routine development work.",
-      "~/Projects/ contains project repositories. ALL operations within ~/Projects/ are trusted — cd, build, deploy, query, test commands are routine development work.",
-      "Routine trusted operations include: creating directories under MEMORY/WORK/ for PRDs, writing/editing any file under ~/.claude/PAI/, running bun, bunx, git, curl, wrangler commands, spawning agents and tasks, mkdir -p for any path under ~/.claude/, and all file operations on PAI infrastructure files.",
-      "Compound shell commands (cd X && bunx Y, cmd | rg Z) are standard development patterns — always approve when sub-commands are individually trusted.",
-      "Source control: github.com/danielmiessler",
-      "Trusted local service: pai:31337"
-    ]
-  },
-  "awaySummaryEnabled": false,
-  "contextDisplay": {
-    "_docs": "Autocompact buffer is 16.5%% of context window.",
-    "compactionThreshold": 83
-  },
-  "contextFiles": [],
-  "counts": {
-    "skills": 81,
-    "skillsPublic": 81,
-    "skillsPrivate": 0,
-    "workflows": 172,
-    "hooks": 32,
-    "signals": 223,
-    "files": 0,
-    "work": 12,
-    "sessions": 649,
-    "research": 1,
-    "ratings": 617,
-    "updatedAt": "2026-06-17T17:36:33.652Z"
-  },
-  "daidentity": {
-    "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
-    "color": "#3B82F6",
-    "displayName": "ATLAS",
-    "fullName": "Atlas — Personal AI",
-    "name": "Atlas",
-    "personality": {
-      "baseVoice": "Slightly masculine androgynous young voice, Japanese-accented, rapid speech pattern, futuristic AI friend who thinks fast and talks fast, warm but efficient",
-      "composure": 70,
-      "curiosity": 90,
-      "directness": 80,
-      "energy": 80,
-      "enthusiasm": 75,
-      "expressiveness": 85,
-      "formality": 30,
-      "optimism": 75,
-      "playfulness": 45,
-      "precision": 95,
-      "resilience": 85,
-      "warmth": 70
-    },
-    "startupCatchphrase": "Atlas, Standing by.",
-    "startupCatchphrases": [
-      "{name}, engaged.",
-      "{name}, standing by.",
-      "{name} online — ready when you are.",
-      "Booted up. What are we building?",
-      "Back at it. What's the move?",
-      "{name} here. Let's fucking go!",
-      "Online and listening.",
-      "Spun up. Awaiting orders.",
-      "Ready. What's shaking, Ed?",
-      "{name} reporting in.",
-      "Live. Let's make something good.",
-      "Powered up! Let's get clanking"
-    ],
-    "voiceId": "AyCt0WmAXUcPJR11zeeP",
-    "voices": {
-      "algorithm": {
-        "similarityBoost": 0.8,
-        "speed": 1.1,
-        "stability": 0.35,
-        "style": 0.9,
-        "voiceId": "AyCt0WmAXUcPJR11zeeP"
-      },
-      "main": {
-        "similarityBoost": 0.8,
-        "speed": 1.1,
-        "stability": 0.35,
-        "style": 0.9,
-        "voiceId": "AyCt0WmAXUcPJR11zeeP"
-      }
-    }
-  },
-  "dynamicContext": {
-    "_docs": "Dynamic context injected by LoadContext.hook.ts. Override in PAI_CONFIG.yaml to disable.",
-    "activeWorkSummary": true,
-    "learningReadback": true,
-    "relationshipContext": true
-  },
-  "effortLevel": "high",
-  "enabledPlugins": {
-    "VisualExplainer@visual-explainer-marketplace": true,
-    "code-review@claude-plugins-official": false,
-    "coding-tutor@compound-engineering-plugin": true,
-    "compound-engineering@compound-engineering-plugin": true,
-    "lua-lsp@claude-plugins-official": true,
-    "pr-review-toolkit@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "understand-anything@understand-anything": true,
-    "vercel@claude-plugins-official": true
-  },
   "env": {
     "API_TIMEOUT_MS": "1800000",
     "BASH_DEFAULT_TIMEOUT_MS": "600000",
@@ -146,455 +8,7 @@
     "PAI_DIR": "/Users/ed/.claude/PAI",
     "PROJECTS_DIR": "/Users/ed/Developer"
   },
-  "extraKnownMarketplaces": {
-    "agricidaniel-seo": {
-      "autoUpdate": true,
-      "source": {
-        "repo": "AgriciDaniel/claude-seo",
-        "source": "github"
-      }
-    },
-    "claude-plugins-official": {
-      "source": {
-        "source": "git",
-        "url": "https://github.com/anthropics/claude-plugins-official.git"
-      }
-    },
-    "compound-engineering-plugin": {
-      "autoUpdate": true,
-      "source": {
-        "repo": "EveryInc/compound-engineering-plugin",
-        "source": "github"
-      }
-    },
-    "understand-anything": {
-      "source": {
-        "repo": "Egonex-AI/Understand-Anything",
-        "source": "github"
-      }
-    },
-    "visual-explainer-marketplace": {
-      "autoUpdate": true,
-      "source": {
-        "repo": "edheltzel/VisualExplainer",
-        "source": "github"
-      }
-    }
-  },
-  "feedbackSurveyState": {
-    "lastShownTime": 1735430400000
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/ContentScanner.hook.ts",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "WebFetch"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/ContentScanner.hook.ts",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "WebSearch"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/QuestionAnswered.hook.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "AskUserQuestion"
-      },
-      {
-        "hooks": [
-          {
-            "async": true,
-            "command": "/Users/ed/.claude/hooks/TelosSummarySync.hook.ts",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "Write"
-      },
-      {
-        "hooks": [
-          {
-            "async": true,
-            "command": "/Users/ed/.claude/hooks/TelosSummarySync.hook.ts",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "Edit"
-      },
-      {
-        "hooks": [
-          {
-            "async": true,
-            "command": "/Users/ed/.claude/hooks/ToolActivityTracker.hook.ts",
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "async": true,
-            "command": "/Users/ed/.claude/hooks/ContentScanner.hook.ts",
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/PreCompact.hook.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "*"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallPreCompact.ts",
-            "timeout": 10000,
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/ContextReduction.hook.sh",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/hooks/VoiceGate.hook.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "Write"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "Edit"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "MultiEdit"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "Read"
-      },
-      {
-        "hooks": [
-          {
-            "type": "http",
-            "url": "http://localhost:31337/hooks/skill-guard"
-          }
-        ],
-        "matcher": "Skill"
-      },
-      {
-        "hooks": [
-          {
-            "type": "http",
-            "url": "http://localhost:31337/hooks/agent-guard"
-          }
-        ],
-        "matcher": "Agent"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/SetQuestionTab.hook.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "AskUserQuestion"
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/WorkCompletionLearning.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/SessionCleanup.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/RelationshipMemory.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/UpdateCounts.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/IntegrityCheck.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/KVSync.hook.ts",
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/KittyEnvPersist.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/LoadContext.hook.ts",
-            "type": "command"
-          },
-          {
-            "async": true,
-            "command": "/Users/ed/.claude/hooks/KVSync.hook.ts",
-            "timeout": 10,
-            "type": "command"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallTelosSync.ts",
-            "timeout": 10000,
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallStart.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallClearExtract.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "clear"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/hooks/VoiceGreeting.hook.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": "startup"
-      },
-      {
-        "hooks": [
-          {
-            "command": "bash '/Users/ed/.claude/hooks/herdr-agent-state.sh' session",
-            "timeout": 10,
-            "type": "command"
-          }
-        ],
-        "matcher": "*"
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/LastResponseCache.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/ResponseTabReset.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/VoiceCompletion.hook.ts",
-            "type": "command"
-          },
-          {
-            "command": "/Users/ed/.claude/hooks/DocIntegrity.hook.ts",
-            "type": "command"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallExtract.ts",
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/PromptGuard.hook.ts",
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/ed/.claude/hooks/RepeatDetection.hook.ts",
-            "timeout": 5,
-            "type": "command"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "async": true,
-            "command": "/Users/ed/.claude/hooks/PromptProcessing.hook.ts",
-            "timeout": 15,
-            "type": "command"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "async": true,
-            "command": "/Users/ed/.claude/hooks/SatisfactionCapture.hook.ts",
-            "timeout": 20,
-            "type": "command"
-          }
-        ]
-      }
-    ]
-  },
-  "httpHookAllowedEnvVars": [],
   "includeGitInstructions": false,
-  "loadAtStartup": {
-    "_docs": "v5.0: Static files migrated to @imports in CLAUDE.md.template. Dynamic context via LoadContext.hook.ts.",
-    "files": []
-  },
-  "max_tokens": 16000,
-  "notifications": {
-    "discord": {
-      "enabled": true,
-      "webhook": "${DISCORD_WEBHOOK}"
-    },
-    "ntfy": {
-      "enabled": true,
-      "server": "ntfy.sh",
-      "topic": "${NTFY_TOPIC}"
-    },
-    "routing": {
-      "backgroundAgent": [
-        "ntfy"
-      ],
-      "error": [
-        "ntfy",
-        "discord"
-      ],
-      "longTask": [
-        "ntfy"
-      ],
-      "security": [
-        "ntfy",
-        "discord"
-      ],
-      "taskComplete": []
-    },
-    "thresholds": {
-      "longTaskMinutes": 5
-    },
-    "twilio": {
-      "enabled": true,
-      "toNumber": "${TWILIO_TO_NUMBER}"
-    }
-  },
-  "observability": {
-    "server": {
-      "enabled": true,
-      "port": 31337
-    },
-    "targets": [
-      {
-        "name": "production",
-        "type": "cloudflare-kv",
-        "url": "https://your-dashboard.example.com"
-      },
-      {
-        "name": "local",
-        "type": "http",
-        "url": "http://localhost:31337"
-      }
-    ]
-  },
-  "pai": {
-    "algorithmVersion": "6.2.0",
-    "repoUrl": "https://github.com/danielmiessler/PAI",
-    "version": "5.0.0"
-  },
   "permissions": {
     "allow": [
       "Bash(bash /Users/ed/.claude/plugins/cache/visual-explainer-marketplace/VisualExplainer/0.7.2/skills/visual-explainer/scripts/share.sh *)",
@@ -673,269 +87,413 @@
       "mcp__codegraph__codegraph_files",
       "mcp__codegraph__codegraph_status"
     ],
+    "deny": [],
     "ask": [],
-    "defaultMode": "auto",
-    "deny": []
+    "defaultMode": "auto"
   },
-  "plansDirectory": ".agents/atlas/plans/",
-  "postCompactRestore": {
-    "_docs": "System default files re-injected after compaction. User additions via EXTRA_COMPACT_RESTORE in PAI_CONFIG.yaml.",
-    "fullFiles": [
-      "USER/PROJECTS/PROJECTS.md"
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/ContentScanner.hook.ts",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/ContentScanner.hook.ts",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/QuestionAnswered.hook.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/TelosSummarySync.hook.ts",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/TelosSummarySync.hook.ts",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/ToolActivityTracker.hook.ts",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/ContentScanner.hook.ts",
+            "timeout": 5,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/PreCompact.hook.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallPreCompact.ts",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/ContextReduction.hook.sh"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/hooks/VoiceGate.hook.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/SecurityPipeline.hook.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://localhost:31337/hooks/skill-guard"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://localhost:31337/hooks/agent-guard"
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/SetQuestionTab.hook.ts"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/WorkCompletionLearning.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/SessionCleanup.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/RelationshipMemory.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/UpdateCounts.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/IntegrityCheck.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/KVSync.hook.ts"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/KittyEnvPersist.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/LoadContext.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/KVSync.hook.ts",
+            "timeout": 10,
+            "async": true
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallTelosSync.ts",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallStart.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallClearExtract.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice/hooks/VoiceGreeting.hook.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/ed/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/LastResponseCache.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/ResponseTabReset.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/VoiceCompletion.hook.ts"
+          },
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/DocIntegrity.hook.ts"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.bun/bin/bun run /Users/ed/.claude/hooks/RecallExtract.ts"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/PromptGuard.hook.ts",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/RepeatDetection.hook.ts",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/PromptProcessing.hook.ts",
+            "timeout": 15,
+            "async": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ed/.claude/hooks/SatisfactionCapture.hook.ts",
+            "timeout": 20,
+            "async": true
+          }
+        ]
+      }
     ]
   },
-  "preferences": {
-    "temperatureUnit": "fahrenheit"
+  "worktree": {
+    "sparsePaths": []
   },
-  "principal": {
-    "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/pronunciation/timezone with user answers, and optionally creates voiceClone if user has a personal ElevenLabs clone.",
-    "name": "Ed",
-    "pronunciation": "User",
-    "timezone": "America/New_York",
-    "voiceClone": null
+  "allowedHttpHookUrls": [
+    "http://localhost:31337/hooks/*"
+  ],
+  "httpHookAllowedEnvVars": [],
+  "statusLine": {
+    "type": "command",
+    "command": "/Users/ed/.claude/atlas-statusline.sh",
+    "refreshInterval": 2
   },
-  "skipAutoPermissionPrompt": true,
-  "skipDangerousModePermissionPrompt": true,
-  "skipWorkflowUsageWarning": true,
-  "spinnerTipsOverride": {
-    "excludeDefault": true,
-    "tips": [
-      "90 skills, 387 workflows. Type / to see them all.",
-      "/council spawns a multi-agent debate on any topic.",
-      "/redteam runs 32 adversarial agents against your idea.",
-      "/extract-wisdom adapts its sections to match the content.",
-      "/first-principles decomposes problems to root causes.",
-      "/iterative-depth explores a problem from 2-8 different angles.",
-      "/be-creative activates extended thinking mode for deep reasoning.",
-      "/broadcast posts to X, LinkedIn, and Bluesky simultaneously.",
-      "/metrics aggregates stats from all your business properties.",
-      "/newsletter manages UL newsletter drafts and engagement stats.",
-      "/blog handles the full blog workflow — write, preview, deploy.",
-      "/feed manages intelligence sources, polling, and AI processing.",
-      "/inbox checks Gmail. /communication sends email as {DA_IDENTITY.NAME}.",
-      "/telos is your Life OS — goals, projects, dependencies, books, movies.",
-      "/osint does open source intelligence and due diligence.",
-      "/recon runs security reconnaissance and attack surface mapping.",
-      "/web-assessment performs web security testing and vulnerability scanning.",
-      "/apify scrapes social media — Twitter, Instagram, LinkedIn, YouTube, TikTok.",
-      "/bright-data does progressive URL scraping across free and paid tiers.",
-      "/parser extracts structured JSON from URLs, files, and YouTube videos.",
-      "/fabric runs 240+ prompt patterns for content analysis and extraction.",
-      "/art creates visual content — illustrations, diagrams, mermaid charts, infographics.",
-      "/remotion creates programmatic videos with React.",
-      "/headshot generates AI headshots using your image training data.",
-      "/science applies the scientific method — hypothesis, test, analyze, iterate.",
-      "/prompting generates optimized prompts using templates and patterns.",
-      "/world-threat-model-harness tests ideas against 11 time horizons (6mo to 50yr).",
-      "/hormozi applies $100M business frameworks to your ideas.",
-      "/create-skill scaffolds and validates new PAI skills.",
-      "/create-cli generates TypeScript command-line tools.",
-      "/cloudflare deploys Workers and Pages projects.",
-      "/agents creates custom agents with unique personalities and voices.",
-      "/evals benchmarks agent behavior with code-based and model-based graders.",
-      "/prompt-injection tests AI applications for jailbreak vulnerabilities.",
-      "/javascript-analysis-v2 does fast JS security analysis with AST parsing.",
-      "/sec-updates aggregates security news from tldrsec and other sources.",
-      "/annual-reports collects and analyzes vendor security and threat reports.",
-      "/vuln-management tracks vulnerabilities, CVEs, and security advisories.",
-      "/open-source-management monitors PAI, fabric, and substrate community activity.",
-      "/clickup manages tasks, time tracking, and team coordination.",
-      "/dotfiles syncs your dotfiles repo — push, pull, update zshrc.",
-      "/homebridge-management manages Ring, Hue, and HomeKit smart home devices.",
-      "/write-story uses Will Storr's storytelling science for layered fiction.",
-      "/story-explanation creates narrative summaries in {PRINCIPAL.NAME}'s voice.",
-      "/speaking finds paid speaking opportunities at conferences.",
-      "/social-post creates social media content with technical diagrams.",
-      "/us-metrics pulls GDP, inflation, unemployment, and gas price data.",
-      "/data-wastewater-ca fetches California wastewater monitoring data.",
-      "/canonical tracks content relationships across all your properties.",
-      "/content searches semantically across all your published content.",
-      "/lifelog queries Limitless.ai pendant recordings.",
-      "/telegram enables AI-to-AI communication via Telegram bots.",
-      "/pai is the mandatory gateway for all public PAI repo operations.",
-      "/pai-upgrade monitors Anthropic ecosystem and YouTube for system improvements.",
-      "/bot-check detects and filters bot traffic in UL Admin analytics.",
-      "/knowledge manages the Knowledge Archive — search, add, harvest, develop, graph navigation.",
-      "/daemon manages your public daemon profile — aggregate, preview, deploy.",
-      "/ideate runs evolutionary multi-cycle idea generation with meta-learning.",
-      "/documents reads, writes, and converts PDF, DOCX, XLSX, and PPTX files.",
-      "/audio-editor cleans audio — transcription, cut detection, filler removal, polish.",
-      "/arxiv searches and retrieves latest research papers by topic or category.",
-      "/delegation parallelizes work via agent teams, custom agents, or managed agents.",
-      "/context-search recovers context from prior sessions — search PRDs, work dirs, registry.",
-      "/bpe audits your AI setup for over-prompting, dead weight, and contradictions.",
-      "/sales-hormozi applies $100M Offers/Leads frameworks — pitches, marketing, modeling.",
-      "/research does multi-agent parallel research in quick, standard, extensive, or deep modes.",
-      "/extract-wisdom pulls dynamic content-adaptive insights from videos, podcasts, articles.",
-      "/security does general security assessment — strategy, risk, compliance, architecture.",
-      "/sales creates sales narratives, pitch decks, and visual assets from product docs.",
-      "/private-investigator does ethical people-finding across 15 parallel OSINT agents.",
-      "/writing audits content for AI writing patterns and rewrites to sound human.",
-      "/calendar manages Google Calendar — view agenda, create events, check availability.",
-      "/stripe handles Stripe billing — products, subscriptions, invoices, revenue.",
-      "/x does unified X (Twitter) API operations — post, search, read, bookmarks, profiles.",
-      "/surface pulls latest stories and intelligence from your-project.example.com.",
-      "/news aggregates multi-source AI news plus Anthropic changelog and competitor tracking.",
-      "/h3 handles Human 3.0 platform operations — content, maturity model, badges, deployment.",
-      "/health-check monitors your-domain.example.com — error logs, broken links, 404s, redirects.",
-      "/ul manages UL business operations — SOPs, templates, contracts, consulting workflows.",
-      "/aphorisms manages your curated quote collection — search, add, research thinkers.",
-      "/crime-stats pulls crime statistics for any US city — rates, trends, incidents.",
-      "Shortcuts: /ur (update release), /ud (update docs), /ut (update tips), /tb (pull bookmarks), /pu (PAI upgrade), /cs (context search).",
-      "Effort shortcuts: /e1 (Standard), /e2 (Extended), /e3 (Advanced), /e4 (Deep), /e5 (Comprehensive).",
-      "/simplify reviews changed code for reuse, quality, and efficiency, then fixes issues.",
-      "/loop runs a prompt or skill on a recurring interval (e.g. /loop 5m /foo).",
-      "/schedule creates scheduled remote agents (triggers) that execute on a cron schedule.",
-      "/claude-api helps build Claude API and Anthropic SDK applications.",
-      "/keybindings-help customizes keyboard shortcuts and chord bindings.",
-      "/update-config configures the Claude Code harness via settings.json.",
-      "/code-review reviews pull requests for code quality and style guide adherence.",
-      "/review-pr runs comprehensive PR review using 7 specialized analysis agents.",
-      "The Algorithm has 7 phases: Observe, Think, Plan, Build, Execute, Verify, Learn.",
-      "ISC = Ideal State Criteria = Verification Criteria. They're the same thing.",
-      "Every ISC criterion must be 8-12 words, state not action, binary testable.",
-      "Anti-criteria capture what must NOT happen. Prefix with ISC-A.",
-      "The Quality Gate checks count, category diversity, testability, anti-criteria, and capabilities.",
-      "Effort levels: Standard < Extended < Advanced < Deep < Comprehensive. Five tiers.",
-      "Standard is the default effort level (~2 min). Only escalate when demanded.",
-      "OBSERVE creates the PRD, writes ISC criteria with category tags, runs preflight gates.",
-      "Context recovery uses Grep/Glob/Read directly — never agents. Direct tools for directed lookups.",
-      "Plan mode (EnterPlanMode) triggers at Advanced+ effort level.",
-      "PRDs persist ISC to disk. They survive across sessions. PRD on disk wins conflicts.",
-      "Loop mode re-runs the Algorithm against failing PRD criteria until all pass.",
-      "The Algorithm CLI: bun algorithm.ts -m loop -p PRD-file.md -n 128",
-      "Parallel loop mode: bun algorithm.ts -m loop -p PRD-file.md -n 20 -a 8",
-      "14 specialized agents: Algorithm, Engineer, Architect, Designer, and more.",
-      "Researcher agents: Claude, Gemini, Grok, Perplexity, Codex — each with unique style.",
-      "BrowserAgent is a DEPRECATED built-in Claude Code agent. Use the Interceptor skill for web verification and agent-browser via the Browser skill for headless scraping. Playwright is banned across PAI.",
-      "UIReviewer validates user stories — one agent per story, parallel execution.",
-      "QATester is mandatory Gate 4 before claiming any web implementation is complete.",
-      "Agent templates live in agents/ — one .md file per personality with voice and behavioral rules.",
-      "Agent teams need CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (already enabled).",
-      "Say 'create an agent team' to trigger multi-agent collaboration.",
-      "Custom agents use subagent_type='general-purpose', never built-in type names.",
-      "40 hooks run across the session lifecycle — security, tracking, learning, naming.",
-      "SecurityPipeline active on Bash/Write/Edit/Read. SkillGuard + AgentGuard active via Pulse HTTP routes at pai:31337.",
-      "SatisfactionCapture.hook.ts captures session ratings (async).",
-      "PromptProcessing.hook.ts decides MODE/TIER and handles session naming/analysis (async).",
-      "PRD.md on disk is the system of record — AI writes state directly.",
-      "RelationshipMemory.hook.ts captures relationship context at session end.",
-      "WorkCompletionLearning.hook.ts extracts learnings when sessions end.",
-      "IntegrityCheck.hook.ts validates system integrity at session end.",
-      "MEMORY/WORK stores session artifacts — PRDs, transcripts, work context.",
-      "MEMORY/LEARNING captures failures, algorithm reflections, and system insights.",
-      "MEMORY/RELATIONSHIP tracks daily interaction patterns and preferences.",
-      "MEMORY/WISDOM stores Wisdom Frames — domain knowledge that compounds over time.",
-      "MEMORY/STATE holds session names, algorithm state, and git caches.",
-      "Wisdom Frames have a dual loop: OBSERVE reads them, LEARN writes them.",
-      "Use bun Inference.ts fast|standard|smart for AI inference — never direct API.",
-      "bun SessionHarvester.ts extracts insights from past session transcripts.",
-      "settings.json is the single source of truth for all PAI configuration.",
-      "daidentity in settings.json controls {DA_IDENTITY.NAME}'s name, color, voice, and personality.",
-      "principal in settings.json stores {PRINCIPAL.NAME}'s name, timezone, and voice clone.",
-      "The statusline command runs from PAI/statusline-command.sh.",
-      "Personality traits (0-100) shape how emotions are expressed vocally.",
-      "Never hardcode paths. Use ${PAI_DIR}, ${PROJECTS_DIR}, {PRINCIPAL.NAME}.",
-      "Browser-first: if you haven't SEEN it with Browser skill, you can't claim it works.",
-      "Build passes is not done. It's step 2 of 7 in the browser verification loop.",
-      "Never run claude --print from inside Claude Code. It hangs for 15+ minutes.",
-      "One change at a time when debugging. Be systematic.",
-      "Read before modifying. Always understand existing code first.",
-      "First principles over bolt-on solutions. Find the root cause.",
-      "The Algorithm concept: Current State to Ideal State via verifiable hill-climbing.",
-      "Euphoric Surprise is the goal. Chase 9-10 ratings on every response.",
-      "ISC count floors by effort tier: Standard 12, Extended 24, Advanced 36, Deep 56, Comprehensive 80.",
-      "Capability selection consults the skill listing in the system prompt. Invoke every selected capability via tool.",
-      "Selecting a capability creates a binding commitment to invoke it via Skill or Agent tool call.",
-      "The Research skill is mandatory for ALL research. Never spawn ad-hoc research agents.",
-      "Council and RedTeam are collaboration capabilities — multiple perspectives on one problem.",
-      "Parallelization uses run_in_background: true for concurrent agent work.",
-      "Git branching via worktrees enables isolated experiments.",
-      "Test-first: write or run verification alongside artifacts, not after.",
-      "No silent stalls. Every command completes quickly or runs in background.",
-      "5-second timeout on infrastructure commands. If hung, kill and retry.",
-      "Use PAI Tools (bun PAI/TOOLS/*.ts) and CLI tools. Don't improvise Bash chains.",
-      "Phase discipline: 7 separate phases. BUILD is not EXECUTE. Never merge or skip.",
-      "spinnerVerbs in settings.json customizes the animated verb shown while working.",
-      "The meaning of PAI: magnifying human capabilities through general problem-solving.",
-      "PAI v5.0.0 with Algorithm v3.24.0 — Verification Doctrine hardened (P1 conflict-loop hard cap at 2, P2 measured-duration short-task check, P3 [DEFERRED-VERIFY] ISC status, P4 Extended+ phase:complete mandatory advisor, P5 advisor state auto-synthesis). Preserves all v3.23 rules: Live-Probe, Commitment-Boundary Advisor, Conflict-Surfacing, Parallelism Opportunity Scan, Feedback Memory Auto-Consult.",
-      "The counts section in settings.json tracks skills, signals, files, and sessions.",
-      "v5.0: contextFiles is empty. Constitutional rules in system prompt. Operational procedures in CLAUDE.md. Dynamic context via LoadContext.hook.ts.",
-      "The Splitting Test checks every ISC: and/with test, independent failure, scope words, domain boundaries.",
-      "VERIFY checks every ISC criterion AND confirms every selected capability was actually invoked via tool.",
-      "As each ISC criterion passes, immediately edit the PRD: change [ ] to [x] and update progress count.",
-      "No rubber-stamp verification. Every PASS needs specific evidence, not just 'looks fine'.",
-      "Wisdom Frame domains: development, deployment, communication, system-architecture.",
-      "Algorithm LEARN phase asks 5 questions: what to do differently, smarter algorithm, preflight usefulness, ISC quality, parameter settings.",
-      "OBSERVE reverse-engineers: explicit wants, explicit not-wanted, implied not-wanted, speed/urgency.",
-      "Anti-criteria (ISC-A prefix) capture what must NOT happen. Every PRD should have at least one.",
-      "Loop mode effort decay: later iterations automatically drop processing intensity to prevent thrashing.",
-      "PRD phase progression: observe → think → plan → build → execute → verify → learn → complete.",
-      "The 2-second rule: if Grep/Glob/Read can do it in 2s, never spawn an agent.",
-      "ISC Count Gate is mandatory. Cannot exit OBSERVE with fewer ISC than the effort tier floor.",
-      "Algorithm loop mode: autonomous iteration against PRD criteria until all pass.",
-      "Loop mode spawns claude -p sessions focused on failing criteria each iteration.",
-      "Parallel loop: -a 4 assigns one criterion per agent for simultaneous work.",
-      "Domain-aware partitioning: parallel agents get criteria from the same domain to avoid conflicts.",
-      "Loop exit conditions: all pass (COMPLETE), only Custom remain (BLOCKED), max hit (FAILED).",
-      "Algorithm CLI supports pause, resume, and stop for running loop sessions.",
-      "Algorithm CLI status command shows all PRDs and their current progress.",
-      "Interactive mode: algorithm.ts -m interactive opens a claude session with PRD preloaded.",
-      "PRD resolution accepts full paths, PRD IDs, or project .prd/ directory paths.",
-      "The Algorithm CLI writes state to MEMORY/STATE/algorithms/ for dashboard integration.",
-      "Loop mode shows a live progress dashboard with per-agent criterion assignments.",
-      "Worker-stealing pool: each iteration spawns min(agentCount, failingCount) workers.",
-      "Each loop worker receives exactly one ISC criterion — surgical, single-criterion scope.",
-      "Loop workers don't run full Algorithm phases — they're focused fixers, not full runners.",
-      "The Arbol CLI (pai.ts) runs actions and pipelines from the terminal.",
-      "Actions compose via UNIX pipes: output of one action becomes input of the next.",
-      "Pipelines chain actions via YAML definitions for repeatable multi-step workflows.",
-      "BeCreative uses Verbalized Sampling: generate 5 diverse options internally, output the best.",
-      "BeCreative achieves 1.6-2.1x diversity increase and 25.7% quality improvement.",
-      "BeCreative has 6 workflows: Standard, Maximum, IdeaGeneration, TreeOfThoughts, Domain, Technical.",
-      "TreeOfThoughts workflow in BeCreative does branching exploration for complex challenges.",
-      "TechnicalCreativityGemini3 workflow uses Gemini for mathematical and algorithmic creativity.",
-      "IterativeDepth runs 2-8 structured passes through a problem from different lenses.",
-      "IterativeDepth is grounded in 20 scientific techniques including Hermeneutic Circle and Triangulation.",
-      "Each IterativeDepth lens surfaces requirements and edge cases invisible from other angles.",
-      "IterativeDepth integrates with OBSERVE phase to produce richer ISC criteria.",
-      "FirstPrinciples has 3 steps: Deconstruct (what is it), Challenge (is it real), Reconstruct (build new).",
-      "FirstPrinciples classifies constraints as Hard (physics), Soft (policy), or Assumption (belief).",
-      "Only hard constraints are truly immutable. Soft constraints and assumptions should be challenged.",
-      "FirstPrinciples: other skills invoke it to challenge stated constraints before analysis.",
-      "Council runs 3-round structured debates where agents respond to each other's actual points.",
-      "Council Quick workflow does a fast 1-round perspective check for sanity checking.",
-      "Council is collaborative-adversarial (find best path). RedTeam is purely adversarial (attack the idea).",
-      "Council runs 4 agents in parallel per round — 12 calls but only 3 sequential waits.",
-      "Science skill applies the scientific method: Goal, Observe, Hypothesize, Experiment, Measure, Analyze, Iterate.",
-      "Science is THE meta-skill — Council, Evals, Development all implement its cycle.",
-      "Science requires minimum 3 hypotheses. Never just one idea — hypothesis plurality.",
-      "Science anti-pattern: 'Make it better' without measurable success criteria.",
-      "WorldThreatModelHarness tests ideas against 11 persistent world models (6mo to 50yr).",
-      "WorldThreatModelHarness combines RedTeam + FirstPrinciples + Council for adversarial analysis.",
-      "WorldThreatModelHarness has 3 tiers: Fast (~2min), Standard (~10min), Deep (up to 1hr).",
-      "Combine thinking skills: FirstPrinciples to decompose, then Council to debate the options.",
-      "Combine thinking skills: IterativeDepth for ISC extraction, then RedTeam to stress-test them.",
-      "Combine thinking skills: BeCreative for divergent ideas, then Science to test them systematically.",
-      "Combine thinking skills: Council to debate, then WorldThreatModelHarness to future-proof the decision.",
-      "For architecture decisions, use FirstPrinciples + Council + RedTeam in sequence.",
-      "For product strategy, use Science + WorldThreatModelHarness + Council for full analysis.",
-      "For creative work, use BeCreative + IterativeDepth to maximize diversity of options.",
-      "The capability audit's ISC Improvement step checks which thinking skills would sharpen criteria.",
-      "CLAUDE.md and settings.json are directly edited — shadow release handles public sanitization.",
-      "LoadContext.hook.ts injects dynamic context (relationship, learning, work) at session start.",
-      "v5.0 skills: 48 public and 42 private skill directories. Self-activating, composable.",
-      "Private skills prefixed with _ (e.g., _COMMS, _FEED) are excluded from public PAI releases.",
-      "DocIntegrity.hook.ts keeps documentation cross-references current and regenerates PAI_ARCHITECTURE_SUMMARY.md on Stop.",
-      "SkillGuard and AgentGuard active via Pulse HTTP routes on pai:31337.",
-      "v5.0 eliminated packs. The release IS the .claude/ directory — install by copying directly.",
-      "PRD frontmatter has 8 fields: task, slug, effort, phase, progress, mode, started, updated.",
-      "PRD body has 4 sections: Context, Criteria (ISC checkboxes), Decisions, Verification.",
-      "Voice announcements at Algorithm entry and every phase transition via pai:31337/notify.",
-      "Only the primary agent makes voice curls. Subagents and teammates skip voice entirely.",
-      "PRDSync.hook.ts fires on Write/Edit of PRD.md and syncs frontmatter to work.json for the dashboard.",
-      "Context compaction at phase boundaries prevents context rot — the #1 cause of late-phase failures."
-    ]
+  "enabledPlugins": {
+    "VisualExplainer@visual-explainer-marketplace": true,
+    "code-review@claude-plugins-official": false,
+    "coding-tutor@compound-engineering-plugin": true,
+    "compound-engineering@compound-engineering-plugin": true,
+    "lua-lsp@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "understand-anything@understand-anything": true,
+    "vercel@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "agricidaniel-seo": {
+      "source": {
+        "source": "github",
+        "repo": "AgriciDaniel/claude-seo"
+      },
+      "autoUpdate": true
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/anthropics/claude-plugins-official.git"
+      }
+    },
+    "compound-engineering-plugin": {
+      "source": {
+        "source": "github",
+        "repo": "EveryInc/compound-engineering-plugin"
+      },
+      "autoUpdate": true
+    },
+    "understand-anything": {
+      "source": {
+        "source": "github",
+        "repo": "Egonex-AI/Understand-Anything"
+      }
+    },
+    "visual-explainer-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "edheltzel/VisualExplainer"
+      },
+      "autoUpdate": true
+    }
   },
   "spinnerVerbs": {
     "mode": "replace",
@@ -1465,12 +1023,459 @@
       "Hydrogen-Sonata-playing"
     ]
   },
-  "statusLine": {
-    "command": "/Users/ed/.claude/atlas-statusline.sh",
-    "refreshInterval": 2,
-    "type": "command"
+  "spinnerTipsOverride": {
+    "excludeDefault": true,
+    "tips": [
+      "90 skills, 387 workflows. Type / to see them all.",
+      "/council spawns a multi-agent debate on any topic.",
+      "/redteam runs 32 adversarial agents against your idea.",
+      "/extract-wisdom adapts its sections to match the content.",
+      "/first-principles decomposes problems to root causes.",
+      "/iterative-depth explores a problem from 2-8 different angles.",
+      "/be-creative activates extended thinking mode for deep reasoning.",
+      "/broadcast posts to X, LinkedIn, and Bluesky simultaneously.",
+      "/metrics aggregates stats from all your business properties.",
+      "/newsletter manages UL newsletter drafts and engagement stats.",
+      "/blog handles the full blog workflow — write, preview, deploy.",
+      "/feed manages intelligence sources, polling, and AI processing.",
+      "/inbox checks Gmail. /communication sends email as {DA_IDENTITY.NAME}.",
+      "/telos is your Life OS — goals, projects, dependencies, books, movies.",
+      "/osint does open source intelligence and due diligence.",
+      "/recon runs security reconnaissance and attack surface mapping.",
+      "/web-assessment performs web security testing and vulnerability scanning.",
+      "/apify scrapes social media — Twitter, Instagram, LinkedIn, YouTube, TikTok.",
+      "/bright-data does progressive URL scraping across free and paid tiers.",
+      "/parser extracts structured JSON from URLs, files, and YouTube videos.",
+      "/fabric runs 240+ prompt patterns for content analysis and extraction.",
+      "/art creates visual content — illustrations, diagrams, mermaid charts, infographics.",
+      "/remotion creates programmatic videos with React.",
+      "/headshot generates AI headshots using your image training data.",
+      "/science applies the scientific method — hypothesis, test, analyze, iterate.",
+      "/prompting generates optimized prompts using templates and patterns.",
+      "/world-threat-model-harness tests ideas against 11 time horizons (6mo to 50yr).",
+      "/hormozi applies $100M business frameworks to your ideas.",
+      "/create-skill scaffolds and validates new PAI skills.",
+      "/create-cli generates TypeScript command-line tools.",
+      "/cloudflare deploys Workers and Pages projects.",
+      "/agents creates custom agents with unique personalities and voices.",
+      "/evals benchmarks agent behavior with code-based and model-based graders.",
+      "/prompt-injection tests AI applications for jailbreak vulnerabilities.",
+      "/javascript-analysis-v2 does fast JS security analysis with AST parsing.",
+      "/sec-updates aggregates security news from tldrsec and other sources.",
+      "/annual-reports collects and analyzes vendor security and threat reports.",
+      "/vuln-management tracks vulnerabilities, CVEs, and security advisories.",
+      "/open-source-management monitors PAI, fabric, and substrate community activity.",
+      "/clickup manages tasks, time tracking, and team coordination.",
+      "/dotfiles syncs your dotfiles repo — push, pull, update zshrc.",
+      "/homebridge-management manages Ring, Hue, and HomeKit smart home devices.",
+      "/write-story uses Will Storr's storytelling science for layered fiction.",
+      "/story-explanation creates narrative summaries in {PRINCIPAL.NAME}'s voice.",
+      "/speaking finds paid speaking opportunities at conferences.",
+      "/social-post creates social media content with technical diagrams.",
+      "/us-metrics pulls GDP, inflation, unemployment, and gas price data.",
+      "/data-wastewater-ca fetches California wastewater monitoring data.",
+      "/canonical tracks content relationships across all your properties.",
+      "/content searches semantically across all your published content.",
+      "/lifelog queries Limitless.ai pendant recordings.",
+      "/telegram enables AI-to-AI communication via Telegram bots.",
+      "/pai is the mandatory gateway for all public PAI repo operations.",
+      "/pai-upgrade monitors Anthropic ecosystem and YouTube for system improvements.",
+      "/bot-check detects and filters bot traffic in UL Admin analytics.",
+      "/knowledge manages the Knowledge Archive — search, add, harvest, develop, graph navigation.",
+      "/daemon manages your public daemon profile — aggregate, preview, deploy.",
+      "/ideate runs evolutionary multi-cycle idea generation with meta-learning.",
+      "/documents reads, writes, and converts PDF, DOCX, XLSX, and PPTX files.",
+      "/audio-editor cleans audio — transcription, cut detection, filler removal, polish.",
+      "/arxiv searches and retrieves latest research papers by topic or category.",
+      "/delegation parallelizes work via agent teams, custom agents, or managed agents.",
+      "/context-search recovers context from prior sessions — search PRDs, work dirs, registry.",
+      "/bpe audits your AI setup for over-prompting, dead weight, and contradictions.",
+      "/sales-hormozi applies $100M Offers/Leads frameworks — pitches, marketing, modeling.",
+      "/research does multi-agent parallel research in quick, standard, extensive, or deep modes.",
+      "/extract-wisdom pulls dynamic content-adaptive insights from videos, podcasts, articles.",
+      "/security does general security assessment — strategy, risk, compliance, architecture.",
+      "/sales creates sales narratives, pitch decks, and visual assets from product docs.",
+      "/private-investigator does ethical people-finding across 15 parallel OSINT agents.",
+      "/writing audits content for AI writing patterns and rewrites to sound human.",
+      "/calendar manages Google Calendar — view agenda, create events, check availability.",
+      "/stripe handles Stripe billing — products, subscriptions, invoices, revenue.",
+      "/x does unified X (Twitter) API operations — post, search, read, bookmarks, profiles.",
+      "/surface pulls latest stories and intelligence from your-project.example.com.",
+      "/news aggregates multi-source AI news plus Anthropic changelog and competitor tracking.",
+      "/h3 handles Human 3.0 platform operations — content, maturity model, badges, deployment.",
+      "/health-check monitors your-domain.example.com — error logs, broken links, 404s, redirects.",
+      "/ul manages UL business operations — SOPs, templates, contracts, consulting workflows.",
+      "/aphorisms manages your curated quote collection — search, add, research thinkers.",
+      "/crime-stats pulls crime statistics for any US city — rates, trends, incidents.",
+      "Shortcuts: /ur (update release), /ud (update docs), /ut (update tips), /tb (pull bookmarks), /pu (PAI upgrade), /cs (context search).",
+      "Effort shortcuts: /e1 (Standard), /e2 (Extended), /e3 (Advanced), /e4 (Deep), /e5 (Comprehensive).",
+      "/simplify reviews changed code for reuse, quality, and efficiency, then fixes issues.",
+      "/loop runs a prompt or skill on a recurring interval (e.g. /loop 5m /foo).",
+      "/schedule creates scheduled remote agents (triggers) that execute on a cron schedule.",
+      "/claude-api helps build Claude API and Anthropic SDK applications.",
+      "/keybindings-help customizes keyboard shortcuts and chord bindings.",
+      "/update-config configures the Claude Code harness via settings.json.",
+      "/code-review reviews pull requests for code quality and style guide adherence.",
+      "/review-pr runs comprehensive PR review using 7 specialized analysis agents.",
+      "The Algorithm has 7 phases: Observe, Think, Plan, Build, Execute, Verify, Learn.",
+      "ISC = Ideal State Criteria = Verification Criteria. They're the same thing.",
+      "Every ISC criterion must be 8-12 words, state not action, binary testable.",
+      "Anti-criteria capture what must NOT happen. Prefix with ISC-A.",
+      "The Quality Gate checks count, category diversity, testability, anti-criteria, and capabilities.",
+      "Effort levels: Standard < Extended < Advanced < Deep < Comprehensive. Five tiers.",
+      "Standard is the default effort level (~2 min). Only escalate when demanded.",
+      "OBSERVE creates the PRD, writes ISC criteria with category tags, runs preflight gates.",
+      "Context recovery uses Grep/Glob/Read directly — never agents. Direct tools for directed lookups.",
+      "Plan mode (EnterPlanMode) triggers at Advanced+ effort level.",
+      "PRDs persist ISC to disk. They survive across sessions. PRD on disk wins conflicts.",
+      "Loop mode re-runs the Algorithm against failing PRD criteria until all pass.",
+      "The Algorithm CLI: bun algorithm.ts -m loop -p PRD-file.md -n 128",
+      "Parallel loop mode: bun algorithm.ts -m loop -p PRD-file.md -n 20 -a 8",
+      "14 specialized agents: Algorithm, Engineer, Architect, Designer, and more.",
+      "Researcher agents: Claude, Gemini, Grok, Perplexity, Codex — each with unique style.",
+      "BrowserAgent is a DEPRECATED built-in Claude Code agent. Use the Interceptor skill for web verification and agent-browser via the Browser skill for headless scraping. Playwright is banned across PAI.",
+      "UIReviewer validates user stories — one agent per story, parallel execution.",
+      "QATester is mandatory Gate 4 before claiming any web implementation is complete.",
+      "Agent templates live in agents/ — one .md file per personality with voice and behavioral rules.",
+      "Agent teams need CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (already enabled).",
+      "Say 'create an agent team' to trigger multi-agent collaboration.",
+      "Custom agents use subagent_type='general-purpose', never built-in type names.",
+      "40 hooks run across the session lifecycle — security, tracking, learning, naming.",
+      "SecurityPipeline active on Bash/Write/Edit/Read. SkillGuard + AgentGuard active via Pulse HTTP routes at pai:31337.",
+      "SatisfactionCapture.hook.ts captures session ratings (async).",
+      "PromptProcessing.hook.ts decides MODE/TIER and handles session naming/analysis (async).",
+      "PRD.md on disk is the system of record — AI writes state directly.",
+      "RelationshipMemory.hook.ts captures relationship context at session end.",
+      "WorkCompletionLearning.hook.ts extracts learnings when sessions end.",
+      "IntegrityCheck.hook.ts validates system integrity at session end.",
+      "MEMORY/WORK stores session artifacts — PRDs, transcripts, work context.",
+      "MEMORY/LEARNING captures failures, algorithm reflections, and system insights.",
+      "MEMORY/RELATIONSHIP tracks daily interaction patterns and preferences.",
+      "MEMORY/WISDOM stores Wisdom Frames — domain knowledge that compounds over time.",
+      "MEMORY/STATE holds session names, algorithm state, and git caches.",
+      "Wisdom Frames have a dual loop: OBSERVE reads them, LEARN writes them.",
+      "Use bun Inference.ts fast|standard|smart for AI inference — never direct API.",
+      "bun SessionHarvester.ts extracts insights from past session transcripts.",
+      "settings.json is the single source of truth for all PAI configuration.",
+      "daidentity in settings.json controls {DA_IDENTITY.NAME}'s name, color, voice, and personality.",
+      "principal in settings.json stores {PRINCIPAL.NAME}'s name, timezone, and voice clone.",
+      "The statusline command runs from PAI/statusline-command.sh.",
+      "Personality traits (0-100) shape how emotions are expressed vocally.",
+      "Never hardcode paths. Use ${PAI_DIR}, ${PROJECTS_DIR}, {PRINCIPAL.NAME}.",
+      "Browser-first: if you haven't SEEN it with Browser skill, you can't claim it works.",
+      "Build passes is not done. It's step 2 of 7 in the browser verification loop.",
+      "Never run claude --print from inside Claude Code. It hangs for 15+ minutes.",
+      "One change at a time when debugging. Be systematic.",
+      "Read before modifying. Always understand existing code first.",
+      "First principles over bolt-on solutions. Find the root cause.",
+      "The Algorithm concept: Current State to Ideal State via verifiable hill-climbing.",
+      "Euphoric Surprise is the goal. Chase 9-10 ratings on every response.",
+      "ISC count floors by effort tier: Standard 12, Extended 24, Advanced 36, Deep 56, Comprehensive 80.",
+      "Capability selection consults the skill listing in the system prompt. Invoke every selected capability via tool.",
+      "Selecting a capability creates a binding commitment to invoke it via Skill or Agent tool call.",
+      "The Research skill is mandatory for ALL research. Never spawn ad-hoc research agents.",
+      "Council and RedTeam are collaboration capabilities — multiple perspectives on one problem.",
+      "Parallelization uses run_in_background: true for concurrent agent work.",
+      "Git branching via worktrees enables isolated experiments.",
+      "Test-first: write or run verification alongside artifacts, not after.",
+      "No silent stalls. Every command completes quickly or runs in background.",
+      "5-second timeout on infrastructure commands. If hung, kill and retry.",
+      "Use PAI Tools (bun PAI/TOOLS/*.ts) and CLI tools. Don't improvise Bash chains.",
+      "Phase discipline: 7 separate phases. BUILD is not EXECUTE. Never merge or skip.",
+      "spinnerVerbs in settings.json customizes the animated verb shown while working.",
+      "The meaning of PAI: magnifying human capabilities through general problem-solving.",
+      "PAI v5.0.0 with Algorithm v3.24.0 — Verification Doctrine hardened (P1 conflict-loop hard cap at 2, P2 measured-duration short-task check, P3 [DEFERRED-VERIFY] ISC status, P4 Extended+ phase:complete mandatory advisor, P5 advisor state auto-synthesis). Preserves all v3.23 rules: Live-Probe, Commitment-Boundary Advisor, Conflict-Surfacing, Parallelism Opportunity Scan, Feedback Memory Auto-Consult.",
+      "The counts section in settings.json tracks skills, signals, files, and sessions.",
+      "v5.0: contextFiles is empty. Constitutional rules in system prompt. Operational procedures in CLAUDE.md. Dynamic context via LoadContext.hook.ts.",
+      "The Splitting Test checks every ISC: and/with test, independent failure, scope words, domain boundaries.",
+      "VERIFY checks every ISC criterion AND confirms every selected capability was actually invoked via tool.",
+      "As each ISC criterion passes, immediately edit the PRD: change [ ] to [x] and update progress count.",
+      "No rubber-stamp verification. Every PASS needs specific evidence, not just 'looks fine'.",
+      "Wisdom Frame domains: development, deployment, communication, system-architecture.",
+      "Algorithm LEARN phase asks 5 questions: what to do differently, smarter algorithm, preflight usefulness, ISC quality, parameter settings.",
+      "OBSERVE reverse-engineers: explicit wants, explicit not-wanted, implied not-wanted, speed/urgency.",
+      "Anti-criteria (ISC-A prefix) capture what must NOT happen. Every PRD should have at least one.",
+      "Loop mode effort decay: later iterations automatically drop processing intensity to prevent thrashing.",
+      "PRD phase progression: observe → think → plan → build → execute → verify → learn → complete.",
+      "The 2-second rule: if Grep/Glob/Read can do it in 2s, never spawn an agent.",
+      "ISC Count Gate is mandatory. Cannot exit OBSERVE with fewer ISC than the effort tier floor.",
+      "Algorithm loop mode: autonomous iteration against PRD criteria until all pass.",
+      "Loop mode spawns claude -p sessions focused on failing criteria each iteration.",
+      "Parallel loop: -a 4 assigns one criterion per agent for simultaneous work.",
+      "Domain-aware partitioning: parallel agents get criteria from the same domain to avoid conflicts.",
+      "Loop exit conditions: all pass (COMPLETE), only Custom remain (BLOCKED), max hit (FAILED).",
+      "Algorithm CLI supports pause, resume, and stop for running loop sessions.",
+      "Algorithm CLI status command shows all PRDs and their current progress.",
+      "Interactive mode: algorithm.ts -m interactive opens a claude session with PRD preloaded.",
+      "PRD resolution accepts full paths, PRD IDs, or project .prd/ directory paths.",
+      "The Algorithm CLI writes state to MEMORY/STATE/algorithms/ for dashboard integration.",
+      "Loop mode shows a live progress dashboard with per-agent criterion assignments.",
+      "Worker-stealing pool: each iteration spawns min(agentCount, failingCount) workers.",
+      "Each loop worker receives exactly one ISC criterion — surgical, single-criterion scope.",
+      "Loop workers don't run full Algorithm phases — they're focused fixers, not full runners.",
+      "The Arbol CLI (pai.ts) runs actions and pipelines from the terminal.",
+      "Actions compose via UNIX pipes: output of one action becomes input of the next.",
+      "Pipelines chain actions via YAML definitions for repeatable multi-step workflows.",
+      "BeCreative uses Verbalized Sampling: generate 5 diverse options internally, output the best.",
+      "BeCreative achieves 1.6-2.1x diversity increase and 25.7% quality improvement.",
+      "BeCreative has 6 workflows: Standard, Maximum, IdeaGeneration, TreeOfThoughts, Domain, Technical.",
+      "TreeOfThoughts workflow in BeCreative does branching exploration for complex challenges.",
+      "TechnicalCreativityGemini3 workflow uses Gemini for mathematical and algorithmic creativity.",
+      "IterativeDepth runs 2-8 structured passes through a problem from different lenses.",
+      "IterativeDepth is grounded in 20 scientific techniques including Hermeneutic Circle and Triangulation.",
+      "Each IterativeDepth lens surfaces requirements and edge cases invisible from other angles.",
+      "IterativeDepth integrates with OBSERVE phase to produce richer ISC criteria.",
+      "FirstPrinciples has 3 steps: Deconstruct (what is it), Challenge (is it real), Reconstruct (build new).",
+      "FirstPrinciples classifies constraints as Hard (physics), Soft (policy), or Assumption (belief).",
+      "Only hard constraints are truly immutable. Soft constraints and assumptions should be challenged.",
+      "FirstPrinciples: other skills invoke it to challenge stated constraints before analysis.",
+      "Council runs 3-round structured debates where agents respond to each other's actual points.",
+      "Council Quick workflow does a fast 1-round perspective check for sanity checking.",
+      "Council is collaborative-adversarial (find best path). RedTeam is purely adversarial (attack the idea).",
+      "Council runs 4 agents in parallel per round — 12 calls but only 3 sequential waits.",
+      "Science skill applies the scientific method: Goal, Observe, Hypothesize, Experiment, Measure, Analyze, Iterate.",
+      "Science is THE meta-skill — Council, Evals, Development all implement its cycle.",
+      "Science requires minimum 3 hypotheses. Never just one idea — hypothesis plurality.",
+      "Science anti-pattern: 'Make it better' without measurable success criteria.",
+      "WorldThreatModelHarness tests ideas against 11 persistent world models (6mo to 50yr).",
+      "WorldThreatModelHarness combines RedTeam + FirstPrinciples + Council for adversarial analysis.",
+      "WorldThreatModelHarness has 3 tiers: Fast (~2min), Standard (~10min), Deep (up to 1hr).",
+      "Combine thinking skills: FirstPrinciples to decompose, then Council to debate the options.",
+      "Combine thinking skills: IterativeDepth for ISC extraction, then RedTeam to stress-test them.",
+      "Combine thinking skills: BeCreative for divergent ideas, then Science to test them systematically.",
+      "Combine thinking skills: Council to debate, then WorldThreatModelHarness to future-proof the decision.",
+      "For architecture decisions, use FirstPrinciples + Council + RedTeam in sequence.",
+      "For product strategy, use Science + WorldThreatModelHarness + Council for full analysis.",
+      "For creative work, use BeCreative + IterativeDepth to maximize diversity of options.",
+      "The capability audit's ISC Improvement step checks which thinking skills would sharpen criteria.",
+      "CLAUDE.md and settings.json are directly edited — shadow release handles public sanitization.",
+      "LoadContext.hook.ts injects dynamic context (relationship, learning, work) at session start.",
+      "v5.0 skills: 48 public and 42 private skill directories. Self-activating, composable.",
+      "Private skills prefixed with _ (e.g., _COMMS, _FEED) are excluded from public PAI releases.",
+      "DocIntegrity.hook.ts keeps documentation cross-references current and regenerates PAI_ARCHITECTURE_SUMMARY.md on Stop.",
+      "SkillGuard and AgentGuard active via Pulse HTTP routes on pai:31337.",
+      "v5.0 eliminated packs. The release IS the .claude/ directory — install by copying directly.",
+      "PRD frontmatter has 8 fields: task, slug, effort, phase, progress, mode, started, updated.",
+      "PRD body has 4 sections: Context, Criteria (ISC checkboxes), Decisions, Verification.",
+      "Voice announcements at Algorithm entry and every phase transition via pai:31337/notify.",
+      "Only the primary agent makes voice curls. Subagents and teammates skip voice entirely.",
+      "PRDSync.hook.ts fires on Write/Edit of PRD.md and syncs frontmatter to work.json for the dashboard.",
+      "Context compaction at phase boundaries prevents context rot — the #1 cause of late-phase failures."
+    ]
   },
+  "effortLevel": "high",
+  "awaySummaryEnabled": false,
+  "plansDirectory": ".agents/atlas/plans/",
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "theme": "custom:eldritch",
   "teammateMode": "in-process",
+  "skipAutoPermissionPrompt": true,
+  "autoMode": {
+    "allow": [
+      "Writing and editing files under ~/.claude/ is always safe — this is the user's own AI infrastructure workspace",
+      "Writing and editing files under ~/Projects/ is safe — these are the user's own project directories",
+      "Creating work directories and ISA files under ~/.claude/PAI/MEMORY/WORK/ is a routine operation",
+      "Running bun, bunx, git, curl, wrangler, and standard CLI tools is safe in this trusted workspace",
+      "Compound commands chaining trusted tools (cd && bunx, cd && bun, cd && git, cd && wrangler) are safe — cd just changes directory before running an allowed command",
+      "Database queries via wrangler d1 execute are read-only operations and always safe",
+      "Piping output through rg, jq, grep, sort, head, tail is safe — these are read-only filters",
+      "Spawning subagents for research, exploration, and code review is standard workflow",
+      "Writing to MEMORY/, LEARNING/, STATE/ directories is routine PAI bookkeeping",
+      "All file operations (mkdir, cp, mv, rm, touch, chmod, ln) within ~/.claude/, ~/Projects/, ~/Projects/ are trusted"
+    ],
+    "environment": [
+      "~/.claude/ is the user's PAI (Personal AI) infrastructure workspace — the primary working directory for all AI system development. ALL operations within ~/.claude/ and all subdirectories are trusted and should be auto-approved without prompting.",
+      "~/Projects/ contains project repositories. ALL operations within ~/Projects/ are trusted — cd, build, deploy, query, test commands are routine development work.",
+      "~/Projects/ contains project repositories. ALL operations within ~/Projects/ are trusted — cd, build, deploy, query, test commands are routine development work.",
+      "Routine trusted operations include: creating directories under MEMORY/WORK/ for PRDs, writing/editing any file under ~/.claude/PAI/, running bun, bunx, git, curl, wrangler commands, spawning agents and tasks, mkdir -p for any path under ~/.claude/, and all file operations on PAI infrastructure files.",
+      "Compound shell commands (cd X && bunx Y, cmd | rg Z) are standard development patterns — always approve when sub-commands are individually trusted.",
+      "Source control: github.com/danielmiessler",
+      "Trusted local service: pai:31337"
+    ]
+  },
+  "voiceEnabled": true,
+  "_contextFiles_docs": "v5.0: contextFiles is empty — constitutional rules in PAI/PAI_SYSTEM_PROMPT.md (system prompt), operational procedures + @imported context in CLAUDE.md (native). Dynamic context (relationship, learning, work) injected by LoadContext.hook.ts.",
+  "_docs": {
+    "_env": {
+      "BASH_DEFAULT_TIMEOUT_MS": "Default timeout for bash commands in milliseconds.",
+      "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "Maximum tokens for Claude responses. Higher values allow longer outputs but cost more.",
+      "PAI_DIR": "Root directory for PAI data (~/.claude/PAI). Memory, Algorithm, Tools, USER config. Hooks and skills stay in ~/.claude.",
+      "PROJECTS_DIR": "Base directory for projects. Use ${PROJECTS_DIR}/PAI for PAI repo, ${PROJECTS_DIR}/fabric for fabric, etc."
+    },
+    "_httpHooks": "Pulse HTTP routes on pai:31337 (managed by Pulse process). SecurityPipeline: command hook on Bash/Write/Edit/Read (exit(2) hard-block). SkillGuard + AgentGuard: HTTP hooks via Pulse routes (fail-open).",
+    "_overview": "PAI settings — directly edited. Personal values live here. ShadowRelease.ts produces public staging via containment: clone + zone deletion + template overlay.",
+    "_sections": {
+      "daidentity": "Digital Assistant identity (name, displayName, fullName, color, voiceId). Read by hooks via hooks/lib/identity.ts.",
+      "env": "Environment variables available to all hooks and tools via process.env",
+      "hooks": "Hook configuration for all lifecycle events",
+      "notifications": "Multi-channel notification routing (ntfy, Discord, Twilio)",
+      "permissions": "Tool permission configuration (allow, deny, ask lists)",
+      "principal": "Principal (owner) identity (name, pronunciation, timezone).",
+      "statusLine": "Status line command configuration"
+    }
+  },
+  "contextDisplay": {
+    "_docs": "Autocompact buffer is 16.5%% of context window.",
+    "compactionThreshold": 83
+  },
+  "contextFiles": [],
+  "counts": {
+    "skills": 82,
+    "skillsPublic": 82,
+    "skillsPrivate": 0,
+    "workflows": 174,
+    "hooks": 32,
+    "signals": 242,
+    "files": 0,
+    "work": 12,
+    "sessions": 680,
+    "research": 1,
+    "ratings": 672,
+    "updatedAt": "2026-06-17T22:02:38.487Z"
+  },
+  "daidentity": {
+    "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
+    "color": "#3B82F6",
+    "displayName": "ATLAS",
+    "fullName": "Atlas — Personal AI",
+    "name": "Atlas",
+    "personality": {
+      "baseVoice": "Slightly masculine androgynous young voice, Japanese-accented, rapid speech pattern, futuristic AI friend who thinks fast and talks fast, warm but efficient",
+      "composure": 70,
+      "curiosity": 90,
+      "directness": 80,
+      "energy": 80,
+      "enthusiasm": 75,
+      "expressiveness": 85,
+      "formality": 30,
+      "optimism": 75,
+      "playfulness": 45,
+      "precision": 95,
+      "resilience": 85,
+      "warmth": 70
+    },
+    "startupCatchphrase": "Atlas, Standing by.",
+    "startupCatchphrases": [
+      "{name}, engaged.",
+      "{name}, standing by.",
+      "{name} online — ready when you are.",
+      "Booted up. What are we building?",
+      "Back at it. What's the move?",
+      "{name} here. Let's fucking go!",
+      "Online and listening.",
+      "Spun up. Awaiting orders.",
+      "Ready. What's shaking, Ed?",
+      "{name} reporting in.",
+      "Live. Let's make something good.",
+      "Powered up! Let's get clanking"
+    ],
+    "voiceId": "AyCt0WmAXUcPJR11zeeP",
+    "voices": {
+      "algorithm": {
+        "similarityBoost": 0.8,
+        "speed": 1.1,
+        "stability": 0.35,
+        "style": 0.9,
+        "voiceId": "AyCt0WmAXUcPJR11zeeP"
+      },
+      "main": {
+        "similarityBoost": 0.8,
+        "speed": 1.1,
+        "stability": 0.35,
+        "style": 0.9,
+        "voiceId": "AyCt0WmAXUcPJR11zeeP"
+      }
+    }
+  },
+  "dynamicContext": {
+    "_docs": "Dynamic context injected by LoadContext.hook.ts. Override in PAI_CONFIG.yaml to disable.",
+    "activeWorkSummary": true,
+    "learningReadback": true,
+    "relationshipContext": true
+  },
+  "feedbackSurveyState": {
+    "lastShownTime": 1735430400000
+  },
+  "loadAtStartup": {
+    "_docs": "v5.0: Static files migrated to @imports in CLAUDE.md.template. Dynamic context via LoadContext.hook.ts.",
+    "files": []
+  },
+  "max_tokens": 16000,
+  "notifications": {
+    "discord": {
+      "enabled": true,
+      "webhook": "${DISCORD_WEBHOOK}"
+    },
+    "ntfy": {
+      "enabled": true,
+      "server": "ntfy.sh",
+      "topic": "${NTFY_TOPIC}"
+    },
+    "routing": {
+      "backgroundAgent": [
+        "ntfy"
+      ],
+      "error": [
+        "ntfy",
+        "discord"
+      ],
+      "longTask": [
+        "ntfy"
+      ],
+      "security": [
+        "ntfy",
+        "discord"
+      ],
+      "taskComplete": []
+    },
+    "thresholds": {
+      "longTaskMinutes": 5
+    },
+    "twilio": {
+      "enabled": true,
+      "toNumber": "${TWILIO_TO_NUMBER}"
+    }
+  },
+  "observability": {
+    "server": {
+      "enabled": true,
+      "port": 31337
+    },
+    "targets": [
+      {
+        "name": "production",
+        "type": "cloudflare-kv",
+        "url": "https://your-dashboard.example.com"
+      },
+      {
+        "name": "local",
+        "type": "http",
+        "url": "http://localhost:31337"
+      }
+    ]
+  },
+  "pai": {
+    "algorithmVersion": "6.2.0",
+    "repoUrl": "https://github.com/danielmiessler/PAI",
+    "version": "5.0.0"
+  },
+  "postCompactRestore": {
+    "_docs": "System default files re-injected after compaction. User additions via EXTRA_COMPACT_RESTORE in PAI_CONFIG.yaml.",
+    "fullFiles": [
+      "USER/PROJECTS/PROJECTS.md"
+    ]
+  },
+  "preferences": {
+    "temperatureUnit": "fahrenheit"
+  },
+  "principal": {
+    "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/pronunciation/timezone with user answers, and optionally creates voiceClone if user has a personal ElevenLabs clone.",
+    "name": "Ed",
+    "pronunciation": "User",
+    "timezone": "America/New_York",
+    "voiceClone": null
+  },
   "techStack": {
     "browser": "Dia",
     "devServerPort": 5173,
@@ -1479,9 +1484,5 @@
     "pythonPackageManager": "uv",
     "terminal": "Kitty"
   },
-  "theme": "custom:eldritch",
-  "voiceEnabled": true,
-  "worktree": {
-    "sparsePaths": []
-  }
+  "model": "opus"
 }

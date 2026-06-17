@@ -10,7 +10,8 @@
     "npm:pi-prompt-template-model",
     "npm:@narumitw/pi-goal",
     "npm:pi-hermes-memory",
-    "npm:@sean_pedersen/pi-codegraph"
+    "npm:@sean_pedersen/pi-codegraph",
+    "../../Developer/atlas-voicesystem/adapters/pi"
   ],
   "subagents": {
     "agentOverrides": {
@@ -40,5 +41,5 @@
   "quietStartup": true,
   "defaultThinkingLevel": "medium",
   "hideThinkingBlock": false,
-  "lastChangelogVersion": "0.79.1"
+  "lastChangelogVersion": "0.79.6"
 }
