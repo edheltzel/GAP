@@ -1,5 +1,5 @@
 ---
-name: DesignSystemBootstrap
+name: atlas:DesignSystemBootstrap
 description: Generate a portable DESIGN.md source-of-truth plus a live HTML style-guide page for the current project — discover brand tokens, write the 9-section spec, build and verify a visual reference page.
 argument-hint: [optional overrides — e.g. route:/style-guide mood:"calm editorial" name:"Acme" framework:Astro]
 ---

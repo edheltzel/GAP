@@ -1,5 +1,5 @@
 ---
-name: Status
+name: atlas:Status
 description: Board progress report from GitHub Projects — phase progress, status counts, recently-closed, and top up-next items. Wraps the githubprojects skill's Status recipe.
 argument-hint: [optional — phase or filter]
 ---

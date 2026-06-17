@@ -1,5 +1,5 @@
 ---
-name: ProjectSetup
+name: atlas:ProjectSetup
 description: Bootstrap a GitHub Projects v2 board for the current repo — create the board, Status/Phase/Priority fields, views, and capture field IDs. Wraps the githubprojects skill's ProjectSetup recipe.
 argument-hint: [optional — project title or owner/repo overrides]
 ---

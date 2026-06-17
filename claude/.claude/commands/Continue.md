@@ -1,5 +1,5 @@
 ---
-name: Continue
+name: atlas:Continue
 description: Pick the next task from the GitHub Projects board — grouped by status, ordered by priority and dependencies. Wraps the githubprojects skill's Continue recipe.
 argument-hint: [optional — focus area, or "suggest"]
 ---

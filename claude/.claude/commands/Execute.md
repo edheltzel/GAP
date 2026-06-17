@@ -1,5 +1,5 @@
 ---
-name: Execute
+name: atlas:Execute
 description: Run an existing plan or ISA against the GitHub Projects board — pre-flight checks, move to In Progress, 4-tier deviation rules, inline verify, AC/close updates. Wraps the githubprojects skill's Execute recipe.
 argument-hint: [path to plan/ISA and/or the issue number]
 ---
