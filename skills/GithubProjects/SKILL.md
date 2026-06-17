@@ -1,6 +1,7 @@
 ---
 name: GithubProjects
-description: GitHub Projects management via gh CLI — creating projects, managing items/fields, plus opinionated PM recipes: board bootstrap, Epic→Feature→Task issue hierarchy with sub-issue linking, label policy, running a plan against the board, picking next work, and status reporting. Use when working with GitHub Projects (v2), adding issues/PRs to projects, creating custom fields, bootstrapping a board, decomposing work into epics/features/tasks, executing a plan with board updates, or reporting board progress. Triggers on gh project, project board, kanban, GitHub project, project items, epic, sub-issue, board setup, next work, project status.
+description: GitHub Projects management via gh CLI — creating projects, managing items/fields, plus opinionated PM recipes — board bootstrap, Epic→Feature→Task issue hierarchy with sub-issue linking, label policy, running a plan against the board, picking next work, and status reporting. Use when working with GitHub Projects (v2), adding issues/PRs to projects, creating custom fields, bootstrapping a board, decomposing work into epics/features/tasks, executing a plan with board updates, or reporting board progress. Triggers on gh project, project board, kanban, GitHub project, project items, epic, sub-issue, board setup, next work, project status.
+alwaysAllow: ["Bash"]
 ---
 
 # GitHub Projects CLI
