@@ -67,6 +67,7 @@ Native session restore requires these Herdr integration versions or newer:
 | Agent | Minimum Herdr integration version | Resume command |
 | --- | --- | --- |
 | Pi | `2` | `pi --session <path-or-id>` |
+| OMP | `3` | `omp --resume=<path-or-id>` |
 | Claude Code | `6` | `claude --resume <id>` |
 | Codex | `5` | `codex resume <id>` |
 | Cursor Agent CLI | `1` | `cursor-agent --resume <id>` |
@@ -78,8 +79,6 @@ Native session restore requires these Herdr integration versions or newer:
 | OpenCode | `5` | `opencode --session <id>` |
 | Kilo Code CLI | `1` | `kilo --session <id>` |
 | Hermes Agent | `2` | `hermes --resume <id>` |
-
-OMP integration version `2` reports agent state, but does not report native session references for restore.
 
 Run `herdr integration status` to check installed integration versions. Reinstall outdated integrations with `herdr integration install <agent>`.
 

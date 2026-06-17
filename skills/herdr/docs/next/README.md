@@ -201,7 +201,7 @@ for agents outside the built-in list, herdr still works as a terminal multiplexe
 
 ### direct integrations
 
-official integrations have two roles. claude code, codex, github copilot cli, devin, droid, qodercli, and cursor agent cli report session identity for native restore, while their state still comes from screen detection. pi, kimi code cli, opencode, kilo code cli, and hermes report both semantic state and session identity. omp reports semantic state without native session restore. install with:
+official integrations have two roles. claude code, codex, github copilot cli, devin, droid, qodercli, and cursor agent cli report session identity for native restore, while their state still comes from screen detection. pi, omp, kimi code cli, opencode, kilo code cli, and hermes report both semantic state and session identity. install with:
 
 ```bash
 herdr integration install pi

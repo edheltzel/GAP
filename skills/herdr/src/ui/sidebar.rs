@@ -8,7 +8,7 @@ use ratatui::{
 
 use super::scrollbar::{render_scrollbar, should_show_scrollbar};
 use super::status::{agent_icon, state_dot, state_label, state_label_color};
-use crate::app::state::{AgentPanelScope, Palette};
+use crate::app::state::{AgentPanelSort, Palette};
 use crate::app::{AppState, Mode};
 use crate::detect::AgentState;
 use crate::terminal::TerminalRuntimeRegistry;
@@ -25,6 +25,7 @@ pub(crate) struct AgentPanelEntry {
     pub agent_label: Option<String>,
     pub state: AgentState,
     pub seen: bool,
+    pub last_agent_state_change_seq: Option<u64>,
     pub custom_status: Option<String>,
     pub state_labels: std::collections::HashMap<String, String>,
 }
@@ -68,39 +69,19 @@ pub(crate) fn sidebar_section_divider_rect(area: Rect, split_ratio: f32) -> Rect
     Rect::new(content.x, content.y + ws_h, content.width, 1)
 }
 
-fn agent_panel_current_workspace_idx(app: &AppState) -> Option<usize> {
-    if matches!(
-        app.mode,
-        Mode::Navigate
-            | Mode::RenameWorkspace
-            | Mode::RenamePane
-            | Mode::Resize
-            | Mode::ConfirmClose
-            | Mode::ContextMenu
-            | Mode::Settings
-            | Mode::GlobalMenu
-            | Mode::KeybindHelp
-            | Mode::ProductAnnouncement
-    ) {
-        Some(app.selected)
-    } else {
-        app.active
+fn agent_panel_sort_label(sort: AgentPanelSort) -> &'static str {
+    match sort {
+        AgentPanelSort::Spaces => "grouped",
+        AgentPanelSort::Priority => "priority",
     }
 }
 
-fn agent_panel_toggle_label(scope: AgentPanelScope) -> &'static str {
-    match scope {
-        AgentPanelScope::CurrentWorkspace => "current",
-        AgentPanelScope::AllWorkspaces => "all",
-    }
-}
-
-pub(crate) fn agent_panel_toggle_rect(area: Rect, scope: AgentPanelScope) -> Rect {
+pub(crate) fn agent_panel_toggle_rect(area: Rect, sort: AgentPanelSort) -> Rect {
     if area.width == 0 || area.height < 2 {
         return Rect::default();
     }
 
-    let label = agent_panel_toggle_label(scope);
+    let label = agent_panel_sort_label(sort);
     let width = label.chars().count() as u16;
     Rect::new(
         area.x + area.width.saturating_sub(width),
@@ -134,54 +115,41 @@ fn agent_panel_entries_with_runtimes(
         }
     };
 
-    match app.agent_panel_scope {
-        AgentPanelScope::CurrentWorkspace => {
-            let Some(ws_idx) = agent_panel_current_workspace_idx(app) else {
-                return Vec::new();
-            };
-            let Some(ws) = app.workspaces.get(ws_idx) else {
-                return Vec::new();
-            };
+    let mut entries: Vec<_> = app
+        .workspaces
+        .iter()
+        .enumerate()
+        .flat_map(|(ws_idx, ws)| {
+            let multi_tab = ws.tabs.len() > 1;
+            let workspace_label = ws.display_name_from(&app.terminals, terminal_runtimes);
             ws.pane_details(&app.terminals)
                 .into_iter()
-                .map(|detail| AgentPanelEntry {
+                .map(move |detail| AgentPanelEntry {
                     ws_idx,
                     tab_idx: detail.tab_idx,
                     pane_id: detail.pane_id,
-                    primary_label: detail.label,
-                    primary_tab_label: None,
-                    agent_label: None,
+                    primary_label: workspace_label.clone(),
+                    primary_tab_label: multi_tab.then_some(detail.tab_label),
+                    agent_label: Some(detail.agent_label),
                     state: detail.state,
                     seen: detail.seen,
+                    last_agent_state_change_seq: detail.last_agent_state_change_seq,
                     custom_status: detail.custom_status,
                     state_labels: detail.state_labels,
                 })
-                .collect()
-        }
-        AgentPanelScope::AllWorkspaces => app
-            .workspaces
-            .iter()
-            .enumerate()
-            .flat_map(|(ws_idx, ws)| {
-                let multi_tab = ws.tabs.len() > 1;
-                let workspace_label = ws.display_name_from(&app.terminals, terminal_runtimes);
-                ws.pane_details(&app.terminals)
-                    .into_iter()
-                    .map(move |detail| AgentPanelEntry {
-                        ws_idx,
-                        tab_idx: detail.tab_idx,
-                        pane_id: detail.pane_id,
-                        primary_label: workspace_label.clone(),
-                        primary_tab_label: multi_tab.then_some(detail.tab_label),
-                        agent_label: Some(detail.agent_label),
-                        state: detail.state,
-                        seen: detail.seen,
-                        custom_status: detail.custom_status,
-                        state_labels: detail.state_labels,
-                    })
-            })
-            .collect(),
+        })
+        .collect();
+
+    if matches!(app.agent_panel_sort, AgentPanelSort::Priority) {
+        entries.sort_by_key(|entry| {
+            (
+                std::cmp::Reverse(workspace_attention_priority(entry.state, entry.seen)),
+                std::cmp::Reverse(entry.last_agent_state_change_seq),
+            )
+        });
     }
+
+    entries
 }
 
 pub(super) fn agent_panel_status_key(state: AgentState, seen: bool) -> &'static str {
@@ -973,11 +941,7 @@ fn render_workspace_list(
                     })
                     .unwrap_or(0);
                 let max_branch_len = (card.rect.width as usize).saturating_sub(5 + reserved);
-                let branch_display = if branch.len() > max_branch_len {
-                    format!("{}…", &branch[..max_branch_len.saturating_sub(1)])
-                } else {
-                    branch
-                };
+                let branch_display = truncate_text(&branch, max_branch_len);
                 let branch_color = if selected || is_active {
                     p.mauve
                 } else {
@@ -1071,11 +1035,11 @@ fn render_agent_detail(
         )])),
         Rect::new(area.x, area.y + 1, area.width, 1),
     );
-    let toggle_rect = agent_panel_toggle_rect(area, app.agent_panel_scope);
+    let toggle_rect = agent_panel_toggle_rect(area, app.agent_panel_sort);
     if toggle_rect != Rect::default() {
         frame.render_widget(
             Paragraph::new(Span::styled(
-                agent_panel_toggle_label(app.agent_panel_scope),
+                agent_panel_sort_label(app.agent_panel_sort),
                 Style::default().fg(p.overlay0).add_modifier(Modifier::BOLD),
             ))
             .alignment(Alignment::Right),
@@ -1275,7 +1239,6 @@ mod tests {
             .detected_agent = Some(Agent::Claude);
         app.active = Some(0);
         app.selected = 0;
-        app.agent_panel_scope = AgentPanelScope::AllWorkspaces;
 
         let entries = agent_panel_entries(&app);
         assert_eq!(entries[0].primary_label, "one");
@@ -1284,6 +1247,49 @@ mod tests {
         assert_eq!(entries[1].primary_label, "two");
         assert_eq!(entries[1].primary_tab_label.as_deref(), Some("logs"));
         assert_eq!(entries[1].agent_label.as_deref(), Some("claude"));
+    }
+
+    #[test]
+    fn priority_agent_panel_sort_uses_attention_then_space_order() {
+        let mut app = crate::app::state::AppState::test_new();
+        app.workspaces = vec![
+            Workspace::test_new("one"),
+            Workspace::test_new("two"),
+            Workspace::test_new("three"),
+            Workspace::test_new("four"),
+        ];
+        app.ensure_test_terminals();
+        app.active = Some(0);
+        app.selected = 0;
+        app.agent_panel_sort = crate::app::state::AgentPanelSort::Priority;
+
+        let set_state = |app: &mut crate::app::state::AppState, ws_idx: usize, state| {
+            let pane = app.workspaces[ws_idx].tabs[0].root_pane;
+            let terminal_id = app.workspaces[ws_idx].tabs[0].panes[&pane]
+                .attached_terminal_id
+                .clone();
+            let terminal = app.terminals.get_mut(&terminal_id).unwrap();
+            terminal.detected_agent = Some(Agent::Claude);
+            terminal.state = state;
+        };
+        set_state(&mut app, 0, AgentState::Working);
+        set_state(&mut app, 1, AgentState::Idle);
+        set_state(&mut app, 2, AgentState::Working);
+        set_state(&mut app, 3, AgentState::Blocked);
+
+        let done_pane = app.workspaces[1].tabs[0].root_pane;
+        app.workspaces[1].tabs[0]
+            .panes
+            .get_mut(&done_pane)
+            .unwrap()
+            .seen = false;
+
+        let labels: Vec<String> = agent_panel_entries(&app)
+            .into_iter()
+            .map(|entry| entry.primary_label)
+            .collect();
+
+        assert_eq!(labels, ["four", "two", "one", "three"]);
     }
 
     #[cfg(unix)]
@@ -1319,7 +1325,6 @@ mod tests {
         terminal.detected_agent = Some(Agent::Pi);
         app.active = Some(0);
         app.selected = 0;
-        app.agent_panel_scope = AgentPanelScope::AllWorkspaces;
 
         let (events, _) = tokio::sync::mpsc::channel(4);
         let runtime = crate::terminal::TerminalRuntime::spawn(
@@ -1376,7 +1381,6 @@ mod tests {
             .set_agent_name("planner".into());
         app.active = Some(0);
         app.selected = 0;
-        app.agent_panel_scope = AgentPanelScope::AllWorkspaces;
 
         let entries = agent_panel_entries(&app);
         assert_eq!(entries[0].primary_label, "bridge");
@@ -1394,6 +1398,7 @@ mod tests {
             agent_label: Some("claude".into()),
             state: AgentState::Idle,
             seen: true,
+            last_agent_state_change_seq: None,
             custom_status: None,
             state_labels: std::collections::HashMap::new(),
         };
@@ -1432,6 +1437,31 @@ mod tests {
             grouped_child_display_label("herdr-issue", Some("worktree/issue-137"), false),
             "issue-137"
         );
+    }
+
+    #[test]
+    fn workspace_list_truncates_cjk_branch_without_panic() {
+        let mut app = crate::app::state::AppState::test_new();
+        let mut ws = Workspace::test_new("repo");
+        ws.cached_git_branch = Some("feature/中文-分支-644".into());
+        app.workspaces = vec![ws];
+        app.active = Some(0);
+        app.selected = 0;
+        app.mode = Mode::Terminal;
+        app.view.workspace_card_areas = vec![crate::app::state::WorkspaceCardArea {
+            ws_idx: 0,
+            rect: Rect::new(0, 1, 15, 2),
+            indented: false,
+        }];
+
+        let mut terminal = Terminal::new(TestBackend::new(15, 6)).expect("test terminal");
+        let runtimes = crate::terminal::TerminalRuntimeRegistry::new();
+
+        terminal
+            .draw(|frame| {
+                render_workspace_list(&app, &runtimes, frame, Rect::new(0, 0, 15, 6), false)
+            })
+            .expect("workspace list should render");
     }
 
     fn workspace_with_worktree_space(

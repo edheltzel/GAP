@@ -73,6 +73,7 @@ pub struct TerminalState {
     suppressed_full_lifecycle_hook_reports: HashMap<String, SuppressedFullLifecycleHookReport>,
     metadata_report_sequences: HashMap<String, u64>,
     pub state: AgentState,
+    pub last_agent_state_change_seq: Option<u64>,
     pub revision: u64,
     pub launch_argv: Option<Vec<String>>,
     pub respawn_shell_on_exit: bool,
@@ -97,6 +98,7 @@ impl TerminalState {
             suppressed_full_lifecycle_hook_reports: HashMap::new(),
             metadata_report_sequences: HashMap::new(),
             state: AgentState::Unknown,
+            last_agent_state_change_seq: None,
             revision: 0,
             launch_argv: None,
             respawn_shell_on_exit: false,
@@ -904,6 +906,7 @@ impl TerminalState {
         self.agent_metadata.clear();
         self.suppressed_full_lifecycle_hook_reports.clear();
         self.state = AgentState::Unknown;
+        self.last_agent_state_change_seq = None;
         self.launch_argv = None;
         self.respawn_shell_on_exit = false;
         self.pending_agent_resume_plan = None;
@@ -1488,6 +1491,52 @@ mod tests {
             Some(22),
         );
 
+        assert!(fresh.is_some());
+        assert!(terminal.hook_authority.is_some());
+        assert_eq!(terminal.state, AgentState::Working);
+    }
+
+    // omp has no Agent identity (the process is pi), so its release suppression
+    // can only be cleared by a fresh session ref, never by process detection.
+    // Regression for #614: a same-pane restart must reacquire lifecycle authority.
+    #[test]
+    fn omp_reacquires_full_lifecycle_hook_after_release_with_fresh_session_ref() {
+        let mut terminal = test_terminal();
+        terminal.set_hook_authority_with_session_ref(
+            "herdr:omp".into(),
+            "omp".into(),
+            AgentState::Working,
+            None,
+            None,
+            crate::agent_resume::AgentSessionRef::id("omp-old"),
+            Some(20),
+        );
+        terminal.release_agent("herdr:omp", "omp", Some(21));
+
+        // A late report from the released run keeps its old session ref and stays
+        // suppressed, so a just-exited omp cannot resurrect the pane.
+        let stale = terminal.set_hook_authority_with_session_ref(
+            "herdr:omp".into(),
+            "omp".into(),
+            AgentState::Working,
+            None,
+            None,
+            crate::agent_resume::AgentSessionRef::id("omp-old"),
+            Some(22),
+        );
+        assert!(stale.is_none());
+        assert!(terminal.hook_authority.is_none());
+
+        // A fresh omp run carries a new session ref and reacquires authority.
+        let fresh = terminal.set_hook_authority_with_session_ref(
+            "herdr:omp".into(),
+            "omp".into(),
+            AgentState::Working,
+            None,
+            None,
+            crate::agent_resume::AgentSessionRef::id("omp-new"),
+            Some(23),
+        );
         assert!(fresh.is_some());
         assert!(terminal.hook_authority.is_some());
         assert_eq!(terminal.state, AgentState::Working);

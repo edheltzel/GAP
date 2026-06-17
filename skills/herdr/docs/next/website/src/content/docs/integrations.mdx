@@ -56,9 +56,9 @@ Herdr uses integrations in two different ways:
 
 Custom socket integrations can also report state when they define state that is not visible in the native terminal UI.
 
-Some integrations report native agent session references. Herdr uses official session references to resume Claude Code, Codex, Devin CLI, Droid, Kimi Code CLI, Qoder CLI, Cursor Agent CLI, GitHub Copilot CLI, Pi, Hermes Agent, OpenCode, and Kilo Code CLI panes after a Herdr server restart unless `[session] resume_agents_on_restore = false` disables it.
+Some integrations report native agent session references. Herdr uses official session references to resume Claude Code, Codex, Devin CLI, Droid, Kimi Code CLI, Qoder CLI, Cursor Agent CLI, GitHub Copilot CLI, Pi, OMP, Hermes Agent, OpenCode, and Kilo Code CLI panes after a Herdr server restart unless `[session] resume_agents_on_restore = false` disables it.
 
-Native session restore requires current Herdr integrations: Pi integration version `2`, Claude Code version `6`, Codex version `5`, GitHub Copilot CLI version `2`, Devin CLI version `1`, Droid version `2`, Kimi Code CLI version `3`, Qoder CLI version `2`, Cursor Agent CLI version `1`, OpenCode version `5`, Kilo Code CLI version `1`, or Hermes Agent version `2`. OMP integration version `2` reports agent state only. Check installed versions with `herdr integration status`.
+Native session restore requires current Herdr integrations: Pi integration version `2`, OMP version `3`, Claude Code version `6`, Codex version `5`, GitHub Copilot CLI version `2`, Devin CLI version `1`, Droid version `2`, Kimi Code CLI version `3`, Qoder CLI version `2`, Cursor Agent CLI version `1`, OpenCode version `5`, Kilo Code CLI version `1`, or Hermes Agent version `2`. Check installed versions with `herdr integration status`.
 
 ## Pi
 
@@ -92,7 +92,7 @@ Herdr writes the bundled extension to:
 
 If `PI_CODING_AGENT_DIR` is set, Herdr writes to `$PI_CODING_AGENT_DIR/extensions/herdr-omp-agent-state.ts` instead. The extensions directory must already exist. Uninstall removes only that extension file.
 
-The OMP integration reports `omp` as the agent label through Herdr's socket API. It does not require native process detection for the `omp` executable.
+The OMP integration reports `omp` as the agent label, lifecycle state, and native session identity through Herdr's socket API. It does not require native process detection for the `omp` executable, and Herdr can resume an OMP pane with `omp --resume=<session>` after a server restart.
 
 ## Claude Code
 

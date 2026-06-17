@@ -15,7 +15,7 @@ const PI_EXTENSION_ASSET: &str = include_str!("assets/pi/herdr-agent-state.ts");
 const PI_INTEGRATION_VERSION: u32 = 2;
 const OMP_EXTENSION_INSTALL_NAME: &str = "herdr-omp-agent-state.ts";
 const OMP_EXTENSION_ASSET: &str = include_str!("assets/omp/herdr-agent-state.ts");
-const OMP_INTEGRATION_VERSION: u32 = 2;
+const OMP_INTEGRATION_VERSION: u32 = 3;
 const PI_CODING_AGENT_DIR_ENV_VAR: &str = "PI_CODING_AGENT_DIR";
 const CLAUDE_HOOK_INSTALL_NAME: &str = if cfg!(windows) {
     "herdr-agent-state.ps1"
@@ -5969,6 +5969,9 @@ mod tests {
         assert!(PI_EXTENSION_ASSET.contains("agent_session_path: currentAgentSessionPath"));
         assert!(PI_EXTENSION_ASSET.contains("agent_session_id: currentAgentSessionId"));
         assert!(PI_EXTENSION_ASSET.contains("publishState(true)"));
+        assert!(OMP_EXTENSION_ASSET.contains("agent_session_path: currentAgentSessionPath"));
+        assert!(OMP_EXTENSION_ASSET.contains("agent_session_id: currentAgentSessionId"));
+        assert!(OMP_EXTENSION_ASSET.contains("publishState(true)"));
         assert!(CLAUDE_HOOK_ASSET.contains("agent_session_id"));
         assert!(CLAUDE_HOOK_ASSET.contains("agent_session_path"));
         assert!(CLAUDE_HOOK_ASSET.contains("session_start_source"));
@@ -6029,6 +6032,29 @@ mod tests {
         assert!(CURSOR_HOOK_ASSET.contains("sessionStart"));
         assert!(!CURSOR_HOOK_ASSET.contains("\"state\":"));
         assert!(!CURSOR_HOOK_ASSET.contains("pane.release_agent"));
+    }
+
+    #[test]
+    fn omp_root_session_guard_is_instance_scoped() {
+        let export_start = OMP_EXTENSION_ASSET
+            .find("export default function (pi)")
+            .expect("omp extension exports a function");
+        let root_session_decl = OMP_EXTENSION_ASSET
+            .find("let rootSession = false")
+            .expect("omp extension declares root session guard");
+        let session_start_handler = OMP_EXTENSION_ASSET
+            .find("pi.on(\"session_start\"")
+            .expect("omp extension registers session_start handler");
+
+        assert_eq!(
+            OMP_EXTENSION_ASSET
+                .matches("let rootSession = false")
+                .count(),
+            1
+        );
+        assert!(OMP_EXTENSION_ASSET.contains("rootSession = ctx?.hasUI === true"));
+        assert!(export_start < root_session_decl);
+        assert!(root_session_decl < session_start_handler);
     }
 
     #[test]
