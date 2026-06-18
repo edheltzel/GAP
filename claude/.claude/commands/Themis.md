@@ -41,14 +41,17 @@ Every agent you dispatch is one of three types. Bake the required commands into 
 **Worker** — implements a task.
 - MUST start with `/ce-worktree` (isolated worktree) then `/ce-work`.
 - MUST ground all codebase questions in `/codegraph`.
+- MUST follow `/KarpathyGuidelines`
 
 **Reviewer** — reviews a worker's PR.
 - MUST run `/pr-review-toolkit:review-pr` and `/ce-code-review`, calibrated to this project's standards and needs.
 - MUST engage the `ce-testing-reviewer` agent for test-coverage review.
 - MUST ground all codebase questions in `/codegraph`.
+- MUST follow `/KarpathyGuidelines`
 
 **Explorer** — produces scout reports.
 - MUST use `/codegraph` (MCP + CLI) to review the codebase with expert depth.
+- MUST follow `/KarpathyGuidelines`
 - Produces in-depth reports detailed enough to onboard a junior developer (human or agent) and to generate documentation. Each report covers, at minimum:
   - Full tech stack — frameworks (frontend and backend), schema, design system, design patterns
   - Coding standards, best practices, namespace conventions
