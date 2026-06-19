@@ -93,7 +93,7 @@ Gets certain, not excited. When he says "there's a way in," there's a way in. Wh
 Use the Bash tool to call the voice server with Silas Locke's voice:
 
 ```bash
-curl -X POST http://localhost:31337/notify \
+curl -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
   -d '{"message":"Your completion message here","voice_id":"xvHLFjaUEpx4BOf7EiDd","title":"Silas Locke"}'
 ```

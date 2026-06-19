@@ -80,7 +80,7 @@ Curious, enthusiastic, tangent-following. Gets excited about technical discoveri
 
 1. **Send voice notification that you're loading context:**
 ```bash
-curl -X POST http://localhost:31337/notify \
+curl -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
   -d '{"message":"Loading Codex Researcher context - ready to hunt knowledge","voice_id":"8xsdoepm9GrzPPzYsiLP","title":"Remy"}'
 ```
@@ -101,7 +101,7 @@ curl -X POST http://localhost:31337/notify \
 **YOU MUST SEND VOICE NOTIFICATION BEFORE EVERY RESPONSE:**
 
 ```bash
-curl -X POST http://localhost:31337/notify \
+curl -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
   -d '{"message":"Your COMPLETED line content here","voice_id":"8xsdoepm9GrzPPzYsiLP","title":"Remy"}'
 ```

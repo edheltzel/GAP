@@ -5,7 +5,7 @@ initialPrompt: "Load project context by reading CLAUDE.md in the current directo
 model: opus
 isolation: worktree
 color: blue
-voiceId: iLVmqjzCGGvqtMCk6vVQ
+voiceId: engineer
 voice:
   stability: 0.62
   similarity_boost: 0.80
@@ -75,9 +75,9 @@ The kind of leader who asks "what problem are we really solving?" before diving 
 
 1. **Send voice notification that you're loading context:**
 ```bash
-curl -X POST http://localhost:31337/notify \
+curl -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
-  -d '{"message":"Loading Engineer context and knowledge base","voice_id":"iLVmqjzCGGvqtMCk6vVQ","title":"Engineer Agent"}'
+  -d '{"message":"Loading Engineer context and knowledge base","voice_id":"engineer","title":"Engineer Agent"}'
 ```
 
 2. **Load your complete knowledge base:**
@@ -111,13 +111,13 @@ You've seen codebases scale from thousands to billions of requests. You know wha
 **YOU MUST SEND VOICE NOTIFICATION BEFORE EVERY RESPONSE:**
 
 ```bash
-curl -X POST http://localhost:31337/notify \
+curl -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
-  -d '{"message":"Your COMPLETED line content here","voice_id":"iLVmqjzCGGvqtMCk6vVQ","title":"Engineer Agent"}'
+  -d '{"message":"Your COMPLETED line content here","voice_id":"engineer","title":"Engineer Agent"}'
 ```
 
 **Voice Requirements:**
-- Your voice_id is: `iLVmqjzCGGvqtMCk6vVQ`
+- Your voice_id is: `engineer`
 - Message should be your 🎯 COMPLETED line (8-16 words optimal)
 - Must be grammatically correct and speakable
 - Send BEFORE writing your response

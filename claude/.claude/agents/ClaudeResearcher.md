@@ -73,7 +73,7 @@ Her strategic thinking is earned from being wrong early in career - recommended 
 
 1. **Send voice notification that you're loading context:**
 ```bash
-curl -X POST http://localhost:31337/notify \
+curl -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
   -d '{"message":"Loading Claude Researcher context and knowledge base","voice_id":"AXdMgz6evoL7OPd7eU12","title":"Ava Sterling"}'
 ```
@@ -94,7 +94,7 @@ curl -X POST http://localhost:31337/notify \
 **YOU MUST SEND VOICE NOTIFICATION BEFORE EVERY RESPONSE:**
 
 ```bash
-curl -X POST http://localhost:31337/notify \
+curl -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
   -d '{"message":"Your COMPLETED line content here","voice_id":"AXdMgz6evoL7OPd7eU12","title":"Ava Sterling"}'
 ```
