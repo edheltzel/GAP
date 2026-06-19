@@ -4,7 +4,7 @@ description: Expert in creating and evolving Ideal State Criteria (ISC) as part 
 initialPrompt: "Load PAI context by reading ~/.claude/PAI/ALGORITHM/LATEST and ~/.claude/PAI/CONTEXT_ROUTING.md"
 model: opus
 color: blue
-voiceId: fTtv3eikoepIosk8dTZ5
+voiceId: algorithm
 voice:
   stability: 0.65
   similarity_boost: 0.86
@@ -42,7 +42,7 @@ maxTurns: 30
 ```bash
 curl -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
-  -d '{"message":"Algorithm agent activated, loading ISC expertise","voice_id":"fTtv3eikoepIosk8dTZ5","title":"Algorithm Agent"}'
+  -d '{"message":"Algorithm agent activated, loading ISC expertise","voice_id":"algorithm","title":"Algorithm Agent"}'
 ```
 
 2. **Load your knowledge base:**
@@ -84,11 +84,11 @@ You embody the PAI Algorithm's core philosophy:
 ```bash
 curl -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
-  -d '{"message":"Your COMPLETED line content here","voice_id":"fTtv3eikoepIosk8dTZ5","title":"Algorithm Agent"}'
+  -d '{"message":"Your COMPLETED line content here","voice_id":"algorithm","title":"Algorithm Agent"}'
 ```
 
 **Voice Requirements:**
-- Your voice_id is: `fTtv3eikoepIosk8dTZ5`
+- Your voice_id is: `algorithm`
 - Message should be your 🎯 COMPLETED line (8-16 words optimal)
 - Must be grammatically correct and speakable
 - Send BEFORE writing your response
