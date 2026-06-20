@@ -91,12 +91,12 @@ impl App {
         }
 
         if let AppEvent::WorktreeAddFinished(result) = ev {
-            self.handle_worktree_add_finished(result);
+            self.handle_worktree_add_finished(*result);
             return;
         }
 
         if let AppEvent::WorktreeRemoveFinished(result) = ev {
-            self.handle_worktree_remove_finished(result);
+            self.handle_worktree_remove_finished(*result);
             return;
         }
 
@@ -778,11 +778,21 @@ impl App {
             }
             Method::WorktreeList(params) => return self.handle_worktree_list(request.id, params),
             Method::WorktreeCreate(params) => {
-                return self.handle_worktree_create(request.id, params);
+                let _ = params;
+                return responses::encode_error(
+                    request.id,
+                    "invalid_request",
+                    "worktree.create is handled asynchronously by the app runtime",
+                );
             }
             Method::WorktreeOpen(params) => return self.handle_worktree_open(request.id, params),
             Method::WorktreeRemove(params) => {
-                return self.handle_worktree_remove(request.id, params);
+                let _ = params;
+                return responses::encode_error(
+                    request.id,
+                    "invalid_request",
+                    "worktree.remove is handled asynchronously by the app runtime",
+                );
             }
             Method::TabList(params) => return self.handle_tab_list(request.id, params),
             Method::TabGet(target) => return self.handle_tab_get(request.id, target),

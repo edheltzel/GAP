@@ -51,7 +51,7 @@ This means unusual new agent prompts may initially show as `idle` instead of `bl
 
 ## Detection manifests
 
-Bundled manifests live inside Herdr. Herdr also checks herdr.dev for remote manifest updates and applies valid per-agent rule updates automatically without requiring a Herdr restart. Remote manifests are stored in Herdr's state directory.
+Bundled manifests live inside Herdr. Herdr also checks herdr.dev for remote manifest updates and applies valid per-agent rule updates automatically without requiring a Herdr restart. Remote manifests are stored in Herdr's state directory. Set `[update] manifest_check = false` to disable background remote manifest checks.
 
 Local overrides can replace a remote or bundled manifest from the platform config directory:
 

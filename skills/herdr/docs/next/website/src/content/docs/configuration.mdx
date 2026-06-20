@@ -33,16 +33,22 @@ Herdr shows first-run setup when `onboarding` is missing or true. Continuing fro
 onboarding = false
 ```
 
-## Update channel
+## Updates
 
 Linux and macOS direct installs use the stable update channel by default. Windows beta installs default to preview and cannot switch to stable until stable Windows releases are available.
 
 ```toml
 [update]
 channel = "stable"
+version_check = true
+manifest_check = true
 ```
 
 Set `channel = "preview"` to make `herdr update` install manually published preview builds from the current development branch. Homebrew, mise, and Nix installs ignore the preview channel and update through their package managers.
+
+Set `version_check = false` to disable background checks for new Herdr versions. Manual `herdr update` still uses the configured channel.
+
+Set `manifest_check = false` to disable background remote agent-detection manifest checks. Herdr still uses bundled manifests and local overrides.
 
 ## Reload config
 
@@ -256,6 +262,18 @@ Built-in themes:
 `catppuccin`, `catppuccin-latte`, `terminal`, `tokyo-night`, `tokyo-night-day`, `dracula`, `nord`, `gruvbox`, `gruvbox-light`, `one-dark`, `one-light`, `solarized`, `solarized-light`, `kanagawa`, `kanagawa-lotus`, `rose-pine`, `rose-pine-dawn`, `vesper`.
 
 Use `terminal` when you want Herdr UI colors to follow your host terminal's ANSI palette.
+
+To let Herdr switch its own UI theme when the host terminal reports a light/dark appearance change, enable theme auto-switching:
+
+```toml
+[theme]
+name = "catppuccin"
+auto_switch = true
+light_name = "catppuccin-latte"
+dark_name = "catppuccin"
+```
+
+`auto_switch` defaults to `false`, so existing theme configs keep manual behavior. If `light_name` or `dark_name` is omitted, Herdr uses the matching built-in sibling for the configured `name` when one exists, such as `tokyo-night`/`tokyo-night-day` or `gruvbox`/`gruvbox-light`. Manual theme selection in Settings disables `auto_switch`.
 
 You can override individual colors:
 

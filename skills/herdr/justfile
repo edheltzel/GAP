@@ -18,8 +18,13 @@ lint:
 ci filter='all()': lint
     cargo nextest run --locked -E "{{filter}}" --status-level fail --final-status-level slow --failure-output final --success-output never
 
-# Check formatting + run unit tests + maintenance script tests
-check: ci
+# Run Windows target lint from Unix/macOS to catch cfg(windows) compile and clippy failures before CI
+windows-lint:
+    rustup target add x86_64-pc-windows-msvc
+    LIBGHOSTTY_VT_SIMD=false cargo clippy --bin herdr --locked --target x86_64-pc-windows-msvc -- -D warnings
+
+# Check formatting + run unit tests + Windows target lint + maintenance script tests
+check: ci windows-lint
     python3 -m unittest scripts.test_agent_detection_manifest_check scripts.test_changelog scripts.test_preview scripts.test_vendor_libghostty_vt
     @echo "docs reminder: if this changes user-facing behavior, make sure the relevant release docs are updated or called out before release."
 

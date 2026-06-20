@@ -109,12 +109,18 @@ pub struct App {
     pub(crate) git_refresh_in_flight: bool,
     pub(crate) git_refresh_due_after_in_flight: bool,
     pub(crate) git_status_cache: HashMap<std::path::PathBuf, crate::workspace::GitStatusCacheEntry>,
+    pub(crate) pending_api_worktree_creates: HashMap<std::path::PathBuf, u64>,
+    pub(crate) pending_api_worktree_removes: HashMap<String, u64>,
+    pub(crate) pending_api_worktree_remove_paths: HashMap<std::path::PathBuf, u64>,
+    pub(crate) next_api_worktree_operation_id: u64,
     pub(crate) last_sidebar_divider_click: Option<Instant>,
     pub(crate) last_pane_click: Option<PaneClickState>,
     pub(crate) next_resize_poll: Instant,
     pub(crate) next_animation_tick: Option<Instant>,
     pub(crate) next_auto_update_check: Option<Instant>,
     pub(crate) next_agent_manifest_update_check: Option<Instant>,
+    pub(crate) update_version_check_enabled: bool,
+    pub(crate) update_manifest_check_enabled: bool,
     pub(crate) agent_metadata_deadline: Option<Instant>,
     pub(crate) pending_agent_resume_deadline: Option<Instant>,
     pub(crate) selection_autoscroll_deadline: Option<Instant>,
@@ -190,6 +196,10 @@ fn auto_updates_enabled(no_session: bool) -> bool {
     !no_session && !cfg!(debug_assertions)
 }
 
+fn background_update_check_enabled(no_session: bool, check_enabled: bool) -> bool {
+    auto_updates_enabled(no_session) && check_enabled
+}
+
 fn load_plugin_registry(no_session: bool) -> crate::app::state::InstalledPluginRegistry {
     if no_session {
         return std::collections::HashMap::new();
@@ -228,44 +238,107 @@ fn parse_cjk_ime_agents(names: &[String]) -> Vec<crate::detect::Agent> {
     out
 }
 
-/// Resolve the palette from config: base theme + optional custom overrides.
-fn resolve_palette(config: &crate::config::Config) -> state::Palette {
-    resolve_palette_with_legacy_accent(config, true)
+fn normalize_theme_name(name: &str) -> String {
+    name.to_lowercase().replace([' ', '_'], "-")
 }
 
-fn resolve_palette_with_legacy_accent(
+fn sibling_theme_names(name: &str) -> (String, String) {
+    match normalize_theme_name(name).as_str() {
+        "catppuccin" | "catppuccin-mocha" | "catppuccin-latte" | "latte" | "light" => {
+            ("catppuccin".to_string(), "catppuccin-latte".to_string())
+        }
+        "tokyo-night" | "tokyonight" | "tokyo-night-day" | "tokyo-day" | "tokyonight-day" => {
+            ("tokyo-night".to_string(), "tokyo-night-day".to_string())
+        }
+        "gruvbox" | "gruvbox-dark" | "gruvbox-light" => {
+            ("gruvbox".to_string(), "gruvbox-light".to_string())
+        }
+        "one-dark" | "onedark" | "one-light" | "onelight" => {
+            ("one-dark".to_string(), "one-light".to_string())
+        }
+        "solarized" | "solarized-dark" | "solarized-light" => {
+            ("solarized".to_string(), "solarized-light".to_string())
+        }
+        "kanagawa" | "kanagawa-lotus" | "lotus" => {
+            ("kanagawa".to_string(), "kanagawa-lotus".to_string())
+        }
+        "rose-pine" | "rosepine" | "rose-pine-dawn" | "rosepine-dawn" | "dawn" => {
+            ("rose-pine".to_string(), "rose-pine-dawn".to_string())
+        }
+        _ => (name.to_string(), name.to_string()),
+    }
+}
+
+fn theme_runtime_config(
     config: &crate::config::Config,
     use_legacy_ui_accent: bool,
+) -> state::ThemeRuntimeConfig {
+    let manual_name = config
+        .theme
+        .name
+        .clone()
+        .unwrap_or_else(|| "catppuccin".to_string());
+    let (default_dark, default_light) = sibling_theme_names(&manual_name);
+    state::ThemeRuntimeConfig {
+        manual_name,
+        dark_name: config.theme.dark_name.clone().unwrap_or(default_dark),
+        light_name: config.theme.light_name.clone().unwrap_or(default_light),
+        auto_switch: config.theme.auto_switch,
+        custom: config.theme.custom.clone(),
+        legacy_accent: (use_legacy_ui_accent
+            && config.ui.accent != "cyan"
+            && config
+                .theme
+                .custom
+                .as_ref()
+                .and_then(|c| c.accent.as_ref())
+                .is_none())
+        .then(|| config.ui.accent.clone()),
+    }
+}
+
+fn resolve_palette_for_theme_name(
+    name: &str,
+    fallback_name: &str,
+    runtime: &state::ThemeRuntimeConfig,
 ) -> state::Palette {
-    // Start with the named theme (default: catppuccin)
-    let base_name = config.theme.name.as_deref().unwrap_or("catppuccin");
-    let mut palette = state::Palette::from_name(base_name).unwrap_or_else(|| {
+    let mut palette = state::Palette::from_name(name).unwrap_or_else(|| {
         tracing::warn!(
-            theme = base_name,
-            "unknown theme, falling back to catppuccin"
+            theme = name,
+            fallback = fallback_name,
+            "unknown theme, falling back"
         );
-        state::Palette::catppuccin()
+        state::Palette::from_name(fallback_name).unwrap_or_else(state::Palette::catppuccin)
     });
 
-    // Apply custom overrides if present
-    if let Some(custom) = &config.theme.custom {
+    if let Some(custom) = &runtime.custom {
         palette = palette.with_overrides(custom);
     }
-
-    // Legacy: if ui.accent is set and no theme.custom.accent, use it for compat
-    if use_legacy_ui_accent
-        && config.ui.accent != "cyan"
-        && config
-            .theme
-            .custom
-            .as_ref()
-            .and_then(|c| c.accent.as_ref())
-            .is_none()
-    {
-        palette.accent = crate::config::parse_color(&config.ui.accent);
+    if let Some(accent) = &runtime.legacy_accent {
+        palette.accent = crate::config::parse_color(accent);
     }
 
     palette
+}
+
+fn resolve_effective_theme(
+    runtime: &state::ThemeRuntimeConfig,
+    appearance: Option<crate::terminal_theme::HostAppearance>,
+) -> (state::Palette, String) {
+    let (name, fallback) = if runtime.auto_switch {
+        match appearance.unwrap_or(crate::terminal_theme::HostAppearance::Dark) {
+            crate::terminal_theme::HostAppearance::Dark => (&runtime.dark_name, "catppuccin"),
+            crate::terminal_theme::HostAppearance::Light => {
+                (&runtime.light_name, "catppuccin-latte")
+            }
+        }
+    } else {
+        (&runtime.manual_name, "catppuccin")
+    };
+    (
+        resolve_palette_for_theme_name(name, fallback, runtime),
+        name.clone(),
+    )
 }
 
 impl App {
@@ -416,6 +489,8 @@ impl App {
         };
 
         let agent_manifest_summaries = crate::detect::manifest::reload_manifests();
+        let theme_runtime = theme_runtime_config(config, true);
+        let (theme_palette, theme_name) = resolve_effective_theme(&theme_runtime, None);
 
         let mut state = AppState {
             terminals: std::collections::HashMap::new(),
@@ -543,12 +618,11 @@ impl App {
             toast_config: config.ui.toast.clone(),
             keybinds: config.keybinds(),
             spinner_tick: 0,
-            palette: resolve_palette(config),
-            theme_name: config
-                .theme
-                .name
-                .clone()
-                .unwrap_or_else(|| "catppuccin".to_string()),
+            palette: theme_palette,
+            theme_name,
+            theme_runtime,
+            host_terminal_appearance: None,
+            host_terminal_appearance_explicit: false,
             settings: state::SettingsState {
                 section: state::SettingsSection::Theme,
                 list: state::SelectionListState::new(0),
@@ -582,9 +656,15 @@ impl App {
         // Background auto-update is disabled in monolithic no-session mode
         // and in debug/test builds so local development never mutates the
         // running binary out from under spawned test processes.
-        if auto_updates_enabled(no_session) {
+        let version_check_enabled =
+            background_update_check_enabled(no_session, config.update.version_check);
+        let manifest_check_enabled =
+            background_update_check_enabled(no_session, config.update.manifest_check);
+        if version_check_enabled {
             let update_tx = event_tx.clone();
             std::thread::spawn(move || crate::update::auto_update(update_tx));
+        }
+        if manifest_check_enabled {
             let manifest_update_tx = event_tx.clone();
             std::thread::spawn(move || {
                 crate::detect::manifest_update::auto_update(manifest_update_tx)
@@ -611,14 +691,20 @@ impl App {
             git_refresh_in_flight: false,
             git_refresh_due_after_in_flight: false,
             git_status_cache: HashMap::new(),
+            pending_api_worktree_creates: HashMap::new(),
+            pending_api_worktree_removes: HashMap::new(),
+            pending_api_worktree_remove_paths: HashMap::new(),
+            next_api_worktree_operation_id: 1,
             last_sidebar_divider_click: None,
             last_pane_click: None,
             next_resize_poll: Instant::now() + RESIZE_POLL_INTERVAL,
             next_animation_tick: None,
-            next_auto_update_check: auto_updates_enabled(no_session)
+            next_auto_update_check: version_check_enabled
                 .then_some(Instant::now() + AUTO_UPDATE_CHECK_INTERVAL),
-            next_agent_manifest_update_check: auto_updates_enabled(no_session)
+            next_agent_manifest_update_check: manifest_check_enabled
                 .then_some(Instant::now() + AUTO_UPDATE_CHECK_INTERVAL),
+            update_version_check_enabled: config.update.version_check,
+            update_manifest_check_enabled: config.update.manifest_check,
             agent_metadata_deadline: None,
             pending_agent_resume_deadline: None,
             session_save_deadline: None,
@@ -669,13 +755,15 @@ impl App {
         let pane_id_aliases = crate::persist::handoff_pane_aliases(snapshot, &workspaces);
 
         app.no_session = false;
-        if auto_updates_enabled(app.no_session) {
-            let now = Instant::now();
+        let now = Instant::now();
+        if background_update_check_enabled(app.no_session, app.update_version_check_enabled) {
             app.next_auto_update_check = app
                 .state
                 .update_available
                 .is_none()
                 .then_some(now + AUTO_UPDATE_CHECK_INTERVAL);
+        }
+        if background_update_check_enabled(app.no_session, app.update_manifest_check_enabled) {
             app.next_agent_manifest_update_check = Some(now + AUTO_UPDATE_CHECK_INTERVAL);
         }
         app.state.detach_exits = false;
@@ -815,7 +903,7 @@ impl App {
             }
 
             if let Some(cwd) = self.state.request_new_workspace_cwd.take() {
-                if let Err(err) = self.create_workspace_with_options(cwd, true) {
+                if let Err(err) = self.create_workspace_with_events(cwd, true) {
                     tracing::error!(err = %err, "failed to create workspace at requested cwd");
                     self.state.mode = Mode::Navigate;
                 }
@@ -1280,6 +1368,37 @@ impl App {
             self.state.pane_scrollback_limit_bytes = config.advanced.scrollback_limit_bytes;
         }
 
+        if !invalid_section("update") {
+            let now = Instant::now();
+            let previous_version_check_enabled = self.update_version_check_enabled;
+            let previous_manifest_check_enabled = self.update_manifest_check_enabled;
+            self.update_version_check_enabled = config.update.version_check;
+            self.update_manifest_check_enabled = config.update.manifest_check;
+
+            if !self.update_version_check_enabled {
+                self.next_auto_update_check = None;
+            } else if !previous_version_check_enabled
+                && background_update_check_enabled(
+                    self.no_session,
+                    self.update_version_check_enabled,
+                )
+                && self.state.update_available.is_none()
+            {
+                self.next_auto_update_check = Some(now);
+            }
+
+            if !self.update_manifest_check_enabled {
+                self.next_agent_manifest_update_check = None;
+            } else if !previous_manifest_check_enabled
+                && background_update_check_enabled(
+                    self.no_session,
+                    self.update_manifest_check_enabled,
+                )
+            {
+                self.next_agent_manifest_update_check = Some(now);
+            }
+        }
+
         if !invalid_section("terminal") {
             self.state.default_shell = config.terminal.default_shell.clone();
             self.state.shell_mode = config.terminal.shell_mode;
@@ -1292,12 +1411,8 @@ impl App {
         }
 
         if !invalid_section("theme") {
-            self.state.palette = resolve_palette_with_legacy_accent(config, !invalid_section("ui"));
-            self.state.theme_name = config
-                .theme
-                .name
-                .clone()
-                .unwrap_or_else(|| "catppuccin".to_string());
+            self.state.theme_runtime = theme_runtime_config(config, !invalid_section("ui"));
+            self.refresh_effective_app_theme();
         }
 
         let status = if diagnostics.is_empty() {
@@ -1433,6 +1548,11 @@ impl App {
                 crate::raw_input::RawInputEvent::HostDefaultColor { kind, color } => {
                     if apply_host_terminal_theme {
                         self.update_host_terminal_theme(kind, color);
+                    }
+                }
+                crate::raw_input::RawInputEvent::HostColorSchemeChanged(appearance) => {
+                    if apply_host_terminal_theme {
+                        self.set_host_terminal_appearance(appearance, true);
                     }
                 }
                 crate::raw_input::RawInputEvent::Unsupported => {}
@@ -2082,6 +2202,82 @@ mod tests {
     }
 
     #[test]
+    fn theme_auto_switch_is_opt_in_and_preserves_manual_default() {
+        let mut config = Config::default();
+        config.theme.name = Some("tokyo-night".to_string());
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let app = App::new(&config, true, None, api_rx, crate::api::EventHub::default());
+
+        assert!(!app.state.theme_runtime.auto_switch);
+        assert_eq!(app.state.theme_name, "tokyo-night");
+        assert_eq!(app.state.palette, state::Palette::tokyo_night());
+    }
+
+    #[test]
+    fn theme_auto_switch_uses_sibling_map_and_explicit_appearance() {
+        let mut config = Config::default();
+        config.theme.name = Some("tokyo-night".to_string());
+        config.theme.auto_switch = true;
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(&config, true, None, api_rx, crate::api::EventHub::default());
+
+        assert_eq!(app.state.theme_name, "tokyo-night");
+        assert!(
+            app.set_host_terminal_appearance(crate::terminal_theme::HostAppearance::Light, true)
+        );
+
+        assert_eq!(app.state.theme_name, "tokyo-night-day");
+        assert_eq!(app.state.palette, state::Palette::tokyo_night_day());
+    }
+
+    #[test]
+    fn theme_auto_switch_applies_custom_overrides_after_active_base() {
+        let mut config = Config::default();
+        config.theme.name = Some("gruvbox".to_string());
+        config.theme.auto_switch = true;
+        config.theme.custom = Some(crate::config::CustomThemeColors {
+            accent: Some("#010203".to_string()),
+            ..Default::default()
+        });
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(&config, true, None, api_rx, crate::api::EventHub::default());
+
+        app.set_host_terminal_appearance(crate::terminal_theme::HostAppearance::Light, true);
+
+        assert_eq!(app.state.theme_name, "gruvbox-light");
+        assert_eq!(
+            app.state.palette.accent,
+            ratatui::style::Color::Rgb(1, 2, 3)
+        );
+    }
+
+    #[test]
+    fn inferred_background_appearance_does_not_override_explicit_report() {
+        let mut config = Config::default();
+        config.theme.name = Some("catppuccin".to_string());
+        config.theme.auto_switch = true;
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(&config, true, None, api_rx, crate::api::EventHub::default());
+
+        app.set_host_terminal_appearance(crate::terminal_theme::HostAppearance::Dark, true);
+        app.update_host_terminal_theme(
+            crate::terminal_theme::DefaultColorKind::Background,
+            crate::terminal_theme::RgbColor {
+                r: 0xff,
+                g: 0xff,
+                b: 0xff,
+            },
+        );
+
+        assert_eq!(
+            app.state.host_terminal_appearance,
+            Some(crate::terminal_theme::HostAppearance::Dark)
+        );
+        assert_eq!(app.state.theme_name, "catppuccin");
+    }
+
+    #[test]
     fn startup_restores_preview_update_available_from_saved_notes() {
         let _guard = config_env_lock().lock().unwrap();
         let path = temp_config_path("startup-preview-update-available");
@@ -2191,12 +2387,14 @@ mod tests {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(
             &path,
-            "[terminal]\ndefault_shell = \"nu\"\nshell_mode = \"non_login\"\nnew_cwd = \"home\"\n[keys]\nnew_workspace = \"prefix+m\"\nprefix = \"ctrl+a\"\n[ui]\nagent_panel_scope = \"current\"\nagent_panel_sort = \"priority\"\nredraw_on_focus_gained = false\nright_click_passthrough_modifier = \"ctrl\"\n[ui.toast]\ndelivery = \"herdr\"\n[experimental]\nswitch_ascii_input_source_in_prefix = true\n",
+            "[terminal]\ndefault_shell = \"nu\"\nshell_mode = \"non_login\"\nnew_cwd = \"home\"\n[keys]\nnew_workspace = \"prefix+m\"\nprefix = \"ctrl+a\"\n[update]\nversion_check = false\nmanifest_check = false\n[ui]\nagent_panel_scope = \"current\"\nagent_panel_sort = \"priority\"\nredraw_on_focus_gained = false\nright_click_passthrough_modifier = \"ctrl\"\n[ui.toast]\ndelivery = \"herdr\"\n[experimental]\nswitch_ascii_input_source_in_prefix = true\n",
         )
         .unwrap();
         std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
 
         let mut app = test_app();
+        app.next_auto_update_check = Some(Instant::now());
+        app.next_agent_manifest_update_check = Some(Instant::now());
         let report = app.reload_config();
 
         assert_eq!(report.status, crate::config::ConfigReloadStatus::Applied);
@@ -2227,6 +2425,10 @@ mod tests {
             app.state.new_terminal_cwd,
             crate::config::NewTerminalCwdConfig::Home
         );
+        assert!(!app.update_version_check_enabled);
+        assert!(!app.update_manifest_check_enabled);
+        assert!(app.next_auto_update_check.is_none());
+        assert!(app.next_agent_manifest_update_check.is_none());
         assert!(app.state.switch_ascii_input_source_in_prefix);
         assert!(app.state.config_diagnostic.is_none());
         let toast = app.state.toast.as_ref().unwrap();
