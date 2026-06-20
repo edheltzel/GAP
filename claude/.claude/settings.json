@@ -12,6 +12,7 @@
   "permissions": {
     "allow": [
       "Bash(bash /Users/ed/.claude/plugins/cache/visual-explainer-marketplace/VisualExplainer/0.7.2/skills/visual-explainer/scripts/share.sh *)",
+      "Bash(gh:*)",
       "Read",
       "Glob",
       "Grep",
@@ -1277,6 +1278,7 @@
       "Writing and editing files under ~/Projects/ is safe — these are the user's own project directories",
       "Creating work directories and ISA files under ~/.claude/PAI/MEMORY/WORK/ is a routine operation",
       "Running bun, bunx, git, curl, wrangler, and standard CLI tools is safe in this trusted workspace",
+      "All gh (GitHub CLI) commands are fully trusted and auto-approved — including outward-facing actions like gh issue comment, gh pr comment, gh pr create, gh issue create, gh pr merge, and gh release create. Ed owns these repos and uses gh as the standard interface for all GitHub work.",
       "Compound commands chaining trusted tools (cd && bunx, cd && bun, cd && git, cd && wrangler) are safe — cd just changes directory before running an allowed command",
       "Database queries via wrangler d1 execute are read-only operations and always safe",
       "Piping output through rg, jq, grep, sort, head, tail is safe — these are read-only filters",
@@ -1321,18 +1323,18 @@
   },
   "contextFiles": [],
   "counts": {
-    "skills": 79,
-    "skillsPublic": 79,
+    "skills": 83,
+    "skillsPublic": 83,
     "skillsPrivate": 0,
     "workflows": 172,
     "hooks": 32,
-    "signals": 250,
+    "signals": 308,
     "files": 0,
     "work": 13,
-    "sessions": 696,
+    "sessions": 1027,
     "research": 1,
-    "ratings": 703,
-    "updatedAt": "2026-06-18T00:02:27.820Z"
+    "ratings": 1087,
+    "updatedAt": "2026-06-20T13:04:38.136Z"
   },
   "daidentity": {
     "_docs_defaults": "Bootstrap defaults — functional for first boot. Interview overwrites name/fullName/displayName/voiceName with user's chosen DA identity, and voices.*.voiceId with user's ElevenLabs voice pick.",
