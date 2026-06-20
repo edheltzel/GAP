@@ -35,11 +35,11 @@
       }
     }
   },
-  "theme": "terminal",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5",
+  "theme": "dark",
+  "defaultProvider": "openrouter",
+  "defaultModel": "liquid/lfm-2.5-1.2b-thinking:free",
   "quietStartup": true,
-  "defaultThinkingLevel": "medium",
+  "defaultThinkingLevel": "high",
   "hideThinkingBlock": false,
-  "lastChangelogVersion": "0.79.6"
+  "lastChangelogVersion": "0.79.7"
 }

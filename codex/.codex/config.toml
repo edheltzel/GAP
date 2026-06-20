@@ -12,7 +12,7 @@ terminal_resize_reflow = true
 js_repl = false
 
 [marketplaces.openai-bundled]
-last_updated = "2026-06-17T14:57:54Z"
+last_updated = "2026-06-19T20:39:44Z"
 source_type = "local"
 source = "/Users/ed/.codex/.tmp/bundled-marketplaces/openai-bundled"
 
@@ -22,14 +22,14 @@ source_type = "local"
 source = "/Users/ed/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
 [marketplaces.claude-plugins-official]
-last_updated = "2026-06-17T14:57:46Z"
-last_revision = "c1ff4a139891a99e1d299ace5e92aade9dc6eece"
+last_updated = "2026-06-19T20:32:17Z"
+last_revision = "81500db67345a66d99f8330eafff911553475217"
 source_type = "git"
 source = "https://github.com/anthropics/claude-plugins-official.git"
 
 [marketplaces.compound-engineering-plugin]
-last_updated = "2026-06-16T18:43:43Z"
-last_revision = "d8d688b30d97eb5efc3142cec16dd8314ac48e47"
+last_updated = "2026-06-19T20:32:19Z"
+last_revision = "c759a26041559360e7b10148dd407406e716fc3b"
 source_type = "git"
 source = "https://github.com/EveryInc/compound-engineering-plugin.git"
 
@@ -51,12 +51,12 @@ NODE_REPL_NODE_MODULE_DIRS = "/Applications/Codex.app/Contents/Resources/cua_nod
 NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/cua_node/bin/node"
 NODE_REPL_TRUSTED_CODE_PATHS = "/Users/ed/.codex"
 CODEX_HOME = "/Users/ed/.codex"
-NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "eb55d24cf065cd5311af6f99b16bade2b7a670790ff2db9accf60d012dd55dd1"
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "feca4d852d7d18eab5e217b18c8c80099fe667c330e836640fd7a48f362de525"
 BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"
 NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = "Control the in-app browser in conjunction with the Browser Plugin."
 NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = "Control the Chrome browser in conjunction with the Chrome Plugin. Prefer this method of controlling Chrome over alternatives (such as Computer Use) unless the user explicitly mentions an alternative."
 BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
-BROWSER_USE_CODEX_APP_VERSION = "26.611.62324"
+BROWSER_USE_CODEX_APP_VERSION = "26.616.32156"
 CODEX_CLI_PATH = "/Applications/Codex.app/Contents/Resources/codex"
 
 [notice]
@@ -86,13 +86,13 @@ enabled = true
 [plugins."computer-use@openai-bundled"]
 enabled = true
 
+[plugins."pdf@openai-primary-runtime"]
+enabled = true
+
 [plugins."browser@openai-bundled"]
 enabled = true
 
 [plugins."chrome@openai-bundled"]
-enabled = true
-
-[plugins."pdf@openai-primary-runtime"]
 enabled = true
 
 [projects."/Users/ed/.dotfiles"]
@@ -456,6 +456,8 @@ opaqueWindows = true
 surface = "#eff1f5"
 
 [desktop.appearanceLightChromeTheme.fonts]
+code = "Lilex Nerd Font Mono"
+ui = "Lilex"
 
 [desktop.appearanceLightChromeTheme.semanticColors]
 diffAdded = "#40a02b"
