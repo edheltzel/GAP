@@ -1,0 +1,102 @@
+// Tiny resolve smoke-check / self-test. Run: `bun smoke.ts`
+// Resolves the default archetype with two overlays and asserts the merged spec
+// matches the skill plan's Phase 1 verify gate.
+
+import { resolve, ARCHETYPES, OVERLAYS } from "./resolve.ts";
+
+function assert(cond: boolean, msg: string): void {
+  if (!cond) {
+    console.error(`FAIL: ${msg}`);
+    throw new Error(msg);
+  }
+}
+
+const spec = resolve("solo-software", ["estimation", "roadmap"]);
+
+const statusNames = spec.status.map((s) => s.name);
+const fieldNames = spec.fields.map((f) => f.name);
+const labelNames = spec.labels.map((l) => l.name);
+
+// Gate: Status = Backlog·Ready·In Progress·In Review·Done
+assert(
+  JSON.stringify(statusNames) ===
+    JSON.stringify(["Backlog", "Ready", "In Progress", "In Review", "Done"]),
+  `unexpected status vocabulary: ${statusNames.join(" · ")}`,
+);
+
+// Gate: fields include Phase, Estimate#, Area, Start/Target dates
+for (const required of ["Phase", "Estimate", "Area", "Start Date", "Target Date"]) {
+  assert(fieldNames.includes(required), `missing field "${required}"`);
+}
+
+// Gate: labels include type:*
+const typeLabels = [
+  "type:bug",
+  "type:feature",
+  "type:docs",
+  "type:test",
+  "type:refactor",
+  "type:chore",
+];
+for (const t of typeLabels) {
+  assert(labelNames.includes(t), `missing label "${t}"`);
+}
+
+// Determinism: resolving the same inputs twice yields identical output.
+assert(
+  JSON.stringify(resolve("solo-software", ["estimation", "roadmap"])) ===
+    JSON.stringify(spec),
+  "resolve is not deterministic",
+);
+
+// Coverage: every archetype resolves cleanly with the shared base in place.
+const archetypeKeys = Object.keys(ARCHETYPES);
+assert(archetypeKeys.length === 5, `expected 5 archetypes, got ${archetypeKeys.length}`);
+for (const key of archetypeKeys) {
+  const a = resolve(key);
+  assert(a.status.length > 0, `${key}: empty status vocabulary`);
+  assert(a.fields.some((f) => f.name === "Priority"), `${key}: missing shared Priority field`);
+  assert(a.labels.length > 0, `${key}: empty labels`);
+}
+
+// Coverage: every overlay composes additively onto the default archetype.
+const overlayKeys = Object.keys(OVERLAYS);
+assert(overlayKeys.length === 5, `expected 5 overlays, got ${overlayKeys.length}`);
+const footprint = (s: ReturnType<typeof resolve>) =>
+  s.status.length + s.fields.length + s.labels.length + s.views.length;
+const baseSolo = resolve("solo-software");
+for (const key of overlayKeys) {
+  assert(
+    footprint(resolve("solo-software", [key])) > footprint(baseSolo),
+    `overlay "${key}" composed but added nothing`,
+  );
+}
+
+// triage is the one asymmetric merge: it PREPENDS a single "Triage" column.
+const triaged = resolve("solo-software", ["triage"]);
+assert(triaged.status[0].name === "Triage", "triage did not prepend Triage");
+assert(
+  triaged.status.filter((s) => s.name === "Triage").length === 1,
+  "triage produced a duplicate Triage column",
+);
+
+// F5: resolved specs are detached — mutating one must not leak into the next.
+const probe = resolve("solo-software", ["estimation"]);
+probe.fields.push({ name: "__leak__", type: "TEXT" });
+probe.status.push({ name: "__leak__", color: "GRAY" });
+const fresh = resolve("solo-software", ["estimation"]);
+assert(
+  !fresh.fields.some((f) => f.name === "__leak__") &&
+    !fresh.status.some((s) => s.name === "__leak__"),
+  "resolved spec shares mutable refs with module constants (F5 regression)",
+);
+
+console.log(`resolved: ${spec.key} + [estimation, roadmap]`);
+console.log(`  Status: ${statusNames.join(" · ")}`);
+console.log(`  Fields: ${fieldNames.join(", ")}`);
+console.log(`  Labels: ${labelNames.length} total (incl. ${typeLabels.length} type:*)`);
+console.log(`  Views : ${spec.views.map((v) => v.name).join(", ")}`);
+console.log(
+  `coverage: ${archetypeKeys.length}/5 archetypes resolve · ${overlayKeys.length}/5 overlays compose · triage prepend + F5 detachment checked`,
+);
+console.log("\nALL ASSERTIONS PASSED");

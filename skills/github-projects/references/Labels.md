@@ -1,39 +1,58 @@
-# Labels — use the repo's existing taxonomy
+# Labels — the canonical `:`-namespaced taxonomy
 
-Policy for labels on a board-tracked repo. **Keep the repo's existing labels; adjust the workflow to them.** Do **not** import the `claude-workflow-template`'s `type:`/`priority:`/`source:` taxonomy — it duplicates what the repo and the board already express.
+Policy for labels on a board-tracked repo. There is now a **canonical start taxonomy** (below), synced across every repo, derived from the live `edheltzel/Recall` label set. Apply it on bootstrap; extend per-repo only with `area:*` / archetype-specific labels.
 
-## Principle
+## Canonical taxonomy (start set)
 
-- **Labels = categorization the repo already uses.** Whatever `gh label list` returns is the taxonomy. Extend it on the repo's own terms, not by copying a foreign scheme.
-- **Workflow state = triage labels.** Per `docs/agents/triage-labels.md`, the five canonical triage roles use default label strings: `needs:triage`, `needs:info`, `agent:ready`, `needs:human`, `wontfix`. These signal *who acts next*.
-- **Phase and Priority are board FIELDS, not labels** (see `ProjectSetup.md`). This avoids the `phase:N` / `priority:N` label-vs-field duplication the template suffers from.
+Every repo gets these on bootstrap. Colors match Recall.
+
+| Namespace | Labels | Role | Color |
+|-----------|--------|------|-------|
+| `type:` | `type:bug` `type:feature` `type:docs` `type:test` `type:refactor` `type:chore` | work kind | `#d4c5f9` |
+| `needs:` | `needs:triage` `needs:info` `needs:human` | what the issue is waiting on / who acts next | `#FBCA04` / `#c73aa4` / `#b60205` |
+| `risk:` | `risk:low` `risk:medium` `risk:high` | ambiguity / judgement level (the priority-like axis) | `#edeedd` / `#fef2c0` / `#f9d0c4` |
+| `agent:` | `agent:ready` `agent:blocked` `agent:complete` | AFK-agent lifecycle signal | `#bfd4f2` |
+| — | `wontfix` | GitHub default; keep bare | `#ededed` |
+
+Triage role meanings (the `who-acts-next` signals) — see `docs/agents/triage-labels.md`:
+
+- `needs:triage` — maintainer needs to evaluate this issue
+- `needs:info` — waiting on reporter for more information
+- `agent:ready` — fully specified, ready for an AFK agent (`risk:low` work)
+- `needs:human` — requires human implementation
+- `wontfix` — will not be actioned
+
+## Principles
+
+- **`:`-namespaced, color-grouped.** Every label carries a `prefix:` (except the GitHub default `wontfix`). Prefixes group visually and prevent collisions.
+- **`risk:` is a LABEL, not a board field.** It is the one priority-like axis kept as a label (Ed's convention). Do **not** duplicate it as a board `Priority` field.
+- **Work-kind = `type:` labels.** On an **org** repo, native **issue types** are also available and may later supersede `type:*`; until that migration is decided, `type:*` labels are canonical.
+- **Status is the board field; Phase is a field/milestone.** Never labels.
 
 ## Before applying any label
 
-Always read the live taxonomy first — never assume:
+Read the live taxonomy first — never assume — then reconcile toward the canon:
 
 ```bash
-gh label list --repo OWNER/REPO --limit 200
+gh label list --repo OWNER/REPO --limit 200 --json name,color,description
 ```
 
-For `edheltzel/atlas-config` at time of writing this is GitHub's defaults (`bug`, `documentation`, `enhancement`, `duplicate`, `wontfix`, …) plus repo-specific labels (`area:pi`, `atlas-flow`, `flow`, `safety`, `schema`, `testing`, `roadmap`). The recipes apply labels **from this set** — they do not invent new ones.
+The Phase-2 label-sync target converges any repo to the canon above (`gh label create --force` from a manifest), preserving existing `area:*` and archetype labels.
 
-## What changed vs the template
+## Migration note
 
-| Template did | We do instead |
-|--------------|---------------|
-| `type:feature\|bug\|infra\|polish\|dx\|tech-debt\|docs` | Use existing labels (`enhancement`, `bug`, `documentation`, …) |
-| `risk:critical\|high\|medium\|low` labels | **Priority is a board field** |
-| `phase:1`…`phase:N` labels | **Phase is a board field** |
-| `source:research\|user-report\|internal` | Skipped (not adopted) |
-| Triage via ad-hoc labels | `docs/agents/triage-labels.md` roles |
+Older repos may still carry the pre-colon **hyphen** spellings of `needs:triage` and `needs:info` — rename those two to the colon canon:
+
+```bash
+gh label edit "OLD_HYPHEN_NAME" --repo OWNER/REPO --name "needs:triage"
+```
+
+The rest of the set (`needs:human`, `agent:*`, `risk:*`, `type:*`) is already colon in Recall.
 
 ## Adding a new label
 
-Only when the repo genuinely lacks a needed category, and matching the repo's existing naming style:
+Only when a repo genuinely needs a category the canon lacks, matching the `prefix:value` style:
 
 ```bash
 gh label create "area:dashboard" --repo OWNER/REPO --color BFD4F2 --description "Dashboard subsystem"
 ```
-
-If the repo uses a `prefix:value` style (`area:pi`), follow it. If it uses bare GitHub-default names, follow that. Consistency with the repo beats consistency with this template.

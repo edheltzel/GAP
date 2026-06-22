@@ -212,7 +212,7 @@ OWNER="@me"
 # Create Status field (usually exists by default)
 # gh project field-create $PROJECT_NUM --owner "$OWNER" \
 #   --name "Status" --data-type SINGLE_SELECT \
-#   --single-select-options "Backlog,Todo,In Progress,In Review,Done"
+#   --single-select-options "Backlog,Ready,In Progress,In Review,Done"
 
 # Priority
 gh project field-create $PROJECT_NUM --owner "$OWNER" \

@@ -20,7 +20,7 @@ gh project link PROJECT_NUM --owner OWNER --repo REPO
 
 ## 2. Create the fields
 
-Status usually exists by default (Todo/In Progress/In Review/Done — adjust to match). Add Phase and Priority:
+Status exists by default (GitHub ships `Todo / In Progress / Done`). Reconcile it to the canonical lean vocabulary — **Backlog · Ready · In Progress · In Review · Done** — then add Phase and Priority:
 
 ```bash
 gh project field-create PROJECT_NUM --owner OWNER --name "Phase" \
@@ -52,7 +52,7 @@ Views give visual separation without multiple boards. Create them in the web UI 
 |------|--------|--------|---------|
 | Epics | Table (hierarchy on) | `has:phase` | Phase overview with expandable sub-issues |
 | Active Work | Board by Status | `status:In Review,"In Progress"` | Daily working view |
-| Backlog | Board | `status:Todo` | Not yet started |
+| Backlog | Board | `status:Backlog` | Not yet started |
 | Bugs | Board | `label:bug` | All bugs by status |
 
 ## 5. Automations (web UI)
@@ -65,7 +65,7 @@ Views give visual separation without multiple boards. Create them in the web UI 
 
 ## Labels
 
-Label setup is a separate concern — see `Labels.md`. Use the repo's existing labels; do **not** create the template's `type:`/`priority:`/`source:` taxonomy. Phase and Priority are **board fields**, not labels.
+Label setup is a separate concern — see `Labels.md`. Apply the canonical `:`-namespaced taxonomy (`type:` `needs:` `risk:` `agent:` `wontfix`). Status, Phase, and Priority are **board fields**, not labels.
 
 ## Gotcha — field-ID brittleness
 

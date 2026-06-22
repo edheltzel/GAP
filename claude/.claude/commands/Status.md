@@ -1,10 +1,10 @@
 ---
 name: atlas:Status
-description: Board progress report from GitHub Projects — phase progress, status counts, recently-closed, and top up-next items. Wraps the githubprojects skill's Status recipe.
+description: Board progress report from GitHub Projects — phase progress, status counts, recently-closed, and top up-next items. Wraps the github-projects skill's Status recipe.
 argument-hint: [optional — phase or filter]
 ---
 
-Use the **githubprojects** skill and follow its `references/Status.md` recipe to produce a board progress report.
+Use the **github-projects** skill and follow its `references/Status.md` recipe to produce a board progress report.
 
 $ARGUMENTS
 

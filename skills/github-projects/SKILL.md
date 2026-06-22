@@ -10,6 +10,10 @@ GitHub Projects (v2) management via `gh project` commands. Requires the `project
 
 ## Prerequisites
 
+Requires **`gh` >= 2.94** — the native sub-issue, parent, and dependency flags
+(`gh issue create --parent`, `gh issue edit --add-sub-issue/--add-blocked-by/--add-blocking`)
+used by the hierarchy recipes landed in that release. Check with `gh --version`.
+
 Verify authentication includes project scope:
 
 ```bash
@@ -208,9 +212,9 @@ gh project item-list 1 --owner "@me" --format json | \
 
 ### PM recipes
 
-- **[Hierarchy.md](references/Hierarchy.md)**: Epic→Feature→Task issue model + issue-creation checklist with GraphQL (`addProjectV2ItemById`, `updateProjectV2ItemFieldValue`, `addSubIssue`)
+- **[Hierarchy.md](references/Hierarchy.md)**: Epic→Feature→Task issue model + issue-creation checklist using native sub-issues/dependencies (`gh issue create --parent`, `gh issue edit --add-sub-issue/--add-blocked-by`); GraphQL only for board-item field values
 - **[ProjectSetup.md](references/ProjectSetup.md)**: One-time board bootstrap — fields, views, automations, and capturing field/option IDs (no CLAUDE-gen, no Husky)
-- **[Labels.md](references/Labels.md)**: Label policy — use the repo's existing taxonomy; Phase/Priority are board fields, not labels
+- **[Labels.md](references/Labels.md)**: Label policy — the canonical `:`-namespaced taxonomy (`type:` `needs:` `risk:` `agent:` `wontfix`); Status/Phase/Priority are board fields, not labels
 - **[Execute.md](references/Execute.md)**: Run an existing plan/ISA against the board — pre-flight (bun), In Progress, 4-tier deviation rules, AC/close updates
 - **[Continue.md](references/Continue.md)**: Pick the next task from board state (status → priority → deps)
 - **[Status.md](references/Status.md)**: Board progress report — phase progress, status counts, recently-closed, up-next
