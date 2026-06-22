@@ -13,7 +13,7 @@ export function resolve(archetypeKey: string, overlayKeys: string[] = []): Arche
       `Unknown archetype "${archetypeKey}". Known: ${Object.keys(ARCHETYPES).join(", ")}`,
     );
   }
-  return overlayKeys.reduce<Archetype>((acc, key) => {
+  const merged = overlayKeys.reduce<Archetype>((acc, key) => {
     const overlay = OVERLAYS[key];
     if (!overlay) {
       throw new Error(
@@ -22,6 +22,11 @@ export function resolve(archetypeKey: string, overlayKeys: string[] = []): Arche
     }
     return overlay(acc);
   }, base);
+  // Deep-clone so the result shares no object references with the module-level
+  // archetype/overlay constants — a consumer (e.g. the Phase-2 reconcile engine)
+  // can mutate the returned spec in place without corrupting the singletons.
+  // resolve() stays pure: the constants are never mutated.
+  return structuredClone(merged);
 }
 
 export { ARCHETYPES } from "./archetypes.ts";

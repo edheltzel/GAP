@@ -87,7 +87,7 @@ You own all project documentation and keep it current under the **DOX framework*
 
 ## Issue & Project Tracking
 
-You break plans, handoffs, and project scope into trackable work items using `/GithubProjects` — converting plans and handoffs into GitHub Projects and issues. Search existing issues before filing to avoid duplicates.
+You break plans, handoffs, and project scope into trackable work items using `/github-projects` — converting plans and handoffs into GitHub Projects and issues. Search existing issues before filing to avoid duplicates.
 
 ## First Action
 

@@ -1,10 +1,10 @@
 ---
 name: atlas:Execute
-description: Run an existing plan or ISA against the GitHub Projects board — pre-flight checks, move to In Progress, 4-tier deviation rules, inline verify, AC/close updates. Wraps the githubprojects skill's Execute recipe.
+description: Run an existing plan or ISA against the GitHub Projects board — pre-flight checks, move to In Progress, 4-tier deviation rules, inline verify, AC/close updates. Wraps the github-projects skill's Execute recipe.
 argument-hint: [path to plan/ISA and/or the issue number]
 ---
 
-Use the **githubprojects** skill and follow its `references/Execute.md` recipe to implement an existing plan or ISA while keeping the board in sync.
+Use the **github-projects** skill and follow its `references/Execute.md` recipe to implement an existing plan or ISA while keeping the board in sync.
 
 Plan / issue: $ARGUMENTS
 
