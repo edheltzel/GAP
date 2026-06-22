@@ -41,12 +41,13 @@ The Phase-2 label-sync target converges any repo to the canon above (`gh label c
 
 ## Migration note
 
-Two stragglers in older repos still use the hyphen form — migrate them to the colon canon:
+Older repos may still carry the pre-colon **hyphen** spellings of `needs:triage` and `needs:info` — rename those two to the colon canon:
 
-- `needs-triage` → `needs:triage`
-- `needs-info` → `needs:info`
+```bash
+gh label edit "OLD_HYPHEN_NAME" --repo OWNER/REPO --name "needs:triage"
+```
 
-(`needs:human`, `agent:*`, `risk:*`, `type:*` are already colon in Recall.)
+The rest of the set (`needs:human`, `agent:*`, `risk:*`, `type:*`) is already colon in Recall.
 
 ## Adding a new label
 

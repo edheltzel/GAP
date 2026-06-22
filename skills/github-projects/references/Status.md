@@ -21,7 +21,7 @@ git log --oneline -15
 ## 2. Compute
 
 - Issues per Phase: closed vs open.
-- Count per board Status column (Backlog / Ready / In Progress / Done).
+- Count per board Status column (Backlog / Ready / In Progress / In Review / Done).
 - High-priority items not yet started.
 
 ## 3. Report (scannable, no prose)
