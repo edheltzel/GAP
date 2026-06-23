@@ -9,6 +9,12 @@ declare const process: {
   exit(code?: number): never;
 };
 
+// Bun sets `import.meta.main` true only for the entry-point module, so the CLI's
+// `main()` runs on direct invocation but not when the module is imported by tests.
+interface ImportMeta {
+  main: boolean;
+}
+
 declare namespace Bun {
   function spawnSync(
     cmd: string[],

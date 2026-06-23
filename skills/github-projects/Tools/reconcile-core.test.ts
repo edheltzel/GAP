@@ -10,12 +10,17 @@ import {
   buildPlan,
   planOps,
   hasDestructive,
+  destructiveGate,
   isEmpty,
   specHash,
+  optionLiteral,
+  colorLiteral,
+  normalizeLiveColor,
   type LiveOption,
   type LiveLabel,
   type LiveField,
   type Snapshot,
+  type Plan,
 } from "./reconcile-core.ts";
 import type { Archetype, SelectOption, Label } from "../templates/types.ts";
 
@@ -230,5 +235,152 @@ describe("specHash", () => {
     const b = structuredClone(a);
     b.views.push({ name: "Roadmap", layout: "ROADMAP" });
     expect(specHash(b)).toBe(specHash(a));
+  });
+});
+
+describe("diffOptions — explicit id-preserving rename (F1, the blocker)", () => {
+  test("an explicit rename carries the live id to the new name — no removal, no reset", () => {
+    const live = [opt("Backlog"), opt("Done")];
+    const desired = [want("Icebox"), want("Done")]; // spec now says Icebox, not Backlog
+    const { union, removals, ops, warnings } = diffOptions(live, desired, {
+      prune: true,
+      renames: [{ from: "Backlog", to: "Icebox" }],
+    });
+    // The new name inherits Backlog's node id → GitHub preserves every assignment.
+    expect(union.find((o) => o.name === "Icebox")?.id).toBe("id-Backlog");
+    // Nothing is removed and nothing is destructive — this is the whole point.
+    expect(removals).toEqual([]);
+    expect(ops.some((o) => o.safety === "destructive")).toBe(false);
+    const rename = ops.find((o) => o.target === "Icebox");
+    expect(rename?.kind).toBe("update");
+    expect(rename?.safety).toBe("safe");
+    expect(rename?.detail).toContain("rename");
+    // "Backlog" must NOT resurface as an extra/removal.
+    expect(union.some((o) => o.name === "Backlog")).toBe(false);
+    expect(warnings).toEqual([]);
+  });
+
+  test("without the rename mapping the SAME edit is a destructive remove+add (default unchanged)", () => {
+    const live = [opt("Backlog"), opt("Done")];
+    const desired = [want("Icebox"), want("Done")];
+    const { removals, ops } = diffOptions(live, desired, { prune: true });
+    expect(removals).toEqual(["Backlog"]);
+    expect(ops.find((o) => o.target === "Backlog")?.safety).toBe("destructive");
+  });
+
+  test("a rename whose source is missing live is warned and skipped (not a silent create churn)", () => {
+    const live = [opt("Done")];
+    const desired = [want("Icebox"), want("Done")];
+    const { union, warnings } = diffOptions(live, desired, {
+      prune: false,
+      renames: [{ from: "Backlog", to: "Icebox" }],
+    });
+    expect(warnings.some((w) => w.includes("Backlog") && w.includes("skipped"))).toBe(true);
+    // Falls through to a normal create — no id carried (there was nothing to carry).
+    expect(union.find((o) => o.name === "Icebox")?.id).toBeUndefined();
+  });
+
+  test("a rename whose target is not in the spec is warned and skipped", () => {
+    const live = [opt("Backlog"), opt("Done")];
+    const desired = [want("Backlog"), want("Done")]; // Icebox not desired
+    const { warnings } = diffOptions(live, desired, {
+      prune: false,
+      renames: [{ from: "Backlog", to: "Icebox" }],
+    });
+    expect(warnings.some((w) => w.includes("Icebox") && w.includes("skipped"))).toBe(true);
+  });
+
+  test("buildPlan threads --rename per field and preserves assignments end to end", () => {
+    const spec = { key: "k", title: "T", status: [want("Icebox"), want("Done", "GREEN")], fields: [], labels: [], views: [] };
+    const snap: Snapshot = {
+      projectId: "PVT",
+      fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [opt("Backlog"), opt("Done", "id-done", "GREEN")] }],
+      labels: [],
+    };
+    const plan = buildPlan(snap, spec, { prune: true, renames: [{ field: "Status", from: "Backlog", to: "Icebox" }] });
+    expect(hasDestructive(plan)).toBe(false); // a rename is safe
+    const status = plan.selects.find((s) => s.fieldName === "Status");
+    expect(status?.union.find((o) => o.name === "Icebox")?.id).toBe("id-Backlog");
+    expect(status?.removals).toEqual([]);
+  });
+
+  test("buildPlan warns when --rename targets a non-single-select field", () => {
+    const spec = { key: "k", title: "T", status: [want("Todo")], fields: [], labels: [], views: [] };
+    const snap: Snapshot = { projectId: "PVT", fields: [], labels: [] };
+    const plan = buildPlan(snap, spec, { prune: false, renames: [{ field: "Nope", from: "A", to: "B" }] });
+    expect(plan.warnings.some((w) => w.includes("Nope") && w.includes("skipped"))).toBe(true);
+  });
+});
+
+describe("optionLiteral / colorLiteral — §6 wire payload (must emit id when present)", () => {
+  test("emits `id:` IFF an id is present (a dropped id orphans every assignment)", () => {
+    expect(optionLiteral({ name: "Todo", color: "GRAY", description: "" })).toBe(`{name:"Todo",color:GRAY,description:""}`);
+    expect(optionLiteral({ id: "OPT_1", name: "Todo", color: "GRAY", description: "" })).toBe(
+      `{id:"OPT_1",name:"Todo",color:GRAY,description:""}`,
+    );
+  });
+
+  test("escapes quotes/backslashes in name and description (JSON.stringify)", () => {
+    const lit = optionLiteral({ name: 'a"b', color: "BLUE", description: "x\\y" });
+    expect(lit).toContain(`name:"a\\"b"`);
+    expect(lit).toContain(`description:"x\\\\y"`);
+    expect(lit).toContain("color:BLUE"); // colour stays a bare enum token, not quoted
+  });
+
+  test("colorLiteral returns the bare token for valid colours and throws for invalid", () => {
+    expect(colorLiteral("PURPLE")).toBe("PURPLE");
+    expect(() => colorLiteral("rebeccapurple")).toThrow();
+  });
+});
+
+describe("normalizeLiveColor — robustness, not a hard throw (F5)", () => {
+  test("a known colour (any case) passes with no warning", () => {
+    expect(normalizeLiveColor("blue", "X")).toEqual({ color: "BLUE" });
+    expect(normalizeLiveColor("GREEN", "X")).toEqual({ color: "GREEN" });
+  });
+
+  test("an unknown colour defaults to GRAY and warns — it does not throw", () => {
+    const r = normalizeLiveColor("chartreuse", "Weird");
+    expect(r.color).toBe("GRAY");
+    expect(r.warning).toContain("chartreuse");
+  });
+
+  test("a preserved live option with an unknown colour yields a normalized union + warning (no throw mid-map)", () => {
+    const live: LiveOption[] = [{ id: "id-x", name: "Legacy", color: "chartreuse", description: "" }];
+    const { union, warnings } = diffOptions(live, [want("Todo")], { prune: false });
+    const legacy = union.find((o) => o.name === "Legacy");
+    expect(legacy?.color).toBe("GRAY"); // normalized, preserved (not dropped)
+    expect(legacy?.id).toBe("id-x"); // id still carried
+    expect(warnings.some((w) => w.includes("Legacy"))).toBe(true);
+    // The normalized colour must survive serialization without throwing.
+    expect(() => optionLiteral(legacy!)).not.toThrow();
+  });
+});
+
+describe("destructiveGate — pure gate (catches a boolean inversion)", () => {
+  const destructivePlan = (): Plan =>
+    buildPlan(
+      { projectId: "P", fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [opt("Todo"), opt("Stale")] }], labels: [] },
+      { key: "k", title: "T", status: [want("Todo")], fields: [], labels: [], views: [] },
+      { prune: true },
+    );
+
+  test("destructive + prune + !confirm THROWS", () => {
+    const plan = destructivePlan();
+    expect(hasDestructive(plan)).toBe(true);
+    expect(() => destructiveGate(plan, { prune: true, confirm: false })).toThrow(/--confirm/);
+  });
+
+  test("destructive + prune + confirm does NOT throw", () => {
+    expect(() => destructiveGate(destructivePlan(), { prune: true, confirm: true })).not.toThrow();
+  });
+
+  test("a non-destructive plan never gates, even under prune", () => {
+    const plan = buildPlan(
+      { projectId: "P", fields: [{ id: "status", name: "Status", dataType: "SINGLE_SELECT", options: [opt("Todo")] }], labels: [] },
+      { key: "k", title: "T", status: [want("Todo")], fields: [], labels: [], views: [] },
+      { prune: true },
+    );
+    expect(() => destructiveGate(plan, { prune: true, confirm: false })).not.toThrow();
   });
 });

@@ -25,13 +25,15 @@ import { resolve } from "../templates/resolve.ts";
 import type { Archetype } from "../templates/types.ts";
 import {
   buildPlan,
+  destructiveGate,
   formatPlan,
-  hasDestructive,
   isEmpty,
+  optionLiteral,
   type Snapshot,
   type LiveField,
   type LiveLabel,
   type OptionInput,
+  type FieldRename,
   type Plan,
 } from "./reconcile-core.ts";
 
@@ -39,12 +41,28 @@ import {
 
 const dec = new TextDecoder();
 
-function gh(args: string[]): string {
+// The gh executor is a swappable seam so the orchestration — most importantly the
+// destructive gate and the apply ordering — is unit-testable without spawning real
+// `gh` (F4). Production uses `defaultExec`; tests inject a fake via `__setGhExec`.
+export type GhExec = (args: string[]) => string;
+
+const defaultExec: GhExec = (args) => {
   const r = Bun.spawnSync(["gh", ...args]);
   if (!r.success) {
     throw new Error(`gh ${args.join(" ")}\n${dec.decode(r.stderr).trim() || dec.decode(r.stdout).trim()}`);
   }
   return dec.decode(r.stdout);
+};
+
+let ghExec: GhExec = defaultExec;
+
+/** Test seam: swap the gh executor; pass `null` to restore the real one. */
+export function __setGhExec(fn: GhExec | null): void {
+  ghExec = fn ?? defaultExec;
+}
+
+function gh(args: string[]): string {
+  return ghExec(args);
 }
 
 function graphql(query: string, vars: Record<string, string> = {}): unknown {
@@ -110,24 +128,9 @@ function snapshotLabels(repo: string): LiveLabel[] {
 }
 
 // ──────────────────────────── Option union → GraphQL ────────────────────────────
-
-const COLORS = new Set(["GRAY", "BLUE", "GREEN", "YELLOW", "ORANGE", "RED", "PINK", "PURPLE"]);
-
-function colorLiteral(c: string): string {
-  if (!COLORS.has(c)) throw new Error(`invalid single-select colour "${c}" (not in the 8-value enum)`);
-  return c; // bare enum token
-}
-
-function optionLiteral(o: OptionInput): string {
-  const parts: string[] = [];
-  if (o.id) parts.push(`id:${JSON.stringify(o.id)}`);
-  parts.push(`name:${JSON.stringify(o.name)}`);
-  parts.push(`color:${colorLiteral(o.color)}`);
-  parts.push(`description:${JSON.stringify(o.description)}`);
-  return `{${parts.join(",")}}`;
-}
-
-// Full-list replace with the core's merged union. The id-preservation is what
+// `optionLiteral`/`colorLiteral` live in the pure core (id-preservation is the
+// §6 wire payload — tested there). Full-list replace with the core's merged union;
+// the id-preservation is what
 // keeps this non-destructive for everything except the removals the core dropped.
 function applyOptionUnion(fieldId: string, union: OptionInput[]): void {
   const opts = union.map(optionLiteral).join(",");
@@ -168,25 +171,75 @@ function deleteLabel(repo: string, name: string): void {
   gh(["label", "delete", name, "--repo", repo, "--yes"]);
 }
 
-// ──────────────────────────── §6: count item assignments ────────────────────────────
-// Best-effort count of items currently assigned to options about to be removed,
-// so we can honestly warn "resets N item assignments" before a destructive write.
+// ──────────────────────────── §6: capture item assignments ────────────────────────────
+// Before a destructive option removal we capture WHICH items hold the option (not
+// just a count), so a reset is manually recoverable (F2) and the warning is exact.
+//
+// `gh project item-list --format json` keys a custom field by gh's camelCase of the
+// display name (e.g. "Sub-issues progress" → "subIssuesProgress"), NOT the lowercased
+// name — so the old `it[name.toLowerCase()]` missed multi-word fields and silently
+// returned 0 (F1b). We resolve the real key and, if no candidate key is present on
+// any item, return `resolved:false` → the warning says "unknown" rather than a false 0.
 
-function countAssignments(owner: string, number: number, fieldName: string, optionNames: string[]): number {
-  if (optionNames.length === 0) return 0;
+// gh's field-name → JSON-key normalization: split on non-alphanumerics, lower the
+// first word, capitalize the rest. Exported for unit testing.
+export function camelKey(name: string): string {
+  const words = name.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  return words.map((w, i) => (i === 0 ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase())).join("");
+}
+
+interface CapturedItem {
+  id: string;
+  title: string;
+  option: string;
+}
+
+function captureAssignments(owner: string, number: number, fieldName: string, optionNames: string[]): { resolved: boolean; items: CapturedItem[] } {
+  if (optionNames.length === 0) return { resolved: true, items: [] };
+  let items: Record<string, unknown>[];
   try {
     const out = gh(["project", "item-list", String(number), "--owner", owner, "--format", "json", "--limit", "5000"]);
-    const items = (JSON.parse(out) as { items?: Record<string, unknown>[] }).items ?? [];
-    const targets = new Set(optionNames);
-    let n = 0;
-    for (const it of items) {
-      const v = it[fieldName.toLowerCase()] ?? it[fieldName];
-      if (typeof v === "string" && targets.has(v)) n++;
-    }
-    return n;
+    items = (JSON.parse(out) as { items?: Record<string, unknown>[] }).items ?? [];
   } catch {
-    return -1; // unknown — surfaced as "unknown" in the warning
+    return { resolved: false, items: [] }; // could not query → unknown, never a false 0
   }
+  if (items.length === 0) return { resolved: true, items: [] }; // genuinely no items → honest 0
+  const candidates = [camelKey(fieldName), fieldName.toLowerCase(), fieldName];
+  const key = candidates.find((k) => items.some((it) => k in it));
+  if (!key) return { resolved: false, items: [] }; // field's item-list key not found → unknown, not 0
+  const targets = new Set(optionNames);
+  const captured: CapturedItem[] = [];
+  for (const it of items) {
+    const v = it[key];
+    if (typeof v === "string" && targets.has(v)) {
+      captured.push({ id: String(it.id ?? ""), title: String(it.title ?? ""), option: v });
+    }
+  }
+  return { resolved: true, items: captured };
+}
+
+interface RemovalCapture {
+  count: number; // -1 when unresolved (unknown)
+  resolved: boolean;
+  items: CapturedItem[];
+}
+
+// Persist the item→option assignments a destructive removal is about to reset, so
+// they can be re-applied by hand. Named `*.lock.json` so it lands under the same
+// gitignore rule as the lockfile (default lockdir is .agents/atlas/artifacts).
+async function writeRecoveryArtifact(dir: string, slug: string, caps: Map<string, RemovalCapture>): Promise<string> {
+  Bun.spawnSync(["mkdir", "-p", dir]);
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const fields = [...caps.entries()].map(([field, c]) => ({ field, resolved: c.resolved, count: c.count, items: c.items }));
+  const body = {
+    slug,
+    capturedAt: new Date().toISOString(),
+    note: "Item→option assignments reset by a destructive single-select option removal. Re-assign manually to recover.",
+    fields,
+  };
+  const path = `${dir}/${slug}-recovery-${stamp}.lock.json`;
+  await Bun.write(path, JSON.stringify(body, null, 2) + "\n");
+  return path;
 }
 
 // ──────────────────────────── Lockfile ────────────────────────────
@@ -244,10 +297,26 @@ interface Args {
   prune: boolean;
   confirm: boolean;
   lockdir: string;
+  renames: FieldRename[];
+}
+
+// Parse `--rename "Field:Old=New"` → {field, from, to}. Split on the FIRST ':' and
+// then the FIRST '=' so field/option names may contain later separators.
+export function parseRename(spec: string): FieldRename {
+  const colon = spec.indexOf(":");
+  if (colon < 1) throw new Error(`--rename "${spec}": expected "Field:Old=New"`);
+  const field = spec.slice(0, colon);
+  const rest = spec.slice(colon + 1);
+  const eq = rest.indexOf("=");
+  if (eq < 1) throw new Error(`--rename "${spec}": expected "Field:Old=New"`);
+  const from = rest.slice(0, eq);
+  const to = rest.slice(eq + 1);
+  if (!from || !to) throw new Error(`--rename "${spec}": both old and new option names are required`);
+  return { field, from, to };
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { overlays: [], repos: [], apply: false, prune: false, confirm: false, lockdir: ".agents/atlas/artifacts" };
+  const a: Args = { overlays: [], repos: [], apply: false, prune: false, confirm: false, lockdir: ".agents/atlas/artifacts", renames: [] };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = () => argv[++i];
@@ -259,6 +328,7 @@ function parseArgs(argv: string[]): Args {
       case "--repo": a.repos.push(next()); break;
       case "--manifest": a.manifest = next(); break;
       case "--lockdir": a.lockdir = next(); break;
+      case "--rename": a.renames.push(parseRename(next())); break;
       case "--apply": a.apply = true; break;
       case "--prune": a.prune = true; break;
       case "--confirm": a.confirm = true; break;
@@ -283,8 +353,9 @@ Modes (default is dry-run plan):
   --apply --prune --confirm execute destructive removals too (option/field/label deletes)
 
 Other flags:
-  --lockdir <dir>   lockfile directory (default .agents/atlas/artifacts; *.lock.json is gitignored)
-  -h, --help        this help
+  --rename <Field:Old=New>  in-place, assignment-preserving option rename (repeatable; needs --apply)
+  --lockdir <dir>           lockfile directory (default .agents/atlas/artifacts; *.lock.json is gitignored)
+  -h, --help                this help
 
 Manifest JSON: { "repos": ["owner/a", ...], "archetype"?: "<key>", "overlays"?: ["<k>"] }`);
 }
@@ -305,22 +376,23 @@ async function resolveSpecAndRepos(a: Args): Promise<{ spec: Archetype; repos: s
   return { spec: resolve(archetypeKey, overlays), repos };
 }
 
-async function reconcileBoard(a: Args, spec: Archetype): Promise<{ plan: Plan; projectId: string }> {
+export async function reconcileBoard(a: Args, spec: Archetype): Promise<{ plan: Plan; projectId: string }> {
   const owner = a.owner!;
   const number = a.project!;
+  const slug = `${owner}-project-${number}`;
   const projectId = resolveProjectId(owner, number);
   let snap: Snapshot = { ...snapshotBoard(projectId), labels: [] };
   // Board mode reconciles fields + options only; labels are repo-scoped and
   // handled by reconcileLabels per --repo. specHash stays over the full spec.
-  let plan = buildPlan(snap, spec, { prune: a.prune });
+  let plan = buildPlan(snap, spec, { prune: a.prune, renames: a.renames });
   plan.labelOps = [];
 
   console.log(formatPlan(plan, { project: `${owner}/#${number}`, prune: a.prune }));
 
   if (!a.apply) return { plan, projectId };
-  if (a.prune && hasDestructive(plan) && !a.confirm) {
-    throw new Error("refusing destructive apply: --prune requires --confirm");
-  }
+  // §6 gate (pure, unit-tested): destructive prune needs --confirm. Throws before
+  // any mutation below.
+  destructiveGate(plan, { prune: a.prune, confirm: a.confirm });
 
   console.log("\n── applying ──");
 
@@ -335,23 +407,42 @@ async function reconcileBoard(a: Args, spec: Archetype): Promise<{ plan: Plan; p
   }
   if (fieldCreates.length) {
     snap = { ...snapshotBoard(projectId), labels: [] };
-    plan = buildPlan(snap, spec, { prune: a.prune });
+    plan = buildPlan(snap, spec, { prune: a.prune, renames: a.renames });
     plan.labelOps = [];
   }
 
-  // 2. Apply option unions (full-list replace, id-preserving) for selects with ops.
+  // 2. Capture item→option assignments for any destructive removals BEFORE mutating,
+  //    so a reset is manually recoverable and the warning is exact (F2/F1b).
+  const removalCaps = new Map<string, RemovalCapture>();
+  for (const s of plan.selects) {
+    if (s.ops.length === 0 || s.removals.length === 0) continue;
+    const cap = captureAssignments(owner, number, s.fieldName, s.removals);
+    removalCaps.set(s.fieldName, { count: cap.resolved ? cap.items.length : -1, resolved: cap.resolved, items: cap.items });
+  }
+  if (removalCaps.size) {
+    const path = await writeRecoveryArtifact(resolveLockdir(a.lockdir), slug, removalCaps);
+    console.warn(`  ⚠ recovery snapshot (item→option assignments about to reset): ${path}`);
+  }
+
+  // 3. Apply option unions (full-list replace, id-preserving) for selects with ops.
   for (const s of plan.selects) {
     if (s.ops.length === 0) continue;
+    // The engine enforces its own invariant rather than leaning on the API to
+    // reject a wrong-type / undefined-id write (F3): a select with ops must be a
+    // resolved SINGLE_SELECT field by now (created + re-snapshotted).
+    if (!s.exists || !s.fieldId) {
+      throw new Error(`field "${s.fieldName}" not resolved after create/re-snapshot — re-run`);
+    }
     if (s.removals.length) {
-      const n = countAssignments(owner, number, s.fieldName, s.removals);
-      const count = n < 0 ? "an unknown number of" : String(n);
+      const cap = removalCaps.get(s.fieldName);
+      const count = !cap || cap.count < 0 ? "an unknown number of" : String(cap.count);
       console.warn(`  ⚠ ${s.fieldName}: removing [${s.removals.join(", ")}] resets ${count} item assignment(s)`);
     }
     console.log(`  ~ ${s.fieldName}: writing ${s.union.length}-option union (${s.ops.length} change(s))`);
-    applyOptionUnion(s.fieldId!, s.union);
+    applyOptionUnion(s.fieldId, s.union);
   }
 
-  // 3. Destructive field deletes (prune only).
+  // 4. Destructive field deletes (prune only).
   for (const op of plan.fieldOps.filter((o) => o.kind === "delete")) {
     const live = snap.fields.find((f) => f.name === op.target);
     if (live) {
@@ -423,7 +514,11 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => {
-  console.error(`\n✗ ${e instanceof Error ? e.message : String(e)}`);
-  process.exit(1);
-});
+// Only run as a CLI when invoked directly — importing this module (e.g. from the
+// orchestration tests) must not execute `main()` against the test runner's argv.
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error(`\n✗ ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
+  });
+}

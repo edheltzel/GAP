@@ -121,6 +121,39 @@ function byName<T extends { name: string }>(items: T[] | undefined): Map<string,
   return m;
 }
 
+// ──────────────── Single-select colour + option serialization (pure) ────────────────
+// These were in the IO shell; they are pure string/enum logic and the exact point
+// where id-preservation becomes the wire payload, so they live and are tested in
+// the core (a regression dropping `id:` is the §6 footgun).
+
+const SELECT_COLORS = new Set<SelectColor>(["GRAY", "BLUE", "GREEN", "YELLOW", "ORANGE", "RED", "PINK", "PURPLE"]);
+
+// Normalize a colour token coming off a LIVE board (untrusted) to a valid enum.
+// Unknown tokens are surfaced as a warning and defaulted — never thrown, so one
+// odd colour cannot abort a whole field reconcile mid-`.map()` (F5).
+export function normalizeLiveColor(c: string, optName: string): { color: SelectColor; warning?: string } {
+  const up = norm(c).toUpperCase();
+  if (SELECT_COLORS.has(up as SelectColor)) return { color: up as SelectColor };
+  return {
+    color: "GRAY",
+    warning: `option "${optName}": unrecognized live colour "${c}" — defaulted to GRAY in the preserved union (review before apply)`,
+  };
+}
+
+export function colorLiteral(c: string): string {
+  if (!SELECT_COLORS.has(c as SelectColor)) throw new Error(`invalid single-select colour "${c}" (not in the 8-value enum)`);
+  return c; // bare enum token for the GraphQL mutation
+}
+
+export function optionLiteral(o: OptionInput): string {
+  const parts: string[] = [];
+  if (o.id) parts.push(`id:${JSON.stringify(o.id)}`);
+  parts.push(`name:${JSON.stringify(o.name)}`);
+  parts.push(`color:${colorLiteral(o.color)}`);
+  parts.push(`description:${JSON.stringify(o.description)}`);
+  return `{${parts.join(",")}}`;
+}
+
 // The single-select fields a board should have: the built-in Status (vocabulary
 // from `archetype.status`) plus any SINGLE_SELECT field declared in the archetype.
 export interface DesiredSelect {
@@ -149,21 +182,53 @@ export function desiredPlainFields(spec: Archetype): Field[] {
 // Produces the id-preserving union to send AND the op classification. This is
 // the function that must never drop an existing assignment.
 
+// An explicit, deliberate option rename. A name-keyed diff cannot tell a rename
+// from a remove+add, so renames are NEVER inferred — only an explicit mapping
+// triggers the id-preserving in-place path below. `from` is a live option name,
+// `to` is the desired (new) name.
+export interface OptionRename {
+  from: string;
+  to: string;
+}
+
 export function diffOptions(
   live: LiveOption[] | undefined,
   desired: SelectOption[],
-  opts: { prune: boolean },
-): { union: OptionInput[]; removals: string[]; ops: Op[] } {
+  opts: { prune: boolean; renames?: OptionRename[] },
+): { union: OptionInput[]; removals: string[]; ops: Op[]; warnings: string[] } {
   const liveMap = byName<LiveOption>(live);
   const desiredMap = byName<SelectOption>(desired);
   const ops: Op[] = [];
   const union: OptionInput[] = [];
   const removals: string[] = [];
+  const warnings: string[] = [];
 
-  // 1. Desired options, in desired order. Carry the live id forward when the
-  //    name already exists (in-place edit, no churn); otherwise it is created.
+  // Explicit renames: index by new name (the desired option that inherits the
+  // live id) and track which live names are consumed so they are not also seen
+  // as removals. An unusable mapping is warned and otherwise ignored.
+  const renames = opts.renames ?? [];
+  const renameByTo = new Map<string, string>();
+  const renameFroms = new Set<string>();
+  for (const r of renames) {
+    if (!liveMap.has(r.from)) {
+      warnings.push(`rename "${r.from}"→"${r.to}": no live option named "${r.from}" — skipped`);
+      continue;
+    }
+    if (!desiredMap.has(r.to)) {
+      warnings.push(`rename "${r.from}"→"${r.to}": "${r.to}" is not in the desired spec — skipped`);
+      continue;
+    }
+    renameByTo.set(r.to, r.from);
+    renameFroms.add(r.from);
+  }
+
+  // 1. Desired options, in desired order. An explicit rename carries the live
+  //    id of `from` forward under the new name (in-place, assignment-preserving);
+  //    otherwise a name match carries its id (in-place edit); otherwise create.
   for (const d of desired) {
-    const existing = liveMap.get(d.name);
+    const renamedFrom = renameByTo.get(d.name);
+    const renameSource = renamedFrom ? liveMap.get(renamedFrom) : undefined;
+    const existing = renameSource ?? liveMap.get(d.name);
     const desc = norm(d.description);
     union.push({
       ...(existing ? { id: existing.id } : {}),
@@ -171,7 +236,16 @@ export function diffOptions(
       color: d.color,
       description: desc,
     });
-    if (!existing) {
+    if (renameSource) {
+      // In-place rename: same node id, new name → GitHub keeps every assignment.
+      ops.push({
+        kind: "update",
+        resource: "option",
+        target: d.name,
+        safety: "safe",
+        detail: `rename option "${renamedFrom}" → "${d.name}" in place (id preserved, assignments kept)`,
+      });
+    } else if (!existing) {
       ops.push({
         kind: "create",
         resource: "option",
@@ -198,10 +272,11 @@ export function diffOptions(
     }
   }
 
-  // 2. Extra live options (not desired). Preserved verbatim unless pruning.
-  //    Removal is the ONLY destructive option op — it orphans item assignments.
+  // 2. Extra live options (not desired, not consumed by a rename). Preserved
+  //    verbatim unless pruning. Removal is the ONLY destructive option op — it
+  //    orphans item assignments.
   for (const l of live ?? []) {
-    if (desiredMap.has(l.name)) continue;
+    if (desiredMap.has(l.name) || renameFroms.has(l.name)) continue;
     if (opts.prune) {
       removals.push(l.name);
       ops.push({
@@ -213,11 +288,14 @@ export function diffOptions(
       });
     } else {
       // Keep it in the union (id preserved) so the full-replace doesn't wipe it.
-      union.push({ id: l.id, name: l.name, color: l.color as SelectColor, description: norm(l.description) });
+      // Live colours are untrusted → normalize, warning (not throwing) on unknowns.
+      const { color, warning } = normalizeLiveColor(l.color, l.name);
+      if (warning) warnings.push(warning);
+      union.push({ id: l.id, name: l.name, color, description: norm(l.description) });
     }
   }
 
-  return { union, removals, ops };
+  return { union, removals, ops, warnings };
 }
 
 // ──────────────────────────── Label diff ────────────────────────────
@@ -308,14 +386,31 @@ export function diffFields(
 
 // ──────────────────────────── Plan assembly ────────────────────────────
 
-export function buildPlan(snapshot: Snapshot, spec: Archetype, opts: { prune: boolean }): Plan {
+// A rename scoped to a single-select field, as supplied by `--rename Field:Old=New`.
+export interface FieldRename extends OptionRename {
+  field: string;
+}
+
+export function buildPlan(snapshot: Snapshot, spec: Archetype, opts: { prune: boolean; renames?: FieldRename[] }): Plan {
   const liveFieldMap = byName<LiveField>(snapshot.fields);
+  const renames = opts.renames ?? [];
+  const selectNames = new Set(desiredSelects(spec).map((s) => s.name));
+  const optionWarnings: string[] = [];
+
+  // A rename targeting a field that is not a reconciled single-select can never apply.
+  for (const r of renames) {
+    if (!selectNames.has(r.field)) {
+      optionWarnings.push(`rename "${r.field}:${r.from}=${r.to}": "${r.field}" is not a reconciled single-select field — skipped`);
+    }
+  }
 
   const selects: SelectPlan[] = [];
   for (const ds of desiredSelects(spec)) {
     const liveField = liveFieldMap.get(ds.name);
     const exists = !!liveField && liveField.dataType === "SINGLE_SELECT";
-    const { union, removals, ops } = diffOptions(liveField?.options, ds.options, opts);
+    const fieldRenames = renames.filter((r) => r.field === ds.name).map((r) => ({ from: r.from, to: r.to }));
+    const { union, removals, ops, warnings } = diffOptions(liveField?.options, ds.options, { prune: opts.prune, renames: fieldRenames });
+    optionWarnings.push(...warnings.map((w) => `${ds.name}: ${w}`));
     selects.push({
       fieldName: ds.name,
       builtin: ds.builtin,
@@ -334,7 +429,7 @@ export function buildPlan(snapshot: Snapshot, spec: Archetype, opts: { prune: bo
     fieldOps,
     selects,
     labelOps,
-    warnings,
+    warnings: [...warnings, ...optionWarnings],
     specHash: specHash(spec),
   };
 }
@@ -346,6 +441,15 @@ export function planOps(plan: Plan): Op[] {
 
 export function hasDestructive(plan: Plan): boolean {
   return planOps(plan).some((o) => o.safety === "destructive");
+}
+
+// The §6 safety gate, as a pure function so a boolean inversion is caught by a
+// unit test rather than shipping a board-wiping engine. A destructive apply
+// (--prune carrying any destructive op) requires --confirm; throws otherwise.
+export function destructiveGate(plan: Plan, opts: { prune: boolean; confirm: boolean }): void {
+  if (opts.prune && hasDestructive(plan) && !opts.confirm) {
+    throw new Error("refusing destructive apply: --prune requires --confirm");
+  }
 }
 
 export function isEmpty(plan: Plan): boolean {
