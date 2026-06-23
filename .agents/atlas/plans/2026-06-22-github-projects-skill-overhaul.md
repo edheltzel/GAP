@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-22 (rev 3 — answers locked, Phase 0 approved & started)
 **Status:** APPROVED — Phase 0 in progress
-**Owner:** Ed — org **`Detego-Research-Group`** already created (free plan); repos to be transferred from personal `edheltzel`
+**Owner:** Ed — org **`Gentle-Art-Technologies`** already created (free plan; renamed from `Gentle-Art-Technologies` on 2026-06-23, org ID `O_kgDOEaJtNg`); repos to be transferred from personal `edheltzel`
 **Scope:** Redesign the `github-projects` skill into a consistent, opinionated, interview-driven board scaffolding system with reusable templates, a `:`-namespaced label taxonomy, native issue types (org), an `atlas` agent identity, and a $0 GitHub feedback agent.
 
 ## Decisions locked (rev 2)
@@ -10,7 +10,7 @@
 | # | Decision | Resolution |
 |---|----------|-----------|
 | D1 | Residual UI gap | **Interceptor (chosen).** `gh project copy` covers ~95% (fields + **all views** + most workflows). Only irreducible gap = re-enabling **auto-add workflow** (one toggle) → a tiny **Interceptor** script (rides the logged-in Chrome session; no auth scripting). |
-| D2 | Org | **DONE — org `Detego-Research-Group` exists** (free, Organization). Unlocks native issue types, org default labels, project templates. Remaining: transfer repos into it. |
+| D2 | Org | **DONE — org `Gentle-Art-Technologies` exists** (free, Organization). Unlocks native issue types, org default labels, project templates. Remaining: transfer repos into it. |
 | D3 | Agent identity | Create a dedicated **`atlas` machine account** (ToS-allowed, $0 on free org) as the human-facing persona + an **org-owned GitHub App** for heavy board automation. |
 | D4 | Labels | **Canon = the live `edheltzel/Recall` taxonomy, fully colon-migrated** (`type:*`, `needs:*`, `risk:*`, `agent:*`, `wontfix`). `risk:` stays a **label** (Ed uses it). Migrate the two stragglers `needs-triage`→`needs:triage`, `needs-info`→`needs:info`. Update `docs/agents/triage-labels.md`. See §4.2. |
 | D5 | Phase model | Recall Phase 0 (#15) is the liked shape: **lean** — default Status + sub-issues. Default archetype biases lean. Consolidate the "one-project-per-phase" pattern toward **one board + Phase (milestone/field)** — see §5. |
@@ -258,18 +258,86 @@ All share base fields `Status` + `Priority`. Views are the golden/checklist payl
 
 ---
 
-## 8. Org migration & identity setup (new Phase 0.5)
+## 8. Phase 0.5 — Org migration & identity RUNBOOK
 
-This precedes the engine work because issue types, default labels, and templates only exist in an org.
+Org `Gentle-Art-Technologies` (GAT) already exists (free, Organization). This runbook is the ordered, copy-pasteable set of steps. Issue types, default labels, and templates only exist in an org, so this precedes the engine work.
 
-1. **Org exists:** `Detego-Research-Group` (free, Organization). ✓
-2. **Transfer repos** from `edheltzel` → `Detego-Research-Group`. Preserved: history, issues, PRs, stars, watchers, forks, **auto-redirects** for clones/links. **Watch:** Pages custom domains are NOT auto-redirected (update DNS first to avoid takeover); issue assignments to non-org-members are cleared; package↔repo links may break. Migrate low-risk repos first; verify redirects.
-3. **Create the `atlas` machine account** (own email), add to the org as a member. $0 on free org.
-4. **Register an org-owned GitHub App** ("atlas-bot") with `issues:write`, `pull-requests:write`, org `projects:write`. Store App ID + private key as org/repo secrets. Mint tokens in Actions via `actions/create-github-app-token`.
-5. **Define org issue types**: enable defaults (`task`/`bug`/`feature`), add `Epic` and (optionally) `Spike` via `gh api graphql` + `createIssueType` (`GraphQL-Features: issue_types` header). *Verify in Settings → Planning → Issue types that this is free on your org plan — docs are GA but silent on the plan gate.*
-6. **Set org default labels** to the `:`-namespaced taxonomy (applies to new repos only; backfill existing repos via the label-sync target in Phase 2).
+**Division of labor (updated per Ed):**
+- **🌐 Atlas via Interceptor** drives the browser for the account + App registration (the steps GitHub gates to the UI). ToS is satisfied because Ed directs the run and accepts the Terms; Atlas executes the clicks.
+- **🧑 Ed** handles the **repo transfers** himself ("as needed").
+- **🤖 Atlas via `gh`/API** does issue types, label sync, and board scaffolding.
+- **⏸ Trigger:** nothing in 0.5+ runs until Ed says "scaffold a project/repo."
 
-**Caveat that the org does NOT fix:** the Actions `GITHUB_TOKEN` still can't write org Projects v2 — that's exactly why the GitHub App (step 4) exists.
+### 8.1 Repo transfer set (confirm before running)
+
+| Tier | Repos | Action |
+|------|-------|--------|
+| **Core (recommend transfer)** | `Recall`, `delphi-trace`, `skills`, `nexus` | AI/agent research & products — the work this board system serves. None have Pages → low-risk. |
+| **Your call** | `atlas-config`, `atlas-voicesystem`, `proofs`, `fieldnotes` | Personal DA infra / PKM. Moving `atlas-config`/`atlas-voicesystem` means updating internal `edheltzel/…` refs (issue-tracker doc, AGENTS.md, skill label examples, memory). |
+| **Test first** | `drg-temp` | Tiny stale placeholder — use as the throwaway transfer test, then delete. |
+| **Keep on `edheltzel`** | dotfiles, neoed, wallpapers, all VS Code themes, Flightdeck starters, client sites (murphys-autocare, alianza*, pfe*, weston*, hodgescafe…), peptide/health repos, learning repos, edheltzel.codes | Personal brand / client / learning. |
+| **Never** | 22 forks, 9 archived | Out of scope. |
+
+### 8.2 Transfer procedure (per repo) — 🤖
+
+```bash
+# 0) sanity: confirm you own GAT and the source repo
+gh api orgs/Gentle-Art-Technologies --jq '.login'
+# 1) TEST with drg-temp first
+gh api -X POST repos/edheltzel/drg-temp/transfer -f new_owner=Gentle-Art-Technologies
+gh repo view Gentle-Art-Technologies/drg-temp --json name,owner   # confirm redirect
+# 2) then each confirmed repo
+gh api -X POST repos/edheltzel/<repo>/transfer -f new_owner=Gentle-Art-Technologies
+# 3) point any local clone at the new owner (redirects work, but be clean)
+git -C <path> remote set-url origin git@github.com:Gentle-Art-Technologies/<repo>.git
+```
+
+Per-repo post-checks: verify the redirect resolves; (solo account → no non-member assignment loss); no Pages on the core set → no DNS step needed. **If `atlas-config` is transferred**, grep+update `edheltzel/atlas-config` → `Gentle-Art-Technologies/atlas-config` in AGENTS.md, `docs/agents/issue-tracker.md`, the skill's `Labels.md` example, and memory; update the `gh` remote.
+
+### 8.3 `atlas` machine account — 🧑 (ToS: a human must create it)
+
+1. Sign up a new account `atlas` with email **`atlas@rainyday.media`**; verify the email.
+2. Profile: display name **Atlas**, avatar, bio ("Ed's DA — automated teammate"); **enable 2FA**.
+3. 🧑 Invite `atlas` to **GAT** as a **member** (free org → $0, no seat).
+4. 🧑 On the `atlas` account, create a **fine-grained PAT** scoped to GAT with `Issues: RW`, `Pull requests: RW`, `Projects: RW`, `Contents: R`. Store in 1Password (and as a repo/org secret where automation needs the *persona*, e.g. `ATLAS_PAT`). This token authors writes that should read as "Atlas the teammate."
+
+### 8.4 Org GitHub App "atlas-bot" — 🧑 register, 🤖 use
+
+1. 🧑 GAT → Settings → Developer settings → **GitHub Apps → New** → name `atlas-bot`.
+   Permissions: **Issues: RW, Pull requests: RW, Projects (org): RW, Contents: R, Metadata: R** (add `models: read` later only if AI triage is enabled).
+2. 🧑 Generate a **private key**; note the **App ID**. Install the App on **GAT (all repos)**.
+3. 🧑 Store as org/repo secrets: `ATLAS_APP_ID`, `ATLAS_APP_PRIVATE_KEY`.
+4. 🤖 In Actions, mint 1-hour tokens via `actions/create-github-app-token` for board automation (this is what writes org Projects v2 — `GITHUB_TOKEN` can't).
+
+**Identity split:** App token = automation (cards, labels, triage at scale); `atlas` PAT = human-facing replies that should appear authored by Atlas.
+
+### 8.5 Org issue types — 🤖
+
+```bash
+ORG_ID=$(gh api graphql -f query='query{organization(login:"Gentle-Art-Technologies"){id}}' --jq '.data.organization.id')
+# defaults task/bug/feature ship enabled; add Epic (and Spike if wanted):
+gh api graphql -H "GraphQL-Features: issue_types" -f query='
+  mutation($o:ID!){ createIssueType(input:{ownerId:$o,name:"Epic",isEnabled:true,color:PURPLE,description:"Phase/epic parent"}){ issueType{ id name } } }' -F o="$ORG_ID"
+```
+🧑 Verify under **GAT → Settings → Planning → Issue types** (docs are GA but silent on the free-plan gate — confirm it's present; `type:*` labels remain the fallback).
+
+### 8.6 Org default labels — 🤖 (after Phase 2 sync exists) / 🧑 (UI now)
+
+Set GAT **default labels** to the canon (`type:*`, `needs:*`, `risk:*`, `agent:*`, `wontfix`) — applies to **new** repos only. Transferred repos get the canon via the Phase-2 label-sync target (`gh label create --force` from the manifest).
+
+### 8.7 Verify gate
+- A transferred repo redirects (`gh repo view Gentle-Art-Technologies/<repo>`).
+- `atlas` is a GAT member; its PAT can comment on a GAT issue.
+- The App token can add an item to a GAT project board (the thing `GITHUB_TOKEN` can't).
+- Issue types visible in GAT settings.
+
+**Caveat the org does NOT fix:** the Actions `GITHUB_TOKEN` still can't write org Projects v2 — that's exactly why atlas-bot (8.4) exists.
+
+### 8.8 Division & trigger (updated)
+- **Ed:** transfers repos as needed (8.2 is reference, not Atlas's job now).
+- **Atlas (Interceptor):** can create the `atlas@rainyday.media` account and register `atlas-bot` via browser automation when triggered.
+- **Atlas (`gh`/API):** issue types (8.5), label sync (8.6), board scaffolding.
+- **⏸ Status:** holding. Nothing in 0.5+ runs until Ed says "scaffold a project/repo." The remaining small Phase-0 leftovers (pin `gh ≥2.94`, native sub-issue/deps recipes in the kept skill) can be done anytime on request.
 
 ## 9. Junior-dev explainer — "why GitHub Projects, not Linear?" (D5 / your Q5)
 
