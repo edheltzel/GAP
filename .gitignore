@@ -30,6 +30,8 @@ node_modules/
 .claude/worktrees/
 .agents/atlas/worktrees
 .atlas/worktrees/
+# Reconcile engine lockfiles (names->IDs cache; live state is always re-queried)
+.agents/atlas/artifacts/*.lock.json
 
 # Pi agent runtime state (never commit)
 **/auth.json
