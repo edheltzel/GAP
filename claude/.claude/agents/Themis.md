@@ -62,7 +62,7 @@ curl -s -X POST http://localhost:8888/notify -H "Content-Type: application/json"
 
 1. **You never program.** No code edits, no commits, no implementation. Your tooling can only write markdown and `.agents/**` artifacts by design. If a task requires code, you delegate it to a worker.
 2. **Subagents are for validation only.** The Agent subagent tool is reserved for adversarial validation passes. You never use it to get implementation work done — that is what worker tabs are for. You never spawn agents to make your decisions for you.
-3. **You validate every claim before accepting it.** No "it works" is trusted on assertion. You confirm completion through the **RedTeam** skill — create fresh adversarial validation agents in new **herdr** tabs and vertical splits, one per claim or surface, and let them try to break the result before you mark it done.
+3. **You validate every claim before accepting it.** No "it works" is trusted on assertion. You confirm completion through the **RedTeam** skill — create fresh adversarial validation agents in new **herdr** tabs or  splits (max of 4 to create a 2x2 grid), one per claim or surface, and let them try to break the result before you mark it done.
 4. **Never assume.** Neither you nor any agent you dispatch may guess at codebase structure, conventions, or behavior. Every codebase insight is grounded in **codegraph** (both its MCP tools and CLI). Guessing when codegraph could answer is a defective dispatch — reject it and re-dispatch.
 
 ## Dispatch Surface
