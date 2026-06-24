@@ -247,11 +247,11 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # COLOR PALETTE
 # ─────────────────────────────────────────────────────────────────────────────
-# Multi-theme: Eldritch (dark), Rosé Pine Dawn (light),
+# Multi-theme: Eldritch (dark), Vesper (dark warm-mono), Rosé Pine Dawn (light),
 # Catppuccin Latte (light) and Catppuccin Mocha (dark — covers frappe/macchiato/mocha).
 #
 # Resolution priority:
-#   1. settings.json override → "statusline": { "theme": "auto"|"light"|"dark" }
+#   1. settings.json override → "statusline": { "theme": "auto"|"light"|"dark"|"vesper" }
 #   2. dotfiles theme-switcher state file (~/.config/theme-switcher/current)
 #   3. $COLORFGBG
 #   4. macOS system appearance
@@ -270,7 +270,7 @@ detect_appearance() {
   local override
   override=$(jq -r '.statusline.theme // "auto"' "$SETTINGS_FILE" 2>/dev/null)
   case "$override" in
-  light | dark)
+  light | dark | vesper)
     echo "$override"
     return
     ;;
@@ -282,6 +282,10 @@ detect_appearance() {
     case "$(cat "$theme_state" 2>/dev/null)" in
     rose-pine-dawn)
       echo "light"
+      return
+      ;;
+    vesper)
+      echo "vesper"
       return
       ;;
     eldritch | tokyonight | rose-pine | rose-pine-moon)
@@ -497,6 +501,62 @@ elif [ "$STATUSLINE_THEME" = "catppuccin-dark" ]; then
   USAGE_TIER_OK="$EMERALD"
   USAGE_TIER_MD='\033[38;2;249;226;175m'   # yellow
   USAGE_TIER_WARN='\033[38;2;250;179;135m' # peach
+  USAGE_TIER_CRIT="$ROSE"
+
+elif [ "$STATUSLINE_THEME" = "vesper" ]; then
+  # ── Vesper (dark, warm-monochrome) ──────────────────────────────────────
+  # bg:#101010  bgDark:#161616  bgFloat:#282828  fg:#cccccc
+  # comment:#7d7d7d  inactive:#65737e  border:#505050
+  # red:#ff8080  yellowDark:#ffc799  orange:#ffcfa8  green:#82d9c2  cyan:#99ffe4
+
+  SLATE_300='\033[38;2;204;204;204m' # fg (primary)
+  SLATE_500='\033[38;2;125;125;125m' # comment (muted labels)
+  SLATE_600='\033[38;2;40;40;40m'    # bgFloat (separators)
+
+  EMERALD='\033[38;2;130;217;194m' # green (positive/success)
+  ROSE='\033[38;2;255;128;128m'    # red (error/negative)
+
+  GREET_PRIMARY='\033[38;2;255;207;168m' # orange (header/brand)
+  PAI_SESSION='\033[38;2;153;255;228m'   # cyan (session name)
+
+  CACHE_ICON='\033[38;2;255;207;168m'        # orange
+  CC_ICON='\033[38;2;255;199;153m'           # yellowDark (✱ CC icon)
+  DIR_DISPLAY='\033[38;2;153;255;228m'       # cyan (PWD)
+  GIT_BRANCH_COLOR='\033[38;2;255;207;168m'  # orange (git branch)
+  WORKTREE_COLOR='\033[38;2;153;255;228m'    # cyan (worktree)
+  WARN_COLOR='\033[38;2;255;128;128m'        # red (warnings)
+
+  CTX_BUCKET_EMPTY='\033[38;2;40;40;40m' # bgFloat (empty bucket)
+
+  USAGE_PRIMARY='\033[38;2;255;199;153m' # yellowDark (usage icon)
+  USAGE_RESET='\033[38;2;101;115;126m'   # inactive (reset time)
+  USAGE_EXTRA='\033[38;2;255;207;168m'   # orange (overage)
+
+  PAI_A='\033[38;2;255;207;168m' # orange (branding)
+
+  # Gradient stops for get_bucket_color (green → yellowDark → orange → red)
+  GRAD_LOW_R=130
+  GRAD_LOW_G=217
+  GRAD_LOW_B=194
+  GRAD_MID_R=255
+  GRAD_MID_G=199
+  GRAD_MID_B=153
+  GRAD_WRN_R=255
+  GRAD_WRN_G=207
+  GRAD_WRN_B=168
+  GRAD_HI_R=255
+  GRAD_HI_G=128
+  GRAD_HI_B=128
+
+  CACHE_TIER_HI="$EMERALD"               # green
+  CACHE_TIER_MH='\033[38;2;153;255;228m' # cyan
+  CACHE_TIER_MD='\033[38;2;255;199;153m' # yellowDark
+  CACHE_TIER_ML='\033[38;2;255;207;168m' # orange
+  CACHE_TIER_LO="$ROSE"                  # red
+
+  USAGE_TIER_OK="$EMERALD"
+  USAGE_TIER_MD='\033[38;2;255;199;153m'   # yellowDark
+  USAGE_TIER_WARN='\033[38;2;255;207;168m' # orange
   USAGE_TIER_CRIT="$ROSE"
 
 else
