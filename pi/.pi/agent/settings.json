@@ -11,7 +11,8 @@
     "npm:@narumitw/pi-goal",
     "npm:pi-hermes-memory",
     "npm:@sean_pedersen/pi-codegraph",
-    "../../Developer/atlas-voicesystem/adapters/pi"
+    "../../Developer/atlas-voicesystem/adapters/pi",
+    "../../Developer/atlas-config/packages/pi-themis"
   ],
   "subagents": {
     "agentOverrides": {
