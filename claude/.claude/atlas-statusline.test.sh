@@ -9,7 +9,7 @@
 #
 # The decisive test is "source of truth": it reads the THEMES array straight out of
 # ~/.config/theme-switcher/theme-switcher.sh and asserts every theme the switcher can
-# emit resolves to a real palette branch (no silent fall-through, none → "vesper").
+# emit resolves to a real palette branch (no silent fall-through to the wrong palette).
 #
 # Run:   bash atlas-statusline.test.sh
 # Exit:  0 = all pass, 1 = one or more failures.
@@ -22,8 +22,8 @@ SCRIPT="$SCRIPT_DIR/atlas-statusline.sh"
 THEME_SWITCHER="$HOME/.config/theme-switcher/theme-switcher.sh"
 
 # Palette branches that actually exist in atlas-statusline.sh.
-# "dark" is the else/Eldritch branch; the other three are explicit elif blocks.
-KNOWN_THEMES="light dark catppuccin-light catppuccin-dark"
+# "dark" is the else/Eldritch branch; the others are explicit elif blocks.
+KNOWN_THEMES="light dark vesper catppuccin-light catppuccin-dark"
 
 pass=0
 fail=0
@@ -59,7 +59,7 @@ check() {
   fi
 }
 
-# Assert the resolved theme is a real palette branch and is not the removed "vesper".
+# Assert the resolved theme is a real palette branch.
 check_known() {
   local desc="$1" actual="$2"
   case " $KNOWN_THEMES " in
@@ -87,11 +87,11 @@ else
   fail=$((fail + 1))
 fi
 if grep -qi vesper "$SCRIPT"; then
-  printf '  \033[31m✗\033[0m %-46s (still present)\n' "vesper fully removed"
-  fail=$((fail + 1))
-else
-  printf '  \033[32m✓\033[0m %-46s\n' "vesper fully removed"
+  printf '  \033[32m✓\033[0m %-46s\n' "vesper palette branch present"
   pass=$((pass + 1))
+else
+  printf '  \033[31m✗\033[0m %-46s (missing)\n' "vesper palette branch present"
+  fail=$((fail + 1))
 fi
 echo
 
@@ -108,18 +108,16 @@ check "catppuccin-macchiato" catppuccin-dark "$(resolve_theme '' catppuccin-macc
 check "catppuccin-mocha"    catppuccin-dark "$(resolve_theme '' catppuccin-mocha '')"
 echo
 
-# ── 2. vesper removed → must not resolve to "vesper" (falls through to COLORFGBG) ─
-echo "[2] vesper retired"
-v_state=$(resolve_theme '' vesper '15;0')   # COLORFGBG bg=0 → dark
-check "state=vesper falls through to COLORFGBG" dark "$v_state"
-[ "$v_state" = "vesper" ] && { echo "  FATAL: vesper still resolvable"; fail=$((fail + 1)); }
+# ── 2. vesper theme-switcher state → vesper palette ──────────────────────────────
+echo "[2] vesper resolution"
+check "state=vesper → vesper" vesper "$(resolve_theme '' vesper '15;0')"
 echo
 
 # ── 3. settings.json override ────────────────────────────────────────────────────
 echo "[3] settings.json override"
 check "override=light"  light "$(resolve_theme light '' '')"
 check "override=dark"   dark  "$(resolve_theme dark '' '')"
-check "override=vesper ignored (→ COLORFGBG dark)" dark "$(resolve_theme vesper '' '15;0')"
+check "override=vesper → vesper" vesper "$(resolve_theme vesper '' '15;0')"
 check "override=auto → state wins"  catppuccin-dark "$(resolve_theme auto catppuccin-mocha '')"
 echo
 
@@ -139,12 +137,7 @@ if [ -f "$THEME_SWITCHER" ]; then
   printf '  source: %s\n' "$THEME_SWITCHER"
   for theme in "${SRC_THEMES[@]}"; do
     resolved=$(resolve_theme '' "$theme" '15;0')   # COLORFGBG dark as the deterministic fallback
-    if [ "$theme" = "vesper" ]; then
-      # retired: must NOT map to a vesper palette; falls through to the dark fallback
-      check "$theme (retired)" dark "$resolved"
-    else
-      check_known "$theme" "$resolved"
-    fi
+    check_known "$theme" "$resolved"
   done
 else
   printf '  \033[33m⚠\033[0m theme-switcher not found at %s — skipping contract test\n' "$THEME_SWITCHER"
