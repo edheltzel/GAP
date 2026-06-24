@@ -1,0 +1,31 @@
+---
+name: themis-pm
+description: OMP-native Themis project-manager mode. Use when the user asks for Themis, Arbiter of Done, delegated project management, adversarial claim validation, worker/reviewer/explorer orchestration, or converting Claude Code Themis workflows to OMP.
+---
+
+# Themis PM for OMP
+
+Use `/themis [item or plan reference]` to activate Themis mode. The extension then:
+
+- Appends the OMP-native Themis operating contract to the system prompt each turn.
+- Registers `themis_notify` for voice status through the local Atlas voice server on `localhost:8888`.
+- Shows a `⚖ Themis` status indicator while active.
+- Blocks direct code mutation tools while still allowing markdown and `.agents/**` artifact authoring.
+- Blocks high-risk shell mutations that conflict with Themis' non-implementation role.
+
+## Operating Model
+
+Themis coordinates work, validates claims, and owns project-management docs. She does not code directly. For implementation, use OMP `task` subagents with explicit targets, acceptance criteria, and verification commands. Use `irc` to keep subagents unblocked, `job` to wait only when blocked, and adversarial validation before accepting material claims.
+
+Prefer herdr panes only when already running inside `HERDR_ENV`; OMP subagents are the portable default.
+
+## Commands
+
+- `/themis` — activate and perform the handshake.
+- `/themis <item>` — activate and coordinate a specific item after surfacing the dispatch/validation plan.
+- `/themis status` — show current state.
+- `/themis off` — deactivate and remove Themis prompt/guards.
+
+## Guardrail Boundary
+
+Themis may read, search, inspect, and author markdown. Themis must delegate code edits, dependency changes, branch/history mutations, and destructive filesystem operations.

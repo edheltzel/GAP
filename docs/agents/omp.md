@@ -44,18 +44,22 @@ Runtime state, credentials, generated caches, and local identity stay out of git
 
 ## Adding OMP files
 
-1. Add the curated source file under `omp/.omp/agent/`.
-2. If the matching live file already exists under `~/.omp/agent/`, use `stow --adopt` once or move the file into the repo before restowing.
-3. Run `just up`.
-4. If stow reports a conflict, resolve the live file deliberately; do not delete runtime state directories to make stow pass.
+1. Stowed global config goes under `omp/.omp/agent/`.
+2. Installable OMP extension packages go under `packages/<name>/` with `package.json#omp.extensions`.
+3. Marketplace entries go in `.claude-plugin/marketplace.json`.
+4. If the matching live stowed file already exists under `~/.omp/agent/`, use `stow --adopt` once or move the file into the repo before restowing.
+5. Run `just up` after changing stowed global config. Package-only changes do not need stow.
+6. If stow reports a conflict, resolve the live file deliberately; do not delete runtime state directories to make stow pass.
 
 ## Current tracked baseline
 
-Tracked OMP-authored config currently includes:
+Tracked OMP-authored config and packages currently include:
 
 - `omp/.omp/agent/config.yml`
 - `omp/.omp/agent/extensions/atlas-statusline.ts`
 - `omp/.omp/agent/extensions/codegraph.ts`
 - `omp/.omp/agent/themes/atlas-statusline.json`
+- `packages/omp-themis/` — installable OMP Themis extension package.
+- `.claude-plugin/marketplace.json` — local marketplace catalog exposing `themis`.
 
 `~/.omp/agent/extensions/herdr-omp-agent-state.ts` is intentionally not tracked because its header says it is installed and overwritten by herdr.
