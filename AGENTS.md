@@ -2,6 +2,88 @@
 
 This repo is a minimal, stow-managed config for Ed's agents. On 2026-05-18 the `Codex/` package was populated with Ed's PAI v5.0.0 USER-CONFIG (identity, TELOS, durable MEMORY, SYSTEM-OVERRIDE hooks/Pulse/TOOLS); prior to that the previous Atlas/PAI build was soft-reset on 2026-05-01.
 
+## DOX framework
+
+This repository uses DOX as the AGENTS.md hierarchy for durable agent instructions.
+
+### Core contract
+
+- AGENTS.md files are binding work contracts for their subtrees.
+- Work products, source materials, instructions, records, assets, and durable docs must stay understandable from the nearest applicable AGENTS.md plus every parent AGENTS.md above it.
+
+### Read before editing
+
+1. Read this root AGENTS.md.
+2. Identify every file or folder you expect to touch.
+3. Walk from the repository root to each target path.
+4. Read every AGENTS.md found along each route.
+5. If a parent AGENTS.md lists a child AGENTS.md whose scope contains the path, read that child and continue from there.
+6. Use the nearest AGENTS.md as the local contract and parent docs for repo-wide rules.
+7. If docs conflict, the closer doc controls local work details, but no child doc may weaken DOX.
+
+Do not rely on memory. Re-read the applicable DOX chain in the current session before editing.
+
+### Update after editing
+
+Every meaningful change requires a DOX pass before the task is done.
+
+Update the closest owning AGENTS.md when a change affects:
+
+- purpose, scope, ownership, or responsibilities
+- durable structure, contracts, workflows, or operating rules
+- required inputs, outputs, permissions, constraints, side effects, or artifacts
+- user preferences about behavior, communication, process, organization, or quality
+- AGENTS.md creation, deletion, move, rename, or index contents
+
+Update parent docs when parent-level structure, ownership, workflow, or child index changes. Update child docs when parent changes alter local rules. Remove stale or contradictory text immediately. Small edits that do not change behavior or contracts may leave docs unchanged, but the DOX pass still must happen.
+
+### Hierarchy
+
+- Root AGENTS.md is the DOX rail: project-wide instructions, global preferences, durable workflow rules, and the top-level Child DOX Index.
+- Child AGENTS.md files own domain-specific instructions and their own Child DOX Index.
+- Each parent explains what its direct children cover and what stays owned by the parent.
+- The closer a doc is to the work, the more specific and practical it must be.
+
+### Child doc shape
+
+Create a child AGENTS.md when a folder becomes a durable boundary with its own purpose, rules, responsibilities, workflow, materials, or quality standards.
+
+Default section order:
+
+- Purpose
+- Ownership
+- Local Contracts
+- Work Guidance
+- Verification
+- Child DOX Index
+
+### Style
+
+- Keep docs concise, current, and operational.
+- Document stable contracts, not diary entries.
+- Put broad rules in parent docs and concrete details in child docs.
+- Prefer direct bullets with explicit names.
+- Do not duplicate rules across many files unless each scope needs a local version.
+- Delete stale notes instead of explaining history.
+- Trim obvious statements, repeated rules, misplaced detail, and warnings for risks that no longer exist.
+
+### Closeout
+
+1. Re-check changed paths against the DOX chain.
+2. Update nearest owning docs and any affected parents or children.
+3. Refresh every affected Child DOX Index.
+4. Remove stale or contradictory text.
+5. Run existing verification when relevant.
+6. Report any docs intentionally left unchanged and why.
+
+### Child DOX Index
+
+- `codex/.codex/AGENTS.md` — Codex package-local rules for curated Codex config.
+- `pi/.pi/agent/AGENTS.md` — Pi package-local rules for curated Pi agent config.
+- `packages/AGENTS.md` — installable agent package rules and package child index.
+- `docs/AGENTS.md` — durable documentation rules.
+- Root-owned durable scopes without child AGENTS.md today: `claude/`, `omp/`, `.claude-plugin/`, `.agents/`, `skills/`.
+
 ## PAI v5.0.0 migration
 
 This repo tracks Ed's PAI v5.0.0 configuration (identity, TELOS, durable memory, SYSTEM-OVERRIDE hooks). See `.agents/plans/2026-05-18-pai-to-atlas-config-migration-plan.md` for the canonical migration spec (supersedes the archived MANIFEST at `.agents/atlas/plans/archive/2026-05-17-pai-migration-manifest.md`).
@@ -85,3 +167,7 @@ OMP-native config is stowed from `omp/.omp/agent/` to `~/.omp/agent/`. Track aut
 ### Domain docs
 
 Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### GitHub identities
+
+Three distinct GitHub principals operate on the `Gentle-Art-Technologies` org — `edheltzel` (human owner), `Atlas-Key` (teammate User, fine-grained PAT `ATLAS_KEY_PAT`), and `gat-atlas-bot` (App `4127929`, ephemeral installation tokens). An agent picks one per action type; act as the teammate with `GH_TOKEN=$ATLAS_KEY_PAT gh …`. See `docs/agents/github-identities.md`.

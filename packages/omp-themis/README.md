@@ -49,4 +49,4 @@ omp -p '/extensions'
 /themis off
 ```
 
-When active, Themis reports directly to Ed, delegates implementation, validates claims adversarially, and owns markdown/project-management artifacts under `.agents/atlas/`.
+When active, Themis reports directly to Ed, delegates implementation, validates claims adversarially, owns markdown/project-management artifacts under `.agents/atlas/`, and archives a consumed handoff under `handoffs/archive/` as soon as work starts from it.

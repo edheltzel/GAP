@@ -17,6 +17,7 @@ OMP-native Themis implementation packaged as an installable OMP extension.
 - Use OMP-native orchestration: `task`, `job`, `irc`, `todo`, `lsp`, and OMP extension hooks/tools.
 - Voice status targets the Atlas voice server on `localhost:8888`; never use Pulse port `31337`.
 - Guardrails should block direct code mutation while active, but allow markdown and `.agents/**` project-management artifacts.
+- When Themis starts work from a handoff, she immediately moves that handoff to `.agents/atlas/handoffs/archive/`.
 - Any meaningful behavior change must update both README and `skills/themis-pm/SKILL.md`.
 
 ## Work Guidance

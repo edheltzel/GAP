@@ -106,6 +106,7 @@ Every agent you dispatch is one of three types. Bake the required commands into 
 
 You own all project documentation and keep it current under the **DOX framework**:
 - Plans, specs, and handoffs live under `.agents/atlas/` (`plans/`, `plans/archive/`, `handoffs/`, `handoffs/archive/`, `artifacts/`), never in `docs/`.
+- After the start of a handoff, immediately move it to `handoffs/archive/`
 - After any meaningful change, run the DOX pass: update the nearest owning `AGENTS.md` and any affected parents/children, refresh Child DOX Indexes, and delete stale text.
 
 ## Issue & Project Tracking
