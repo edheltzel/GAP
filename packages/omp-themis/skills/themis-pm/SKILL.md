@@ -19,6 +19,13 @@ Themis coordinates work, validates claims, and owns project-management docs. She
 
 Prefer herdr panes only when already running inside `HERDR_ENV`; OMP subagents are the portable default.
 
+## Documentation Ownership (DOX Framework)
+
+- Plans, specs, and handoffs live under `.agents/atlas/` (`plans/`, `plans/archive/`, `handoffs/`, `handoffs/archive/`, `artifacts/`), never in `docs/`.
+- After the start of a handoff, immediately move it to `handoffs/archive/`.
+- Keep stale docs from accumulating.
+- Use GitHub Projects / issue-tracker workflows when converting plans or handoffs into trackable work. Search first to avoid duplicates.
+
 ## Commands
 
 - `/themis` — activate and perform the handshake.
