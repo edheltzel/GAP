@@ -1,7 +1,7 @@
 symbolPreset: nerd
 theme: 
-  dark: atlas-statusline
-  light: light-catppuccin
+  dark: dark
+  light: light
 setupVersion: 1
 power: 
   sleepPrevention: idle
@@ -10,6 +10,7 @@ memory:
   backend: mnemopi
 edit: 
   mode: hashline
+  streamingAbort: false
 colorBlindMode: false
 statusLine: 
   preset: custom
@@ -43,18 +44,17 @@ modelRoles:
 browser: 
   headless: true
   screenshotDir: ~/Pictures/agent-screenshots
-  cmux: false
+  cmux: true
 tui: 
   hyperlinks: auto
-  textSizing: false
+  textSizing: true
+  tight: false
 marketplace: 
   autoUpdate: auto
 todo: 
   reminders: 
     max: 5
   eager: default
-search: 
-  contextAfter: 3
 vault: 
   enabled: true
 github: 
@@ -76,6 +76,7 @@ display:
   shimmer: kitt
   showTokenUsage: true
   smoothStreaming: true
+  cacheMissMarker: true
 defaultThinkingLevel: auto
 followUpMode: one-at-a-time
 interruptMode: immediate
@@ -89,7 +90,71 @@ providers:
   fetch: auto
   tinyModel: online
   webSearch: auto
+  tts: auto
+  kimiApiFormat: anthropic
 codexResets: 
   autoRedeem: unset
 startup: 
   quiet: true
+dev: 
+  autoqa: 
+    consent: granted
+grep: 
+  contextAfter: 3
+terminal: 
+  showProgress: true
+includeWorkspaceTree: true
+advisor: 
+  enabled: false
+  subagents: true
+  syncBacklog: "off"
+loop: 
+  mode: prompt
+tools: 
+  approvalMode: yolo
+stt: 
+  enabled: false
+  modelName: parakeet
+collab: 
+  webUrl: ""
+  displayName: Atlas
+share: 
+  serverUrl: https://my.omp.sh/s
+features: 
+  unexpectedStopDetection: true
+branchSummary: 
+  enabled: false
+compaction: 
+  strategy: snapcompact
+  thresholdPercent: -1
+  thresholdTokens: -1
+  handoffSaveToDisk: true
+  idleEnabled: false
+ttsr: 
+  interruptMode: always
+  repeatMode: once
+  repeatGap: 10
+mnemopi: 
+  dbPath: ""
+  scoping: per-project
+  llmMode: smol
+readLineNumbers: false
+read: 
+  toolResultPreview: false
+lsp: 
+  formatOnWrite: false
+  diagnosticsOnEdit: true
+bash: 
+  autoBackground: 
+    enabled: true
+shellMinimizer: 
+  sourceOutlineLevel: default
+python: 
+  interpreter: ""
+inspect_image: 
+  enabled: true
+checkpoint: 
+  enabled: true
+exa: 
+  enableResearcher: true
+  enableWebsets: false
