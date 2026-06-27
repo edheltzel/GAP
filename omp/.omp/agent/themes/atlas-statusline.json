@@ -3,6 +3,7 @@
   "name": "atlas-statusline",
   "vars": {
     "bg": 0,
+    "promptBg": "#010101",
     "surface": 8,
     "text": "",
     "muted": 8,
@@ -36,7 +37,7 @@
     "thinkingText": "muted",
 
     "selectedBg": "surface",
-    "userMessageBg": "bg",
+    "userMessageBg": "promptBg",
     "userMessageText": "text",
     "customMessageBg": "bg",
     "customMessageText": "text",
