@@ -1,7 +1,7 @@
 symbolPreset: nerd
 theme: 
-  dark: dark
-  light: light
+  dark: dark-tokyo-night
+  light: light-tokyo-night
 setupVersion: 1
 power: 
   sleepPrevention: idle
