@@ -31,6 +31,10 @@ node_modules/
 .agents/atlas/
 .atlas/worktrees/
 
+# Local runtime state (never commit) — gh CLI state, mnemopi memory-bank DBs
+.local/
+banks/
+
 # Pi agent runtime state (never commit)
 **/auth.json
 **/.update-check
