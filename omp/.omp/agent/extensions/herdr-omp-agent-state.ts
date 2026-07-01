@@ -2,7 +2,7 @@
 // managed by herdr; reinstalling or updating the integration overwrites this file.
 // add custom hooks/plugins beside this file instead of editing it.
 // HERDR_INTEGRATION_ID=omp
-// HERDR_INTEGRATION_VERSION=3
+// HERDR_INTEGRATION_VERSION=4
 // @ts-nocheck
 
 import { createConnection } from "node:net";
@@ -16,7 +16,9 @@ function enabled() {
   return HERDR_ENV === "1" && !!socketPath && !!paneId;
 }
 
-function sendRequest(request: unknown): Promise<void> {
+let requestQueue = Promise.resolve();
+
+function sendRequestNow(request: unknown): Promise<void> {
   if (!enabled()) {
     return Promise.resolve();
   }
@@ -38,6 +40,14 @@ function sendRequest(request: unknown): Promise<void> {
     const timeout = setTimeout(finish, 500);
     timeout.unref?.();
   });
+}
+
+function sendRequest(request: unknown): Promise<void> {
+  requestQueue = requestQueue.then(
+    () => sendRequestNow(request),
+    () => sendRequestNow(request),
+  );
+  return requestQueue;
 }
 
 type AgentState = "working" | "blocked" | "idle";
@@ -110,7 +120,7 @@ function currentSessionRef(): Record<string, unknown> | undefined {
   return undefined;
 }
 
-function reportSession(): Promise<void> {
+function reportSession(sessionStartSource = "startup"): Promise<void> {
   const sessionRef = currentSessionRef();
   if (!sessionRef) {
     return Promise.resolve();
@@ -124,6 +134,7 @@ function reportSession(): Promise<void> {
       source,
       agent: "omp",
       seq: nextReportSeq(),
+      session_start_source: sessionStartSource,
       ...sessionRef,
     },
   });
@@ -155,6 +166,16 @@ function releaseAgent(): Promise<void> {
       seq: nextReportSeq(),
     },
   });
+}
+
+function shouldReleaseOnSessionShutdown(event: any): boolean {
+  // OMP tears down and rebinds extension runtimes for internal lifecycle actions
+  // such as /reload, /new, /resume, and /fork. Those do not mean the pane's
+  // agent process has exited, and releasing hook authority there can suppress
+  // legitimate reports from the replacement runtime. Only a user/process quit
+  // should release Herdr's full-lifecycle authority.
+  const reason = event?.reason;
+  return reason === "quit";
 }
 
 let sendInFlight = false;
@@ -209,6 +230,15 @@ function retryableErrorMessage(event: any): string | undefined {
     return undefined;
   }
   return errorMessage || "retryable provider error";
+}
+
+function askBlockedMessage(args: any): string {
+  const questions = Array.isArray(args?.questions) ? args.questions : [];
+  const firstQuestion = questions.find((question: any) => typeof question?.question === "string");
+  if (firstQuestion?.question) {
+    return firstQuestion.question;
+  }
+  return "waiting for user input";
 }
 
 export default function (pi) {
@@ -296,43 +326,111 @@ export default function (pi) {
     retryTimer.unref?.();
   }
 
+  function activateRootSession(ctx: any, sessionStartSource = "startup"): boolean {
+    if (ctx?.hasUI !== true) {
+      return false;
+    }
+    rootSession = true;
+    updateSessionRef(ctx);
+    void reportSession(sessionStartSource);
+    return true;
+  }
+
+  function resetSessionState() {
+    clearPendingTimers();
+    clearFailureState();
+    agentActive = false;
+    blockedCount = 0;
+    blockedMessage = undefined;
+  }
+
+  function activateBlocked(message: string | undefined) {
+    clearPendingTimers();
+    blockedCount += 1;
+    blockedMessage = message;
+    publishState();
+  }
+
+  function deactivateBlocked() {
+    blockedCount = Math.max(0, blockedCount - 1);
+    if (blockedCount === 0) {
+      blockedMessage = undefined;
+    }
+    publishState();
+  }
+
   pi.events.on("herdr:blocked", (data) => {
     if (!rootSession) {
       return;
     }
     if (!data?.active) {
-      blockedCount = Math.max(0, blockedCount - 1);
-      if (blockedCount === 0) {
-        blockedMessage = undefined;
-      }
-      publishState();
+      deactivateBlocked();
       return;
     }
 
-    clearPendingTimers();
-    blockedCount += 1;
-    blockedMessage = data.label;
-    publishState();
+    activateBlocked(data.label);
   });
 
   pi.on("session_start", (_event, ctx) => {
-    if (ctx?.hasUI !== true) {
+    if (!activateRootSession(ctx)) {
       return;
     }
-    rootSession = true;
-    updateSessionRef(ctx);
-    void reportSession();
     publishState(true);
   });
 
-  pi.on("agent_start", () => {
-    if (!rootSession) {
+  pi.on("session_switch", (event, ctx) => {
+    if (!activateRootSession(ctx, event?.reason || "resume")) {
       return;
     }
+    resetSessionState();
+    publishState(true);
+  });
+
+  pi.on("agent_start", (_event, ctx) => {
+    if (!rootSession && !activateRootSession(ctx)) {
+      return;
+    }
+    updateSessionRef(ctx);
+    void reportSession();
     clearPendingTimers();
     clearFailureState();
     agentActive = true;
     publishState();
+  });
+
+  pi.on("tool_approval_requested", (event, ctx) => {
+    if (!rootSession && !activateRootSession(ctx)) {
+      return;
+    }
+    const label = event?.reason || `${event?.toolName || "Tool"} approval`;
+    activateBlocked(label);
+  });
+
+  pi.on("tool_approval_resolved", (_event, ctx) => {
+    if (!rootSession && !activateRootSession(ctx)) {
+      return;
+    }
+    deactivateBlocked();
+  });
+
+  pi.on("tool_execution_start", (event, ctx) => {
+    if (event?.toolName !== "ask") {
+      return;
+    }
+    if (!rootSession && !activateRootSession(ctx)) {
+      return;
+    }
+    activateBlocked(askBlockedMessage(event.args));
+  });
+
+  pi.on("tool_execution_end", (event, ctx) => {
+    if (event?.toolName !== "ask") {
+      return;
+    }
+    if (!rootSession && !activateRootSession(ctx)) {
+      return;
+    }
+    deactivateBlocked();
   });
 
   pi.on("agent_end", (event) => {
@@ -357,11 +455,13 @@ export default function (pi) {
     scheduleIdle();
   });
 
-  pi.on("session_shutdown", async () => {
+  pi.on("session_shutdown", async (event) => {
     if (!rootSession) {
       return;
     }
     clearPendingTimers();
-    await releaseAgent();
+    if (shouldReleaseOnSessionShutdown(event)) {
+      await releaseAgent();
+    }
   });
 }
