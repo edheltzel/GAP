@@ -27,7 +27,7 @@ scripts/
 \.claude/PAI/MEMORY/KNOWLEDGE/_embeddings
 \.claude/PAI/MEMORY/KNOWLEDGE/_harvest-queue
 
-# auth.json equivalents — Atlas/PAI internal secrets (mirror codex/ pattern)
+# auth.json equivalents — Atlas/PAI internal secrets
 \.claude/.*\.env
 \.claude/.*auth\.json
 \.claude/.*\.sqlite.*

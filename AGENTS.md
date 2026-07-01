@@ -1,6 +1,6 @@
 # atlas-config — Agent Instructions
 
-This repo is a minimal, stow-managed config for Ed's agents — `claude`, `pi`, and `omp`. The `codex` package was removed on 2026-06-30; Codex is no longer managed or configured here. Ed's PAI v5.0.0 USER-CONFIG (identity, TELOS, durable MEMORY, SYSTEM-OVERRIDE hooks/Pulse/TOOLS) lives in the `claude` package.
+This repo is a minimal, stow-managed config for Ed's agents — `claude`, `pi`, and `omp`. Ed's PAI v5.0.0 USER-CONFIG (identity, TELOS, durable MEMORY, SYSTEM-OVERRIDE hooks/Pulse/TOOLS) lives in the `claude` package.
 
 ## DOX framework
 
