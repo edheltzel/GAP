@@ -85,7 +85,7 @@ Default section order:
 
 ## PAI v5.0.0 migration
 
-This repo tracks Ed's PAI v5.0.0 configuration (identity, TELOS, durable memory, SYSTEM-OVERRIDE hooks). See `.agents/plans/2026-05-18-pai-to-atlas-config-migration-plan.md` for the canonical migration spec (supersedes the archived MANIFEST at `.agents/atlas/plans/archive/2026-05-17-pai-migration-manifest.md`).
+This repo tracks Ed's PAI v5.0.0 configuration (identity, TELOS, durable memory, SYSTEM-OVERRIDE hooks) in the `claude` package. The migration is complete; this tree is the migrated state.
 
 ## Scope
 
@@ -102,7 +102,7 @@ The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and
 
 Project-local Atlas artifacts live under `.agents/atlas/` (`plans/`, `handoffs/`, `artifacts/`, `worktrees/`). The entire `.agents/atlas/` folder is gitignored — local-only and untracked (as of 2026-06-30); these docs do not sync via git.
 
-Before changing Pi's global package set or implementing `/atlas-flow`, read `.agents/plans/2026-05-16-atlas-flow-research-digest.md` for the minimal-global baseline, flow manifest schema direction, safety rules, and issue roadmap.
+Before changing Pi's global package set or implementing `/atlas-flow`, review the atlas-flow epic (issues #2–#11 in `edheltzel/atlas-config`) for the minimal-global baseline, flow manifest schema direction, and safety rules.
 
 ## Voice system
 
@@ -137,7 +137,7 @@ Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands
 
 ## Notable conventions
 
-- `.agents/plans/` for active plan/design docs, `.agents/atlas/plans/archive/` for completed.
+- `.agents/atlas/plans/` for active plan/design docs, `.agents/atlas/plans/archive/` for completed.
 - `.agents/atlas/handoffs/` for live handoffs, archived to `.agents/atlas/handoffs/archive/` when consumed.
 - File naming: `YYYY-MM-DD-description.md`.
 - Use git worktrees (`EnterWorktree` / `ExitWorktree`) for implementation work — they land in `.agents/worktrees/`.
