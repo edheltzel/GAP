@@ -26,12 +26,10 @@ node_modules/
 *.swo
 *~
 
-# Atlas project-local artifacts
+# Atlas project-local artifacts — entire folder is local-only (plans, handoffs, artifacts, worktrees)
 .claude/worktrees/
-.agents/atlas/worktrees
+.agents/atlas/
 .atlas/worktrees/
-# Reconcile engine lockfiles (names->IDs cache; live state is always re-queried)
-.agents/atlas/artifacts/*.lock.json
 
 # Pi agent runtime state (never commit)
 **/auth.json
@@ -60,21 +58,6 @@ pi/.pi/agent/git/*
 pi/.pi/agent/Recall_GUIDE.md
 pi/.pi/agent/extensions/RecallExtract.ts
 pi/.pi/agent/extensions/RecallPreCompact.ts
-
-# Codex runtime state (never commit)
-codex/.codex/history.jsonl
-codex/.codex/installation_id
-codex/.codex/models_cache.json
-codex/.codex/version.json
-codex/.codex/.personality_migration
-codex/.codex/*.sqlite*
-codex/.codex/cache/
-codex/.codex/log/
-codex/.codex/sessions/
-codex/.codex/shell_snapshots/
-codex/.codex/tmp/
-codex/.codex/.tmp/
-codex/.codex/skills/.system/
 
 # OMP runtime state (never commit)
 omp/.omp/install-id

@@ -1,6 +1,6 @@
 # atlas-config — Agent Instructions
 
-This repo is a minimal, stow-managed config for Ed's agents. On 2026-05-18 the `Codex/` package was populated with Ed's PAI v5.0.0 USER-CONFIG (identity, TELOS, durable MEMORY, SYSTEM-OVERRIDE hooks/Pulse/TOOLS); prior to that the previous Atlas/PAI build was soft-reset on 2026-05-01.
+This repo is a minimal, stow-managed config for Ed's agents — `claude`, `pi`, and `omp`. The `codex` package was removed on 2026-06-30; Codex is no longer managed or configured here. Ed's PAI v5.0.0 USER-CONFIG (identity, TELOS, durable MEMORY, SYSTEM-OVERRIDE hooks/Pulse/TOOLS) lives in the `claude` package.
 
 ## DOX framework
 
@@ -78,7 +78,6 @@ Default section order:
 
 ### Child DOX Index
 
-- `codex/.codex/AGENTS.md` — Codex package-local rules for curated Codex config.
 - `pi/.pi/agent/AGENTS.md` — Pi package-local rules for curated Pi agent config.
 - `packages/AGENTS.md` — installable agent package rules and package child index.
 - `docs/AGENTS.md` — durable documentation rules.
@@ -90,7 +89,7 @@ This repo tracks Ed's PAI v5.0.0 configuration (identity, TELOS, durable memory,
 
 ## Scope
 
-**atlas-config is single-machine-canonical.** The `merge=ours` rule on `Codex/.Codex/settings.json` (see `.gitattributes`) means changes to that file do not propagate across machines via `git pull` — local edits always win. Multi-machine sync requires explicit `git checkout origin/master -- Codex/.Codex/settings.json` on the receiving Mac, then a re-personalization pass if needed. This is intentional: `settings.json` carries per-session mutating fields (`counts`, `feedbackSurveyState.lastShownTime`) that would otherwise churn the repo.
+**atlas-config is single-machine-canonical.** The `merge=ours` rules on `claudecode/.claude/settings.json` and `pi/.pi/agent/settings.json` (see `.gitattributes`) mean changes to those files do not propagate across machines via `git pull` — local edits always win. Multi-machine sync requires explicit `git checkout origin/master -- <path>` on the receiving Mac, then a re-personalization pass if needed. This is intentional: these settings files carry per-session mutating fields (`counts`, `feedbackSurveyState.lastShownTime`, UI/model/package prefs) that would otherwise churn the repo.
 
 The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and the Recall MEMORY/ vault (`~/.agents/Recall/MEMORY/`) also live **outside** atlas-config — they are out-of-band like `~/.env`. Cold-archive these to an external location on a schedule (1Password vault, Time Machine, external drive); they are the only USER content not in git.
 
@@ -98,11 +97,10 @@ The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and
 
 | Package | Source | Stowed to | Status |
 |---|---|---|---|
-| `Codex` | `Codex/.Codex/` | `~/.Codex/` | Populated with PAI v5.0.0 USER-CONFIG (2026-05-18) |
 | `pi` | `pi/.pi/agent/` | `~/.pi/agent/` | Curated Pi config only; stowed with `--no-folding` so runtime state stays local |
 | `omp` | `omp/.omp/agent/` | `~/.omp/agent/` | Curated OMP-native config only; runtime DBs, sessions, blobs, memories, and secrets stay local |
 
-Project-local artifacts live under `.agents/` (`plans/`, `atlas/handoffs/`, `worktrees/`). `worktrees/` is gitignored.
+Project-local Atlas artifacts live under `.agents/atlas/` (`plans/`, `handoffs/`, `artifacts/`, `worktrees/`). The entire `.agents/atlas/` folder is gitignored — local-only and untracked (as of 2026-06-30); these docs do not sync via git.
 
 Before changing Pi's global package set or implementing `/atlas-flow`, read `.agents/plans/2026-05-16-atlas-flow-research-digest.md` for the minimal-global baseline, flow manifest schema direction, safety rules, and issue roadmap.
 
@@ -127,11 +125,11 @@ Provider chain: edge-tts → ElevenLabs → Kokoro → macOS `say`. **ElevenLabs
 
 ## Stow
 
-Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands. Pi is stowed with `--no-folding`: `~/.pi/agent` must remain a real directory, with only curated config files symlinked into it. The per-package `.stow-local-ignore` files **replace** stow's built-in defaults — when adding a new one, copy from `Codex/.stow-local-ignore` and re-include `\.git`, `\.gitignore`, etc.
+Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands. Pi is stowed with `--no-folding`: `~/.pi/agent` must remain a real directory, with only curated config files symlinked into it. The per-package `.stow-local-ignore` files **replace** stow's built-in defaults — when adding a new one, copy from `claude/.stow-local-ignore` and re-include `\.git`, `\.gitignore`, etc.
 
 ## When adding files
 
-- Adding to `Codex/.Codex/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow.
+- Adding to `claude/.claude/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow.
 - Anything that should not be symlinked into the runtime location → add a pattern to that package's `.stow-local-ignore`.
 - Pi runtime/package state (`auth.json`, `sessions/`, `cache/`, `mcp*.json`, `run-history.jsonl`, `memory/`, `npm/`, `git/`) stays in the real `~/.pi/agent`, not in atlas-config.
 - OMP runtime state (`agent.db*`, `history.db*`, `models.db*`, `sessions/`, `blobs/`, `terminal-sessions/`, `memories/`, `cache/`, `secrets.yml`, `.env`, auth broker/gateway tokens) stays in the real `~/.omp`, not in atlas-config. See `docs/agents/omp.md`.

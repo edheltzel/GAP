@@ -3,7 +3,7 @@ set shell := ["bash", "-cu"]
 stow_dir := justfile_directory()
 stow_target := env("HOME")
 stow_cmd := "stow -d " + stow_dir + " -t " + stow_target
-pkgs := "claude codex omp"
+pkgs := "claude omp"
 pi_pkg := "pi"
 
 yellow := '\033[33m'
