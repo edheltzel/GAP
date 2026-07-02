@@ -51,13 +51,37 @@ const triage: Overlay = (a) =>
     ],
   });
 
-// Feedback-agent board footprint: an intake view over needs:triage. The actual
-// `.github/` scaffold (Issue Forms, router workflow, GitHub App) is Phase 5 and
-// is installed separately — this overlay only contributes the board-visible view.
+// Feedback-agent overlay (§4.3, interview Q7): the board footprint is an intake
+// view over needs:triage; the repo-side `.github/` scaffold (Issue Forms, router
+// workflow, slash commands) lives in `feedback-agent/` and is installed by
+// copying FEEDBACK_AGENT_SCAFFOLD into the target repo (see
+// references/FeedbackAgent.md for placeholders, secrets, and verification).
 const feedbackAgent: Overlay = (a) =>
   extend(a, {
     views: [{ name: "Feedback Intake", layout: "TABLE", filter: "label:needs:triage" }],
   });
+
+// Scaffold manifest: template source (relative to this directory) → path in the
+// target repo. The interview/scaffold flow installs these when Q7 toggles the
+// feedback-agent overlay on.
+export const FEEDBACK_AGENT_SCAFFOLD: ReadonlyArray<{ source: string; target: string }> = [
+  {
+    source: "feedback-agent/ISSUE_TEMPLATE/feedback.yml",
+    target: ".github/ISSUE_TEMPLATE/feedback.yml",
+  },
+  {
+    source: "feedback-agent/ISSUE_TEMPLATE/bug.yml",
+    target: ".github/ISSUE_TEMPLATE/bug.yml",
+  },
+  {
+    source: "feedback-agent/workflows/feedback-router.yml",
+    target: ".github/workflows/feedback-router.yml",
+  },
+  {
+    source: "feedback-agent/workflows/pm-commands.yml",
+    target: ".github/workflows/pm-commands.yml",
+  },
+];
 
 export const OVERLAYS: Record<string, Overlay> = {
   iterations,
