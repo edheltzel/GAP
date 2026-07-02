@@ -2,7 +2,10 @@
 // Resolves the default archetype with two overlays and asserts the merged spec
 // matches the skill plan's Phase 1 verify gate.
 
+import { existsSync, readFileSync } from "node:fs";
 import { resolve, ARCHETYPES, OVERLAYS } from "./resolve.ts";
+import { FEEDBACK_AGENT_SCAFFOLD } from "./overlays.ts";
+import { CANON_LABELS } from "./archetypes.ts";
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) {
@@ -89,6 +92,115 @@ assert(
   !fresh.fields.some((f) => f.name === "__leak__") &&
     !fresh.status.some((s) => s.name === "__leak__"),
   "resolved spec shares mutable refs with module constants (F5 regression)",
+);
+
+// Phase 5: the feedback-agent scaffold manifest points at real template files
+// (the four .github/ artifacts) with targets under the repo's .github/.
+assert(
+  FEEDBACK_AGENT_SCAFFOLD.length === 4,
+  `expected 4 scaffold entries, got ${FEEDBACK_AGENT_SCAFFOLD.length}`,
+);
+for (const { source, target } of FEEDBACK_AGENT_SCAFFOLD) {
+  assert(
+    existsSync(`${import.meta.dir}/${source}`),
+    `scaffold source missing: ${source}`,
+  );
+  assert(target.startsWith(".github/"), `scaffold target not under .github/: ${target}`);
+}
+
+// Exact manifest target set — a renamed or duplicated target is a defect.
+assert(
+  JSON.stringify(FEEDBACK_AGENT_SCAFFOLD.map((e) => e.target).sort()) ===
+    JSON.stringify([
+      ".github/ISSUE_TEMPLATE/bug.yml",
+      ".github/ISSUE_TEMPLATE/feedback.yml",
+      ".github/workflows/feedback-router.yml",
+      ".github/workflows/pm-commands.yml",
+    ]),
+  "unexpected scaffold target set",
+);
+
+// Parse the templates and enforce the scaffold's form/workflow invariants.
+const parseYaml = (rel: string) =>
+  Bun.YAML.parse(readFileSync(`${import.meta.dir}/${rel}`, "utf8"));
+
+// Issue Forms: canon labels only, needs:triage intake (the router's gate and
+// the overlay view key on it), and the ORG/PROJECT_NUMBER placeholder.
+const canon = new Set(CANON_LABELS.map((l) => l.name));
+for (const rel of [
+  "feedback-agent/ISSUE_TEMPLATE/feedback.yml",
+  "feedback-agent/ISSUE_TEMPLATE/bug.yml",
+]) {
+  const form = parseYaml(rel);
+  for (const label of form.labels) {
+    assert(canon.has(label), `${rel}: label "${label}" not in CANON_LABELS`);
+  }
+  assert(form.labels.includes("needs:triage"), `${rel}: missing needs:triage intake label`);
+  assert(
+    JSON.stringify(form.projects) === JSON.stringify(["ORG/PROJECT_NUMBER"]),
+    `${rel}: projects key must be the ORG/PROJECT_NUMBER placeholder`,
+  );
+}
+
+// Router: trigger, intake gate, action names, token plumbing, ack dedupe.
+const router = parseYaml("feedback-agent/workflows/feedback-router.yml");
+assert(
+  JSON.stringify(router.on?.issues?.types) === JSON.stringify(["opened", "labeled"]),
+  "router trigger must be issues: [opened, labeled]",
+);
+assert(
+  String(router.jobs.route.if ?? "").includes(
+    "contains(github.event.issue.labels.*.name, 'needs:triage')",
+  ),
+  "router job must be gated on the needs:triage intake label",
+);
+assert(
+  router.concurrency?.group === "feedback-${{ github.event.issue.number }}",
+  "router must serialize per-issue runs via the feedback concurrency group",
+);
+const routerSteps: any[] = router.jobs.route.steps;
+const mint = routerSteps.find((s) => s.uses?.startsWith("actions/create-github-app-token@"));
+assert(mint !== undefined, "router must mint an App token via actions/create-github-app-token");
+// The minted token must stay narrowed, not inherit the installation's full set.
+assert(
+  mint.with["permission-organization-projects"] === "write" &&
+    mint.with["permission-issues"] === "read" &&
+    mint.with["permission-metadata"] === "read",
+  "App token mint must carry the three permission-narrowing inputs",
+);
+const addToProject = routerSteps.find((s) => s.uses?.startsWith("actions/add-to-project@"));
+assert(addToProject !== undefined, "router must use actions/add-to-project");
+assert(
+  addToProject.with["project-url"] === "https://github.com/orgs/ORG/projects/PROJECT_NUMBER",
+  "router project-url must carry the ORG/PROJECT_NUMBER placeholder",
+);
+assert(
+  addToProject.with["github-token"] === "${{ steps.app-token.outputs.token }}",
+  "add-to-project must use the App-token step output, not GITHUB_TOKEN",
+);
+const ack = routerSteps.find((s) => s.name?.startsWith("Acknowledge reporter"));
+const ackScript: string = ack?.with?.script ?? "";
+assert(
+  ackScript.includes("<!-- pm-feedback-ack -->") && ackScript.includes("listComments"),
+  "ack comment must dedupe via the pm-feedback-ack marker before posting",
+);
+
+// Slash commands: full add/remove transition map (mutually exclusive states)
+// plus the collaborator write gate.
+const pmCommands = parseYaml("feedback-agent/workflows/pm-commands.yml");
+const pmScript: string = pmCommands.jobs["pm-command"].steps[0].with.script;
+for (const [cmd, transition] of [
+  ["/pm:triage", '{ add: ["needs:triage"], remove: ["needs:info", "agent:ready"] }'],
+  ["/pm:needs-info", '{ add: ["needs:info"],   remove: ["needs:triage", "agent:ready"] }'],
+  ["/pm:ready", '{ add: ["agent:ready"],  remove: ["needs:triage", "needs:info"] }'],
+] as const) {
+  assert(pmScript.includes(`"${cmd}"`), `pm-commands script missing handler ${cmd}`);
+  assert(pmScript.includes(transition), `pm-commands script: ${cmd} must map to ${transition}`);
+}
+assert(
+  pmScript.includes("getCollaboratorPermissionLevel") &&
+    pmScript.includes('["write", "admin"].includes(perm.permission)'),
+  "pm-commands must gate on a real collaborator write-permission check",
 );
 
 console.log(`resolved: ${spec.key} + [estimation, roadmap]`);

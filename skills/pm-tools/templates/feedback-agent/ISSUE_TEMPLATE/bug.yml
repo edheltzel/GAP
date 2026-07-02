@@ -1,0 +1,44 @@
+# Installed by the pm-tools feedback-agent overlay (interview Q7).
+# Before committing to a target repo, replace ORG/PROJECT_NUMBER with the
+# central board (e.g. Gentle-Art-Technologies/3). The `projects:` key is
+# best-effort auto-add; feedback-router.yml is the reliable board path.
+name: Bug Report
+description: Something is broken or behaving unexpectedly
+title: "[Bug]: "
+labels: ["type:bug", "needs:triage"]
+projects: ["ORG/PROJECT_NUMBER"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Blocks me completely
+        - Painful but has a workaround
+        - Minor annoyance
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser/runtime, version — whatever applies.
+    validations:
+      required: false

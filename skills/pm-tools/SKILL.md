@@ -186,6 +186,19 @@ gh issue list --repo owner/repo --state open --json url -q '.[].url' | \
   xargs -I {} gh project item-add 1 --owner "@me" --url {}
 ```
 
+## Feedback Agent (overlay)
+
+The `feedback-agent` overlay (interview Q7) adds a "Feedback Intake" board view and drops a `.github/` scaffold into the target repo — Issue Forms plus two workflows, all at $0. Templates live in `templates/feedback-agent/`; the install manifest is `FEEDBACK_AGENT_SCAFFOLD` in `templates/overlays.ts`.
+
+| Installed file | Purpose |
+|---|---|
+| `.github/ISSUE_TEMPLATE/feedback.yml` | Feedback Issue Form — auto-applies `needs:triage`; best-effort project auto-add; router is the reliable path |
+| `.github/ISSUE_TEMPLATE/bug.yml` | Bug Issue Form — `type:bug` + `needs:triage` |
+| `.github/workflows/feedback-router.yml` | Routes intake onto the central board (App token), acks the reporter as Atlas, optional GitHub Models triage |
+| `.github/workflows/pm-commands.yml` | `/pm:triage` `/pm:needs-info` `/pm:ready` maintainer slash commands on the free `GITHUB_TOKEN` |
+
+**GitHub App setup (once):** reuse the existing **gat-atlas-bot** App (id `4127929`, installed org-wide on GAT — see `docs/agents/github-identities.md`); do not register a new App. Set `ATLAS_APP_ID` / `ATLAS_APP_PRIVATE_KEY` (App token mints the Projects v2 write — `GITHUB_TOKEN` can't) and `ATLAS_KEY_PAT` (ack-comment author) as repo/org secrets, then replace the `ORG/PROJECT_NUMBER` placeholders in the copied files. Full install steps and the $0 e2e verification runbook: [FeedbackAgent.md](references/FeedbackAgent.md).
+
 ## JSON Output & jq Patterns
 
 ```bash
@@ -215,6 +228,7 @@ gh project item-list 1 --owner "@me" --format json | \
 - **[Hierarchy.md](references/Hierarchy.md)**: Epic→Feature→Task issue model + issue-creation checklist using native sub-issues/dependencies (`gh issue create --parent`, `gh issue edit --add-sub-issue/--add-blocked-by`); GraphQL only for board-item field values
 - **[ProjectSetup.md](references/ProjectSetup.md)**: One-time board bootstrap — fields, views, automations, and capturing field/option IDs (no CLAUDE-gen, no Husky)
 - **[Labels.md](references/Labels.md)**: Label policy — the canonical `:`-namespaced taxonomy (`type:` `needs:` `risk:` `agent:` `wontfix`); Status/Phase/Priority are board fields, not labels
+- **[FeedbackAgent.md](references/FeedbackAgent.md)**: The `feedback-agent` overlay's `.github/` scaffold — Issue Forms, feedback router, `/pm:*` slash commands, GitHub App setup, $0 e2e verification runbook
 - **[Execute.md](references/Execute.md)**: Run an existing plan/ISA against the board — pre-flight (bun), In Progress, 4-tier deviation rules, AC/close updates
 - **[Continue.md](references/Continue.md)**: Pick the next task from board state (status → priority → deps)
 - **[Status.md](references/Status.md)**: Board progress report — phase progress, status counts, recently-closed, up-next
