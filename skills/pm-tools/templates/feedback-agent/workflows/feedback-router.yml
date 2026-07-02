@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Mint App token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         with:
           app-id: ${{ secrets.ATLAS_APP_ID }}
           private-key: ${{ secrets.ATLAS_APP_PRIVATE_KEY }}
@@ -39,31 +39,41 @@ jobs:
           permission-metadata: read
 
       - name: Add to central board
-        uses: actions/add-to-project@v1.0.2
+        uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
         with:
           project-url: https://github.com/orgs/ORG/projects/PROJECT_NUMBER
           github-token: ${{ steps.app-token.outputs.token }}
 
       - name: Acknowledge reporter (authored as Atlas)
-        if: github.event.action == 'opened'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           github-token: ${{ secrets.ATLAS_KEY_PAT }}
           script: |
+            // A form submission can emit `opened` without the template label
+            // (the label lands as a follow-up `labeled` event and only then
+            // passes the job gate), so ack on either event and dedupe by a
+            // hidden marker in existing comments.
+            const MARKER = "<!-- pm-feedback-ack -->";
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number, per_page: 100,
+            });
+            if (comments.some((c) => c.body?.includes(MARKER))) return;
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
+              owner, repo, issue_number,
               body: [
+                MARKER,
                 `Thanks @${context.payload.issue.user.login} — received.`,
                 "",
                 "This is on the board and will be triaged shortly.",
               ].join("\n"),
             });
 
-      # Optional: GitHub Models free tier (~50 requests/day) summarizes the
-      # issue and suggests a work-kind label. Degrades gracefully: any failure
-      # (daily cap, parse miss, unexpected output) skips without failing the run.
+      # Optional: GitHub Models free tier (low-tier models like gpt-4o-mini:
+      # 150 requests/day) summarizes the issue and suggests a work-kind label.
+      # Degrades gracefully: any failure (daily cap, parse miss, unexpected
+      # output) skips without failing the run.
       - name: AI triage suggestion (optional)
         if: github.event.action == 'opened' && vars.PM_AI_TRIAGE == 'true'
         continue-on-error: true
@@ -94,6 +104,10 @@ jobs:
             type:bug|type:feature|type:docs|type:chore) ;;
             *) echo "no usable suggestion — skipping"; exit 0 ;;
           esac
+          # The summary derives from attacker-controlled issue text: strip
+          # backticks/newlines and length-cap, then post it inside a code span
+          # so links don't render and @-mentions don't ping.
+          summary=$(printf '%s' "$summary" | tr -d '`\n' | cut -c1-200)
           gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "$label"
           gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" \
-            --body "**AI triage suggestion:** ${summary} (applied \`${label}\`)"
+            --body "**AI triage suggestion:** \`${summary}\` (applied \`${label}\`)"
