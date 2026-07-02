@@ -2,7 +2,9 @@
 // Resolves the default archetype with two overlays and asserts the merged spec
 // matches the skill plan's Phase 1 verify gate.
 
+import { existsSync } from "node:fs";
 import { resolve, ARCHETYPES, OVERLAYS } from "./resolve.ts";
+import { FEEDBACK_AGENT_SCAFFOLD } from "./overlays.ts";
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) {
@@ -90,6 +92,20 @@ assert(
     !fresh.status.some((s) => s.name === "__leak__"),
   "resolved spec shares mutable refs with module constants (F5 regression)",
 );
+
+// Phase 5: the feedback-agent scaffold manifest points at real template files
+// (the four .github/ artifacts) with targets under the repo's .github/.
+assert(
+  FEEDBACK_AGENT_SCAFFOLD.length === 4,
+  `expected 4 scaffold entries, got ${FEEDBACK_AGENT_SCAFFOLD.length}`,
+);
+for (const { source, target } of FEEDBACK_AGENT_SCAFFOLD) {
+  assert(
+    existsSync(`${import.meta.dir}/${source}`),
+    `scaffold source missing: ${source}`,
+  );
+  assert(target.startsWith(".github/"), `scaffold target not under .github/: ${target}`);
+}
 
 console.log(`resolved: ${spec.key} + [estimation, roadmap]`);
 console.log(`  Status: ${statusNames.join(" · ")}`);

@@ -1,0 +1,56 @@
+# Installed by the pm-tools feedback-agent overlay (interview Q7).
+#
+# Maintainer slash commands on issue comments, on the free GITHUB_TOKEN
+# (same-repo labels/reactions need no App token). Label transitions follow
+# docs/agents/triage-labels.md:
+#   /pm:triage      → needs:triage  (back to intake; maintainer to evaluate)
+#   /pm:needs-info  → needs:info    (waiting on reporter)
+#   /pm:ready       → agent:ready   (fully specified, ready for an AFK agent)
+# The pm: namespace avoids colliding with other agents' /triage commands.
+name: PM Commands
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  pm-command:
+    if: >-
+      !github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/pm:')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const COMMANDS = {
+              "/pm:triage":     { add: ["needs:triage"], remove: ["needs:info", "agent:ready"] },
+              "/pm:needs-info": { add: ["needs:info"],   remove: ["needs:triage"] },
+              "/pm:ready":      { add: ["agent:ready"],  remove: ["needs:triage", "needs:info"] },
+            };
+            const comment = context.payload.comment;
+            const command = comment.body.trim().split(/\s+/)[0];
+            const spec = COMMANDS[command];
+            if (!spec) {
+              core.info(`unknown command ${command} — ignoring`);
+              return;
+            }
+            // Maintainers only: reporters cannot move their own issues.
+            if (!["OWNER", "MEMBER", "COLLABORATOR"].includes(comment.author_association)) {
+              core.info(`${comment.user.login} lacks write access — ignoring`);
+              return;
+            }
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const present = new Set(context.payload.issue.labels.map((l) => l.name));
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: spec.add });
+            for (const name of spec.remove.filter((n) => present.has(n))) {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
+            }
+            // Ack the command with a reaction instead of a noisy comment.
+            await github.rest.reactions.createForIssueComment({
+              owner, repo, comment_id: comment.id, content: "+1",
+            });
