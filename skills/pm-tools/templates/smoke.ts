@@ -2,9 +2,10 @@
 // Resolves the default archetype with two overlays and asserts the merged spec
 // matches the skill plan's Phase 1 verify gate.
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve, ARCHETYPES, OVERLAYS } from "./resolve.ts";
 import { FEEDBACK_AGENT_SCAFFOLD } from "./overlays.ts";
+import { CANON_LABELS } from "./archetypes.ts";
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) {
@@ -105,6 +106,75 @@ for (const { source, target } of FEEDBACK_AGENT_SCAFFOLD) {
     `scaffold source missing: ${source}`,
   );
   assert(target.startsWith(".github/"), `scaffold target not under .github/: ${target}`);
+}
+
+// Exact manifest target set — a renamed or duplicated target is a defect.
+assert(
+  JSON.stringify(FEEDBACK_AGENT_SCAFFOLD.map((e) => e.target).sort()) ===
+    JSON.stringify([
+      ".github/ISSUE_TEMPLATE/bug.yml",
+      ".github/ISSUE_TEMPLATE/feedback.yml",
+      ".github/workflows/feedback-router.yml",
+      ".github/workflows/pm-commands.yml",
+    ]),
+  "unexpected scaffold target set",
+);
+
+// Parse the templates and enforce the scaffold's form/workflow invariants.
+const parseYaml = (rel: string) =>
+  Bun.YAML.parse(readFileSync(`${import.meta.dir}/${rel}`, "utf8"));
+
+// Issue Forms: canon labels only, needs:triage intake (the router's gate and
+// the overlay view key on it), and the ORG/PROJECT_NUMBER placeholder.
+const canon = new Set(CANON_LABELS.map((l) => l.name));
+for (const rel of [
+  "feedback-agent/ISSUE_TEMPLATE/feedback.yml",
+  "feedback-agent/ISSUE_TEMPLATE/bug.yml",
+]) {
+  const form = parseYaml(rel);
+  for (const label of form.labels) {
+    assert(canon.has(label), `${rel}: label "${label}" not in CANON_LABELS`);
+  }
+  assert(form.labels.includes("needs:triage"), `${rel}: missing needs:triage intake label`);
+  assert(
+    JSON.stringify(form.projects) === JSON.stringify(["ORG/PROJECT_NUMBER"]),
+    `${rel}: projects key must be the ORG/PROJECT_NUMBER placeholder`,
+  );
+}
+
+// Router: trigger, action names, board-URL placeholder, opened-only ack dedupe.
+const router = parseYaml("feedback-agent/workflows/feedback-router.yml");
+assert(
+  JSON.stringify(router.on?.issues?.types) === JSON.stringify(["opened", "labeled"]),
+  "router trigger must be issues: [opened, labeled]",
+);
+const routerSteps: any[] = router.jobs.route.steps;
+assert(
+  routerSteps.some((s) => s.uses?.startsWith("actions/create-github-app-token@")),
+  "router must mint an App token via actions/create-github-app-token",
+);
+const addToProject = routerSteps.find((s) => s.uses?.startsWith("actions/add-to-project@"));
+assert(addToProject !== undefined, "router must use actions/add-to-project");
+assert(
+  addToProject.with["project-url"] === "https://github.com/orgs/ORG/projects/PROJECT_NUMBER",
+  "router project-url must carry the ORG/PROJECT_NUMBER placeholder",
+);
+const ack = routerSteps.find((s) => s.name?.startsWith("Acknowledge reporter"));
+assert(
+  ack?.if === "github.event.action == 'opened'",
+  "ack comment must be gated to opened only (no duplicate acks on relabel)",
+);
+
+// Slash commands: the /pm:* map applies the triage-labels.md transitions.
+const pmCommands = parseYaml("feedback-agent/workflows/pm-commands.yml");
+const pmScript: string = pmCommands.jobs["pm-command"].steps[0].with.script;
+for (const [cmd, adds] of [
+  ["/pm:triage", 'add: ["needs:triage"]'],
+  ["/pm:needs-info", 'add: ["needs:info"]'],
+  ["/pm:ready", 'add: ["agent:ready"]'],
+] as const) {
+  assert(pmScript.includes(`"${cmd}"`), `pm-commands script missing handler ${cmd}`);
+  assert(pmScript.includes(adds), `pm-commands script: ${cmd} must ${adds}`);
 }
 
 console.log(`resolved: ${spec.key} + [estimation, roadmap]`);

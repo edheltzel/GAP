@@ -31,6 +31,12 @@ jobs:
         with:
           app-id: ${{ secrets.ATLAS_APP_ID }}
           private-key: ${{ secrets.ATLAS_APP_PRIVATE_KEY }}
+          # Narrow the token to what this job needs (org-project write for
+          # add-to-project, plus issue/metadata read). Without these inputs the
+          # token would inherit the App installation's full permission set.
+          permission-organization-projects: write
+          permission-issues: read
+          permission-metadata: read
 
       - name: Add to central board
         uses: actions/add-to-project@v1.0.2
