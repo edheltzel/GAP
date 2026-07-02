@@ -192,7 +192,7 @@ The `feedback-agent` overlay (interview Q7) adds a "Feedback Intake" board view 
 
 | Installed file | Purpose |
 |---|---|
-| `.github/ISSUE_TEMPLATE/feedback.yml` | Feedback Issue Form — auto-applies `needs:triage`, auto-adds to the board |
+| `.github/ISSUE_TEMPLATE/feedback.yml` | Feedback Issue Form — auto-applies `needs:triage`; best-effort project auto-add; router is the reliable path |
 | `.github/ISSUE_TEMPLATE/bug.yml` | Bug Issue Form — `type:bug` + `needs:triage` |
 | `.github/workflows/feedback-router.yml` | Routes intake onto the central board (App token), acks the reporter as Atlas, optional GitHub Models triage |
 | `.github/workflows/pm-commands.yml` | `/pm:triage` `/pm:needs-info` `/pm:ready` maintainer slash commands on the free `GITHUB_TOKEN` |
