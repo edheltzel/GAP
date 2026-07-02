@@ -142,16 +142,27 @@ for (const rel of [
   );
 }
 
-// Router: trigger, action names, board-URL placeholder, opened-only ack dedupe.
+// Router: trigger, intake gate, action names, token plumbing, ack dedupe.
 const router = parseYaml("feedback-agent/workflows/feedback-router.yml");
 assert(
   JSON.stringify(router.on?.issues?.types) === JSON.stringify(["opened", "labeled"]),
   "router trigger must be issues: [opened, labeled]",
 );
-const routerSteps: any[] = router.jobs.route.steps;
 assert(
-  routerSteps.some((s) => s.uses?.startsWith("actions/create-github-app-token@")),
-  "router must mint an App token via actions/create-github-app-token",
+  String(router.jobs.route.if ?? "").includes(
+    "contains(github.event.issue.labels.*.name, 'needs:triage')",
+  ),
+  "router job must be gated on the needs:triage intake label",
+);
+const routerSteps: any[] = router.jobs.route.steps;
+const mint = routerSteps.find((s) => s.uses?.startsWith("actions/create-github-app-token@"));
+assert(mint !== undefined, "router must mint an App token via actions/create-github-app-token");
+// The minted token must stay narrowed, not inherit the installation's full set.
+assert(
+  mint.with["permission-organization-projects"] === "write" &&
+    mint.with["permission-issues"] === "read" &&
+    mint.with["permission-metadata"] === "read",
+  "App token mint must carry the three permission-narrowing inputs",
 );
 const addToProject = routerSteps.find((s) => s.uses?.startsWith("actions/add-to-project@"));
 assert(addToProject !== undefined, "router must use actions/add-to-project");
@@ -159,23 +170,34 @@ assert(
   addToProject.with["project-url"] === "https://github.com/orgs/ORG/projects/PROJECT_NUMBER",
   "router project-url must carry the ORG/PROJECT_NUMBER placeholder",
 );
-const ack = routerSteps.find((s) => s.name?.startsWith("Acknowledge reporter"));
 assert(
-  ack?.if === "github.event.action == 'opened'",
-  "ack comment must be gated to opened only (no duplicate acks on relabel)",
+  addToProject.with["github-token"] === "${{ steps.app-token.outputs.token }}",
+  "add-to-project must use the App-token step output, not GITHUB_TOKEN",
+);
+const ack = routerSteps.find((s) => s.name?.startsWith("Acknowledge reporter"));
+const ackScript: string = ack?.with?.script ?? "";
+assert(
+  ackScript.includes("<!-- pm-feedback-ack -->") && ackScript.includes("listComments"),
+  "ack comment must dedupe via the pm-feedback-ack marker before posting",
 );
 
-// Slash commands: the /pm:* map applies the triage-labels.md transitions.
+// Slash commands: full add/remove transition map (mutually exclusive states)
+// plus the collaborator write gate.
 const pmCommands = parseYaml("feedback-agent/workflows/pm-commands.yml");
 const pmScript: string = pmCommands.jobs["pm-command"].steps[0].with.script;
-for (const [cmd, adds] of [
-  ["/pm:triage", 'add: ["needs:triage"]'],
-  ["/pm:needs-info", 'add: ["needs:info"]'],
-  ["/pm:ready", 'add: ["agent:ready"]'],
+for (const [cmd, transition] of [
+  ["/pm:triage", '{ add: ["needs:triage"], remove: ["needs:info", "agent:ready"] }'],
+  ["/pm:needs-info", '{ add: ["needs:info"],   remove: ["needs:triage", "agent:ready"] }'],
+  ["/pm:ready", '{ add: ["agent:ready"],  remove: ["needs:triage", "needs:info"] }'],
 ] as const) {
   assert(pmScript.includes(`"${cmd}"`), `pm-commands script missing handler ${cmd}`);
-  assert(pmScript.includes(adds), `pm-commands script: ${cmd} must ${adds}`);
+  assert(pmScript.includes(transition), `pm-commands script: ${cmd} must map to ${transition}`);
 }
+assert(
+  pmScript.includes("getCollaboratorPermissionLevel") &&
+    pmScript.includes('["write", "admin"].includes(perm.permission)'),
+  "pm-commands must gate on a real collaborator write-permission check",
+);
 
 console.log(`resolved: ${spec.key} + [estimation, roadmap]`);
 console.log(`  Status: ${statusNames.join(" · ")}`);

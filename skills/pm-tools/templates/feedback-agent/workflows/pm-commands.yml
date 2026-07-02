@@ -1,11 +1,12 @@
 # Installed by the pm-tools feedback-agent overlay (interview Q7).
 #
 # Maintainer slash commands on issue comments, on the free GITHUB_TOKEN
-# (same-repo labels/reactions need no App token). Label transitions follow
-# docs/agents/triage-labels.md:
-#   /pm:triage      → needs:triage  (back to intake; maintainer to evaluate)
-#   /pm:needs-info  → needs:info    (waiting on reporter)
-#   /pm:ready       → agent:ready   (fully specified, ready for an AFK agent)
+# (same-repo labels/reactions need no App token). The three workflow-state
+# labels are mutually exclusive; each command swaps to exactly one of them
+# (transitions documented in references/FeedbackAgent.md):
+#   /pm:triage      → needs:triage  (back to intake; removes needs:info, agent:ready)
+#   /pm:needs-info  → needs:info    (waiting on reporter; removes needs:triage, agent:ready)
+#   /pm:ready       → agent:ready   (ready for an AFK agent; removes needs:triage, needs:info)
 # The pm: namespace avoids colliding with other agents' /triage commands.
 name: PM Commands
 
@@ -23,27 +24,32 @@ jobs:
       startsWith(github.event.comment.body, '/pm:')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const COMMANDS = {
               "/pm:triage":     { add: ["needs:triage"], remove: ["needs:info", "agent:ready"] },
-              "/pm:needs-info": { add: ["needs:info"],   remove: ["needs:triage"] },
+              "/pm:needs-info": { add: ["needs:info"],   remove: ["needs:triage", "agent:ready"] },
               "/pm:ready":      { add: ["agent:ready"],  remove: ["needs:triage", "needs:info"] },
             };
             const comment = context.payload.comment;
-            const command = comment.body.trim().split(/\s+/)[0];
+            // The workflow-level startsWith is case-insensitive; match it here.
+            const command = comment.body.trim().split(/\s+/)[0].toLowerCase();
             const spec = COMMANDS[command];
             if (!spec) {
               core.info(`unknown command ${command} — ignoring`);
               return;
             }
-            // Maintainers only: reporters cannot move their own issues.
-            if (!["OWNER", "MEMBER", "COLLABORATOR"].includes(comment.author_association)) {
-              core.info(`${comment.user.login} lacks write access — ignoring`);
+            const { owner, repo } = context.repo;
+            // Real write-check: author_association MEMBER/COLLABORATOR includes
+            // read-only members, who must not flip agent:ready.
+            const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner, repo, username: comment.user.login,
+            });
+            if (!["write", "admin"].includes(perm.permission)) {
+              core.info(`${comment.user.login} lacks write permission — ignoring`);
               return;
             }
-            const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const present = new Set(context.payload.issue.labels.map((l) => l.name));
             await github.rest.issues.addLabels({ owner, repo, issue_number, labels: spec.add });
