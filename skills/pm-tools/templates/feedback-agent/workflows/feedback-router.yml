@@ -19,6 +19,12 @@ permissions:
   issues: write
   models: read
 
+# Serialize concurrent opened+labeled runs for the same issue so the ack
+# dedupe's check-then-post cannot interleave and double-post.
+concurrency:
+  group: feedback-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
   route:
     # Only feedback intake — the label the Issue Forms auto-apply.
