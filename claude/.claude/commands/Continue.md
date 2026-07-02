@@ -1,10 +1,10 @@
 ---
 name: atlas:Continue
-description: Pick the next task from the GitHub Projects board — grouped by status, ordered by priority and dependencies. Wraps the github-projects skill's Continue recipe.
+description: Pick the next task from the GitHub Projects board — grouped by status, ordered by priority and dependencies. Wraps the pm-tools skill's Continue recipe.
 argument-hint: [optional — focus area, or "suggest"]
 ---
 
-Use the **github-projects** skill and follow its `references/Continue.md` recipe to surface board state and recommend the next task.
+Use the **pm-tools** skill and follow its `references/Continue.md` recipe to surface board state and recommend the next task.
 
 $ARGUMENTS
 

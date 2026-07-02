@@ -1,6 +1,6 @@
 # Triage Labels
 
-The skills speak in terms of triage roles. This file maps those roles to the actual `:`-namespaced label strings used in this repo's issue tracker. The canonical full taxonomy lives in `skills/github-projects/references/Labels.md`; this file covers the workflow-state (who-acts-next) subset.
+The skills speak in terms of triage roles. This file maps those roles to the actual `:`-namespaced label strings used in this repo's issue tracker. The canonical full taxonomy lives in `skills/pm-tools/references/Labels.md`; this file covers the workflow-state (who-acts-next) subset.
 
 | Role (mattpocock/skills vocab) | Label in our tracker | Meaning                                  |
 | ------------------------------ | -------------------- | ---------------------------------------- |
