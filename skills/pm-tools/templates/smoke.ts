@@ -154,6 +154,10 @@ assert(
   ),
   "router job must be gated on the needs:triage intake label",
 );
+assert(
+  router.concurrency?.group === "feedback-${{ github.event.issue.number }}",
+  "router must serialize per-issue runs via the feedback concurrency group",
+);
 const routerSteps: any[] = router.jobs.route.steps;
 const mint = routerSteps.find((s) => s.uses?.startsWith("actions/create-github-app-token@"));
 assert(mint !== undefined, "router must mint an App token via actions/create-github-app-token");
