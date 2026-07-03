@@ -92,7 +92,7 @@ bun Tools/Reconcile.ts --archetype solo-software --manifest repos.json
 
 Views and automations exist only in the web UI — `gh project view PROJECT_NUM --owner OWNER --web`:
 
-- [ ] **Views** — create each view the resolved spec declares (the plan header lists them; e.g. `solo-software`: "Board by Status" board, "Ready" table filtered `status:Ready,"In Progress"`), plus any extras you want (an Epics table with hierarchy on, a `label:type:bug` board).
+- [ ] **Views** — create each view the resolved spec declares (see the archetype and overlay tables in §1; e.g. `solo-software`: "Board by Status" board, "Ready" table filtered `status:Ready,"In Progress"`), plus any extras you want (an Epics table with hierarchy on, a `label:type:bug` board). The reconcile plan does not list views — the engine doesn't reconcile them (no API).
 - [ ] **Automations** — Auto-add (new issue in repo → add to board), Item closed (→ Status Done), Auto-archive (Done 14+ days).
 - [ ] **Iteration field** — only if an overlay declared one and the engine warned it was skipped.
 - [ ] **feedback-agent overlay** — install the `.github/` scaffold + secrets per `FeedbackAgent.md`.
