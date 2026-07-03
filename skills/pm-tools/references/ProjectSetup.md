@@ -70,14 +70,21 @@ Safety model (the plan's §6 invariants, enforced by the engine):
 - **Removals are destructive** (they orphan item assignments) — included only under `--prune`, executed only with `--apply --prune --confirm`, preceded by a "resets N item assignments" warning and a recovery snapshot of the affected item→option assignments.
 - **Renames are never inferred** from the diff — an explicit `--rename "Field:Old=New"` (repeatable, needs `--apply`) renames the option in place, id preserved, assignments kept.
 - **Extra live fields are never auto-deleted** — flagged as warnings; removed only behind `--prune --confirm`.
-- **Re-apply is a no-op** — a converged board plans "No changes" (idempotent).
+- **Re-apply is a no-op** — a converged board plans "No changes" (idempotent). Note: extra live options are **silently preserved** in the union, so "No changes" means nothing is orphaned or lost — it does **not** mean the vocabulary matches the spec exactly.
+- **A fresh board starts with GitHub's default Status** (`Todo / In Progress / Done`). `In Progress` and `Done` match the default archetype; the stray `Todo` is preserved as an extra. Fold it into the canon vocabulary with an assignment-preserving rename — `--rename "Status:Todo=Backlog" --apply` — or remove it with `--apply --prune --confirm`.
 - **ITERATION fields can't be created via the CLI** — the engine skips them with a warning; create them in the web UI, then re-run.
 
-After any `--apply`, the engine writes a **lockfile** — `.agents/atlas/artifacts/<owner>-project-<n>.lock.json` (gitignored; `--lockdir` overrides) — caching names→IDs plus the spec hash. Live state stays ground truth (every run re-queries); the lockfile is the audit trail **and where the field/option IDs for the GraphQL snippets in `Hierarchy.md` / `Execute.md` live**. To capture IDs without an apply:
+After a **board-mode** `--apply` (label-sync-only runs write no lockfile), the engine writes a **lockfile** — `.agents/atlas/artifacts/<owner>-project-<n>.lock.json` (gitignored; `--lockdir` overrides) — caching names→IDs plus the spec hash. Live state stays ground truth (every run re-queries); the lockfile is the audit trail **and where the field/option IDs for the GraphQL snippets in `Hierarchy.md` / `Execute.md` live**. To capture IDs without an apply:
 
 ```bash
 gh project field-list PROJECT_NUM --owner OWNER --format json \
   | jq '.fields[] | {name, id, options: (.options // [] | map({name, id}))}'
+```
+
+The GraphQL snippets also need the project's own node id — capture it any time (no apply required):
+
+```bash
+gh project view PROJECT_NUM --owner OWNER --format json | jq '{number, id, title}'
 ```
 
 Label sync alone (no board) works across repos from flags or a manifest:
@@ -92,7 +99,7 @@ bun Tools/Reconcile.ts --archetype solo-software --manifest repos.json
 
 Views and automations exist only in the web UI — `gh project view PROJECT_NUM --owner OWNER --web`:
 
-- [ ] **Views** — create each view the resolved spec declares (see the archetype and overlay tables in §1; e.g. `solo-software`: "Board by Status" board, "Ready" table filtered `status:Ready,"In Progress"`), plus any extras you want (an Epics table with hierarchy on, a `label:type:bug` board). The reconcile plan does not list views — the engine doesn't reconcile them (no API).
+- [ ] **Views** — create each view the resolved spec declares (each archetype's `views` array in `templates/archetypes.ts`, plus the overlay table in §1; e.g. `solo-software`: "Board by Status" board, "Ready" table filtered `status:Ready,"In Progress"`), plus any extras you want (an Epics table with hierarchy on, a `label:type:bug` board). The reconcile plan does not list views — the engine doesn't reconcile them (no API).
 - [ ] **Automations** — Auto-add (new issue in repo → add to board), Item closed (→ Status Done), Auto-archive (Done 14+ days).
 - [ ] **Iteration field** — only if an overlay declared one and the engine warned it was skipped.
 - [ ] **feedback-agent overlay** — install the `.github/` scaffold + secrets per `FeedbackAgent.md`.

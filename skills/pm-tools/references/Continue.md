@@ -29,7 +29,7 @@ When choosing the next task (or suggesting one):
 1. Anything already **In Progress** on the board comes first.
 2. Then **Priority** field: P0 → P1 → P2 → P3 (the canonical scheme; map accordingly if the board uses another).
 3. Within the same priority, **lower issue number first** (earlier work before later).
-4. Skip issues with open native dependencies (`blockedBy` non-empty) until their blockers close.
+4. Skip issues only while any native `blockedBy` dependency is still open (a node with `state == "OPEN"` — gh keeps closed blockers in the list, so non-empty alone doesn't mean blocked).
 5. **The board is the source of truth** — if board and memory disagree, the board wins for *status*.
 
 ## Boundary
