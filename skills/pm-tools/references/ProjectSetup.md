@@ -1,72 +1,102 @@
-# ProjectSetup — bootstrap a board with fields, views, and captured IDs
+# ProjectSetup — bootstrap a board from an archetype
 
-One-time board bootstrap for a repo: create the Projects v2 board, add the Status / Phase / Priority fields, create the working views, and **capture every field/option ID** so the GraphQL snippets in `Hierarchy.md`, `Execute.md`, etc. have something to reference. Adapted from `init-project.md` — board logic only. **No `CLAUDE.md` generator, no Husky/npm.**
+One-time board bootstrap for a repo, driven by the template layer + reconcile engine (paths relative to the skill root):
+
+1. Pick an **archetype** (+ overlays) — `templates/archetypes.ts` + `templates/overlays.ts`, resolved to one merged spec by `templates/resolve.ts`.
+2. Create the empty board and link it to the repo.
+3. Converge fields / options / labels with `Tools/Reconcile.ts` (plan → apply).
+4. Finish the manual-only steps (views, automations) from the checklist.
+
+> The interview flow that picks archetype + overlays from answers is Phase 3 (#25, unbuilt) — until it ships, choose them by hand from the tables below.
 
 ## 0. Prerequisites
 
 ```bash
 gh auth status                 # must be authenticated
 gh auth refresh -s project     # the `project` scope is required for board ops
+gh --version                   # >= 2.94 (skill prerequisite)
 git rev-parse --is-inside-work-tree && git remote get-url origin
 ```
 
-## 1. Create the board and link it to the repo
+## 1. Pick an archetype + overlays
+
+Archetypes (each declares its Status vocabulary, fields, labels, and views; all share the Priority field P0–P3 and the canonical label taxonomy — see `Labels.md`):
+
+| Key | Status vocabulary | Extra fields |
+|-----|-------------------|--------------|
+| `solo-software` (default) | Backlog · Ready · In Progress · In Review · Done | Phase, Area |
+| `content-pipeline` | Idea · Drafting · Editing · Review · Scheduled · Published | Channel, Publish Date |
+| `research-tracker` | Open Question · Investigating · Evidence Gathered · Concluded · Parked | Confidence, Source |
+| `life-os-tasks` | Inbox · Next · In Progress · Waiting · Done | Area, Due, Energy |
+| `open-source-repo` | Triage · Accepted · In Progress · In Review · Done | Type, Difficulty |
+
+Overlays (additive, composable — applied in the order given):
+
+| Key | Adds |
+|-----|------|
+| `iterations` | Iteration field + "Current Sprint" view |
+| `estimation` | Estimate (number) + Size (XS–XL) fields |
+| `roadmap` | Start/Target Date fields + Roadmap view |
+| `triage` | Leading "Triage" status column + intake labels |
+| `feedback-agent` | "Feedback Intake" view + the repo-side `.github/` scaffold (`FEEDBACK_AGENT_SCAFFOLD` install manifest) — see `FeedbackAgent.md` |
+
+## 2. Create the board and link it to the repo
+
+The engine converges an **existing** board; it does not create one:
 
 ```bash
-gh project create --owner OWNER --title "PROJECT Roadmap"
+gh project create --owner OWNER --title "TITLE"
 # note the returned project number, then:
 gh project link PROJECT_NUM --owner OWNER --repo REPO
 ```
 
-## 2. Create the fields
+## 3. Reconcile fields, options, and labels (the engine)
 
-Status exists by default (GitHub ships `Todo / In Progress / Done`). Reconcile it to the canonical lean vocabulary — **Backlog · Ready · In Progress · In Review · Done** — then add Phase and Priority:
+`Tools/Reconcile.ts` snapshots live board + label state, diffs it against the resolved archetype spec into a 3-bucket plan (create / update / delete), prints a terraform-style plan, and only writes on `--apply`:
 
 ```bash
-gh project field-create PROJECT_NUM --owner OWNER --name "Phase" \
-  --data-type SINGLE_SELECT --single-select-options "Phase 1,Phase 2,Phase 3"
-gh project field-create PROJECT_NUM --owner OWNER --name "Priority" \
-  --data-type SINGLE_SELECT --single-select-options "Low,Medium,High,Critical"
+# dry-run plan (default — always run this first; no writes)
+bun Tools/Reconcile.ts --project PROJECT_NUM --owner OWNER \
+  --archetype solo-software --overlay estimation --repo OWNER/REPO
+
+# apply SAFE ops only: field/option/label creates + colour/description drift
+bun Tools/Reconcile.ts --project PROJECT_NUM --owner OWNER \
+  --archetype solo-software --overlay estimation --repo OWNER/REPO --apply
 ```
 
-## 3. Capture field + option IDs (critical)
+Safety model (the plan's §6 invariants, enforced by the engine):
 
-The GraphQL mutations elsewhere need these IDs. Capture them once and store them where the project's recipes can find them (a project-local notes block, e.g. the repo's `AGENTS.md` or a `.agents/atlas/` note):
+- **Option edits are a full-list replace** in the API — the engine always sends the merged union of live ∪ desired options with each existing option's node id carried forward, so a write never drops options it didn't mean to and never resets item assignments it keeps.
+- **Removals are destructive** (they orphan item assignments) — included only under `--prune`, executed only with `--apply --prune --confirm`, preceded by a "resets N item assignments" warning and a recovery snapshot of the affected item→option assignments.
+- **Renames are never inferred** from the diff — an explicit `--rename "Field:Old=New"` (repeatable, needs `--apply`) renames the option in place, id preserved, assignments kept.
+- **Extra live fields are never auto-deleted** — flagged as warnings; removed only behind `--prune --confirm`.
+- **Re-apply is a no-op** — a converged board plans "No changes" (idempotent).
+- **ITERATION fields can't be created via the CLI** — the engine skips them with a warning; create them in the web UI, then re-run.
+
+After any `--apply`, the engine writes a **lockfile** — `.agents/atlas/artifacts/<owner>-project-<n>.lock.json` (gitignored; `--lockdir` overrides) — caching names→IDs plus the spec hash. Live state stays ground truth (every run re-queries); the lockfile is the audit trail **and where the field/option IDs for the GraphQL snippets in `Hierarchy.md` / `Execute.md` live**. To capture IDs without an apply:
 
 ```bash
 gh project field-list PROJECT_NUM --owner OWNER --format json \
   | jq '.fields[] | {name, id, options: (.options // [] | map({name, id}))}'
-
-# Project ID itself:
-gh project list --owner OWNER --format json \
-  | jq '.projects[] | select(.number == PROJECT_NUM) | {number, id, title}'
 ```
 
-Record: `PROJECT_ID`, `STATUS_FIELD_ID` + each status option ID, `PHASE_FIELD_ID` + option IDs, `PRIORITY_FIELD_ID` + option IDs.
+Label sync alone (no board) works across repos from flags or a manifest:
 
-## 4. Views (one board, multiple views)
+```bash
+bun Tools/Reconcile.ts --archetype solo-software --repo OWNER/A --repo OWNER/B
+bun Tools/Reconcile.ts --archetype solo-software --manifest repos.json
+# manifest: { "repos": ["owner/a", ...], "archetype"?: "<key>", "overlays"?: ["<k>"] }
+```
 
-Views give visual separation without multiple boards. Create them in the web UI (`gh project view PROJECT_NUM --owner OWNER --web`) or accept the defaults:
+## 4. Manual-only checklist (the API can't create these)
 
-| View | Layout | Filter | Purpose |
-|------|--------|--------|---------|
-| Epics | Table (hierarchy on) | `has:phase` | Phase overview with expandable sub-issues |
-| Active Work | Board by Status | `status:In Review,"In Progress"` | Daily working view |
-| Backlog | Board | `status:Backlog` | Not yet started |
-| Bugs | Board | `label:bug` | All bugs by status |
+Views and automations exist only in the web UI — `gh project view PROJECT_NUM --owner OWNER --web`:
 
-## 5. Automations (web UI)
+- [ ] **Views** — create each view the resolved spec declares (the plan header lists them; e.g. `solo-software`: "Board by Status" board, "Ready" table filtered `status:Ready,"In Progress"`), plus any extras you want (an Epics table with hierarchy on, a `label:type:bug` board).
+- [ ] **Automations** — Auto-add (new issue in repo → add to board), Item closed (→ Status Done), Auto-archive (Done 14+ days).
+- [ ] **Iteration field** — only if an overlay declared one and the engine warned it was skipped.
+- [ ] **feedback-agent overlay** — install the `.github/` scaffold + secrets per `FeedbackAgent.md`.
 
-| Automation | Trigger | Action |
-|------------|---------|--------|
-| Auto-add | New issue in repo | Add to board |
-| Item closed | Issue closed | Status → Done |
-| Auto-archive | Done for 14+ days | Archive |
+## 5. Verify
 
-## Labels
-
-Label setup is a separate concern — see `Labels.md`. Apply the canonical `:`-namespaced taxonomy (`type:` `needs:` `risk:` `agent:` `wontfix`). Status, Phase, and Priority are **board fields**, not labels.
-
-## Gotcha — field-ID brittleness
-
-If you later rename/recreate a field or option in the web UI, its ID changes and the captured IDs go stale (mutations fail silently or error). Re-run step 3 and update the stored IDs whenever the board's field structure changes.
+Re-run the engine in plan mode: a bootstrapped board reports **"No changes. Board matches the resolved spec (idempotent no-op)."**

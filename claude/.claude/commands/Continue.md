@@ -8,6 +8,6 @@ Use the **pm-tools** skill and follow its `references/Continue.md` recipe to sur
 
 $ARGUMENTS
 
-Report open items grouped **In Progress → Ready → Backlog**, then recommend the next task by priority (Critical → High → Medium → Low), lower issue number first, honoring `depends on #X` / `blocked by #Y` references.
+Report open items grouped **In Progress → Ready → Backlog**, then recommend the next task by priority (P0 → P1 → P2 → P3), lower issue number first, skipping issues whose native `blockedBy` dependencies are still open.
 
 Scope: this reads the **board** only. Session resumption and conversational context are owned by Recall + the SessionStart hook — don't duplicate them here.

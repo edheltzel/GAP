@@ -7,7 +7,7 @@ Lifecycle for implementing an **already-written** plan (a `.agents/atlas/plans/*
 ```bash
 gh issue view NUMBER --repo OWNER/REPO            # read the issue + its AC
 
-# move the board item to In Progress (IDs from ProjectSetup.md)
+# move the board item to In Progress (IDs from the board's lockfile — ProjectSetup.md §3)
 ITEM_ID=$(gh project item-list PROJECT_NUM --owner OWNER --format json \
   --jq '.items[] | select(.content.number == NUMBER) | .id')
 gh project item-edit --project-id PROJECT_ID --id "$ITEM_ID" \

@@ -5,8 +5,9 @@ Decide what to work on next, sourced from the board. Adapted from `continue.md` 
 ## 1. Gather board state
 
 ```bash
-# open issues with labels
-gh issue list --repo OWNER/REPO --state open --json number,title,labels,state --limit 50
+# open issues with labels + native blocked-by dependencies (gh >= 2.94)
+gh issue list --repo OWNER/REPO --state open \
+  --json number,title,labels,state,blockedBy --limit 50
 
 # board items with their field values (Phase, Priority, Status)
 gh project item-list PROJECT_NUM --owner OWNER --format json
@@ -14,7 +15,7 @@ gh project item-list PROJECT_NUM --owner OWNER --format json
 
 ## 2. Report, grouped by status
 
-Present a table grouped **In Progress → Ready → Backlog**:
+Present a table grouped **In Progress → Ready → Backlog** (the default `solo-software` vocabulary — use the board archetype's own status names if it differs):
 
 | # | Issue | Phase | Priority | Status | Labels |
 |---|-------|-------|----------|--------|--------|
@@ -26,9 +27,9 @@ Then summarize: what's In Progress, what's Ready to pick up, any blockers/decisi
 When choosing the next task (or suggesting one):
 
 1. Anything already **In Progress** on the board comes first.
-2. Then **Priority** field: Critical → High → Medium → Low.
+2. Then **Priority** field: P0 → P1 → P2 → P3 (the canonical scheme; map accordingly if the board uses another).
 3. Within the same priority, **lower issue number first** (earlier work before later).
-4. Honor dependency refs in issue bodies: `depends on #X`, `blocked by #Y`.
+4. Skip issues with open native dependencies (`blockedBy` non-empty) until their blockers close.
 5. **The board is the source of truth** — if board and memory disagree, the board wins for *status*.
 
 ## Boundary

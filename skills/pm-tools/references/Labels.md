@@ -37,7 +37,7 @@ Read the live taxonomy first — never assume — then reconcile toward the cano
 gh label list --repo OWNER/REPO --limit 200 --json name,color,description
 ```
 
-The Phase-2 label-sync target converges any repo to the canon above (`gh label create --force` from a manifest), preserving existing `area:*` and archetype labels.
+The reconcile engine's label-sync mode converges any repo to the canon above (`bun Tools/Reconcile.ts --archetype <key> --repo OWNER/REPO` or `--manifest <file>`; idempotent via `gh label create --force`), preserving existing `area:*` and archetype labels — deletes only behind `--prune --confirm`.
 
 ## Migration note
 

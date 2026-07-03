@@ -8,4 +8,4 @@ Use the **pm-tools** skill and follow its `references/Status.md` recipe to produ
 
 $ARGUMENTS
 
-Report phase progress (closed vs open per phase), board status counts (Backlog / Ready / In Progress / Done), issues closed in the last week, and the top 3 up-next items by priority. Keep it scannable — bullets and a small table, no prose. This is board reporting, distinct from `Recall:stats` (the memory DB).
+Report phase progress (closed vs open per phase), board status counts (Backlog / Ready / In Progress / In Review / Done), issues closed in the last week, and the top 3 up-next items by priority. Keep it scannable — bullets and a small table, no prose. This is board reporting, distinct from `Recall:stats` (the memory DB).
