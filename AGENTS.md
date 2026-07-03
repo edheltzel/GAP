@@ -154,6 +154,10 @@ Workflow: `npx skills add`/`update` as usual → `just skills-sync` to review an
 
 Issues are tracked as GitHub issues in `edheltzel/atlas-config` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
+### PM tools engine
+
+The `pm-tools` skill ships a config-as-code template layer (`skills/pm-tools/templates/` — archetypes + overlays resolved deterministically) and a reconcile engine (`skills/pm-tools/Tools/Reconcile.ts` — plan-mode default; destructive ops gated behind `--prune --confirm`). Gates: `bun templates/smoke.ts`, `bunx tsc --noEmit`, `bun test` in `Tools/`. Recipes in `skills/pm-tools/references/`.
+
 ### Triage labels
 
 Five canonical triage roles using default label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
