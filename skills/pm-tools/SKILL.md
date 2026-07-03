@@ -152,7 +152,7 @@ gh project field-create PROJECT_NUM --owner OWNER --name "Due Date" --data-type 
 # Single select with options
 gh project field-create PROJECT_NUM --owner OWNER --name "Priority" \
   --data-type SINGLE_SELECT \
-  --single-select-options "Low,Medium,High,Critical"
+  --single-select-options "P0,P1,P2,P3"
 ```
 
 ### Delete Fields
