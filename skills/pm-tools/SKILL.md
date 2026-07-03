@@ -186,6 +186,28 @@ gh issue list --repo owner/repo --state open --json url -q '.[].url' | \
   xargs -I {} gh project item-add 1 --owner "@me" --url {}
 ```
 
+## Template layer (`templates/`)
+
+The board's intended shape is config-as-code: five **archetypes** (`templates/archetypes.ts` — `solo-software` (default), `content-pipeline`, `research-tracker`, `life-os-tasks`, `open-source-repo`), each declaring its Status vocabulary, fields, labels, and views, all sharing the Priority field (P0–P3) and the canonical `:`-namespaced label taxonomy (`CANON_LABELS`). Five additive **overlays** (`templates/overlays.ts` — `iterations`, `estimation`, `roadmap`, `triage`, `feedback-agent`) compose on top; `feedback-agent` also carries the `FEEDBACK_AGENT_SCAFFOLD` install manifest for the repo-side `.github/` files (see below).
+
+`templates/resolve.ts` resolves `(archetype key, overlay keys)` to one merged spec — pure and deterministic (same inputs, same board), returning a detached clone. Merge semantics (`templates/merge.ts`): dedupe by name, first occurrence wins; overlay status options **prepend** (e.g. `triage` adds a leading "Triage" column), fields/labels/views append. Self-test: `bun templates/smoke.ts`.
+
+The interview flow that picks archetype + overlays from questions is Phase 3 (#25, unbuilt) — until then, selection is manual per [ProjectSetup.md](references/ProjectSetup.md).
+
+## Reconcile engine (`Tools/Reconcile.ts`)
+
+Converges a live board + repo labels toward a resolved spec, terraform-style: **snapshot** live state (GraphQL fields/options, `gh label list`) → **3-bucket diff** (create / update / delete, each op classified safe or destructive) → **plan** (default, dry-run) / **apply** (safe ops only) / **prune** (`--apply --prune --confirm` for destructive removals). Re-apply on a converged board is a no-op (idempotent). Diff logic lives in the pure, unit-tested `Tools/reconcile-core.ts`; the CLI shell only does I/O.
+
+Safety (plan §6): single-select option editing is a **full-list replace** in the API, so the engine always sends the merged union of live ∪ desired options with existing node ids carried forward — never a subset, never id churn. Option **removals** orphan item assignments → destructive, gated behind `--prune --confirm`, preceded by an exact "resets N item assignments" warning and a recovery snapshot. **Renames are never inferred** — `--rename "Field:Old=New"` does an explicit in-place, assignment-preserving rename. Extra live fields are flagged, never auto-deleted. After any apply, a gitignored **lockfile** (`.agents/atlas/artifacts/<owner>-project-<n>.lock.json`) caches names→IDs + the spec hash for audit; live state stays ground truth.
+
+```bash
+bun Tools/Reconcile.ts --project N --owner OWNER --archetype solo-software   # plan (dry run)
+bun Tools/Reconcile.ts ... --apply                                           # safe ops
+bun Tools/Reconcile.ts --archetype KEY --repo OWNER/REPO                     # label sync only
+```
+
+Full bootstrap walk-through: [ProjectSetup.md](references/ProjectSetup.md). Tests: `cd Tools && bun test`.
+
 ## Feedback Agent (overlay)
 
 The `feedback-agent` overlay (interview Q7) adds a "Feedback Intake" board view and drops a `.github/` scaffold into the target repo — Issue Forms plus two workflows, all at $0. Templates live in `templates/feedback-agent/`; the install manifest is `FEEDBACK_AGENT_SCAFFOLD` in `templates/overlays.ts`.
@@ -226,7 +248,7 @@ gh project item-list 1 --owner "@me" --format json | \
 ### PM recipes
 
 - **[Hierarchy.md](references/Hierarchy.md)**: Epic→Feature→Task issue model + issue-creation checklist using native sub-issues/dependencies (`gh issue create --parent`, `gh issue edit --add-sub-issue/--add-blocked-by`); GraphQL only for board-item field values
-- **[ProjectSetup.md](references/ProjectSetup.md)**: One-time board bootstrap — fields, views, automations, and capturing field/option IDs (no CLAUDE-gen, no Husky)
+- **[ProjectSetup.md](references/ProjectSetup.md)**: One-time board bootstrap — archetype + overlay selection, create/link the board, reconcile-engine plan/apply, manual views/automations checklist (no CLAUDE-gen, no Husky)
 - **[Labels.md](references/Labels.md)**: Label policy — the canonical `:`-namespaced taxonomy (`type:` `needs:` `risk:` `agent:` `wontfix`); Status/Phase/Priority are board fields, not labels
 - **[FeedbackAgent.md](references/FeedbackAgent.md)**: The `feedback-agent` overlay's `.github/` scaffold — Issue Forms, feedback router, `/pm:*` slash commands, GitHub App setup, $0 e2e verification runbook
 - **[Execute.md](references/Execute.md)**: Run an existing plan/ISA against the board — pre-flight (bun), In Progress, 4-tier deviation rules, AC/close updates

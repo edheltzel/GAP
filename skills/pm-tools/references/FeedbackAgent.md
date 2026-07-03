@@ -47,7 +47,7 @@ The App needs `Issues: RW` + org `Projects: RW` (it has them â€” proven by the Â
 1. Copy each `FEEDBACK_AGENT_SCAFFOLD` entry from `templates/feedback-agent/` to its target path in the repo.
 2. Replace the `ORG/PROJECT_NUMBER` placeholders (both Issue Forms' `projects:` key and the router's `project-url`) with the central board, e.g. `Gentle-Art-Technologies/3`.
 3. Set the secrets above.
-4. Ensure **every label the workflows can apply** pre-exists in the repo (applying a missing label fails the API call): the forms use `needs:triage`/`type:bug`, the slash commands add `needs:info`/`agent:ready`, and the AI triage allowlist can apply `type:feature`/`type:docs`/`type:chore`. Use the Phase-2 label-sync target, or:
+4. Ensure **every label the workflows can apply** pre-exists in the repo (applying a missing label fails the API call): the forms use `needs:triage`/`type:bug`, the slash commands add `needs:info`/`agent:ready`, and the AI triage allowlist can apply `type:feature`/`type:docs`/`type:chore`. Use the reconcile engine's label sync (`bun Tools/Reconcile.ts --archetype <key> --repo "$REPO"`), or:
 
 ```bash
 gh label create "needs:triage" --repo "$REPO" --color FBCA04 --description "maintainer needs to evaluate" --force

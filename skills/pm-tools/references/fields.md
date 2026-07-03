@@ -242,7 +242,7 @@ gh project field-list $PROJECT_NUM --owner "$OWNER"
 
 ## Limitations
 
-- Cannot modify single select options after creation (must delete and recreate field)
+- The CLI cannot modify single select options after creation; the GraphQL `updateProjectV2Field` mutation can, but it is a destructive full-list replace — use `Tools/Reconcile.ts`, which enforces the id-preserving merged-union safety
 - Cannot create iteration fields via CLI (use web UI)
 - Some built-in fields are read-only (Labels, Milestone, Repository)
 - Field names must be unique within a project

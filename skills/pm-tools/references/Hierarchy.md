@@ -49,7 +49,7 @@ gh api graphql -f query='query { repository(owner: "OWNER", name: "REPO") {
 
 ## Full GraphQL recipe
 
-Field/option IDs come from `ProjectSetup.md` (captured at board creation). See `Labels.md` for which labels to apply (the canonical `:`-namespaced taxonomy — `type:*` for work kind; Priority/Phase are board fields, not labels).
+Field/option IDs come from the board's lockfile (`ProjectSetup.md` §3). See `Labels.md` for which labels to apply (the canonical `:`-namespaced taxonomy — `type:*` for work kind; Priority/Phase are board fields, not labels).
 
 ```bash
 # 1. Create issue (add `--parent EPIC#` to link it as a sub-issue in the same step)
