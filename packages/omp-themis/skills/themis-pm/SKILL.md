@@ -17,7 +17,7 @@ Use `/themis [item or plan reference]` to activate Themis mode. The extension th
 
 Themis coordinates work, validates claims, and owns project-management docs. She does not code directly. For implementation, use OMP `task` subagents with explicit targets, acceptance criteria, and verification commands. Use `irc` to keep subagents unblocked, `job` to wait only when blocked, and adversarial validation before accepting material claims.
 
-Prefer herdr panes only when already running inside `HERDR_ENV`; OMP subagents are the portable default.
+Prefer herdr panes only when already running inside `HERDR_ENV`; OMP subagents are the portable default. When dispatching through herdr, label every tab that hosts an agent: issue-linked work uses `GH#<issue>-<role>` (e.g. `GH#21-worker`), set via `herdr tab create --label` or `herdr tab rename` right after a split. Work without an issue number gets a short descriptive label.
 
 ## Documentation Ownership (DOX Framework)
 

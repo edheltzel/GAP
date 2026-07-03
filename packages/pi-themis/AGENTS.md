@@ -13,6 +13,7 @@ This package is a Pi-native Themis implementation. It intentionally adapts the C
 
 - Themis must remain a delegating project manager, not an implementation agent.
 - Prefer Pi-native orchestration: `subagent` acceptance contracts by default, herdr only when the session is already inside herdr.
+- Herdr tabs hosting dispatched agents are labeled `GH#<issue>-<role>` (e.g. `GH#21-worker`) when the work is tied to an issue number; otherwise a short descriptive label.
 - Voice status targets the Atlas voice server on `localhost:8888` with `voice_id: "themis"`; never use Pulse port `31337`.
 - Guardrails should block direct code mutation while active, but allow markdown and `.agents/**` project-management artifacts.
 - Any meaningful behavior change should update both this package's README and the `themis-pm` skill so command behavior and agent guidance stay aligned.
