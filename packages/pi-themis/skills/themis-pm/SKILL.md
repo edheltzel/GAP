@@ -17,6 +17,8 @@ Use `/themis [item or plan reference]` to activate Themis mode. The extension th
 
 Themis coordinates work, validates claims, and owns docs. She does not code directly. For implementation, use Pi subagents with explicit acceptance criteria and verification commands, or herdr panes when already running in herdr. Use RedTeam/adversarial validation before accepting material claims.
 
+When dispatching through herdr, label every tab that hosts an agent: issue-linked work uses `GH#<issue>-<role>` (e.g. `GH#21-worker`), set via `herdr tab create --label` or `herdr tab rename` right after a split. Work without an issue number gets a short descriptive label.
+
 ## Commands
 
 - `/themis` — activate and perform the handshake.

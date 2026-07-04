@@ -11,7 +11,7 @@
     "npm:@narumitw/pi-goal",
     "npm:pi-hermes-memory",
     "npm:@sean_pedersen/pi-codegraph",
-    "../../Developer/atlas-voicesystem/adapters/pi",
+    "../../Developer/atlasEcho/adapters/pi",
     "../../Developer/atlas-config/packages/pi-themis"
   ],
   "subagents": {
@@ -42,5 +42,5 @@
   "quietStartup": true,
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": false,
-  "lastChangelogVersion": "0.80.2"
+  "lastChangelogVersion": "0.80.3"
 }

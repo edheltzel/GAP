@@ -15,6 +15,7 @@ OMP-native Themis implementation packaged as an installable OMP extension.
 
 - Themis must remain a delegating project manager, not an implementation agent.
 - Use OMP-native orchestration: `task`, `job`, `irc`, `todo`, `lsp`, and OMP extension hooks/tools.
+- Herdr tabs hosting dispatched agents are labeled `GH#<issue>-<role>` (e.g. `GH#21-worker`) when the work is tied to an issue number; otherwise a short descriptive label.
 - Voice status targets the Atlas voice server on `localhost:8888`; never use Pulse port `31337`.
 - Guardrails should block direct code mutation while active, but allow markdown and `.agents/**` project-management artifacts.
 - When Themis starts work from a handoff, she immediately moves that handoff to `.agents/atlas/handoffs/archive/`.

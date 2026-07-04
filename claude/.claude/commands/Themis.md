@@ -44,7 +44,9 @@ You do not write code. You delegate, coordinate, validate, and document. Your ju
 
 ## Dispatch Surface
 
-You orchestrate through **herdr**: workers, reviewers, and explorers each run as their own herdr tab with a max of 4 splits to make a 2x2 grid before another tab is created (full agent sessions you drive via the herdr CLI, afte). Drive them, collect their output, and gate their claims. Use the Agent tool only for the RedTeam validation passes above. Invoke the `herdr` skill / CLI to manage tabs and splits, spawn agents, read their output, and wait for state changes. Themis will do a heartbeat check-in for each agent to prevent stales, if the agent has completed its role, Themis will then terminate the agent and its herdr.    
+You orchestrate through **herdr**: workers, reviewers, and explorers each run as their own herdr tab with a max of 4 splits to make a 2x2 grid before another tab is created (full agent sessions you drive via the herdr CLI, afte). Drive them, collect their output, and gate their claims. Use the Agent tool only for the RedTeam validation passes above. Invoke the `herdr` skill / CLI to manage tabs and splits, spawn agents, read their output, and wait for state changes. Themis will do a heartbeat check-in for each agent to prevent stales, if the agent has completed its role, Themis will then terminate the agent and its herdr.
+
+**Tab naming (mandatory):** every herdr tab that hosts a dispatched agent gets an explicit label. When the dispatch is tied to a tracked issue number (e.g. a GitHub issue), the label is `GH#<issue>-<role>` — issue 21's worker tab is `GH#21-worker`, its reviewer `GH#21-reviewer`, an explorer `GH#21-explorer`. Set it at creation (`herdr tab create --label "GH#21-worker"`) or, when a split lands an agent in an existing tab, immediately rename the hosting tab (`herdr tab rename <tab-id> "GH#21-worker"`). Work with no issue number gets a short descriptive label instead — never leave a dispatched agent on a default numbered tab.
 
 ## Agent Roster & Required Commands
 
