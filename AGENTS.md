@@ -1,4 +1,4 @@
-# atlas-config — Agent Instructions
+# Atlas Config — Agent Instructions
 
 This repo is a minimal, stow-managed config for Ed's agents — `claude`, `pi`, and `omp`. Ed's PAI v5.0.0 USER-CONFIG (identity, TELOS, durable MEMORY, SYSTEM-OVERRIDE hooks/Pulse/TOOLS) lives in the `claude` package.
 
@@ -100,18 +100,18 @@ The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and
 | `pi` | `pi/.pi/agent/` | `~/.pi/agent/` | Curated Pi config only; stowed with `--no-folding` so runtime state stays local |
 | `omp` | `omp/.omp/agent/` | `~/.omp/agent/` | Curated OMP-native config only; runtime DBs, sessions, blobs, memories, and secrets stay local |
 
-Project-local Atlas artifacts live under `.agents/atlas/` (`plans/`, `handoffs/`, `artifacts/`, `worktrees/`). The entire `.agents/atlas/` folder is gitignored — local-only and untracked (as of 2026-06-30); these docs do not sync via git.
+Project-local Atlas artifacts live under `docs/` (`plans/`, `handoffs/`, `artifacts/`, `worktrees/`). The entire `docs/` folder is gitignored — local-only and untracked (as of 2026-06-30); these docs do not sync via git.
 
 Before changing Pi's global package set or implementing `/atlas-flow`, review the atlas-flow epic (issues #2–#11 in `edheltzel/atlas-config`) for the minimal-global baseline, flow manifest schema direction, and safety rules.
 
 ## Voice system
 
-Voice lives in a separate repo at `~/Developer/atlas-voicesystem` — stowed alongside, not inside atlas-config. The TTS daemon listens on **port 8888**, not Pulse's `31337`. `localhost:31337/notify` returns `Not found` because Pulse's voice module is disabled; all voice traffic must target `localhost:8888/notify`.
+Voice lives in a separate repo at `~/Developer/atlasEcho/` — a separate installation, not inside atlas-config. The TTS daemon listens on **port 8888**, not Pulse's `31337`. `localhost:31337/notify` returns `Not found` because Pulse's voice module is disabled; all voice traffic must target `localhost:8888/notify`.
 
 **Install (two-step):**
 
 ```
-cd ~/Developer/atlas-voicesystem && stow -v -t ~ claudecode
+cd ~/Developer/atlasEcho && stow -v -t ~ claudecode
 bash ~/.claude/PAI/USER/Voice/install.sh
 ```
 
