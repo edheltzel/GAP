@@ -131,6 +131,7 @@ Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands
 
 - Adding to `claude/.claude/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow.
 - Anything that should not be symlinked into the runtime location → add a pattern to that package's `.stow-local-ignore`.
+- Archived config directories (`claude/.claude/_archived/`, `omp/.omp/**/_archived/`, `pi/.pi/**/_archived/`) are repo-only and must stay ignored by stow.
 - Pi runtime/package state (`auth.json`, `sessions/`, `cache/`, `mcp*.json`, `run-history.jsonl`, `memory/`, `npm/`, `git/`) stays in the real `~/.pi/agent`, not in atlas-config.
 - OMP runtime state (`agent.db*`, `history.db*`, `models.db*`, `sessions/`, `blobs/`, `terminal-sessions/`, `memories/`, `cache/`, `secrets.yml`, `.env`, auth broker/gateway tokens) stays in the real `~/.omp`, not in atlas-config. See `docs/agents/omp.md`.
 - Secrets (`auth.json`, `*.env`, keys) → already covered by `.gitignore`. Do not weaken those rules.
