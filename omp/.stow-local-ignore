@@ -9,6 +9,9 @@
 # macOS
 \.DS_Store
 
+# Repo-only archived config (not needed in ~/.omp)
+\.omp(/.*)?/_archived
+
 # OMP install identity and secrets
 \.omp/install-id
 \.omp/\.env
