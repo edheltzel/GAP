@@ -56,6 +56,7 @@ Runtime state, credentials, generated caches, and local identity stay out of git
 Tracked OMP-authored config and packages currently include:
 
 - `omp/.omp/agent/config.yml`
+- `omp/.omp/agent/APPEND_SYSTEM.md`
 - `omp/.omp/agent/extensions/atlas-statusline.ts`
 - `omp/.omp/agent/extensions/codegraph.ts`
 - `omp/.omp/agent/themes/atlas-statusline.json`
