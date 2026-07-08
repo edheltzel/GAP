@@ -81,7 +81,7 @@ Default section order:
 - `pi/.pi/agent/AGENTS.md` — Pi package-local rules for curated Pi agent config.
 - `packages/AGENTS.md` — installable agent package rules and package child index.
 - `docs/AGENTS.md` — durable documentation rules.
-- Root-owned durable scopes without child AGENTS.md today: `claude/`, `omp/`, `.claude-plugin/`, `.agents/`, `skills/`.
+- Root-owned durable scopes without child AGENTS.md today: `claude/`, `omp/`, `.claude-plugin/`, `.agents/`, `skills.txt`, `install-skills.sh`.
 
 ## PAI v5.0.0 migration
 
@@ -95,33 +95,35 @@ The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and
 
 ## Repo layout
 
-| Package | Source | Stowed to | Status |
+| Surface | Source | Installed to | Status |
 |---|---|---|---|
+| `claude` | `claude/.claude/` | `~/.claude/` | Curated Claude Code config; runtime settings/hooks may remain machine-local |
 | `pi` | `pi/.pi/agent/` | `~/.pi/agent/` | Curated Pi config only; stowed with `--no-folding` so runtime state stays local |
 | `omp` | `omp/.omp/agent/` | `~/.omp/agent/` | Curated OMP-native config only; runtime DBs, sessions, blobs, memories, and secrets stay local |
+| Skills | `skills.txt`, `install-skills.sh` | skills.sh global install targets | Manifest-installed skills; no repo-local `skills/` store |
 
-Project-local Atlas artifacts live under `docs/` (`plans/`, `handoffs/`, `artifacts/`, `worktrees/`). The entire `docs/` folder is gitignored — local-only and untracked (as of 2026-06-30); these docs do not sync via git.
+Project-local Atlas artifacts live under `.agents/atlas/` (`plans/`, `handoffs/`, `artifacts/`, `worktrees/`). The entire `.agents/atlas/` folder is gitignored — local-only and untracked; these docs do not sync via git. Tracked durable documentation lives under `docs/`.
 
 Before changing Pi's global package set or implementing `/atlas-flow`, review the atlas-flow epic (issues #2–#11 in `edheltzel/atlas-config`) for the minimal-global baseline, flow manifest schema direction, and safety rules.
 
-## Voice system
+## Echo system
 
-Voice lives in a separate repo at `~/Developer/atlasEcho/` — a separate installation, not inside atlas-config. The TTS daemon listens on **port 8888**, not Pulse's `31337`. `localhost:31337/notify` returns `Not found` because Pulse's voice module is disabled; all voice traffic must target `localhost:8888/notify`.
+Echo lives in a separate repo at `~/Developer/atlasEcho/` — a separate installation, not inside atlas-config. Its TTS daemon listens on **port 8888**, not Pulse's `31337`. `localhost:31337/notify` returns `Not found` because Pulse's voice module is disabled; all Echo traffic must target `localhost:8888/notify`.
 
-**Install (two-step):**
+**Install:**
 
 ```
-cd ~/Developer/atlasEcho && stow -v -t ~ claudecode
-bash ~/.claude/PAI/USER/Voice/install.sh
+cd ~/Developer/atlasEcho
+bash scripts/install.sh --adapter claudecode
 ```
 
-`stow` creates the symlink `~/.claude/PAI/USER/Voice → ~/Developer/atlas-voicesystem/claudecode/.claude/PAI/USER/Voice`. `install.sh` writes `~/Library/LaunchAgents/com.pai.voice-server.plist` (Label `com.pai.voice-server`, `RunAtLoad`, `KeepAlive`) and starts the Bun daemon.
+The installer writes `~/Library/LaunchAgents/com.echo.plist` (Label `com.echo`) and starts the Bun daemon. It also quarantines legacy `com.pai.voice-server` and `com.atlas.voicesystem` plists when found; do not resurrect those services.
 
 Provider chain: edge-tts → ElevenLabs → Kokoro → macOS `say`. **ElevenLabs is disabled by policy** — library voices require paid tier and previously produced ~80 HTTP 402 failures. edge-tts is the active provider with `say` as the floor.
 
-**Live management:** `~/.claude/PAI/USER/Voice/{start,stop,restart,status}.sh`, or `launchctl kickstart -k "gui/$UID/com.pai.voice-server"`. Logs at `~/Library/Logs/pai-voice-server.log`. Health: `curl http://localhost:8888/health`. Full docs in the voicesystem repo's `AGENTS.md`.
+**Live management:** `~/Developer/atlasEcho/scripts/{start,stop,restart,status}.sh`, or `launchctl kickstart -k "gui/$UID/com.echo"`. Logs at `~/Library/Logs/echo.log`. Health: `curl http://localhost:8888/health`. Full docs in the Echo repo's `AGENTS.md`.
 
-**Gotcha — wrong-port curls:** PAI Algorithm doctrine (`PAI/ALGORITHM/v6.3.0.md`) and many skills curl `http://localhost:31337/notify`. That's Pulse, which has voice off. Until those are migrated, voice announcements from the Algorithm side silently no-op. Real voice = `:8888`.
+**Gotcha — wrong-port curls:** PAI Algorithm doctrine (`PAI/ALGORITHM/v6.3.0.md`) and many skills curl `http://localhost:31337/notify`. That's Pulse, which has voice off. Until those are migrated, Echo announcements from the Algorithm side silently no-op. Real Echo endpoint = `:8888`.
 
 ## Stow
 
@@ -129,7 +131,8 @@ Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands
 
 ## When adding files
 
-- Adding to `claude/.claude/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow.
+- Adding to `claude/.claude/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow and provision the `skills.txt` manifest.
+- Adding, removing, or changing skills → edit `skills.txt`, then run `just skills-status` to review the generated `skills add` commands and `just skills-install` to install them through skills.sh.
 - Anything that should not be symlinked into the runtime location → add a pattern to that package's `.stow-local-ignore`.
 - Archived config directories (`claude/.claude/_archived/`, `omp/.omp/**/_archived/`, `pi/.pi/**/_archived/`) are repo-only and must stay ignored by stow.
 - Pi runtime/package state (`auth.json`, `sessions/`, `cache/`, `mcp*.json`, `run-history.jsonl`, `memory/`, `npm/`, `git/`) stays in the real `~/.pi/agent`, not in atlas-config.
@@ -145,11 +148,11 @@ Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands
 
 ## Agent skills
 
-### Skills store (skills.sh)
+### Skills manifest (skills.sh)
 
-The [skills.sh](https://skills.sh) global store is repo-backed: the real files live in `skills/` at the repo root, and `~/.agents/skills` is a plain symlink to it (created by `just skills-link`, **not** stow). skills.sh keeps working unchanged — `npx skills add owner/repo` writes through the symlink straight into the repo, and its per-agent symlinks (`~/.claude/skills/<name> → ../../.agents/skills/<name>`, etc.) resolve through the chain.
+Custom skills are manifest-managed, not stored as a repo-backed `skills/` directory. The canonical source is `skills.txt`: each line maps a skills.sh source to selected skills with `owner/repo=skill,skill`. `install-skills.sh` reads that manifest and runs `skills add <source> -g -a <agents> -s <skills> -y` for every source.
 
-Workflow: `npx skills add`/`update` as usual → `just skills-sync` to review and commit the diff. The sync target refuses to run if `~/.agents/skills` is no longer a symlink (i.e. skills.sh recreated it as a real dir — relink and reconcile manually). `node_modules/` and `.DS_Store` inside the store are gitignored; do not track Pi CE runtime skills here (they stay under `~/.pi/agent`, see decision 2026-06-09). `git diff` review after `update` is the guard against skills.sh's known false-success/silent-skip bugs — see `.agents/atlas/artifacts/skills-sh-research.md`.
+Workflow: edit `skills.txt` → `just skills-status` for a dry run → `just skills-install` to install through skills.sh. Use `SKILLS_AGENTS=\"claude-code,pi,codex\"` to target specific agents; the default is all detected agents. Native/custom skills that used to live in atlas-config should move to their own skills.sh-compatible repos and be pulled in through `skills.txt`; do not recreate a local `skills/` store.
 
 ### Issue tracker
 
@@ -157,7 +160,7 @@ Issues are tracked as GitHub issues in `edheltzel/atlas-config` via the `gh` CLI
 
 ### PM tools engine
 
-The `pm-tools` skill ships a config-as-code template layer (`skills/pm-tools/templates/` — archetypes + overlays resolved deterministically) and a reconcile engine (`skills/pm-tools/Tools/Reconcile.ts` — plan-mode default; destructive ops gated behind `--prune --confirm`). Gates: `bun templates/smoke.ts`, `bunx tsc --noEmit`, `bun test` in `Tools/`. Recipes in `skills/pm-tools/references/`.
+`pm-tools` is installed via `skills.txt` from `edheltzel/skills`. Treat its source of truth as the upstream skills.sh repo/runtime installation, not a local `skills/pm-tools/` tree in atlas-config.
 
 ### Triage labels
 
