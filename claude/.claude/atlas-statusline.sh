@@ -103,41 +103,12 @@ model_name_short=$(echo "$model_name_short" | sed -E 's/ *\(([0-9]+[KMG]) contex
 
 cc_version="${cc_version_json:-}"
 
-# Get session label — authoritative source: Claude Code's sessions-index.json customTitle
+# Get session label — Claude Code's native session name from its live session
+# registry ($ATLAS_DIR/sessions/<pid>.json), matched by sessionId. This is the
+# same name Claude Code renders natively; empty until one is assigned.
 SESSION_LABEL=""
-SESSION_NAMES_FILE="$ATLAS_DIR/MEMORY/STATE/session-names.json"
-SESSION_CACHE="$ATLAS_DIR/MEMORY/STATE/session-name-cache.sh"
 if [ -n "$session_id" ]; then
-  project_slug=$(echo "$current_dir" | tr '/.' '-')
-  SESSIONS_INDEX="$ATLAS_DIR/projects/${project_slug}/sessions-index.json"
-
-  if [ -f "$SESSION_CACHE" ]; then
-    source "$SESSION_CACHE" 2>/dev/null
-    if [ "${cached_session_id:-}" = "$session_id" ] && [ -n "${cached_session_label:-}" ]; then
-      cache_mtime=$(stat -f %m "$SESSION_CACHE" 2>/dev/null || echo 0)
-      idx_mtime=$(stat -f %m "$SESSIONS_INDEX" 2>/dev/null || echo 0)
-      names_mtime=$(stat -f %m "$SESSION_NAMES_FILE" 2>/dev/null || echo 0)
-      max_source_mtime=$idx_mtime
-      [ "$names_mtime" -gt "$max_source_mtime" ] && max_source_mtime=$names_mtime
-      [ "$cache_mtime" -ge "$max_source_mtime" ] && SESSION_LABEL="${cached_session_label}"
-    fi
-  fi
-
-  if [ -z "$SESSION_LABEL" ] && [ -f "$SESSIONS_INDEX" ]; then
-    custom_title_line=$(grep -A10 "\"sessionId\": \"$session_id\"" "$SESSIONS_INDEX" 2>/dev/null | grep '"customTitle"' | head -1)
-    if [ -n "$custom_title_line" ]; then
-      SESSION_LABEL=$(echo "$custom_title_line" | sed 's/.*"customTitle": "//; s/".*//')
-    fi
-  fi
-
-  if [ -z "$SESSION_LABEL" ] && [ -f "$SESSION_NAMES_FILE" ]; then
-    SESSION_LABEL=$(jq -r --arg sid "$session_id" '.[$sid] // empty' "$SESSION_NAMES_FILE" 2>/dev/null)
-  fi
-
-  if [ -n "$SESSION_LABEL" ]; then
-    mkdir -p "$(dirname "$SESSION_CACHE")" 2>/dev/null
-    printf "cached_session_id='%s'\ncached_session_label='%s'\n" "$session_id" "$SESSION_LABEL" >"$SESSION_CACHE"
-  fi
+  SESSION_LABEL=$(jq -r --arg sid "$session_id" 'select(.sessionId==$sid) | .name // empty' "$ATLAS_DIR"/sessions/*.json 2>/dev/null | head -1)
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
