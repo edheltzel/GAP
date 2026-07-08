@@ -6,7 +6,7 @@ Covers worktrees and git. Worktree usage is always required. **Git is the VCS fo
 
 Always use git worktrees for implementation work unless Ed explicitly says otherwise.
 
-- Use the built-in `EnterWorktree` tool to create an isolated worktree before starting feature work. The tool creates a worktree under `.atlas/worktrees/` with a new branch based on HEAD.
+- Use the built-in `EnterWorktree` tool to create an isolated worktree before starting feature work. The tool creates a worktree under `.claude/worktrees/` with a new branch based on HEAD.
 - Use `ExitWorktree` when done (keep or remove).
 - This keeps the main working tree clean and enables parallel development.
 

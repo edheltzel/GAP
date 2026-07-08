@@ -791,14 +791,24 @@ mini)
   printf "${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags}\n"
   ;;
 *)
-  # Session title intentionally omitted — Claude Code v2.1.114+ renders it natively
-  # as a chip above the prompt input, so showing it here would duplicate.
-  local_left="▲ Atlas v${ATLAS_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain}${ctx_tags_plain} "
-  local_left_len=${#local_left}
-  local_fill=$((72 - local_left_len))
-  [ "$local_fill" -lt 2 ] && local_fill=2
-  local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
+  # Session title rendered natively here — with a custom statusline configured,
+  # Claude Code no longer draws the title chip above the prompt, so this is the
+  # only place it appears. Falls back to the no-title layout when unnamed.
+  if [ -n "$session_display" ]; then
+    local_left="▲ Atlas v${ATLAS_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain} · ${session_display}${ctx_tags_plain} "
+    local_left_len=${#local_left}
+    local_fill=$((72 - local_left_len))
+    [ "$local_fill" -lt 2 ] && local_fill=2
+    local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
+    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
+  else
+    local_left="▲ Atlas v${ATLAS_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain}${ctx_tags_plain} "
+    local_left_len=${#local_left}
+    local_fill=$((72 - local_left_len))
+    [ "$local_fill" -lt 2 ] && local_fill=2
+    local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
+    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
+  fi
   ;;
 esac
 

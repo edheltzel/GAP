@@ -1,38 +1,56 @@
 ---
-name: atlas:DesignSystemBootstrap
-description: Generate a portable DESIGN.md source-of-truth plus a live HTML style-guide page for the current project — discover brand tokens, write the 9-section spec, build and verify a visual reference page.
-argument-hint: [optional overrides — e.g. route:/style-guide mood:"calm editorial" name:"Acme" framework:Astro]
+name: atlas:DSB
+description: Generate a portable DESIGN.md spec and a matching live style-guide page for a project, so any AI coding agent can build on-brand UI in any framework.
 ---
+# Design System Bootstrap — Reusable Prompt
 
-# Design System Bootstrap
+**Purpose.** Generate a `DESIGN.md` source-of-truth file at the project root **plus** a live HTML style guide page that visualizes it. Produces a framework-agnostic design spec any coding agent (Claude, Codex, Cursor, Copilot, etc.) can read to generate matching UI in any stack.
 
-Generate **two artifacts** for the current project in one PR:
-
-1. **`DESIGN.md`** at the project root — the portable, framework-agnostic source of truth. Any coding agent (Claude, Codex, Cursor, Copilot) and any stack (React, Vue, Svelte, Astro, vanilla HTML) should be able to read it and produce UI that matches the brand.
-2. **A visual style-guide page** that renders every section of `DESIGN.md` at real size using the project's own component primitives.
-
-Work the phases in order — do not skip phases.
+**When to use.** Any time you start (or adopt) a project that needs a portable, machine-readable design system — typically once per project, early.
 
 ---
 
-## Phase 0 · Resolve inputs (do this first)
+## How to use
 
-You are not handed placeholders — discover them. Resolve each input below from the project, then apply any overrides the user passed in `$ARGUMENTS`. Ask the user ONLY for an input you genuinely cannot determine.
+1. Fill in the placeholders in the `# Inputs` block below.
+2. Copy everything from `# BEGIN PROMPT` to `# END PROMPT` into your agent.
+3. Let the agent investigate, write, verify. Review the generated files.
+4. Iterate on anything that doesn't match your brand (palette naming, moods, do/don'ts).
 
-| Input | How to resolve |
-|---|---|
-| **Project root** | Git root of the cwd (`git rev-parse --show-toplevel`), else cwd. |
-| **Project name** | `package.json` `name`, the site-config identity file, or the repo directory name. |
-| **One-liner** | `package.json` `description`, the README's first line, or the site config. If absent, ask. |
-| **Framework** | Infer from deps / config files: `Astro`, `Next.js`, `Remix`, `SvelteKit`, `Nuxt`, `Vite+React`, or `plain HTML/CSS`. |
-| **Styling system** | Infer from deps / config: `Tailwind v4`, `Tailwind v3`, `CSS Modules`, `vanilla CSS`, `styled-components`, `Panda CSS`. |
-| **Style-guide route** | Default `/style-guide`. For a routed app pick a path that fits its conventions (`/system/design-md`, `/_design`); for a non-routed/static project, a standalone `style-guide.html`. |
-| **Branching rules** | Read `CLAUDE.md` / `AGENTS.md` / `CONTRIBUTING` for the branching/worktree policy. |
-| **Mood** | `discover` — infer from the representative page — unless the user states one. |
+## Placeholders
 
-`$ARGUMENTS` is a free-form override string. Parse `key:value` pairs from it (e.g. `route:/system/design mood:"calm editorial" name:"Acme" framework:Astro`); any override wins over auto-detection. If `$ARGUMENTS` is empty, auto-detect everything and discover the mood.
+| Placeholder             | What to fill in                                                                 |
+|-------------------------|----------------------------------------------------------------------------------|
+| `{{PROJECT_NAME}}`      | Human-readable name, e.g. *Acme Logistics*.                                      |
+| `{{PROJECT_ONE_LINER}}` | One sentence describing what the product does and who it's for.                  |
+| `{{PROJECT_ROOT}}`      | Absolute path to the repo, e.g. `/Users/me/Sites/acme`.                          |
+| `{{FRAMEWORK}}`         | Framework in use: `Astro`, `Next.js`, `Remix`, `SvelteKit`, `Nuxt`, `Vite+React`, `plain HTML/CSS`, etc. |
+| `{{STYLING_SYSTEM}}`    | CSS approach: `Tailwind v4`, `Tailwind v3`, `CSS Modules`, `vanilla CSS`, `styled-components`, `Panda CSS`, etc. |
+| `{{STYLE_GUIDE_ROUTE}}` | URL path where the visual page should mount, e.g. `/system/design-md`, `/style-guide`, `/_design`. |
+| `{{BRANCHING_RULES}}`   | This project's branching policy (feature-branch required? worktree required? base branch name?). Leave `none` if no rules. |
+| `{{MOOD_HINT}}` *(optional)* | One-line mood the brand aspires to (e.g. *"calm institutional, editorial, medical-journal"*). Leave `discover` to have the agent infer from existing UI. |
 
-Restate the resolved inputs in ≤8 bullets before starting Phase 1. If a critical input is missing and undiscoverable (no color tokens defined anywhere, no one-liner), stop and ask.
+---
+
+# BEGIN PROMPT
+
+## Task
+
+You are bootstrapping a design system for **{{PROJECT_NAME}}** — *{{PROJECT_ONE_LINER}}*.
+
+Repo root: `{{PROJECT_ROOT}}`
+Framework: `{{FRAMEWORK}}`
+Styling system: `{{STYLING_SYSTEM}}`
+Style-guide route: `{{STYLE_GUIDE_ROUTE}}`
+Branching rules: `{{BRANCHING_RULES}}`
+Mood hint: `{{MOOD_HINT}}`
+
+You will produce **two artifacts** in one PR:
+
+1. **`DESIGN.md`** at the project root — the portable, framework-agnostic source of truth.
+2. **A visual style-guide page** at `{{STYLE_GUIDE_ROUTE}}` — renders every section of `DESIGN.md` at real size using the project's own component primitives.
+
+Work in this order — do not skip phases.
 
 ---
 
@@ -47,7 +65,7 @@ Discover the brand tokens that already exist. Read in parallel:
 - **Existing design system pages.** If there are pages like `/system/*` or `/style-guide`, read them so you match existing tone and layout conventions.
 - **A representative page** — usually the home or landing page — to infer atmosphere, density, and motion. This informs Section 1 of `DESIGN.md`.
 
-If the resolved mood is `discover`, infer it from the representative page. Otherwise treat the stated mood as authoritative for Section 1.
+If `{{MOOD_HINT}}` is `discover`, infer the mood from the representative page. Otherwise treat the hint as authoritative for Section 1.
 
 Report what you found in ≤10 bullets before writing. If critical tokens are missing (e.g. no color scale defined anywhere), stop and ask.
 
@@ -55,7 +73,7 @@ Report what you found in ≤10 bullets before writing. If critical tokens are mi
 
 ## Phase 2 · Write `DESIGN.md`
 
-Create `DESIGN.md` at the project root using the **VoltAgent Stitch 9-section schema** below. Every section is mandatory.
+Create `{{PROJECT_ROOT}}/DESIGN.md` using the **VoltAgent Stitch 9-section schema** below. Every section is mandatory.
 
 ### Writing rules (these make the file portable)
 
@@ -101,12 +119,12 @@ Start with a **Quick palette block** (fenced code block) that lists the top ~6 h
 
 ### Front-matter
 
-Open `DESIGN.md` with a short purpose block (substitute the resolved project name):
+Open `DESIGN.md` with a short purpose block:
 
 ```md
-# DESIGN.md — <Project Name>
+# DESIGN.md — {{PROJECT_NAME}}
 
-> **Purpose.** This file is the source of truth for the visual design intent of <Project Name>. It is framework-agnostic by design: any coding agent (Claude, Codex, Cursor, Copilot, etc.) and any stack (React, Vue, Svelte, Astro, vanilla HTML) should be able to read this and produce UI that matches the brand.
+> **Purpose.** This file is the source of truth for the visual design intent of {{PROJECT_NAME}}. It is framework-agnostic by design: any coding agent (Claude, Codex, Cursor, Copilot, etc.) and any stack (React, Vue, Svelte, Astro, vanilla HTML) should be able to read this and produce UI that matches the brand.
 >
 > **Rule of translation.** This file states *what* the design is (hex values, numeric sizes, semantic roles, states). It does not state *how* to implement it (no utility-class names, no component import paths, no framework idioms). Agents translate intent into whatever primitives the current codebase uses.
 ```
@@ -115,7 +133,7 @@ Open `DESIGN.md` with a short purpose block (substitute the resolved project nam
 
 ## Phase 3 · Build the visual style-guide page
 
-Create one page at the resolved style-guide route that renders each section of `DESIGN.md` visually, in order. This page is a **mirror** of `DESIGN.md`, not a redesign of it.
+Create one page at `{{STYLE_GUIDE_ROUTE}}` that renders each section of `DESIGN.md` visually, in order. This page is a **mirror** of `DESIGN.md`, not a redesign of it.
 
 ### Requirements
 
@@ -126,7 +144,7 @@ Create one page at the resolved style-guide route that renders each section of `
 - **Every type token is rendered at actual size** with the token name, breakpoint sizes, line-height, and weight beside it.
 - **Every button variant × size** is visible simultaneously — reference pages must not require interaction.
 - **Cards, form inputs, tag pills, and the hero-scrim pattern** each get a live example.
-- **The Agent Prompt Guide section** renders the quick palette block as a selectable, monospaced code block — copy with one highlight.
+- **The Agent Prompt Guide section** renders the quick palette block as a selectable, monospaced code block — Ed (or future users) need to copy it with one highlight.
 - **Link to `/DESIGN.md`** from the hero so the raw spec is one click away.
 - **Discoverability.** If there's an existing sitemap/overview page in the project (e.g. `/system/overview`), add a link to the new page there too.
 
@@ -152,7 +170,7 @@ Report the verification output inline in your summary.
 
 ## Rules of engagement
 
-- **Branching.** Follow the branching rules resolved in Phase 0. If the project requires a feature branch or worktree, create it *before* writing files.
+- **Branching.** Follow `{{BRANCHING_RULES}}`. If the project requires a feature branch or worktree, create it *before* writing files.
 - **One PR.** Both files (and any overview-page link) land in the same PR. `DESIGN.md` and the visual page must not drift apart.
 - **No assumptions.** If Phase 1 doesn't yield a token (no shadow system, no spacing scale, no existing primitive for something you need), stop and ask — do not invent.
 - **Preserve existing brand rules.** If a pre-existing `CLAUDE.md` / docs file states a load-bearing rule (e.g. *"never use the accent scale for body text,"* *"primary heading color must stay dark to maintain contrast"*), copy it into `DESIGN.md` §2 verbatim.
@@ -170,3 +188,22 @@ When you finish, report:
 3. Verification results (build status, HTTP status, anchor grep counts, content-marker counts).
 4. Any questions or unresolved ambiguities flagged during investigation.
 5. A one-sentence spoken summary of what landed.
+
+# END PROMPT
+
+---
+
+## Appendix · Why this prompt is structured this way
+
+- **Inline schema.** The 9-section schema is quoted in full so the prompt works even with no internet access.
+- **Investigate-before-writing** prevents the agent from inventing a design system from thin air. The codebase already has tokens; the prompt forces the agent to find them first.
+- **Hex + semantic roles + numeric sizes** is the single rule that makes `DESIGN.md` portable between agents and frameworks. It's repeated because it's the most-violated rule.
+- **Visual page mirrors `DESIGN.md` exactly** so drift between spec and reality surfaces as a visible bug on a page people actually load.
+- **Verification by grep** (not a human reviewing screenshots) means the prompt can be run by any agent and the check reproduced identically.
+- **Placeholders are the minimum set** that vary between projects. Palette, typography, and components vary too, but those are *discovered* not *specified* — that's what keeps this prompt short and reusable.
+
+---
+
+## Source
+
+This prompt's 9-section schema is drawn from the [VoltAgent awesome-design-md](https://github.com/VoltAgent/awesome-design-md) collection, which packages design-system references from popular websites so coding agents can generate matching UI from a plain markdown file.
