@@ -1,160 +1,66 @@
+providers: 
+  webSearch: auto
 symbolPreset: nerd
 theme: 
-  dark: dark-tokyo-night
-  light: light-tokyo-night
+  dark: amethyst
+  light: light
 setupVersion: 1
-power: 
-  sleepPrevention: idle
-steeringMode: one-at-a-time
-memory: 
-  backend: mnemopi
-edit: 
-  mode: hashline
-  streamingAbort: false
-colorBlindMode: false
 statusLine: 
-  preset: custom
-  separator: ascii
+  separator: slash
   sessionAccent: true
-  leftSegments: 
-    - pi
-    - model
-    - mode
-    - path
-    - git
-    - pr
-    - context_pct
-    - cache_hit
-  rightSegments: 
-    - session_name
-  segmentOptions: 
-    model: 
-      showThinkingLevel: true
-    path: 
-      abbreviate: true
-      maxLength: 24
   transparent: false
+  compactThinkingLevel: true
   showHookStatus: true
-modelRoles: 
-  default: openai-codex/gpt-5.5
-  commit: deepseek/deepseek-v4-flash
-  plan: anthropic/claude-opus-4-8
-  slow: openai-codex/gpt-5.5:xhigh
-  smol: openai-codex/gpt-5.4-nano
-browser: 
-  headless: true
-  screenshotDir: ~/Pictures/agent-screenshots
-  cmux: true
+terminal: 
+  showProgress: false
+display: 
+  showTokenUsage: true
+  cacheMissMarker: true
+  shimmer: kitt
+showHardwareCursor: true
+task: 
+  showResolvedModelBadge: false
+  eager: default
+  enableLsp: false
 tui: 
-  hyperlinks: auto
-  textSizing: true
   tight: false
+defaultThinkingLevel: auto
+textVerbosity: high
+personality: default
+advisor: 
+  enabled: true
+  subagents: false
+interruptMode: immediate
+loop: 
+  mode: prompt
+treeFilterMode: default
+stt: 
+  submitTrigger: never
+collab: 
+  displayName: ▲
 marketplace: 
   autoUpdate: auto
-todo: 
-  reminders: 
-    max: 5
-  eager: default
+collapseChangelog: true
+power: 
+  sleepPrevention: "off"
+compaction: 
+  handoffSaveToDisk: true
+checkpoint: 
+  enabled: true
 vault: 
   enabled: true
 github: 
   enabled: true
-  cache: 
-    enabled: true
-task: 
-  isolation: 
-    mode: auto
-  enableLsp: true
-  showResolvedModelBadge: true
+todo: 
+  reminders: 
+    max: 5
   eager: default
-commands: 
-  enableOpencodeUser: false
-  enableOpencodeProject: false
+hideThinkingBlock: false
 secrets: 
   enabled: true
-display: 
-  shimmer: kitt
-  showTokenUsage: true
-  smoothStreaming: true
-  cacheMissMarker: true
-defaultThinkingLevel: auto
-followUpMode: one-at-a-time
-interruptMode: immediate
-doubleEscapeAction: tree
-treeFilterMode: default
-autocompleteMaxVisible: 5
-eval: 
-  js: true
-providers: 
-  image: openai
-  fetch: auto
-  tinyModel: online
-  webSearch: auto
-  tts: auto
-  kimiApiFormat: anthropic
-codexResets: 
-  autoRedeem: unset
-startup: 
-  quiet: true
-dev: 
-  autoqa: 
-    consent: granted
-grep: 
-  contextAfter: 3
-terminal: 
-  showProgress: true
-includeWorkspaceTree: true
-advisor: 
-  enabled: false
-  subagents: true
-  syncBacklog: "off"
-loop: 
-  mode: prompt
-tools: 
-  approvalMode: yolo
-stt: 
-  enabled: false
-  modelName: parakeet
-collab: 
-  webUrl: ""
-  displayName: Atlas
-share: 
-  serverUrl: https://my.omp.sh/s
-features: 
-  unexpectedStopDetection: true
-branchSummary: 
-  enabled: false
-compaction: 
-  strategy: snapcompact
-  thresholdPercent: -1
-  thresholdTokens: -1
-  handoffSaveToDisk: true
-  idleEnabled: false
-ttsr: 
-  interruptMode: always
-  repeatMode: once
-  repeatGap: 10
-mnemopi: 
-  dbPath: ""
-  scoping: per-project
-  llmMode: smol
-readLineNumbers: false
-read: 
-  toolResultPreview: false
-lsp: 
-  formatOnWrite: false
-  diagnosticsOnEdit: true
-bash: 
-  autoBackground: 
-    enabled: true
-shellMinimizer: 
-  sourceOutlineLevel: default
-python: 
-  interpreter: ""
-inspect_image: 
-  enabled: true
-checkpoint: 
-  enabled: true
-exa: 
-  enableResearcher: true
-  enableWebsets: false
+modelRoles: 
+  default: openai-codex/gpt-5.5:high
+  commit: openrouter/deepseek/deepseek-v4-flash
+  plan: anthropic/claude-opus-4-8:xhigh
+  smol: openai-codex/gpt-5.4-mini:high
+  advisor: anthropic/claude-opus-4-8:high
