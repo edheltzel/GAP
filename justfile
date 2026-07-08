@@ -10,11 +10,16 @@ yellow := '\033[33m'
 green := '\033[32m'
 white := '\033[37m'
 cyan := '\033[36m'
+red := '\033[31m'
 clr := '\033[0m'
 
-# Restow all packages (use after adding/removing files)
+# List all available commands (runs when you type bare `just`)
+default:
+    @just --list
+
+# Restow all packages and provision skills from skills.txt
 [group('stow')]
-update: && skills-link
+update: && skills-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} --restow $pkg; done
@@ -23,9 +28,33 @@ update: && skills-link
 
 alias up := update
 
-# Create symlinks (first time setup)
+# Restow the claude package only
 [group('stow')]
-link: && skills-link
+claude:
+    #!/usr/bin/env bash
+    set -eu
+    {{ stow_cmd }} --restow claude
+    echo -e "{{ green }}claude restowed{{ clr }}"
+
+# Restow the omp package only
+[group('stow')]
+omp:
+    #!/usr/bin/env bash
+    set -eu
+    {{ stow_cmd }} --restow omp
+    echo -e "{{ green }}omp restowed{{ clr }}"
+
+# Restow the pi package only (no-folding)
+[group('stow')]
+pi:
+    #!/usr/bin/env bash
+    set -eu
+    {{ stow_cmd }} --no-folding --restow {{ pi_pkg }}
+    echo -e "{{ green }}pi restowed{{ clr }}"
+
+# Create symlinks and provision skills from skills.txt
+[group('stow')]
+link: && skills-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} $pkg; done
@@ -55,41 +84,59 @@ status:
     {{ stow_cmd }} --no-folding --restow -n -v {{ pi_pkg }} 2>&1 || true
     echo ""
 
-# Link ~/.agents/skills to the repo-backed skills.sh store (idempotent)
+# List declared skills (skills.txt) grouped by repo with install status
 [group('skills')]
-skills-link:
+skills:
     #!/usr/bin/env bash
     set -eu
-    store="{{ stow_dir }}/skills"
-    target="$HOME/.agents/skills"
-    if [ -L "$target" ]; then
-        echo -e "{{ green }}Already linked: $target → $(readlink "$target"){{ clr }}"
-    elif [ -e "$target" ]; then
-        echo -e "{{ yellow }}$target exists and is not a symlink — move its contents into $store first{{ clr }}"
-        exit 1
+    manifest="{{ stow_dir }}/skills.txt"
+    store="$HOME/.agents/skills"
+    echo -e "{{ cyan }}Global (from skills.txt):{{ clr }}"
+    echo ""
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%%#*}"
+        line="$(printf '%s' "$line" | tr -d '[:space:]')"
+        [ -z "$line" ] && continue
+        source="${line%%=*}"
+        names="${line#*=}"
+        echo -e "{{ yellow }}$source{{ clr }}"
+        if [ "$names" = "$line" ] || [ -z "$names" ] || [ "$names" = "*" ]; then
+            echo "  (all skills)"
+            echo ""
+            continue
+        fi
+        IFS=',' read -ra arr <<< "$names"
+        for n in "${arr[@]}"; do
+            [ -z "$n" ] && continue
+            if [ -e "$store/$n" ]; then
+                echo -e "  {{ green }}✓{{ clr }} $n"
+            else
+                echo -e "  {{ red }}✗{{ clr }} $n {{ white }}(not installed){{ clr }}"
+            fi
+        done
+        echo ""
+    done < "$manifest"
+    echo -e "{{ cyan }}Project:{{ clr }}"
+    proj="$(skills list -p 2>/dev/null || true)"
+    if printf '%s' "$proj" | grep -qi 'no project skills'; then
+        echo "  (none)"
     else
-        ln -s "$store" "$target"
-        echo -e "{{ green }}Linked $target → $store{{ clr }}"
+        printf '%s\n' "$proj"
     fi
 
-# Review and commit changes to the skills store
+# Install skills listed in skills.txt using skills.sh
 [group('skills')]
-skills-sync:
+skills-install *args:
     #!/usr/bin/env bash
     set -eu
-    if [ ! -L "$HOME/.agents/skills" ]; then
-        echo -e "{{ yellow }}~/.agents/skills is not a symlink — store has diverged from the repo. Run 'just skills-link'{{ clr }}"
-        exit 1
-    fi
-    cd "{{ stow_dir }}"
-    if git status --porcelain skills/ | grep -q .; then
-        git status --short skills/
-        git add skills/
-        git commit -m "skills: sync store"
-        echo -e "{{ green }}Skills store synced{{ clr }}"
-    else
-        echo -e "{{ yellow }}Nothing to sync{{ clr }}"
-    fi
+    ./install-skills.sh {{ args }}
+
+# Dry-run skills installation commands from skills.txt
+[group('skills')]
+skills-status:
+    #!/usr/bin/env bash
+    set -eu
+    ./install-skills.sh --dry-run
 
 # Commit and push config changes
 [group('git')]
