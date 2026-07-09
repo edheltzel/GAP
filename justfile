@@ -70,19 +70,38 @@ unlink:
     {{ stow_cmd }} --no-folding --delete {{ pi_pkg }}
     echo -e "{{ white }}All package symlinks removed{{ clr }}"
 
-# Show what stow would do (dry run)
+# Show the state of every managed symlink (ACTIVE / BROKEN / NOT ACTIVE)
 [group('stow')]
 status:
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ pkgs }}; do
-        echo -e "{{ cyan }}Package: $pkg{{ clr }}"
-        {{ stow_cmd }} --restow -n -v $pkg 2>&1 || true
+    g='{{ green }}'; r='{{ red }}'; w='{{ white }}'; c='{{ cyan }}'; z='{{ clr }}'
+    report() {
+        local pkg="$1"; shift
+        local note=""; [ $# -gt 0 ] && note=" (no-folding)"
+        echo -e "${c}Package: $pkg$note${z}"
+        # Enumerate the real link nodes stow manages (LINK: lines from a restow
+        # dry-run), then check each one's actual state on disk.
+        {{ stow_cmd }} "$@" --restow -n -v "$pkg" 2>&1 \
+            | grep '^LINK: ' \
+            | while read -r line; do
+                rest="${line#LINK: }"
+                path="${rest%% => *}"
+                target="$HOME/$path"
+                if [ -L "$target" ]; then
+                    if [ -e "$target" ]; then
+                        printf "  ${g}ACTIVE${z}      %s\n" "$path"
+                    else
+                        printf "  ${r}BROKEN${z}      %s\n" "$path"
+                    fi
+                else
+                    printf "  ${w}NOT ACTIVE${z}  %s\n" "$path"
+                fi
+            done
         echo ""
-    done
-    echo -e "{{ cyan }}Package: {{ pi_pkg }} (no-folding){{ clr }}"
-    {{ stow_cmd }} --no-folding --restow -n -v {{ pi_pkg }} 2>&1 || true
-    echo ""
+    }
+    for pkg in {{ pkgs }}; do report "$pkg"; done
+    report {{ pi_pkg }} --no-folding
 
 # List declared skills (skills.txt) grouped by repo with install status
 [group('skills')]
