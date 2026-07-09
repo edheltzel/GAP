@@ -103,9 +103,10 @@ model_name_short=$(echo "$model_name_short" | sed -E 's/ *\(([0-9]+[KMG]) contex
 
 cc_version="${cc_version_json:-}"
 
-# Get session label — Claude Code's native session name from its live session
-# registry ($ATLAS_DIR/sessions/<pid>.json), matched by sessionId. This is the
-# same name Claude Code renders natively; empty until one is assigned.
+# Session name (Claude Code's live session registry, matched by sessionId).
+# Rendered as a right-aligned chip on the usage row. Claude Code's native prompt
+# bar shows the same name, but only once the session has a /color set, so we draw
+# it here too — unconditionally — as the always-visible copy.
 SESSION_LABEL=""
 if [ -n "$session_id" ]; then
   SESSION_LABEL=$(jq -r --arg sid "$session_id" 'select(.sessionId==$sid) | .name // empty' "$ATLAS_DIR"/sessions/*.json 2>/dev/null | head -1)
@@ -587,6 +588,15 @@ else
   USAGE_TIER_CRIT="$ROSE"
 fi
 
+# Session-title chip colors: background derived from the theme's brand accent
+# (GREET_PRIMARY, converted foreground→background by swapping SGR 38→48), with a
+# light or dark text so it stays readable on the accent.
+SESSION_CHIP_BG="${GREET_PRIMARY/38;2;/48;2;}"
+case "$STATUSLINE_THEME" in
+light | catppuccin-light) SESSION_CHIP_FG='\033[38;2;250;244;237m' ;;
+*) SESSION_CHIP_FG='\033[38;2;33;35;55m' ;;
+esac
+
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPER FUNCTIONS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -686,9 +696,6 @@ render_ctx_cache_tail() {
 # LINE 1: ATLAS HEADER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-session_display=""
-[ -n "$SESSION_LABEL" ] && session_display=$(echo "$SESSION_LABEL" | tr '[:lower:]' '[:upper:]')
-
 # Display just the directory basename (e.g., /atlas-config)
 # Tail-truncate to 20 chars with ellipsis if basename is long.
 dir_display="/${current_dir##*/}"
@@ -762,24 +769,17 @@ mini)
   printf "${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags}\n"
   ;;
 *)
-  # Session title rendered natively here — with a custom statusline configured,
-  # Claude Code no longer draws the title chip above the prompt, so this is the
-  # only place it appears. Falls back to the no-title layout when unnamed.
-  if [ -n "$session_display" ]; then
-    local_left="▲ Atlas v${ATLAS_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain} · ${session_display}${ctx_tags_plain} "
-    local_left_len=${#local_left}
-    local_fill=$((72 - local_left_len))
-    [ "$local_fill" -lt 2 ] && local_fill=2
-    local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display} ${SLATE_600}·${RESET} ${PAI_SESSION}${session_display}${RESET}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
-  else
-    local_left="▲ Atlas v${ATLAS_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain}${ctx_tags_plain} "
-    local_left_len=${#local_left}
-    local_fill=$((72 - local_left_len))
-    [ "$local_fill" -lt 2 ] && local_fill=2
-    local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
-    printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags} ${SLATE_600}${local_dashes}${RESET}\n"
-  fi
+  # The session title is drawn by Claude Code's native prompt bar (named with
+  # /rename, colored with /color) on the divider above the input. A custom
+  # statusline does NOT suppress it (fixed in Claude Code v2.1.161), so we no
+  # longer duplicate it here.
+  #
+  # Header is built into h_out (colored, no trailing dashes) with its plain width
+  # in h_plain_len, then printed in the LINE 2 normal case — joined onto one line
+  # when header+usage fit the terminal width, else split across two lines.
+  local_left="▲ Atlas v${ATLAS_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain}${ctx_tags_plain}"
+  h_out="${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags}"
+  h_plain_len=${#local_left}
   ;;
 esac
 
@@ -825,10 +825,57 @@ mini)
   render_ctx_cache_tail 16
   ;;
 normal)
-  if [ "$has_rate_limits" = "true" ]; then
-    printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
-    [ -n "$extra_display" ] && printf " ${SLATE_600}·${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
+  # Build the usage row into u_out (deferred), then join it onto the header line
+  # when both fit the terminal width; otherwise fall back to the two-line layout.
+  # Order: context bar + cache first, then 5H / weekly rate limits at the end.
+  # (Inlines render_ctx_cache_tail's body so the context bar can lead without its
+  # separator; the shared helper still serves nano/micro/mini modes.)
+  ctx_bar=$(render_context_bar 24 "$display_pct")
+  u_out="${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%${RESET}"
+  if [ "$cache_total" -gt 0 ]; then
+    cache_num_color=$(get_cache_color "$cache_hit_rate")
+    u_out="${u_out} ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%${RESET}"
   fi
-  render_ctx_cache_tail 24
+  if [ "$has_rate_limits" = "true" ]; then
+    u_out="${u_out} ${SLATE_600}·${RESET} ${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
+    [ -n "$extra_display" ] && u_out="${u_out} ${SLATE_600}·${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
+  fi
+
+  # Right-aligned session-title chip (background = theme brand accent). The dash
+  # divider fills the gap between the weekly usage and the chip, replacing the old
+  # header-trailing dashes. Case preserved to match Claude Code's native prompt bar.
+  title_chip=""
+  title_len=0
+  if [ -n "$SESSION_LABEL" ]; then
+    title_len=$(( ${#SESSION_LABEL} + 2 ))
+    title_chip="${SESSION_CHIP_BG}${SESSION_CHIP_FG} ${SESSION_LABEL} ${RESET}"
+  fi
+
+  # Color vars store literal "\033" (only interpreted inside a printf FORMAT), so
+  # every output below uses %b. For measurement, %b realizes the escapes and sed
+  # strips them, leaving the true visible width. Margins cover nerd-font glyphs
+  # that render wider than one character.
+  u_plain=$(printf '%b' "$u_out" | sed $'s/\033\\[[0-9;]*m//g')
+  u_len=${#u_plain}
+
+  # One line when header + usage + title fit; otherwise header on its own line and
+  # the usage + divider + title on the next.
+  if [ "$((h_plain_len + 3 + u_len + 8 + title_len))" -le "$term_width" ]; then
+    line="${h_out} ${SLATE_600}·${RESET} ${u_out}"
+    line_len=$((h_plain_len + 3 + u_len))
+  else
+    printf '%b\n' "${h_out}"
+    line="${u_out}"
+    line_len=$u_len
+  fi
+
+  if [ -n "$title_chip" ]; then
+    fill=$((term_width - line_len - title_len - 8))
+    [ "$fill" -lt 1 ] && fill=1
+    div_dashes=$(printf '%*s' "$fill" '' | tr ' ' '─')
+    printf '%b\n' "${line} ${SLATE_600}${div_dashes}${RESET} ${title_chip}"
+  else
+    printf '%b\n' "${line}"
+  fi
   ;;
 esac
