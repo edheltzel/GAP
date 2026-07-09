@@ -6,10 +6,10 @@ theme:
   light: light
 setupVersion: 1
 statusLine: 
-  separator: slash
+  separator: ascii
   sessionAccent: true
   transparent: false
-  compactThinkingLevel: true
+  compactThinkingLevel: false
   showHookStatus: true
 terminal: 
   showProgress: false
