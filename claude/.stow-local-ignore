@@ -28,6 +28,10 @@ scripts/
 \.claude/PAI/MEMORY/KNOWLEDGE/_embeddings
 \.claude/PAI/MEMORY/KNOWLEDGE/_harvest-queue
 
+# Recall runtime state — owned by Recall, never linked from atlas-config
+\.claude/MEMORY
+\.claude/memory\.db.*
+
 # auth.json equivalents — Atlas/PAI internal secrets
 \.claude/.*\.env
 \.claude/.*auth\.json
