@@ -1,13 +1,13 @@
 providers: 
-  webSearch: auto
+  webSearch: codex
 symbolPreset: nerd
 theme: 
-  dark: amethyst
-  light: light
+  dark: dark-tokyo-night
+  light: light-tokyo-night
 setupVersion: 1
 statusLine: 
   separator: ascii
-  sessionAccent: true
+  sessionAccent: false
   transparent: false
   compactThinkingLevel: false
   showHookStatus: true
@@ -29,7 +29,7 @@ textVerbosity: high
 personality: default
 advisor: 
   enabled: true
-  subagents: false
+  subagents: true
 interruptMode: immediate
 loop: 
   mode: prompt
@@ -59,8 +59,10 @@ hideThinkingBlock: false
 secrets: 
   enabled: true
 modelRoles: 
-  default: openai-codex/gpt-5.5:high
+  default: openai-codex/gpt-5.6-sol:high
   commit: openrouter/deepseek/deepseek-v4-flash
   plan: anthropic/claude-opus-4-8:xhigh
   smol: openai-codex/gpt-5.4-mini:high
   advisor: anthropic/claude-opus-4-8:high
+  slow: openai-codex/gpt-5.6-sol-pro:high
+colorBlindMode: true

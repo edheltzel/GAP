@@ -8,7 +8,7 @@ Track authored, portable files only:
 
 - `config.yml` — global OMP settings.
 - `models.yml` — custom model/provider definitions. Use environment-variable names for keys, never literal tokens.
-- `mcp.json` — OMP-owned MCP server config. Prefer `${ENV}` placeholders or env-name indirection.
+- `mcp.json` — OMP-owned MCP server config and discovered-server overrides. Use `disabledServers` to suppress foreign MCP entries that OMP must not launch; prefer `${ENV}` placeholders or env-name indirection for configured servers.
 - `keybindings.yml` — user key remaps.
 - `APPEND_SYSTEM.md` — preferred global prompt additions; keeps OMP defaults, generated skills/rules/tool guidance, and project context.
 - `SYSTEM.md` — rare; replaces OMP's stable default instruction block, so do not add unless that is intentional.
@@ -55,12 +55,11 @@ Runtime state, credentials, generated caches, and local identity stay out of git
 
 Tracked OMP-authored config and packages currently include:
 
+- `omp/.omp/agent/RULES.md`
 - `omp/.omp/agent/config.yml`
-- `omp/.omp/agent/APPEND_SYSTEM.md`
-- `omp/.omp/agent/extensions/atlas-statusline.ts`
+- `omp/.omp/agent/mcp.json`
 - `omp/.omp/agent/extensions/codegraph.ts`
-- `omp/.omp/agent/themes/atlas-statusline.json`
 - `packages/omp-themis/` — installable OMP Themis extension package.
 - `.claude-plugin/marketplace.json` — local marketplace catalog exposing `themis`.
 
-`~/.omp/agent/extensions/herdr-omp-agent-state.ts` is intentionally not tracked because its header says it is installed and overwritten by herdr.
+`omp/.omp/agent/extensions/herdr-omp-agent-state.ts` is currently tracked but remains herdr-managed and may be overwritten by integration updates. Do not treat it as authored baseline or change its ownership incidentally; reconcile tracking separately.
