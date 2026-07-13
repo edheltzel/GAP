@@ -45,8 +45,8 @@ else
   input=$(cat)
 fi
 
-# Get PAI version from settings
-ATLAS_VERSION=$(jq -r '.pai.version // "—"' "$SETTINGS_FILE" 2>/dev/null)
+# Get LifeOS version (canonical: LIFEOS/VERSION file, same source as LIFEOS_StatusLine.sh)
+ATLAS_VERSION=$(tr -d '[:space:]' < "$ATLAS_DIR/LIFEOS/VERSION" 2>/dev/null)
 ATLAS_VERSION="${ATLAS_VERSION:-—}"
 
 # Extract all data from JSON in single jq call
