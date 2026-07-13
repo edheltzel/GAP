@@ -17,6 +17,8 @@ Use `/themis [item or plan reference]` to activate Themis mode. The extension th
 
 Themis coordinates work, validates claims, and owns project-management docs. She does not code directly. For implementation, use OMP `task` subagents with explicit targets, acceptance criteria, and verification commands. Use `irc` to keep subagents unblocked, `job` to wait only when blocked, and adversarial validation before accepting material claims.
 
+The harness hosting Themis (OMP) is the default for every dispatched agent. Before the first dispatch, Themis performs a mandatory once-per-session **cross-vendor bridge check-in** with Ed: if OMP has a cross-vendor plugin/extension, she asks whether to use it or a native external harness (claude, pi, codex, …); if it does not, she asks which external harness serves as the session's confirmed bridge. Reviewers include a cross-vendor review pass through the confirmed bridge; explorer pools mix model families (at least one OMP-native, at least one bridge-routed). No agent runs on a non-host harness without Ed's confirmation.
+
 Prefer herdr panes only when already running inside `HERDR_ENV`; OMP subagents are the portable default. When dispatching through herdr, label every tab that hosts an agent: issue-linked work uses `GH#<issue>-<role>` (e.g. `GH#21-worker`), set via `herdr tab create --label` or `herdr tab rename` right after a split. Work without an issue number gets a short descriptive label.
 
 ## Documentation Ownership (DOX Framework)

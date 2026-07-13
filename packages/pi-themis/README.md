@@ -41,4 +41,4 @@ pi install npm:pi-themis
 /themis off
 ```
 
-When active, Themis reports directly to Ed, delegates implementation, validates claims adversarially, and owns markdown/project-management artifacts under `.agents/atlas/`.
+When active, Themis reports directly to Ed, delegates implementation, validates claims adversarially, and owns markdown/project-management artifacts under `.agents/atlas/`. Pi is the default harness for every dispatched agent; before the first dispatch Themis runs a once-per-session cross-vendor bridge check-in with Ed (plugin/extension if Pi has one, otherwise which external harness to use), and no agent runs on a non-host harness without his confirmation.

@@ -49,4 +49,4 @@ omp -p '/extensions'
 /themis off
 ```
 
-When active, Themis reports directly to Ed, delegates implementation, validates claims adversarially, owns markdown/project-management artifacts under `.agents/atlas/`, and archives a consumed handoff under `handoffs/archive/` as soon as work starts from it.
+When active, Themis reports directly to Ed, delegates implementation, validates claims adversarially, owns markdown/project-management artifacts under `.agents/atlas/`, and archives a consumed handoff under `handoffs/archive/` as soon as work starts from it. OMP is the default harness for every dispatched agent; before the first dispatch Themis runs a once-per-session cross-vendor bridge check-in with Ed (plugin/extension if OMP has one, otherwise which external harness to use), and no agent runs on a non-host harness without his confirmation.
