@@ -13,7 +13,8 @@
     "npm:@sean_pedersen/pi-codegraph",
     "../../Developer/atlasEcho/adapters/pi",
     "../../Developer/atlas-config/packages/pi-themis",
-    "../../Developer/atlasMuse"
+    "../../Developer/atlasMuse",
+    "npm:@mobrienv/pi-tidy-tools@0.3.0"
   ],
   "subagents": {
     "agentOverrides": {

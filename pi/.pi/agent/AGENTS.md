@@ -22,6 +22,12 @@ When using the `/handoff` skill or creating a session handoff, always save the h
 - Never write handoff docs to `/tmp`, OS temp folders, home-level scratch dirs, or the agent install/config directory.
 - Report the final handoff path.
 
+## TOOL RENDERING
+
+- `npm:@mobrienv/pi-tidy-tools@0.3.0` is the pinned global renderer for Pi's built-in tools. It adds `/tidy`, `/diff`, and `ctrl+shift+o`.
+- Keep the package version-pinned in `settings.json`; review source and release notes before updating it.
+- Runtime preferences belong in machine-local `~/.pi/agent/pi-tidy-tools.json`. Do not run optional `/tidy pi-fff setup` without explicit user confirmation and a review of its settings changes.
+
 ## MEMORY
 
 Read and follow the canonical Recall guide at `~/.pi/agent/Recall_GUIDE.md`. Use the live `recall-memory` MCP schemas as the source of truth for tool call shapes; do not duplicate them here.
