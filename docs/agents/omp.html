@@ -281,6 +281,7 @@
           <li><a href="#track">Track</a></li>
           <li><a href="#never-track">Never track</a></li>
           <li><a href="#adding-files">Adding OMP files</a></li>
+          <li><a href="#patched-source">Patched source installation</a></li>
           <li><a href="#baseline">Current tracked baseline</a></li>
         </ol>
       </nav>
@@ -292,7 +293,7 @@
           <ul>
             <li><code>config.yml</code> — global OMP settings.</li>
             <li><code>models.yml</code> — custom model/provider definitions. Use environment-variable names for keys, never literal tokens.</li>
-            <li><code>mcp.json</code> — OMP-owned MCP server config. Prefer <code>${ENV}</code> placeholders or env-name indirection.</li>
+            <li><code>mcp.json</code> — OMP-owned MCP server config and discovered-server overrides. Use <code>disabledServers</code> to suppress foreign MCP entries that OMP must not launch; prefer <code>${ENV}</code> placeholders or env-name indirection for configured servers.</li>
             <li><code>keybindings.yml</code> — user key remaps.</li>
             <li><code>APPEND_SYSTEM.md</code> — preferred global prompt additions; keeps OMP defaults, generated skills/rules/tool guidance, and project context.</li>
             <li><code>SYSTEM.md</code> — rare; replaces OMP's stable default instruction block, so do not add unless that is intentional.</li>
@@ -328,23 +329,39 @@
         <section id="adding-files">
           <h2>Adding OMP files</h2>
           <ol>
-            <li>Add the curated source file under <code>omp/.omp/agent/</code>.</li>
-            <li>If the matching live file already exists under <code>~/.omp/agent/</code>, use <code>stow --adopt</code> once or move the file into the repo before restowing.</li>
-            <li>Run <code>just up</code>.</li>
+            <li>Put stowed global config under <code>omp/.omp/agent/</code>.</li>
+            <li>Put installable OMP extension packages under <code>packages/&lt;name&gt;/</code> with <code>package.json#omp.extensions</code>.</li>
+            <li>Put marketplace entries in <code>.claude-plugin/marketplace.json</code>.</li>
+            <li>If the matching live stowed file already exists under <code>~/.omp/agent/</code>, use <code>stow --adopt</code> once or move the file into the repo before restowing.</li>
+            <li>Run <code>just up</code> after changing stowed global config. Package-only changes do not need stow.</li>
             <li>If stow reports a conflict, resolve the live file deliberately; do not delete runtime state directories to make stow pass.</li>
           </ol>
         </section>
 
+        <section id="patched-source">
+          <h2>Patched source installation</h2>
+          <p>The active OMP executable is source-linked through <code>~/Developer/AI-Agents/omp/.agents/worktrees/atlas-fixes</code>. That canonical path resolves to the verified worktree carrying the persistent <code>atlas/fixes</code> branch; both are local runtime state and are not tracked by atlas-config.</p>
+          <ul>
+            <li><code>just omp-patched-status</code> verifies that the active executable resolves to the expected source wrapper, then reports the patch branch, worktree, version, and cleanliness. It exits nonzero when the source link is inactive.</li>
+            <li><code>just omp-patched-update</code> requires an active source link and a clean <code>atlas/fixes</code> worktree, fetches stable tags from the configured upstream into an isolated ref namespace, and creates a disposable candidate worktree. It rebases and verifies the candidate with a frozen dependency install, native build, streamed-response regressions, and OMP smoke check. Only then are the canonical worktree and executable links atomically switched and verified; failed candidates roll back to the previous branch and links, and the old worktree is removed only after promotion commits.</li>
+            <li>Do not run <code>omp update</code> while the patched source installation is active. OMP's Bun updater replaces the source link with the published package.</li>
+            <li><code>OMP_SOURCE_DIR</code>, <code>OMP_PATCH_WORKTREE</code>, and <code>OMP_UPSTREAM_REMOTE</code> override the default checkout, worktree, and remote when needed.</li>
+          </ul>
+          <p>The patch stack currently backports upstream PR <a href="https://github.com/can1357/oh-my-pi/pull/5149">#5149</a>, which preserves streamed Responses text when a terminal <code>output_item.done</code> message has empty content. When the fix lands upstream, the next rebase should drop the redundant patch automatically; verify the regression before removing the downstream commit deliberately.</p>
+        </section>
+
         <section id="baseline">
           <h2>Current tracked baseline</h2>
-          <p>Tracked OMP-authored config currently includes:</p>
+          <p>Tracked OMP-authored config and packages currently include:</p>
           <ul class="baseline">
+            <li><strong>Rules</strong><code>omp/.omp/agent/RULES.md</code></li>
             <li><strong>Config</strong><code>omp/.omp/agent/config.yml</code></li>
-            <li><strong>Statusline extension</strong><code>omp/.omp/agent/extensions/atlas-statusline.ts</code></li>
+            <li><strong>MCP config</strong><code>omp/.omp/agent/mcp.json</code></li>
             <li><strong>Codegraph extension</strong><code>omp/.omp/agent/extensions/codegraph.ts</code></li>
-            <li><strong>Theme</strong><code>omp/.omp/agent/themes/atlas-statusline.json</code></li>
+            <li><strong>Themis package</strong><code>packages/omp-themis/</code></li>
+            <li><strong>Marketplace catalog</strong><code>.claude-plugin/marketplace.json</code></li>
           </ul>
-          <div class="callout"><code>~/.omp/agent/extensions/herdr-omp-agent-state.ts</code> is intentionally not tracked because its header says it is installed and overwritten by herdr.</div>
+          <div class="callout"><code>omp/.omp/agent/extensions/herdr-omp-agent-state.ts</code> is currently tracked but remains herdr-managed and may be overwritten by integration updates. Do not treat it as authored baseline or change its ownership incidentally; reconcile tracking separately.</div>
         </section>
       </article>
     </main>

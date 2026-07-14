@@ -44,6 +44,222 @@ omp:
     {{ stow_cmd }} --restow omp
     echo -e "{{ green }}omp restowed{{ clr }}"
 
+# Verify the local patched OMP branch and active source link
+[group('omp-source')]
+omp-patched-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source_dir="${OMP_SOURCE_DIR:-$HOME/Developer/AI-Agents/omp}"
+    worktree="${OMP_PATCH_WORKTREE:-$source_dir/.agents/worktrees/atlas-fixes}"
+    expected_wrapper="$worktree/packages/coding-agent/scripts/omp"
+    if [ ! -d "$worktree" ]; then
+        echo -e "{{ red }}Patched OMP worktree not found: $worktree{{ clr }}" >&2
+        exit 1
+    fi
+    branch="$(git -C "$worktree" branch --show-current)"
+    if [ "$branch" != "atlas/fixes" ]; then
+        echo -e "{{ red }}Expected atlas/fixes, found ${branch:-detached}{{ clr }}" >&2
+        exit 1
+    fi
+    version="$(git -C "$worktree" describe --tags --abbrev=0)"
+    head="$(git -C "$worktree" rev-parse --short HEAD)"
+    executable="$(command -v omp || true)"
+    resolved_executable=""
+    resolved_expected=""
+    if [ -n "$executable" ]; then
+        resolved_executable="$(realpath "$executable")"
+    fi
+    if [ -e "$expected_wrapper" ]; then
+        resolved_expected="$(realpath "$expected_wrapper")"
+    fi
+    echo -e "{{ cyan }}Patched branch:{{ clr }} $branch ($version + $head)"
+    echo -e "{{ cyan }}Worktree:{{ clr }}      $worktree"
+    echo -e "{{ cyan }}Active omp:{{ clr }}    ${executable:-not found}"
+    echo -e "{{ cyan }}Resolved:{{ clr }}      ${resolved_executable:-not found}"
+    if [ -n "$executable" ]; then
+        echo -e "{{ cyan }}Version:{{ clr }}       $(omp --version)"
+    fi
+    link_active=true
+    if [ "$resolved_executable" = "$resolved_expected" ] && [ -n "$resolved_expected" ]; then
+        echo -e "{{ green }}Source link active{{ clr }}"
+    else
+        echo -e "{{ red }}Source link inactive; expected $resolved_expected{{ clr }}" >&2
+        link_active=false
+    fi
+    if [ -n "$(git -C "$worktree" status --porcelain)" ]; then
+        echo -e "{{ yellow }}Worktree has local changes{{ clr }}"
+    else
+        echo -e "{{ green }}Worktree clean{{ clr }}"
+    fi
+    if [ "$link_active" = false ]; then
+        exit 1
+    fi
+
+# Stage the newest stable OMP release, verify it, then atomically promote both links
+[group('omp-source')]
+omp-patched-update:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source_dir="${OMP_SOURCE_DIR:-$HOME/Developer/AI-Agents/omp}"
+    worktree="${OMP_PATCH_WORKTREE:-$source_dir/.agents/worktrees/atlas-fixes}"
+    upstream_remote="${OMP_UPSTREAM_REMOTE:-origin}"
+    branch="atlas/fixes"
+    upstream_namespace="refs/atlas-omp-upstream/tags"
+    if [ ! -d "$source_dir" ] || [ ! -d "$worktree" ]; then
+        echo -e "{{ red }}OMP source checkout or patched worktree not found{{ clr }}" >&2
+        exit 1
+    fi
+    if [ ! -L "$worktree" ]; then
+        echo -e "{{ red }}Canonical patched worktree must be a symlink: $worktree{{ clr }}" >&2
+        exit 1
+    fi
+    active_worktree="$(realpath "$worktree")"
+    old_wrapper="$active_worktree/packages/coding-agent/scripts/omp"
+    executable_link="$(command -v omp || true)"
+    if [ -z "$executable_link" ] || [ ! -e "$old_wrapper" ] || [ "$(realpath "$executable_link")" != "$(realpath "$old_wrapper")" ]; then
+        echo -e "{{ red }}Patched OMP source link is not active; run just omp-patched-status{{ clr }}" >&2
+        exit 1
+    fi
+    source_common="$(git -C "$source_dir" rev-parse --path-format=absolute --git-common-dir)"
+    worktree_common="$(git -C "$active_worktree" rev-parse --path-format=absolute --git-common-dir)"
+    if [ "$source_common" != "$worktree_common" ]; then
+        echo -e "{{ red }}OMP source and patched worktree belong to different repositories{{ clr }}" >&2
+        exit 1
+    fi
+    active_branch="$(git -C "$active_worktree" branch --show-current)"
+    if [ "$active_branch" != "$branch" ]; then
+        echo -e "{{ red }}Expected $branch, found ${active_branch:-detached}{{ clr }}" >&2
+        exit 1
+    fi
+    if [ -n "$(git -C "$active_worktree" status --porcelain)" ]; then
+        echo -e "{{ red }}Patched OMP worktree must be clean before updating{{ clr }}" >&2
+        git -C "$active_worktree" status --short
+        exit 1
+    fi
+    git -C "$source_dir" fetch --prune "$upstream_remote" "+refs/tags/*:${upstream_namespace}/*"
+    latest_tag=""
+    while IFS= read -r tag; do
+        if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            latest_tag="$tag"
+            break
+        fi
+    done < <(git -C "$source_dir" for-each-ref --sort=-version:refname --format='%(refname:strip=3)' "$upstream_namespace")
+    if [ -z "$latest_tag" ]; then
+        echo -e "{{ red }}No stable OMP release tag found on $upstream_remote{{ clr }}" >&2
+        exit 1
+    fi
+    upstream_ref="$upstream_namespace/$latest_tag"
+    old_head="$(git -C "$active_worktree" rev-parse HEAD)"
+    candidate="$source_dir/.agents/worktrees/.atlas-fixes-candidate-$$"
+    candidate_branch="atlas/fixes-candidate-$$"
+    candidate_wrapper="$candidate/packages/coding-agent/scripts/omp"
+    canonical_link_tmp="${worktree}.next.$$"
+    executable_link_tmp="${executable_link}.next.$$"
+    old_worktree_detached=false
+    candidate_branch_promoted=false
+    canonical_link_swapped=false
+    executable_link_swapped=false
+    promotion_committed=false
+    rollback_uncommitted_promotion() {
+        local exit_status=$?
+        local rollback_ok=true
+        local rollback_link_tmp
+        trap - EXIT
+        set +e
+        if [ "$promotion_committed" = false ]; then
+            if [ -d "$candidate" ]; then
+                git -C "$candidate" rebase --abort >/dev/null 2>&1
+            fi
+            if [ "$executable_link_swapped" = true ]; then
+                rollback_link_tmp="${executable_link}.rollback.$$"
+                if ! ln -s "$old_wrapper" "$rollback_link_tmp" || ! mv -h -f "$rollback_link_tmp" "$executable_link"; then
+                    echo -e "{{ red }}Failed to restore the previous OMP executable link{{ clr }}" >&2
+                    rollback_ok=false
+                fi
+            fi
+            if [ "$canonical_link_swapped" = true ]; then
+                rollback_link_tmp="${worktree}.rollback.$$"
+                if ! ln -s "$active_worktree" "$rollback_link_tmp" || ! mv -h -f "$rollback_link_tmp" "$worktree"; then
+                    echo -e "{{ red }}Failed to restore the previous canonical worktree link{{ clr }}" >&2
+                    rollback_ok=false
+                fi
+            fi
+            if [ "$candidate_branch_promoted" = true ]; then
+                if ! git -C "$candidate" switch --detach >/dev/null 2>&1; then
+                    echo -e "{{ red }}Failed to detach the candidate during rollback{{ clr }}" >&2
+                    rollback_ok=false
+                fi
+                if ! git -C "$source_dir" branch -f "$branch" "$old_head" >/dev/null 2>&1; then
+                    echo -e "{{ red }}Failed to restore $branch to $old_head{{ clr }}" >&2
+                    rollback_ok=false
+                fi
+            fi
+            if [ "$old_worktree_detached" = true ] && ! git -C "$active_worktree" switch "$branch" >/dev/null 2>&1; then
+                echo -e "{{ red }}Failed to restore $branch in the previous worktree{{ clr }}" >&2
+                rollback_ok=false
+            fi
+            if [ -d "$candidate" ] && ! git -C "$source_dir" worktree remove --force "$candidate" >/dev/null 2>&1; then
+                echo -e "{{ red }}Failed to remove candidate worktree $candidate{{ clr }}" >&2
+                rollback_ok=false
+            fi
+            if git -C "$source_dir" show-ref --verify --quiet "refs/heads/$candidate_branch" && ! git -C "$source_dir" branch -D "$candidate_branch" >/dev/null 2>&1; then
+                echo -e "{{ red }}Failed to remove candidate branch $candidate_branch{{ clr }}" >&2
+                rollback_ok=false
+            fi
+            for pending_link in "$canonical_link_tmp" "$executable_link_tmp"; do
+                if [ -L "$pending_link" ] && ! unlink "$pending_link"; then
+                    echo -e "{{ red }}Failed to remove temporary link $pending_link{{ clr }}" >&2
+                    rollback_ok=false
+                fi
+            done
+            if [ "$(realpath "$executable_link" 2>/dev/null)" != "$(realpath "$old_wrapper" 2>/dev/null)" ]; then
+                echo -e "{{ red }}Rollback left the OMP executable link inconsistent{{ clr }}" >&2
+                rollback_ok=false
+            fi
+            if [ "$(realpath "$worktree" 2>/dev/null)" != "$active_worktree" ]; then
+                echo -e "{{ red }}Rollback left the canonical worktree link inconsistent{{ clr }}" >&2
+                rollback_ok=false
+            fi
+        fi
+        if [ "$rollback_ok" = false ]; then
+            exit 1
+        fi
+        exit "$exit_status"
+    }
+    trap rollback_uncommitted_promotion EXIT
+    echo -e "{{ cyan }}Staging atlas/fixes on $latest_tag{{ clr }}"
+    git -C "$source_dir" worktree add -b "$candidate_branch" "$candidate" "$branch"
+    git -C "$candidate" rebase "$upstream_ref"
+    (
+        cd "$candidate"
+        bun install --frozen-lockfile
+        bun run build:native
+        bun test packages/ai/test/openai-responses-stream-terminal.test.ts packages/ai/test/openai-codex-stream.test.ts --test-name-pattern "empty terminal content preserves streamed text"
+        bun run ci:test:smoke
+    )
+    ln -s "$candidate" "$canonical_link_tmp"
+    ln -s "$candidate_wrapper" "$executable_link_tmp"
+    git -C "$active_worktree" switch --detach "$old_head"
+    old_worktree_detached=true
+    git -C "$candidate" branch -M "$branch"
+    candidate_branch_promoted=true
+    mv -h -f "$canonical_link_tmp" "$worktree"
+    canonical_link_swapped=true
+    mv -h -f "$executable_link_tmp" "$executable_link"
+    executable_link_swapped=true
+    resolved_executable="$(realpath "$executable_link")"
+    resolved_expected="$(realpath "$worktree/packages/coding-agent/scripts/omp")"
+    if [ "$resolved_executable" != "$resolved_expected" ] || [ "$resolved_expected" != "$(realpath "$candidate_wrapper")" ]; then
+        echo -e "{{ red }}Patched OMP promotion verification failed{{ clr }}" >&2
+        exit 1
+    fi
+    promotion_committed=true
+    trap - EXIT
+    if ! git -C "$source_dir" worktree remove "$active_worktree"; then
+        echo -e "{{ yellow }}Patched OMP is active, but old worktree cleanup failed: $active_worktree{{ clr }}" >&2
+    fi
+    echo -e "{{ green }}Patched OMP installed:{{ clr }} $(omp --version)"
+
 # Restow the pi package only (no-folding)
 [group('stow')]
 pi:

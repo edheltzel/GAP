@@ -21,6 +21,8 @@ just link            # first-time setup — create symlinks and install skills.t
 just up              # restow every package and install skills.txt
 just claude          # restow the claude package only
 just omp             # restow the omp package only
+just omp-patched-status # inspect the local patched OMP source installation
+just omp-patched-update # rebase, verify, and relink the patched OMP source
 just pi              # restow the pi package only (no-folding)
 just unlink          # remove all package symlinks
 just status          # dry run — show what stow would do

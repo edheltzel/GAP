@@ -51,6 +51,17 @@ Runtime state, credentials, generated caches, and local identity stay out of git
 5. Run `just up` after changing stowed global config. Package-only changes do not need stow.
 6. If stow reports a conflict, resolve the live file deliberately; do not delete runtime state directories to make stow pass.
 
+## Patched source installation
+
+The active OMP executable is source-linked through `~/Developer/AI-Agents/omp/.agents/worktrees/atlas-fixes`. That canonical path resolves to the verified worktree carrying the persistent `atlas/fixes` branch; both are local runtime state and are not tracked by atlas-config.
+
+- `just omp-patched-status` verifies that the active executable resolves to the expected source wrapper, then reports the patch branch, worktree, version, and cleanliness. It exits nonzero when the source link is inactive.
+- `just omp-patched-update` requires an active source link and a clean `atlas/fixes` worktree, fetches stable tags from the configured upstream into an isolated ref namespace, and creates a disposable candidate worktree. It rebases and verifies the candidate with a frozen dependency install, native build, streamed-response regressions, and OMP smoke check. Only then are the canonical worktree and executable links atomically switched and verified; failed candidates roll back to the previous branch and links, and the old worktree is removed only after promotion commits.
+- Do not run `omp update` while the patched source installation is active. OMP's Bun updater replaces the source link with the published package.
+- `OMP_SOURCE_DIR`, `OMP_PATCH_WORKTREE`, and `OMP_UPSTREAM_REMOTE` override the default checkout, worktree, and remote when needed.
+
+The patch stack currently backports upstream PR [#5149](https://github.com/can1357/oh-my-pi/pull/5149), which preserves streamed Responses text when a terminal `output_item.done` message has empty content. When the fix lands upstream, the next rebase should drop the redundant patch automatically; verify the regression before removing the downstream commit deliberately.
+
 ## Current tracked baseline
 
 Tracked OMP-authored config and packages currently include:
