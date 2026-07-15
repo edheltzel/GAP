@@ -151,8 +151,8 @@ Detection depends on stow's conflict wording (`existing target is not owned by s
 
 ## Notable conventions
 
-- `.agents/atlas/plans/` for active plan/design docs, `.agents/atlas/plans/archive/` for completed.
-- `.agents/atlas/handoffs/` for live handoffs, archived to `.agents/atlas/handoffs/archive/` when consumed.
+- `docs/plans/` for active plan/design docs, `docs/plans/archive/` for completed.
+- `docs/plans/handoffs/` for live handoffs, archived to `docs/plans/handoffs/archive/` when consumed.
 - File naming: `YYYY-MM-DD-description.md`.
 - Use git worktrees (`EnterWorktree` / `ExitWorktree`) for implementation work — they land in `.agents/worktrees/`.
 
