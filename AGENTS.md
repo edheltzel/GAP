@@ -135,6 +135,8 @@ Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands
 
 It finds targets by parsing `stow -n --restow` conflict output, so it respects `.stow-local-ignore` and folding, then removes only paths that are **both** stow-blocking and dangling — real files and valid links pointing outside the repo survive and still surface as genuine conflicts. Deletions go through `trash` when available. The usual trigger is a moved or renamed repo (see the `~/Developer/Atlas/` migration); if a restow ever fails with `existing target is not owned by stow`, run `just prune-broken` and retry.
 
+Detection depends on stow's conflict wording (`existing target is not owned by stow: <path>`), so a stow upgrade could change it. That fails safe, not dangerous: an unrecognized message prunes nothing and the restow aborts loudly, back to manual cleanup. Nothing can be deleted that stow isn't already refusing to overwrite. If restows start aborting again after a stow bump, check that string first.
+
 ## When adding files
 
 - Adding to `claude/.claude/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow and provision the `skills.txt` manifest.

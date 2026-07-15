@@ -307,7 +307,7 @@ pi: (prune-broken pi_pkg)
 
 # Create symlinks and provision skills from skills.txt
 [group('stow')]
-link: && skills-install
+link: prune-broken && skills-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} $pkg; done
