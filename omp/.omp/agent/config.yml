@@ -2,9 +2,11 @@ providers:
   webSearch: codex
 symbolPreset: nerd
 theme: 
-  dark: amethyst
+  dark: anthracite
   light: light-tokyo-night
 setupVersion: 1
+extensions: 
+  - ~/.omp/agent/extensions/atlas-status-line.ts
 statusLine: 
   separator: ascii
   sessionAccent: false
