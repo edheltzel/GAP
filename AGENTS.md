@@ -131,6 +131,10 @@ Provider chain: edge-tts → ElevenLabs → Kokoro → macOS `say`. **ElevenLabs
 
 Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands. Pi is stowed with `--no-folding`: `~/.pi/agent` must remain a real directory, with only curated config files symlinked into it. The per-package `.stow-local-ignore` files **replace** stow's built-in defaults — when adding a new one, copy from `claude/.stow-local-ignore` and re-include `\.git`, `\.gitignore`, etc.
 
+**Broken links block stow — `just prune-broken` clears them.** Stow only replaces links that resolve *into* the current stow dir; anything else is "not owned by stow" and aborts the **entire** package restow, so one stale link stops every other link from being created. Stow has no option to clean these up (checked against 2.4.1: `--adopt` only imports real files). `prune-broken` runs automatically before `update`/`claude`/`omp`/`pi`, and can be run alone with optional package names.
+
+It finds targets by parsing `stow -n --restow` conflict output, so it respects `.stow-local-ignore` and folding, then removes only paths that are **both** stow-blocking and dangling — real files and valid links pointing outside the repo survive and still surface as genuine conflicts. Deletions go through `trash` when available. The usual trigger is a moved or renamed repo (see the `~/Developer/Atlas/` migration); if a restow ever fails with `existing target is not owned by stow`, run `just prune-broken` and retry.
+
 ## When adding files
 
 - Adding to `claude/.claude/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow and provision the `skills.txt` manifest.

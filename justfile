@@ -17,9 +17,46 @@ clr := '\033[0m'
 default:
     @just --list
 
+# Remove broken symlinks that stow refuses to replace (default: all packages)
+[group('stow')]
+prune-broken *packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    packages="{{ packages }}"
+    if [ -z "$packages" ]; then packages="{{ pkgs }} {{ pi_pkg }}"; fi
+    total=0
+    for pkg in $packages; do
+        flags=""
+        if [ "$pkg" = "{{ pi_pkg }}" ]; then flags="--no-folding"; fi
+        # Pruning a broken directory link can expose more beneath it, so repeat
+        # until a pass finds nothing.
+        for _ in 1 2 3; do
+            removed=0
+            while IFS= read -r rel; do
+                link="{{ stow_target }}/$rel"
+                # Only ever remove a link that is BOTH stow-blocking and dangling.
+                # Real files and valid links pointing elsewhere are left for stow
+                # to report as genuine conflicts.
+                if [ -L "$link" ] && [ ! -e "$link" ]; then
+                    echo -e "{{ yellow }}  pruned{{ clr }} $link -> $(readlink "$link")"
+                    if command -v trash >/dev/null 2>&1; then trash "$link"; else rm "$link"; fi
+                    removed=$((removed + 1))
+                fi
+            done < <({{ stow_cmd }} $flags -n --restow "$pkg" 2>&1 \
+                | sed -n 's/^ *\* existing target is not owned by stow: //p')
+            total=$((total + removed))
+            if [ "$removed" -eq 0 ]; then break; fi
+        done
+    done
+    if [ "$total" -eq 0 ]; then
+        echo -e "{{ green }}No broken links blocking stow{{ clr }}"
+    else
+        echo -e "{{ green }}Pruned $total broken link(s){{ clr }}"
+    fi
+
 # Restow all packages and provision skills from skills.txt
 [group('stow')]
-update: && skills-install
+update: prune-broken && skills-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} --restow $pkg; done
@@ -30,7 +67,7 @@ alias up := update
 
 # Restow the claude package only
 [group('stow')]
-claude:
+claude: (prune-broken "claude")
     #!/usr/bin/env bash
     set -eu
     {{ stow_cmd }} --restow claude
@@ -38,7 +75,7 @@ claude:
 
 # Restow the omp package only
 [group('stow')]
-omp:
+omp: (prune-broken "omp")
     #!/usr/bin/env bash
     set -eu
     {{ stow_cmd }} --restow omp
@@ -262,7 +299,7 @@ omp-patched-update:
 
 # Restow the pi package only (no-folding)
 [group('stow')]
-pi:
+pi: (prune-broken pi_pkg)
     #!/usr/bin/env bash
     set -eu
     {{ stow_cmd }} --no-folding --restow {{ pi_pkg }}
