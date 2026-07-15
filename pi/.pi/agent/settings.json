@@ -15,7 +15,9 @@
     "../../Developer/Atlas/Muse",
     "npm:@mobrienv/pi-tidy-tools@0.3.0",
     "npm:@hypabolic/pi-hypa",
-    "npm:@tintinweb/pi-subagents"
+    "npm:@tintinweb/pi-subagents",
+    "npm:pi-lens",
+    "npm:@vndv/pi-codegraph"
   ],
   "theme": "dark",
   "defaultProvider": "openai-codex",
