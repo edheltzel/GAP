@@ -56,6 +56,7 @@ Runtime state, credentials, generated caches, and local identity stay out of git
 `omp/.omp/agent/extensions/atlas-status-line.ts` owns the canonical Atlas footer in OMP. `omp/.omp/agent/config.yml` lists it explicitly because stow folds the authored `extensions/` directory into a symlink and native glob discovery does not traverse that linked root. Install both with the scoped `just omp` workflow; focused contract tests live outside the stow package at `tests/omp/atlas-status-line.test.ts`.
 
 - Render `▲ Atlas v{LIFEOS_VERSION} · {provider}/{model} ⚡︎ {thinking} · π {OMP_VERSION} · …/{parent}/{current} ·  {branch} · {context meter} {context}%`, followed by ` {cache}%` only after a successful assistant request reports real cache read/write usage.
+- Embed the primary footer row in the editor's top divider, matching OMP's built-in status-line placement; render only additional extension-status rows above the editor.
 - Read the Atlas version from `~/.claude/LIFEOS/VERSION`; derive model, provider, thinking, OMP version, active branch, compaction-aware context, and latest successful cache usage from live OMP state.
 - Keep filesystem and provider labels control-safe; preserve trusted ANSI styling published through `ui.setStatus`. Measure and truncate with OMP's ANSI-aware TUI helpers.
 - Use the canonical Eldritch dark and Rosé Pine Dawn light palettes. The green → yellow → orange → red context gradient uses dim empty `⛁` cells and responsive widths of 6 (`<35` columns), 8 (`35–54`), 16 (`55–79`), or 24 (`80+`).
