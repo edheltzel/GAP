@@ -15,12 +15,18 @@ Install with:
 
 ## HANDOFFS
 
-When using the `/handoff` skill or creating a session handoff, always save the handoff markdown under the current project's `.agents/atlas/handoffs/` directory.
+When using the `/handoff` skill or creating a session handoff, follow the nearest repository
+`AGENTS.md`/DOX contract for the canonical handoff location.
 
 - Resolve the project root with `PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"`.
-- Create the directory before writing: `mkdir -p "$PROJECT_ROOT/.agents/atlas/handoffs"`.
-- Use a timestamped, descriptive Markdown filename, e.g. `YYYY-MM-DD-HHMMSS-handoff-<slug>.md`.
-- Never write handoff docs to `/tmp`, OS temp folders, home-level scratch dirs, or the agent install/config directory.
+- If the repository defines no handoff location, default to
+  `$PROJECT_ROOT/docs/plans/handoffs/` and create it before writing.
+- Never let the global fallback override a committed repository location such as
+  `docs/handoffs/`.
+- Use a timestamped, descriptive Markdown filename, e.g.
+  `YYYY-MM-DD-HHMMSS-handoff-<slug>.md`.
+- Never write handoff docs to `/tmp`, OS temp folders, home-level scratch dirs, or the agent
+  install/config directory.
 - Report the final handoff path.
 
 ## TOOL RENDERING
