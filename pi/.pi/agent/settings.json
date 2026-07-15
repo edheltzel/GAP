@@ -1,7 +1,6 @@
 {
   "packages": [
     "npm:pi-mcp-adapter",
-    "npm:pi-subagents",
     "npm:pi-ask-user",
     "npm:pi-web-access",
     "npm:@devkade/pi-plan",
@@ -14,30 +13,10 @@
     "../../Developer/Atlas/Echo/adapters/pi",
     "../../Developer/Atlas/Config/packages/pi-themis",
     "../../Developer/Atlas/Muse",
-    "npm:@mobrienv/pi-tidy-tools@0.3.0"
+    "npm:@mobrienv/pi-tidy-tools@0.3.0",
+    "npm:@hypabolic/pi-hypa",
+    "npm:@tintinweb/pi-subagents"
   ],
-  "subagents": {
-    "agentOverrides": {
-      "context-builder": {
-        "model": ""
-      },
-      "planner": {
-        "model": ""
-      },
-      "researcher": {
-        "model": ""
-      },
-      "reviewer": {
-        "model": ""
-      },
-      "scout": {
-        "model": ""
-      },
-      "worker": {
-        "model": ""
-      }
-    }
-  },
   "theme": "dark",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
