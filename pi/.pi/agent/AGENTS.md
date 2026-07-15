@@ -28,6 +28,16 @@ When using the `/handoff` skill or creating a session handoff, always save the h
 - Keep the package version-pinned in `settings.json`; review source and release notes before updating it.
 - Runtime preferences belong in machine-local `~/.pi/agent/pi-tidy-tools.json`. Do not run optional `/tidy pi-fff setup` without explicit user confirmation and a review of its settings changes.
 
+## STATUS LINE
+
+- `extensions/atlas-status-line.ts` owns Pi's global custom footer; `claude/.claude/Atlas/atlas-statusline.sh` is its canonical visual and information-design reference.
+- Keep the display order Atlas/version → provider/model/thinking → Pi/version → directory/branch → context meter/cache.
+- Render the working directory as `…/<parent>/<current>`; do not expose the full path.
+- Match the Claude line's 24-cell `⛁` context meter at normal widths, responsive smaller meters at narrow widths, and whole-number context percentage from `ctx.getContextUsage()`.
+- Cache percentage is the latest successful assistant prompt's `cacheRead / (input + cacheRead + cacheWrite)`, rounded to a whole percent.
+- Preserve the canonical text symbols and Nerd Font branch/cache glyphs without emoji presentation, and preserve ANSI-styled status text published by other extensions.
+- After changes, run `just pi` and reload Pi with `/reload`.
+
 ## MEMORY
 
 Read and follow the canonical Recall guide at `~/.pi/agent/Recall_GUIDE.md`. Use the live `recall-memory` MCP schemas as the source of truth for tool call shapes; do not duplicate them here.
