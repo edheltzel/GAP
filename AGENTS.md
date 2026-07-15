@@ -180,8 +180,6 @@ Five canonical triage roles using default label strings (`needs-triage`, `needs-
 
 OMP-native config is stowed from `omp/.omp/agent/` to `~/.omp/agent/`. Track authored config only; keep runtime DBs, sessions, blobs, memories, and secrets local. See `docs/agents/omp.md`.
 
-The patched upstream OMP source checkout is local-only at `~/Developer/AI-Agents/omp`, with the persistent patch branch in `.agents/worktrees/atlas-fixes`. Use `just omp-patched-status` and `just omp-patched-update`; do not run `omp update` while the source link is active.
-
 ### Domain docs
 
 Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
