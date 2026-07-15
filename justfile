@@ -86,7 +86,7 @@ omp: (prune-broken "omp")
 omp-patched-status:
     #!/usr/bin/env bash
     set -euo pipefail
-    source_dir="${OMP_SOURCE_DIR:-$HOME/Developer/AI-Agents/omp}"
+    source_dir="${OMP_SOURCE_DIR:-$HOME/Developer/AI/Harness/omp}"
     worktree="${OMP_PATCH_WORKTREE:-$source_dir/.agents/worktrees/atlas-fixes}"
     expected_wrapper="$worktree/packages/coding-agent/scripts/omp"
     if [ ! -d "$worktree" ]; then
@@ -137,7 +137,7 @@ omp-patched-status:
 omp-patched-update:
     #!/usr/bin/env bash
     set -euo pipefail
-    source_dir="${OMP_SOURCE_DIR:-$HOME/Developer/AI-Agents/omp}"
+    source_dir="${OMP_SOURCE_DIR:-$HOME/Developer/AI/Harness/omp}"
     worktree="${OMP_PATCH_WORKTREE:-$source_dir/.agents/worktrees/atlas-fixes}"
     upstream_remote="${OMP_UPSTREAM_REMOTE:-origin}"
     branch="atlas/fixes"
