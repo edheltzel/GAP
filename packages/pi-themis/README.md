@@ -17,13 +17,13 @@ The Claude Code version relied on Claude-specific agent metadata and hook mechan
 Local development:
 
 ```bash
-pi install /Users/ed/Developer/atlas-config/packages/pi-themis
+pi install /Users/ed/Developer/Atlas/Config/packages/pi-themis
 ```
 
 Temporary test run:
 
 ```bash
-pi -e /Users/ed/Developer/atlas-config/packages/pi-themis
+pi -e /Users/ed/Developer/Atlas/Config/packages/pi-themis
 ```
 
 If published later:

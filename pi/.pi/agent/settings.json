@@ -11,9 +11,9 @@
     "npm:@narumitw/pi-goal",
     "npm:pi-hermes-memory",
     "npm:@sean_pedersen/pi-codegraph",
-    "../../Developer/atlasEcho/adapters/pi",
-    "../../Developer/atlas-config/packages/pi-themis",
-    "../../Developer/atlasMuse",
+    "../../Developer/Atlas/Echo/adapters/pi",
+    "../../Developer/Atlas/Config/packages/pi-themis",
+    "../../Developer/Atlas/Muse",
     "npm:@mobrienv/pi-tidy-tools@0.3.0"
   ],
   "subagents": {
@@ -44,6 +44,6 @@
   "quietStartup": true,
   "defaultThinkingLevel": "max",
   "hideThinkingBlock": false,
-  "lastChangelogVersion": "0.80.6",
+  "lastChangelogVersion": "0.80.7",
   "editorPaddingX": 1
 }

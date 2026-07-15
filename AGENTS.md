@@ -93,7 +93,7 @@ This repo tracks Ed's PAI v5.0.0 configuration (identity, TELOS, durable memory,
 
 The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and the Recall MEMORY/ vault (`~/.agents/Recall/MEMORY/`) also live **outside** atlas-config — they are out-of-band like `~/.env`. Cold-archive these to an external location on a schedule (1Password vault, Time Machine, external drive); they are the only USER content not in git.
 
-**Recall rule ownership:** Atlas Config owns the stowed Claude operating rule at `claude/.claude/rules/memory.md`; Recall owns the upstream behavior contract in `~/Developer/atlasRecall/FOR_CLAUDE.md` and the live `recall-memory` MCP schemas. The machine-local `~/.claude/CLAUDE.md` bootstrap must not duplicate the memory block; Claude loads the stowed rule separately. When Recall changes session tiers, MCP arguments, or memory safety rules, revalidate the Atlas rule against both upstream sources and run `just claude`. Keep the Atlas rule concise; do not copy the full Recall guide into this repo.
+**Recall rule ownership:** Atlas Config owns the stowed Claude operating rule at `claude/.claude/rules/memory.md`; Recall owns the upstream behavior contract in `~/Developer/Atlas/Recall/FOR_CLAUDE.md` and the live `recall-memory` MCP schemas. The machine-local `~/.claude/CLAUDE.md` bootstrap must not duplicate the memory block; Claude loads the stowed rule separately. When Recall changes session tiers, MCP arguments, or memory safety rules, revalidate the Atlas rule against both upstream sources and run `just claude`. Keep the Atlas rule concise; do not copy the full Recall guide into this repo.
 
 ## Repo layout
 
@@ -110,12 +110,12 @@ Before changing Pi's global package set or implementing `/atlas-flow`, review th
 
 ## Echo system
 
-Echo lives in a separate repo at `~/Developer/atlasEcho/` — a separate installation, not inside atlas-config. Its TTS daemon listens on **port 8888**, not Pulse's `31337`. `localhost:31337/notify` returns `Not found` because Pulse's voice module is disabled; all Echo traffic must target `localhost:8888/notify`.
+Echo lives in a separate repo at `~/Developer/Atlas/Echo/` — a separate installation, not inside atlas-config. Its TTS daemon listens on **port 8888**, not Pulse's `31337`. `localhost:31337/notify` returns `Not found` because Pulse's voice module is disabled; all Echo traffic must target `localhost:8888/notify`.
 
 **Install:**
 
 ```
-cd ~/Developer/atlasEcho
+cd ~/Developer/Atlas/Echo
 bash scripts/install.sh --adapter claudecode
 ```
 
@@ -123,7 +123,7 @@ The installer writes `~/Library/LaunchAgents/com.echo.plist` (Label `com.echo`) 
 
 Provider chain: edge-tts → ElevenLabs → Kokoro → macOS `say`. **ElevenLabs is disabled by policy** — library voices require paid tier and previously produced ~80 HTTP 402 failures. edge-tts is the active provider with `say` as the floor.
 
-**Live management:** `~/Developer/atlasEcho/scripts/{start,stop,restart,status}.sh`, or `launchctl kickstart -k "gui/$UID/com.echo"`. Logs at `~/Library/Logs/echo.log`. Health: `curl http://localhost:8888/health`. Full docs in the Echo repo's `AGENTS.md`.
+**Live management:** `~/Developer/Atlas/Echo/scripts/{start,stop,restart,status}.sh`, or `launchctl kickstart -k "gui/$UID/com.echo"`. Logs at `~/Library/Logs/echo.log`. Health: `curl http://localhost:8888/health`. Full docs in the Echo repo's `AGENTS.md`.
 
 **Gotcha — wrong-port curls:** PAI Algorithm doctrine (`PAI/ALGORITHM/v6.3.0.md`) and many skills curl `http://localhost:31337/notify`. That's Pulse, which has voice off. Until those are migrated, Echo announcements from the Algorithm side silently no-op. Real Echo endpoint = `:8888`.
 
