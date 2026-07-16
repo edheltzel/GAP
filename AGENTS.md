@@ -178,7 +178,7 @@ Five canonical triage roles using default label strings (`needs-triage`, `needs-
 
 ### OMP config
 
-OMP-native config is stowed from `omp/.omp/agent/` to `~/.omp/agent/`. Track authored config only; keep runtime DBs, sessions, blobs, memories, and secrets local. See `docs/agents/omp.md`.
+OMP-native config is stowed from `omp/.omp/agent/` to `~/.omp/agent/`. Track authored config only; keep runtime DBs, sessions, blobs, memories, and secrets local. Published OMP releases are canonical: install them with `omp update`; never restore a local source link, downstream patch branch, or an older pinned release. See `docs/agents/omp.md`.
 
 ### Domain docs
 

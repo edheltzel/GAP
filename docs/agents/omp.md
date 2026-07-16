@@ -56,22 +56,20 @@ Runtime state, credentials, generated caches, and local identity stay out of git
 `omp/.omp/agent/extensions/atlas-status-line.ts` owns the canonical Atlas footer in OMP. `omp/.omp/agent/config.yml` lists it explicitly because stow folds the authored `extensions/` directory into a symlink and native glob discovery does not traverse that linked root. Install both with the scoped `just omp` workflow; focused contract tests live outside the stow package at `tests/omp/atlas-status-line.test.ts`.
 
 - Render `▲ Atlas v{LIFEOS_VERSION} · {provider}/{model} ⚡︎ {thinking} · π {OMP_VERSION} · …/{parent}/{current} ·  {branch} · {context meter} {context}%`, followed by ` {cache}%` only after a successful assistant request reports real cache read/write usage.
-- Embed the primary footer row in the editor's top divider, matching OMP's built-in status-line placement; render only additional extension-status rows above the editor.
+- Register the footer through OMP 17's supported `ctx.ui.setWidget(..., { placement: "aboveEditor" })` surface. Keep native status-line segments empty through the `custom` preset so the Atlas row is the only primary footer; leave `showHookStatus` enabled as the native fallback if the widget is unavailable.
 - Read the Atlas version from `~/.claude/LIFEOS/VERSION`; derive model, provider, thinking, OMP version, active branch, compaction-aware context, and latest successful cache usage from live OMP state.
-- Keep filesystem and provider labels control-safe; preserve trusted ANSI styling published through `ui.setStatus`. Measure and truncate with OMP's ANSI-aware TUI helpers.
+- Capture `ui.setStatus` publications and render them as additional rows beneath Atlas, preserving trusted ANSI SGR styling while removing other controls. Restore OMP's original status publisher on session switch or shutdown; measure and truncate with OMP's ANSI-aware TUI helpers.
 - Use the canonical Eldritch dark and Rosé Pine Dawn light palettes. The green → yellow → orange → red context gradient uses dim empty `⛁` cells and responsive widths of 6 (`<35` columns), 8 (`35–54`), 16 (`55–79`), or 24 (`80+`).
-- The downstream `atlas/fixes` branch must retain interactive `ctx.ui.setFooter` support and its read-only footer data provider. Published OMP currently types this API but leaves it inert in interactive mode; the extension cannot replace the built-in footer or preserve extension statuses without that patch.
+- Published OMP 17 still types `ctx.ui.setFooter` but leaves it inert in interactive mode. Do not call it and do not restore downstream footer wiring; use the supported widget API.
 
-## Patched source installation
+## OMP updates
 
-The active OMP executable is source-linked through `~/Developer/AI/Harness/omp/.agents/worktrees/atlas-fixes`. That canonical path resolves to the verified worktree carrying the persistent `atlas/fixes` branch; both are local runtime state and are not tracked by atlas-config.
+The published OMP package installed by the official updater is canonical. OMP 17 incorporated the streamed-response fixes that previously required local patches; the Atlas footer now uses the release's supported widget API instead of patching OMP core.
 
-- `just omp-patched-status` verifies that the active executable resolves to the expected source wrapper, then reports the patch branch, worktree, version, and cleanliness. It exits nonzero when the source link is inactive.
-- `just omp-patched-update` requires an active source link and a clean `atlas/fixes` worktree, fetches stable tags from the configured upstream into an isolated ref namespace, and creates a disposable candidate worktree. It rebases and verifies the candidate with a frozen dependency install, native build, streamed-response regressions, and OMP smoke check. Only then are the canonical worktree and executable links atomically switched and verified; failed candidates roll back to the previous branch and links, and the old worktree is removed only after promotion commits.
-- Do not run `omp update` while the patched source installation is active. OMP's Bun updater replaces the source link with the published package.
-- `OMP_SOURCE_DIR`, `OMP_PATCH_WORKTREE`, and `OMP_UPSTREAM_REMOTE` override the default checkout, worktree, and remote when needed.
-
-The patch stack currently includes interactive custom-footer wiring required by the Atlas status line and backports upstream PR [#5149](https://github.com/can1357/oh-my-pi/pull/5149), which preserves streamed Responses text when a terminal `output_item.done` message has empty content. When either fix lands upstream, the next rebase should drop only the redundant patch; verify its regression contract before removing the downstream commit deliberately.
+- Run `omp update` to install the latest published release.
+- Run `omp update --check` for a non-installing availability check.
+- Run `just omp` after changing authored files under `omp/.omp/agent/`; stow manages configuration, not the OMP binary.
+- Never relink `~/.bun/bin/omp` to a local source wrapper, revive a retired patch branch, or pin an older release.
 
 ## Current tracked baseline
 
