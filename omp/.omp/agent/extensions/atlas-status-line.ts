@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, watch, type FSWatcher } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, parse, sep } from 'node:path';
-import { getLastAssistantUsage, type SessionEntry } from '@oh-my-pi/pi-agent-core/compaction';
 import {
   type ExtensionAPI,
   type ExtensionContext,
@@ -10,7 +9,14 @@ import {
   type ThemeColor,
   VERSION
 } from '@oh-my-pi/pi-coding-agent';
-import { Ellipsis, truncateToWidth, visibleWidth } from '@oh-my-pi/pi-tui';
+import {
+  Ellipsis,
+  truncateToWidth,
+  visibleWidth,
+  type Component,
+  type EditorTopBorder,
+  type TUI
+} from '@oh-my-pi/pi-tui';
 import { getAgentDir, MAIN_CONFIG_FILENAMES } from '@oh-my-pi/pi-utils';
 
 const SYMBOLS = {
@@ -29,12 +35,48 @@ export const NERD_FONT_ICONS = {
 
 type Rgb = readonly [number, number, number];
 type CacheUsage = { input: number; cacheRead: number; cacheWrite: number };
+type EditorTopBorderProvider = (availableWidth: number) => EditorTopBorder | undefined;
+type EditorBorderHost = {
+  borderColor: (text: string) => string;
+  setTopBorderProvider(provider: EditorTopBorderProvider | undefined): void;
+};
+type NativeStatusLine = {
+  getTopBorder(width: number): EditorTopBorder;
+};
+type ComponentWithChildren = Component & { children?: readonly Component[] };
+
+function findComponent<T extends Component>(
+  root: Component,
+  predicate: (component: Component) => component is T
+): T | undefined {
+  if (predicate(root)) return root;
+  const children = (root as ComponentWithChildren).children;
+  if (!children) return undefined;
+  for (const child of children) {
+    const match = findComponent(child, predicate);
+    if (match) return match;
+  }
+  return undefined;
+}
+
+function isEditorBorderHost(component: Component): component is Component & EditorBorderHost {
+  const candidate = component as Partial<EditorBorderHost>;
+  return (
+    typeof candidate.borderColor === 'function' &&
+    typeof candidate.setTopBorderProvider === 'function'
+  );
+}
+
+function isNativeStatusLine(component: Component): component is Component & NativeStatusLine {
+  return typeof (component as Partial<NativeStatusLine>).getTopBorder === 'function';
+}
 
 export type StatusPalette = {
   brand: Rgb;
   text: Rgb;
   muted: Rgb;
   separator: Rgb;
+  border: Rgb;
   path: Rgb;
   branch: Rgb;
   omp: Rgb;
@@ -55,6 +97,7 @@ export type AtlasFooterState = {
   branch: string | null;
   contextPercent: number;
   cachePercent: number | null;
+  sessionTitle?: string | null;
   isLight: boolean;
   theme?: Pick<Theme, 'getColorHex'>;
   backgroundAnsi?: string;
@@ -66,6 +109,7 @@ const DARK_PALETTE: StatusPalette = {
   text: [235, 250, 250],
   muted: [112, 129, 208],
   separator: [50, 52, 73],
+  border: [23, 143, 185],
   path: [4, 209, 249],
   branch: [242, 101, 181],
   omp: [232, 97, 32],
@@ -98,6 +142,7 @@ const LIGHT_PALETTE: StatusPalette = {
   muted: [121, 117, 147],
   separator: [223, 218, 217],
   path: [86, 148, 159],
+  border: [87, 82, 121],
   branch: [215, 130, 126],
   omp: [234, 157, 52],
   contextEmpty: [223, 218, 217],
@@ -143,6 +188,7 @@ export function statusPaletteFromTheme(
     text: themed('text', canonical.text),
     muted: themed('muted', canonical.muted),
     separator: themed('statusLineSep', canonical.separator),
+    border: themed('border', canonical.border),
     path: themed('statusLinePath', canonical.path),
     branch: themed('statusLineGitClean', canonical.branch),
     omp: themed('statusLineOutput', canonical.omp),
@@ -295,6 +341,12 @@ export function formatCurrentDirectory(cwd: string): string {
   return root || parts.length > 2 ? `…${sep}${tail}` : tail;
 }
 
+// Middle-truncate long branch names, matching claude/.claude/Atlas/atlas-statusline.sh:
+// over 24 chars → first 11 + … + last 12, preserving date/ticket suffixes.
+export function formatGitBranch(branch: string): string {
+  return branch.length > 24 ? `${branch.slice(0, 11)}…${branch.slice(-12)}` : branch;
+}
+
 export function calculateCacheHitPercent(usage: CacheUsage): number | null {
   const { input, cacheRead, cacheWrite } = usage;
   if (![input, cacheRead, cacheWrite].every((value) => Number.isFinite(value) && value >= 0))
@@ -303,6 +355,17 @@ export function calculateCacheHitPercent(usage: CacheUsage): number | null {
 
   const promptTokens = input + cacheRead + cacheWrite;
   return Math.max(0, Math.min(100, Math.round((cacheRead / promptTokens) * 100)));
+}
+
+// Session cache-hit rate from the session manager's cumulative usage snapshot.
+// The per-message session entries returned by getBranch() are a different shape
+// than the compaction module's Usage records, so read the aggregate snapshot
+// (input + cacheRead + cacheWrite) instead — the same fields calculateCacheHitPercent needs.
+export function sessionCacheHitPercent(
+  sessionManager: { getUsageStatistics?: () => CacheUsage | undefined } | undefined
+): number | null {
+  const stats = sessionManager?.getUsageStatistics?.();
+  return stats ? calculateCacheHitPercent(stats) : null;
 }
 
 export function contextBarWidth(terminalWidth: number): number {
@@ -407,48 +470,62 @@ function cacheColor(percent: number, palette: StatusPalette): Rgb {
   return palette.cache[4];
 }
 
-export function latestCacheHitPercent(entries: SessionEntry[]): number | null {
-  const usage = getLastAssistantUsage(entries);
-  return usage ? calculateCacheHitPercent(usage) : null;
-}
 
 type ResponsiveItem = {
-  key: 'atlas' | 'model' | 'omp' | 'path' | 'branch';
+  key: 'atlas' | 'model' | 'omp' | 'path' | 'branch' | 'context' | 'cache';
   content: string;
 };
+
+function renderStatusGroup(items: string[], separator: string): string {
+  return items.length === 0 ? '' : ` ${items.join(` ${separator} `)} `;
+}
 
 function responsiveStatusLine(
   sourceLeft: ResponsiveItem[],
   sourceRight: string[],
   terminalWidth: number,
-  separator: string
+  separator: string,
+  gapColor: Rgb
 ): string {
   const width = Math.max(0, Math.floor(terminalWidth));
-  if (width === 0) return '';
-
-  const innerWidth = Math.max(0, width - 2);
-  const join = (items: string[]) => items.join(` ${separator} `);
-  let rightItems = sourceRight;
-  let right = join(rightItems);
-  if (visibleWidth(right) > innerWidth && rightItems.length > 1) {
-    rightItems = rightItems.slice(0, 1);
-    right = join(rightItems);
-  }
-  right = truncateToWidth(right, innerWidth);
+  if (width < 2) return ' '.repeat(width);
 
   let leftItems = sourceLeft;
-  for (const key of ['path', 'omp', 'branch'] as const) {
-    const left = join(leftItems.map((item) => item.content));
-    const gap = left && right ? 1 : 0;
-    if (visibleWidth(left) + gap + visibleWidth(right) <= innerWidth) break;
+  let left = renderStatusGroup(
+    leftItems.map((item) => item.content),
+    separator
+  );
+  let leftWidth = visibleWidth(left);
+  const right = renderStatusGroup(sourceRight, separator);
+  const rightWidth = visibleWidth(right);
+
+  for (const key of ['path', 'omp', 'branch', 'atlas', 'model'] as const) {
+    const gapWidth = leftWidth > 0 && rightWidth > 0 ? 1 : 0;
+    if (leftWidth + rightWidth + gapWidth <= width) break;
+
     leftItems = leftItems.filter((item) => item.key !== key);
+    left = renderStatusGroup(
+      leftItems.map((item) => item.content),
+      separator
+    );
+    leftWidth = visibleWidth(left);
   }
 
-  const rightWidth = visibleWidth(right);
-  const availableLeft = Math.max(0, innerWidth - rightWidth - (right ? 1 : 0));
-  const left = truncateToWidth(join(leftItems.map((item) => item.content)), availableLeft);
-  const gapWidth = Math.max(0, innerWidth - visibleWidth(left) - rightWidth);
-  return ` ${left}${' '.repeat(gapWidth)}${right} `;
+  let fittedRight = right;
+  const gapWidth = leftWidth > 0 && rightWidth > 0 ? 1 : 0;
+  if (sourceRight.length > 0 && leftWidth + rightWidth + gapWidth > width) {
+    const availableRight = Math.max(0, width - leftWidth - 1);
+    const availableContent = Math.max(0, availableRight - 2);
+    const rightContent = truncateToWidth(sourceRight.join(` ${separator} `), availableContent);
+    fittedRight = rightContent ? renderStatusGroup([rightContent], separator) : '';
+  }
+
+  if (!fittedRight) return truncateToWidth(left, width);
+  if (!left) return truncateToWidth(fittedRight, width);
+
+  const dividerWidth = Math.max(1, width - leftWidth - visibleWidth(fittedRight));
+  const divider = color(gapColor, '─'.repeat(dividerWidth));
+  return truncateToWidth(`${left}${divider}${fittedRight}`, width, '');
 }
 
 function insetStatusText(text: string, terminalWidth: number): string {
@@ -469,8 +546,8 @@ export function renderAtlasFooter(state: AtlasFooterState, terminalWidth: number
   const provider = sanitizeLabel(state.provider || 'no-provider');
   const model = sanitizeLabel(state.model || 'no-model');
   const thinking = sanitizeLabel(state.thinking || 'off');
-  const branch = sanitizeLabel(state.branch || 'no-git');
-  const separator = color(palette.separator, '·');
+  const branch = formatGitBranch(sanitizeLabel(state.branch || 'no-git'));
+  const separator = color(palette.separator, '');
   const providerModel = `${color(palette.muted, `${provider}/`)}${color(palette.brand, model)}`;
   const context = `${renderContextBar(contextPercent, contextBarWidth(width), palette)} ${color(
     usageColor(contextPercent, palette),
@@ -498,23 +575,40 @@ export function renderAtlasFooter(state: AtlasFooterState, terminalWidth: number
       content: `${color(palette.branch, NERD_FONT_ICONS.branch)} ${color(palette.branch, branch)}`
     }
   ];
-  const rightItems = [context];
+  leftItems.push({ key: 'context', content: context });
 
-  if (state.cachePercent !== null && width >= 80) {
+  if (state.cachePercent !== null) {
     const cachePercent = Math.max(0, Math.min(100, Math.round(state.cachePercent)));
-    rightItems.push(
-      `${color(palette.cacheIcon, NERD_FONT_ICONS.cache)} ${color(cacheColor(cachePercent, palette), `${cachePercent}%`)}`
-    );
+    leftItems.push({
+      key: 'cache',
+      content: `${color(palette.cacheIcon, NERD_FONT_ICONS.cache)} ${color(cacheColor(cachePercent, palette), `${cachePercent}%`)}`
+    });
   }
 
-  const lines = width > 0 ? [responsiveStatusLine(leftItems, rightItems, width, separator)] : [];
-  const statuses = Array.from(state.statuses?.entries() ?? [])
+  const sessionTitle = sanitizeLabel(state.sessionTitle ?? '');
+  const rightItems = sessionTitle
+    ? [color(palette.brand, truncateToWidth(sessionTitle, 40))]
+    : [];
+
+  const primary = responsiveStatusLine(leftItems, rightItems, width, separator, palette.border);
+  const lines = primary
+    ? applyStatusLineBackground([primary], visibleWidth(primary), state.backgroundAnsi)
+    : [];
+  return lines.concat(renderExtensionStatusRows(state.statuses, width, state.backgroundAnsi));
+}
+
+export function renderExtensionStatusRows(
+  statuses: ReadonlyMap<string, string> | undefined,
+  terminalWidth: number,
+  backgroundAnsi: string | undefined
+): string[] {
+  const width = Math.max(0, Math.floor(terminalWidth));
+  if (width === 0 || !statuses || statuses.size === 0) return [];
+  const text = Array.from(statuses.entries())
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([, text]) => sanitizeStatusText(text));
-  if (statuses.length > 0 && width > 0) {
-    lines.push(insetStatusText(statuses.join(' '), width));
-  }
-  return applyStatusLineBackground(lines, width, state.backgroundAnsi);
+    .map(([, status]) => `${sanitizeStatusText(status)}\x1b[0m`)
+    .join(' ');
+  return applyStatusLineBackground([insetStatusText(text, width)], width, backgroundAnsi);
 }
 
 function readStatusLineTransparency(): boolean {
@@ -545,12 +639,12 @@ function watchStatusLineConfig(onChange: () => void): FSWatcher | undefined {
 export default async function atlasStatusLine(omp: ExtensionAPI): Promise<void> {
   const atlasVersion = await readAtlasVersion();
   let requestRender: (() => void) | undefined;
-  let restoreStatusPublisher: (() => void) | undefined;
+  let restoreSetStatus: (() => void) | undefined;
   let removeWidget: (() => void) | undefined;
   const refresh = () => requestRender?.();
   const clearInstalledWidget = () => {
-    restoreStatusPublisher?.();
-    restoreStatusPublisher = undefined;
+    restoreSetStatus?.();
+    restoreSetStatus = undefined;
     requestRender = undefined;
     removeWidget?.();
     removeWidget = undefined;
@@ -570,24 +664,91 @@ export default async function atlasStatusLine(omp: ExtensionAPI): Promise<void> 
       requestRender?.();
     };
     ctx.ui.setStatus = captureStatus;
-    restoreStatusPublisher = () => {
+    restoreSetStatus = () => {
       if (ctx.ui.setStatus === captureStatus) ctx.ui.setStatus = originalSetStatus;
     };
 
-    const cwd = ctx.sessionManager.getCwd();
     ctx.ui.setWidget(
       WIDGET_KEY,
-      (tui, _theme) => {
+      (tui: TUI, _theme) => {
         let active = true;
-        let branch = readGitBranch(cwd);
+        let currentCwd = ctx.sessionManager.getCwd();
+        let branch = readGitBranch(currentCwd);
         let transparent = readStatusLineTransparency();
+        let installedEditor: EditorBorderHost | undefined;
         const renderNow = () => {
           if (active) tui.requestRender();
         };
-        const branchWatcher = watchGitBranch(cwd, () => {
-          branch = readGitBranch(cwd);
-          renderNow();
-        });
+        const watchCurrentBranch = () =>
+          watchGitBranch(currentCwd, () => {
+            branch = readGitBranch(currentCwd);
+            renderNow();
+          });
+        let branchWatcher = watchCurrentBranch();
+        const syncCwd = () => {
+          const nextCwd = ctx.sessionManager.getCwd();
+          if (nextCwd === currentCwd) return;
+
+          branchWatcher?.close();
+          currentCwd = nextCwd;
+          branch = readGitBranch(currentCwd);
+          branchWatcher = watchCurrentBranch();
+        };
+        const nativeStatusLine = findComponent(tui, isNativeStatusLine);
+        const nativeTopBorderProvider = nativeStatusLine
+          ? (width: number) => nativeStatusLine.getTopBorder(width)
+          : undefined;
+        const backgroundAnsi = () => {
+          const activeTheme = ctx.ui.theme;
+          return transparent ? DEFAULT_BACKGROUND_ANSI : activeTheme.getBgAnsi('statusLineBg');
+        };
+        const currentState = (): AtlasFooterState => {
+          syncCwd();
+          const usage = ctx.getContextUsage();
+          const activeTheme = ctx.ui.theme;
+          return {
+            atlasVersion,
+            provider: ctx.model?.provider || 'no-provider',
+            model: ctx.model?.id || 'no-model',
+            thinking: omp.getThinkingLevel() || 'off',
+            ompVersion: VERSION,
+            cwd: currentCwd,
+            branch,
+            contextPercent: usage?.percent ?? 0,
+            cachePercent: sessionCacheHitPercent(ctx.sessionManager),
+            sessionTitle: ctx.sessionManager.getSessionName(),
+            isLight: activeTheme.isLight,
+            theme: activeTheme,
+            backgroundAnsi: backgroundAnsi()
+          };
+        };
+        const restoreInstalledEditor = () => {
+          if (!installedEditor) return;
+
+          installedEditor.setTopBorderProvider(nativeTopBorderProvider);
+          installedEditor = undefined;
+        };
+        const syncTopBorderProvider = () => {
+          const editor = findComponent(tui, isEditorBorderHost);
+          if (!editor) return false;
+          if (editor === installedEditor) return false;
+          restoreInstalledEditor();
+
+          // Return the Atlas footer as the editor's top-border content and let the
+          // editor fill the remaining width with its native border rule out to the
+          // corner. (An earlier revision suppressed that trailing fill, which left
+          // the right corner detached from the terminal edge.)
+          const atlasTopBorderProvider = (width: number): EditorTopBorder | undefined => {
+            const content = renderAtlasFooter(currentState(), width)[0];
+            return content === undefined ? undefined : { content, width: visibleWidth(content) };
+          };
+
+          editor.setTopBorderProvider(atlasTopBorderProvider);
+          installedEditor = editor;
+          return true;
+        };
+        syncTopBorderProvider();
+
         const configWatcher = watchStatusLineConfig(() => {
           transparent = readStatusLineTransparency();
           renderNow();
@@ -597,33 +758,14 @@ export default async function atlasStatusLine(omp: ExtensionAPI): Promise<void> 
         return {
           dispose() {
             active = false;
+            restoreInstalledEditor();
             branchWatcher?.close();
             configWatcher?.close();
             if (requestRender === renderNow) requestRender = undefined;
           },
           render(width: number): string[] {
-            const usage = ctx.getContextUsage();
-            const activeTheme = ctx.ui.theme;
-            return renderAtlasFooter(
-              {
-                atlasVersion,
-                provider: ctx.model?.provider || 'no-provider',
-                model: ctx.model?.id || 'no-model',
-                thinking: omp.getThinkingLevel() || 'off',
-                ompVersion: VERSION,
-                cwd,
-                branch,
-                contextPercent: usage?.percent ?? 0,
-                cachePercent: latestCacheHitPercent(ctx.sessionManager.getBranch()),
-                isLight: activeTheme.isLight,
-                theme: activeTheme,
-                backgroundAnsi: transparent
-                  ? DEFAULT_BACKGROUND_ANSI
-                  : activeTheme.getBgAnsi('statusLineBg'),
-                statuses
-              },
-              width
-            );
+            if (syncTopBorderProvider()) renderNow();
+            return renderExtensionStatusRows(statuses, width, backgroundAnsi());
           }
         };
       },
