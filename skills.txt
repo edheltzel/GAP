@@ -1,3 +1,4 @@
+ast-grep/agent-skill=ast-grep,ast-grep-outline
 edheltzel/Recall=recall-doctor,recall-loa,recall-stats,recall-update
 edheltzel/skills=pm-tools,karpathy-guidelines,
 mattpocock/skills=grill-me,grill-with-docs,improve-codebase-architecture,prototype,setup-matt-pocock-skills,tdd,to-issues,to-prd,triage,handoff,teach,design-an-interface,edit-article,git-guardrails-claude-code,migrate-to-shoehorn,obsidian-vault,qa,request-refactor-plan,scaffold-exercises,setup-pre-commit,ubiquitous-language,writing-beats,writing-fragments,writing-shape
