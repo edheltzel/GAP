@@ -1,17 +1,4 @@
-<!-- BEGIN COMPOUND PI TOOL MAP -->
-## Compound Engineering (Pi compatibility)
-
-This block is managed by compound-plugin.
-
-Pi extensions used alongside this plugin:
-- Installed: `@tintinweb/pi-subagents` provides the Claude-style `Agent`, `get_subagent_result`, and `steer_subagent` tools.
-- Compatibility: Compound skills written for nicobailon's `subagent` tool are not API-compatible without adaptation.
-- Recommended: `pi-ask-user` (by edlsh) provides the `ask_user` tool; skills fall back to numbered options in chat when it is missing.
-
-Install with:
-  pi install npm:@tintinweb/pi-subagents
-  pi install npm:pi-ask-user
-<!-- END COMPOUND PI TOOL MAP -->
+# Pi Agent Configuration
 
 ## HANDOFFS
 
@@ -28,6 +15,12 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 - Never write handoff docs to `/tmp`, OS temp folders, home-level scratch dirs, or the agent
   install/config directory.
 - Report the final handoff path.
+
+## COMPOUND ENGINEERING
+
+- Compound Engineering is an intentional global package exception, loaded directly from the official `git:github.com/EveryInc/compound-engineering-plugin` Pi package in `settings.json`.
+- Do not restore converter-managed `ce-*` skills or agents under `~/.pi/agent/`; the native package owns skill discovery from its Git checkout.
+- Keep `npm:@tintinweb/pi-subagents` and `npm:pi-ask-user` installed as workflow companions.
 
 ## TOOL RENDERING
 
@@ -48,7 +41,3 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 ## MEMORY
 
 Read and follow the canonical Recall guide at `~/.pi/agent/Recall_GUIDE.md`. Use the live `recall-memory` MCP schemas as the source of truth for tool call shapes; do not duplicate them here.
-
-
-
-
