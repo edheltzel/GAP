@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'bun:test';
 import type { SessionEntry } from '@oh-my-pi/pi-agent-core/compaction';
-import { VERSION as OMP_VERSION, type ExtensionAPI } from '@oh-my-pi/pi-coding-agent';
+import {
+  VERSION as OMP_VERSION,
+  type ExtensionAPI,
+  type Theme,
+  type ThemeColor
+} from '@oh-my-pi/pi-coding-agent';
 import { visibleWidth } from '@oh-my-pi/pi-tui';
 import atlasStatusLine, {
+  applyStatusLineBackground,
   calculateCacheHitPercent,
   contextBarWidth,
   contextFilledCells,
@@ -13,6 +19,7 @@ import atlasStatusLine, {
   renderAtlasFooter,
   sanitizeLabel,
   sanitizeStatusText,
+  statusPaletteFromTheme
 } from '../../omp/.omp/agent/extensions/atlas-status-line';
 
 function stripAnsi(text: string): string {
@@ -29,8 +36,34 @@ const FOOTER_STATE = {
   branch: 'main',
   contextPercent: 42,
   cachePercent: 99,
-  isLight: false,
+  isLight: false
 };
+
+const THEME_COLORS: Partial<Record<ThemeColor, string>> = {
+  statusLineModel: '#010203',
+  text: '#040506',
+  muted: '#070809',
+  statusLineSep: '#0a0b0c',
+  statusLinePath: '#0d0e0f',
+  statusLineGitClean: '#101112',
+  statusLineOutput: '#131415',
+  accent: '#161718',
+  success: '#192021',
+  warning: '#222324',
+  error: '#252627'
+};
+
+function mockTheme(isLight = false): Pick<Theme, 'isLight' | 'getColorHex' | 'getBgAnsi'> {
+  return {
+    isLight,
+    getColorHex(color: ThemeColor) {
+      return THEME_COLORS[color] ?? '#303132';
+    },
+    getBgAnsi() {
+      return '\x1b[48;2;33;35;55m';
+    }
+  };
+}
 
 describe('Atlas OMP status line', () => {
   it('shows only the current directory and its parent', () => {
@@ -54,7 +87,7 @@ describe('Atlas OMP status line', () => {
       '\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\',
       '\x1b]52;c;payload\u0007clip',
       '\x1bcreset',
-      'broken\x1b[31',
+      'broken\x1b[31'
     ].join(' ');
 
     expect(sanitizeStatusText(unsafe)).toBe('clear hidden cursor link clip reset broken');
@@ -83,24 +116,24 @@ describe('Atlas OMP status line', () => {
       message: {
         role: 'assistant',
         stopReason: 'stop',
-        usage: { input: 1, cacheRead: 99, cacheWrite: 0 },
-      },
+        usage: { input: 1, cacheRead: 99, cacheWrite: 0 }
+      }
     };
     const inputOnly = {
       type: 'message',
       message: {
         role: 'assistant',
         stopReason: 'stop',
-        usage: { input: 100, cacheRead: 0, cacheWrite: 0 },
-      },
+        usage: { input: 100, cacheRead: 0, cacheWrite: 0 }
+      }
     };
     const failed = {
       type: 'message',
       message: {
         role: 'assistant',
         stopReason: 'error',
-        usage: { input: 100, cacheRead: 0, cacheWrite: 0 },
-      },
+        usage: { input: 100, cacheRead: 0, cacheWrite: 0 }
+      }
     };
 
     expect(latestCacheHitPercent([cached, inputOnly] as SessionEntry[])).toBeNull();
@@ -110,7 +143,7 @@ describe('Atlas OMP status line', () => {
   it('uses the exact canonical glyph codepoints', () => {
     expect(NERD_FONT_ICONS.branch.codePointAt(0)).toBe(0xf418);
     expect(NERD_FONT_ICONS.cache.codePointAt(0)).toBe(0xf49b);
-    expect(Array.from('⚡︎', glyph => glyph.codePointAt(0))).toEqual([0x26a1, 0xfe0e]);
+    expect(Array.from('⚡︎', (glyph) => glyph.codePointAt(0))).toEqual([0x26a1, 0xfe0e]);
   });
 
   it('wraps and truncates ANSI-styled items by visible width', () => {
@@ -126,7 +159,7 @@ describe('Atlas OMP status line', () => {
     const lines = renderAtlasFooter(
       {
         ...FOOTER_STATE,
-        statuses: new Map([['fixture', '\x1b[35mcolored\x1b[39m']]),
+        statuses: new Map([['fixture', '\x1b[35mcolored\x1b[39m']])
       },
       240
     );
@@ -139,9 +172,9 @@ describe('Atlas OMP status line', () => {
     expect(footer).toContain(' main');
     expect(footer).toContain('42%');
     expect(footer).toContain(' 99%');
-    expect(Array.from(footer).filter(glyph => glyph === '⛁')).toHaveLength(24);
-    expect(lines[1]).toBe('\x1b[35mcolored\x1b[39m');
-    expect(stripAnsi(lines[1])).toBe('colored');
+    expect(Array.from(footer).filter((glyph) => glyph === '⛁')).toHaveLength(24);
+    expect(lines[1]).toContain('\x1b[35mcolored\x1b[39m');
+    expect(stripAnsi(lines[1]).trim()).toBe('colored');
     expect(lines[0]).toContain('\x1b[38;2;164;140;242m▲ Atlas');
     expect(lines[0]).toContain('\x1b[38;2;232;97;32mπ');
     expect(lines[0]).toContain('\x1b[38;2;4;209;249m…/Atlas/Config');
@@ -153,10 +186,7 @@ describe('Atlas OMP status line', () => {
   });
 
   it('uses the canonical Rosé Pine Dawn light palette', () => {
-    const footer = renderAtlasFooter(
-      { ...FOOTER_STATE, isLight: true },
-      240
-    )[0];
+    const footer = renderAtlasFooter({ ...FOOTER_STATE, isLight: true }, 240)[0];
 
     expect(footer).toContain('\x1b[38;2;144;122;169m▲ Atlas');
     expect(footer).toContain('\x1b[38;2;234;157;52mπ');
@@ -167,6 +197,60 @@ describe('Atlas OMP status line', () => {
     expect(footer).toContain('\x1b[38;2;223;218;217m·');
   });
 
+  it('uses active OMP theme colors without changing the canonical context bar', () => {
+    const theme = mockTheme();
+    const palette = statusPaletteFromTheme(theme, false);
+    const footer = renderAtlasFooter({ ...FOOTER_STATE, contextPercent: 100, theme }, 240)[0];
+
+    expect(palette.brand).toEqual([1, 2, 3]);
+    expect(palette.path).toEqual([13, 14, 15]);
+    expect(footer).toContain('\x1b[38;2;1;2;3m▲ Atlas');
+    expect(footer).toContain('\x1b[38;2;13;14;15m…/Atlas/Config');
+    expect(footer).toContain('\x1b[38;2;16;17;18m');
+    expect(footer).toContain('\x1b[38;2;19;20;21mπ');
+    expect(footer).toContain('\x1b[38;2;37;38;39m100%');
+    expect(footer).toContain('\x1b[38;2;241;108;117m⛁');
+  });
+
+  it('fills the configured theme background or leaves the row transparent', () => {
+    const opaque = renderAtlasFooter(
+      {
+        ...FOOTER_STATE,
+        backgroundAnsi: '\x1b[48;2;33;35;55m',
+        statuses: new Map([['reset', '\x1b[35mcolored\x1b[0m ready']])
+      },
+      120
+    );
+    const transparent = applyStatusLineBackground(['status'], 12, '\x1b[49m');
+
+    expect(opaque.every((line) => visibleWidth(line) === 120)).toBeTrue();
+    expect(opaque[0]).toStartWith('\x1b[48;2;33;35;55m');
+    expect(opaque[1]).toContain('\x1b[0m\x1b[48;2;33;35;55m ready');
+    expect(opaque.every((line) => line.endsWith('\x1b[49m'))).toBeTrue();
+    expect(transparent).toEqual(['status      ']);
+    expect(transparent[0]).not.toContain('\x1b[48;');
+  });
+
+  it('stays on one inset row and responds at mobile breakpoints', () => {
+    for (const width of [24, 34, 35, 54, 55, 79, 80, 120, 240]) {
+      const lines = renderAtlasFooter(FOOTER_STATE, width);
+      const plain = stripAnsi(lines[0]);
+
+      expect(lines).toHaveLength(1);
+      expect(visibleWidth(lines[0])).toBe(width);
+      expect(plain.startsWith(' ')).toBeTrue();
+      expect(plain.endsWith(' ')).toBeTrue();
+      expect(Array.from(plain).filter((glyph) => glyph === '⛁')).toHaveLength(
+        contextBarWidth(width)
+      );
+    }
+
+    expect(stripAnsi(renderAtlasFooter(FOOTER_STATE, 79)[0])).not.toContain(NERD_FONT_ICONS.cache);
+    expect(stripAnsi(renderAtlasFooter(FOOTER_STATE, 80)[0])).toContain(NERD_FONT_ICONS.cache);
+    expect(stripAnsi(renderAtlasFooter(FOOTER_STATE, 55)[0])).not.toContain('…/Atlas/Config');
+    expect(stripAnsi(renderAtlasFooter(FOOTER_STATE, 240)[0])).toContain('…/Atlas/Config');
+  });
+
   it('uses exact context and cache threshold colors in both palettes', () => {
     const palettes = [
       {
@@ -175,15 +259,15 @@ describe('Atlas OMP status line', () => {
           [80, '241;108;117'],
           [60, '251;146;60'],
           [40, '251;191;36'],
-          [39, '55;244;153'],
+          [39, '55;244;153']
         ],
         cache: [
           [80, '55;244;153'],
           [60, '4;209;249'],
           [40, '241;252;121'],
           [20, '247;198;127'],
-          [19, '241;108;117'],
-        ],
+          [19, '241;108;117']
+        ]
       },
       {
         isLight: true,
@@ -191,29 +275,39 @@ describe('Atlas OMP status line', () => {
           [80, '180;99;122'],
           [60, '215;130;126'],
           [40, '234;157;52'],
-          [39, '40;105;131'],
+          [39, '40;105;131']
         ],
         cache: [
           [80, '40;105;131'],
           [60, '86;148;159'],
           [40, '234;157;52'],
           [20, '215;130;126'],
-          [19, '180;99;122'],
-        ],
-      },
+          [19, '180;99;122']
+        ]
+      }
     ] as const;
 
     for (const palette of palettes) {
       for (const [percent, rgb] of palette.usage) {
         const footer = renderAtlasFooter(
-          { ...FOOTER_STATE, contextPercent: percent, cachePercent: null, isLight: palette.isLight },
+          {
+            ...FOOTER_STATE,
+            contextPercent: percent,
+            cachePercent: null,
+            isLight: palette.isLight
+          },
           240
         )[0];
         expect(footer).toContain(`\x1b[38;2;${rgb}m${percent}%`);
       }
       for (const [percent, rgb] of palette.cache) {
         const footer = renderAtlasFooter(
-          { ...FOOTER_STATE, contextPercent: 0, cachePercent: percent, isLight: palette.isLight },
+          {
+            ...FOOTER_STATE,
+            contextPercent: 0,
+            cachePercent: percent,
+            isLight: palette.isLight
+          },
           240
         )[0];
         expect(footer).toContain(`\x1b[38;2;${rgb}m${percent}%`);
@@ -227,7 +321,12 @@ describe('Atlas OMP status line', () => {
       240
     )[0];
     const lightFull = renderAtlasFooter(
-      { ...FOOTER_STATE, contextPercent: 100, cachePercent: null, isLight: true },
+      {
+        ...FOOTER_STATE,
+        contextPercent: 100,
+        cachePercent: null,
+        isLight: true
+      },
       240
     )[0];
     const lightEmpty = renderAtlasFooter(
@@ -258,6 +357,30 @@ describe('Atlas OMP status line', () => {
     expect(config.statusLine?.showHookStatus).toBeTrue();
   });
 
+  it('ships and selects the Atlas Eldritch OMP theme', async () => {
+    const config = Bun.YAML.parse(
+      await Bun.file(new URL('../../omp/.omp/agent/config.yml', import.meta.url)).text()
+    ) as {
+      theme?: { dark?: string };
+      statusLine?: { transparent?: boolean };
+    };
+    const eldritch = (await Bun.file(
+      new URL('../../omp/.omp/agent/themes/atlas-eldritch.json', import.meta.url)
+    ).json()) as {
+      name?: string;
+      vars?: Record<string, string>;
+      colors?: Record<string, string>;
+    };
+
+    expect(config.theme?.dark).toBe('atlas-eldritch');
+    expect(config.statusLine?.transparent).toBeFalse();
+    expect(eldritch.name).toBe('atlas-eldritch');
+    expect(eldritch.vars?.background).toBe('#212337');
+    expect(eldritch.vars?.foreground).toBe('#ebfafa');
+    expect(eldritch.colors?.statusLineBg).toBe('background');
+    expect(eldritch.colors?.statusLineModel).toBe('purple');
+  });
+
   it('registers, refreshes, and cleans up through the supported OMP 17 widget API', async () => {
     type TestContext = {
       hasUI: boolean;
@@ -265,16 +388,20 @@ describe('Atlas OMP status line', () => {
       getContextUsage(): { percent: number };
       sessionManager: { getCwd(): string; getBranch(): SessionEntry[] };
       ui: {
+        theme: Pick<Theme, 'isLight' | 'getColorHex' | 'getBgAnsi'>;
         setStatus(key: string, text: string | undefined): void;
         setFooter(): void;
         setWidget(key: string, content: unknown, options?: { placement?: string }): void;
       };
     };
     type TestHandler = (event: unknown, ctx: TestContext) => void;
-    type WidgetComponent = { render(width: number): string[]; dispose?(): void };
+    type WidgetComponent = {
+      render(width: number): string[];
+      dispose?(): void;
+    };
     type WidgetFactory = (
       tui: { requestRender(): void },
-      theme: { isLight: boolean }
+      theme: Pick<Theme, 'isLight' | 'getColorHex' | 'getBgAnsi'>
     ) => WidgetComponent;
     const handlers = new Map<string, TestHandler>();
     let thinking = 'high';
@@ -282,7 +409,7 @@ describe('Atlas OMP status line', () => {
       getThinkingLevel: () => thinking,
       on(event: string, handler: TestHandler) {
         handlers.set(event, handler);
-      },
+      }
     };
     let widget: { key: string; content: unknown; placement: string | undefined } | undefined;
     let mountedComponent: WidgetComponent | undefined;
@@ -290,6 +417,7 @@ describe('Atlas OMP status line', () => {
     let nativeStatusUsed = false;
     let contextPercent = 42;
     let branchEntries: SessionEntry[] = [];
+    let activeTheme = mockTheme();
     const originalSetStatus = () => {
       nativeStatusUsed = true;
     };
@@ -299,9 +427,12 @@ describe('Atlas OMP status line', () => {
       getContextUsage: () => ({ percent: contextPercent }),
       sessionManager: {
         getCwd: () => '/Users/ed/Developer/Atlas/Config',
-        getBranch: () => branchEntries,
+        getBranch: () => branchEntries
       },
       ui: {
+        get theme() {
+          return activeTheme;
+        },
         setFooter() {
           footerUsed = true;
         },
@@ -309,8 +440,8 @@ describe('Atlas OMP status line', () => {
         setWidget(key: string, content: unknown, options?: { placement?: string }) {
           if (content === undefined) mountedComponent?.dispose?.();
           widget = { key, content, placement: options?.placement };
-        },
-      },
+        }
+      }
     };
     // This test intentionally supplies only the ExtensionAPI methods used during registration.
     const extensionApi = omp as unknown as ExtensionAPI;
@@ -323,16 +454,16 @@ describe('Atlas OMP status line', () => {
     expect(nativeStatusUsed).toBeFalse();
     expect(widget?.key).toBe('atlas-status-line');
     expect(typeof widget?.content).toBe('function');
-    expect(widget?.placement).toBe('aboveEditor');
+    expect(widget?.placement).toBe('belowEditor');
     if (typeof widget?.content !== 'function') throw new TypeError('Atlas widget not registered');
 
     let renderRequests = 0;
-    const theme = { isLight: false };
+    const theme = mockTheme();
     mountedComponent = (widget.content as WidgetFactory)(
       {
         requestRender() {
           renderRequests += 1;
-        },
+        }
       },
       theme
     );
@@ -341,8 +472,9 @@ describe('Atlas OMP status line', () => {
     expect(rendered).toContain('▲ Atlas v');
     expect(rendered).toContain('openai-codex/gpt-5.6-sol ⚡︎ high');
     expect(rendered).toContain(`π ${OMP_VERSION}`);
-    expect(Array.from(rendered).filter(glyph => glyph === '⛁')).toHaveLength(24);
-    expect(renderedLines[1]).toBe('\x1b[35mSTATUS_COLOR_PROBE\x1b[39m');
+    expect(Array.from(rendered).filter((glyph) => glyph === '⛁')).toHaveLength(24);
+    expect(renderedLines[1]).toContain('\x1b[35mSTATUS_COLOR_PROBE\x1b[39m');
+    expect(visibleWidth(renderedLines[1])).toBe(240);
 
     testContext.model.id = 'gpt-next';
     thinking = 'max';
@@ -353,11 +485,11 @@ describe('Atlas OMP status line', () => {
         message: {
           role: 'assistant',
           stopReason: 'stop',
-          usage: { input: 1, cacheRead: 99, cacheWrite: 0 },
-        },
-      } as SessionEntry,
+          usage: { input: 1, cacheRead: 99, cacheWrite: 0 }
+        }
+      } as SessionEntry
     ];
-    theme.isLight = true;
+    activeTheme = mockTheme(true);
     handlers.get('turn_start')?.({}, testContext);
     expect(renderRequests).toBe(1);
     handlers.get('message_end')?.({}, testContext);
