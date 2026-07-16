@@ -67,11 +67,7 @@ OMP 17.0.0 already scans `~/.claude/commands/*.md` by default. Its current sourc
 - `skills.enableAgentsUser` defaults to `true`, so `~/.agents/skills` is also loaded.
 - Skill slash commands default to enabled as `/skill:<name>`.
 
-Active OMP source inspected:
-
-```text
-~/Developer/AI/Harness/omp/.agents/worktrees/atlas-fixes
-```
+This behavior was verified against published OMP 17.0.0. The official release is canonical; no local source worktree or downstream patch branch is required.
 
 Therefore OMP already receives the Claude command files without duplicated OMP prompt files.
 

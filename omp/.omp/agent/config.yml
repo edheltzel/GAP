@@ -8,6 +8,9 @@ setupVersion: 1
 extensions: 
   - ~/.omp/agent/extensions/atlas-status-line.ts
 statusLine: 
+  preset: custom
+  leftSegments: []
+  rightSegments: []
   separator: ascii
   sessionAccent: false
   transparent: false

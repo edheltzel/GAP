@@ -1,7 +1,9 @@
+import { execFileSync } from 'node:child_process';
+import { watch, type FSWatcher } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, parse, sep } from 'node:path';
+import { basename, dirname, join, parse, sep } from 'node:path';
 import { getLastAssistantUsage, type SessionEntry } from '@oh-my-pi/pi-agent-core/compaction';
-import { type ExtensionAPI, VERSION } from '@oh-my-pi/pi-coding-agent';
+import { type ExtensionAPI, type ExtensionContext, VERSION } from '@oh-my-pi/pi-coding-agent';
 import { Ellipsis, truncateToWidth, visibleWidth } from '@oh-my-pi/pi-tui';
 
 const SYMBOLS = {
@@ -10,6 +12,8 @@ const SYMBOLS = {
   omp: 'π',
   contextCell: '⛁',
 } as const;
+
+const WIDGET_KEY = 'atlas-status-line';
 
 export const NERD_FONT_ICONS = {
   branch: '\uF418', // nf-oct-git_branch
@@ -112,19 +116,69 @@ const LIGHT_PALETTE: StatusPalette = {
 
 export function sanitizeLabel(text: string): string {
   return Bun.stripANSI(text)
-    .replace(/\p{Cc}/gu, ' ')
+    .replace(/[\p{Cc}\p{Cf}]/gu, character =>
+      character === '\r' || character === '\n' || character === '\t' ? ' ' : ''
+    )
     .replace(/ +/g, ' ')
     .trim();
 }
 
 export function sanitizeStatusText(text: string): string {
-  return text
-    .replace(/\p{Cc}/gu, character => {
-      if (character === '\x1b') return character;
-      return character === '\r' || character === '\n' || character === '\t' ? ' ' : '';
-    })
-    .replace(/ +/g, ' ')
-    .trim();
+  let output = '';
+  let index = 0;
+  while (index < text.length) {
+    const character = text[index];
+    if (character === '\x1b') {
+      const introducer = text[index + 1];
+      if (introducer === '[') {
+        let end = index + 2;
+        while (end < text.length) {
+          const code = text.charCodeAt(end);
+          if (code >= 0x40 && code <= 0x7e) break;
+          end += 1;
+        }
+        if (end >= text.length) break;
+
+        const parameters = text.slice(index + 2, end);
+        if (text[end] === 'm' && /^[0-9:;]*$/.test(parameters)) {
+          output += text.slice(index, end + 1);
+        }
+        index = end + 1;
+        continue;
+      }
+
+      if (introducer !== undefined && ']P_X^'.includes(introducer)) {
+        index += 2;
+        while (index < text.length) {
+          if (text[index] === '\u0007') {
+            index += 1;
+            break;
+          }
+          if (text[index] === '\x1b' && text[index + 1] === '\\') {
+            index += 2;
+            break;
+          }
+          index += 1;
+        }
+        continue;
+      }
+
+      index += introducer === undefined ? 1 : 2;
+      continue;
+    }
+
+    const codePoint = text.codePointAt(index);
+    if (codePoint === undefined) break;
+    const glyph = String.fromCodePoint(codePoint);
+    index += glyph.length;
+    if (/[\p{Cc}\p{Cf}]/u.test(glyph)) {
+      if (glyph === '\r' || glyph === '\n' || glyph === '\t') output += ' ';
+      continue;
+    }
+    output += glyph;
+  }
+
+  return output.replace(/ +/g, ' ').trim();
 }
 
 function color(rgb: Rgb, text: string): string {
@@ -142,11 +196,41 @@ function mix(from: Rgb, to: Rgb, amount: number): Rgb {
 
 async function readAtlasVersion(): Promise<string> {
   try {
-    return (
-      sanitizeLabel(await Bun.file(join(homedir(), '.claude', 'LIFEOS', 'VERSION')).text()) || '—'
-    );
+    const version = await Bun.file(join(homedir(), '.claude', 'LIFEOS', 'VERSION')).text();
+    return sanitizeLabel(version) || '—';
   } catch {
     return '—';
+  }
+}
+
+function gitOutput(cwd: string, args: string[]): string | null {
+  try {
+    return execFileSync('git', ['-C', cwd, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export function readGitBranch(cwd: string): string | null {
+  return (
+    gitOutput(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']) ??
+    gitOutput(cwd, ['rev-parse', '--short', 'HEAD'])
+  );
+}
+
+function watchGitBranch(cwd: string, onChange: () => void): FSWatcher | undefined {
+  const headPath = gitOutput(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD']);
+  if (!headPath) return undefined;
+
+  try {
+    return watch(dirname(headPath), { persistent: false }, (_event, filename) => {
+      if (filename?.toString() === basename(headPath)) onChange();
+    });
+  } catch {
+    return undefined;
   }
 }
 
@@ -167,7 +251,6 @@ export function calculateCacheHitPercent(usage: CacheUsage): number | null {
   if (cacheRead + cacheWrite <= 0) return null;
 
   const promptTokens = input + cacheRead + cacheWrite;
-  if (promptTokens <= 0) return null;
   return Math.max(0, Math.min(100, Math.round((cacheRead / promptTokens) * 100)));
 }
 
@@ -291,55 +374,87 @@ export function renderAtlasFooter(state: AtlasFooterState, terminalWidth: number
 export default async function atlasStatusLine(omp: ExtensionAPI): Promise<void> {
   const atlasVersion = await readAtlasVersion();
   let requestRender: (() => void) | undefined;
+  let restoreStatusPublisher: (() => void) | undefined;
+  let removeWidget: (() => void) | undefined;
   const refresh = () => requestRender?.();
+  const clearInstalledWidget = () => {
+    restoreStatusPublisher?.();
+    restoreStatusPublisher = undefined;
+    requestRender = undefined;
+    removeWidget?.();
+    removeWidget = undefined;
+  };
+  const installWidget = (ctx: ExtensionContext) => {
+    clearInstalledWidget();
+    if (!ctx.hasUI) return;
+
+    const statuses = new Map<string, string>();
+    const originalSetStatus = ctx.ui.setStatus;
+    const captureStatus = (key: string, text: string | undefined) => {
+      if (text === undefined) {
+        statuses.delete(key);
+      } else {
+        statuses.set(key, text);
+      }
+      requestRender?.();
+    };
+    ctx.ui.setStatus = captureStatus;
+    restoreStatusPublisher = () => {
+      if (ctx.ui.setStatus === captureStatus) ctx.ui.setStatus = originalSetStatus;
+    };
+
+    const cwd = ctx.sessionManager.getCwd();
+    ctx.ui.setWidget(
+      WIDGET_KEY,
+      (tui, theme) => {
+        let active = true;
+        let branch = readGitBranch(cwd);
+        const renderNow = () => {
+          if (active) tui.requestRender();
+        };
+        const branchWatcher = watchGitBranch(cwd, () => {
+          branch = readGitBranch(cwd);
+          renderNow();
+        });
+        requestRender = renderNow;
+
+        return {
+          dispose() {
+            active = false;
+            branchWatcher?.close();
+            if (requestRender === renderNow) requestRender = undefined;
+          },
+          render(width: number): string[] {
+            const usage = ctx.getContextUsage();
+            return renderAtlasFooter(
+              {
+                atlasVersion,
+                provider: ctx.model?.provider || 'no-provider',
+                model: ctx.model?.id || 'no-model',
+                thinking: omp.getThinkingLevel() || 'off',
+                ompVersion: VERSION,
+                cwd,
+                branch,
+                contextPercent: usage?.percent ?? 0,
+                cachePercent: latestCacheHitPercent(ctx.sessionManager.getBranch()),
+                isLight: theme.isLight,
+                statuses,
+              },
+              width
+            );
+          },
+        };
+      },
+      { placement: 'aboveEditor' }
+    );
+    removeWidget = () => ctx.ui.setWidget(WIDGET_KEY, undefined);
+  };
 
   omp.on('turn_start', refresh);
   omp.on('turn_end', refresh);
   omp.on('message_end', refresh);
   omp.on('session_compact', refresh);
-  omp.on('session_switch', refresh);
-
-  omp.on('session_start', (_event, ctx) => {
-    if (!ctx.hasUI) return;
-    ctx.ui.setFooter((tui, theme, footerData) => {
-      let active = true;
-      const renderNow = () => {
-        if (active) tui.requestRender();
-      };
-      requestRender = renderNow;
-      const unsubscribeBranch = footerData.onBranchChange(renderNow);
-
-      return {
-        dispose() {
-          active = false;
-          unsubscribeBranch();
-          if (requestRender === renderNow) requestRender = undefined;
-        },
-        render(width: number): string[] {
-          const usage = ctx.getContextUsage();
-          return renderAtlasFooter(
-            {
-              atlasVersion,
-              provider: ctx.model?.provider || 'no-provider',
-              model: ctx.model?.id || 'no-model',
-              thinking: omp.getThinkingLevel() || 'off',
-              ompVersion: VERSION,
-              cwd: ctx.sessionManager.getCwd(),
-              branch: footerData.getGitBranch(),
-              contextPercent: usage?.percent ?? 0,
-              cachePercent: latestCacheHitPercent(ctx.sessionManager.getBranch()),
-              isLight: theme.isLight,
-              statuses: footerData.getExtensionStatuses(),
-            },
-            width
-          );
-        },
-      };
-    });
-  });
-
-  omp.on('session_shutdown', (_event, ctx) => {
-    requestRender = undefined;
-    if (ctx.hasUI) ctx.ui.setFooter(undefined);
-  });
+  omp.on('session_start', (_event, ctx) => installWidget(ctx));
+  omp.on('session_switch', (_event, ctx) => installWidget(ctx));
+  omp.on('session_shutdown', clearInstalledWidget);
 }
