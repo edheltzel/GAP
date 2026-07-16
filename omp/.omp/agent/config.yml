@@ -2,7 +2,7 @@ providers:
   webSearch: codex
 symbolPreset: nerd
 theme: 
-  dark: amethyst
+  dark: atlas-eldritch
   light: light-tokyo-night
 setupVersion: 1
 extensions: 

@@ -55,11 +55,13 @@ Runtime state, credentials, generated caches, and local identity stay out of git
 
 `omp/.omp/agent/extensions/atlas-status-line.ts` owns the canonical Atlas footer in OMP. `omp/.omp/agent/config.yml` lists it explicitly because stow folds the authored `extensions/` directory into a symlink and native glob discovery does not traverse that linked root. Install both with the scoped `just omp` workflow; focused contract tests live outside the stow package at `tests/omp/atlas-status-line.test.ts`.
 
-- Render `▲ Atlas v{LIFEOS_VERSION} · {provider}/{model} ⚡︎ {thinking} · π {OMP_VERSION} · …/{parent}/{current} ·  {branch} · {context meter} {context}%`, followed by ` {cache}%` only after a successful assistant request reports real cache read/write usage.
-- Register the footer through OMP 17's supported `ctx.ui.setWidget(..., { placement: "aboveEditor" })` surface. Keep native status-line segments empty through the `custom` preset so the Atlas row is the only primary footer; leave `showHookStatus` enabled as the native fallback if the widget is unavailable.
+- Render `▲ Atlas v{LIFEOS_VERSION} · {provider}/{model} ⚡︎ {thinking} · π {OMP_VERSION} · …/{parent}/{current} ·  {branch}` as the left group and `{context meter} {context}% ·  {cache}%` as the right group. Cache remains hidden until a successful assistant request reports real cache read/write usage and is omitted below 80 columns.
+- Register the footer through OMP 17's supported `ctx.ui.setWidget(..., { placement: "belowEditor" })` surface so it sits beneath the editor divider. Keep native status-line segments empty through the `custom` preset so the Atlas row is the only primary footer; leave `showHookStatus` enabled as the native fallback if the widget is unavailable.
+- Keep the primary footer to one full-width row with one leading and trailing space. At narrow widths, preserve the responsive context meter, drop path/OMP/branch metadata in that order, and ANSI-truncate the remaining model group rather than wrapping.
 - Read the Atlas version from `~/.claude/LIFEOS/VERSION`; derive model, provider, thinking, OMP version, active branch, compaction-aware context, and latest successful cache usage from live OMP state.
-- Capture `ui.setStatus` publications and render them as additional rows beneath Atlas, preserving trusted ANSI SGR styling while removing other controls. Restore OMP's original status publisher on session switch or shutdown; measure and truncate with OMP's ANSI-aware TUI helpers.
-- Use the canonical Eldritch dark and Rosé Pine Dawn light palettes. The green → yellow → orange → red context gradient uses dim empty `⛁` cells and responsive widths of 6 (`<35` columns), 8 (`35–54`), 16 (`55–79`), or 24 (`80+`).
+- Capture `ui.setStatus` publications and render them as inset additional rows beneath Atlas, preserving trusted ANSI SGR styling while removing other controls. Restore OMP's original status publisher on session switch or shutdown; measure and truncate with OMP's ANSI-aware TUI helpers.
+- Derive footer text, separator, semantic percentage, icon, path, branch, and background colors from the active OMP theme. `omp/.omp/agent/themes/atlas-eldritch.json` is the Atlas dark theme and `config.yml` selects it as `theme.dark`; other themes work without footer-specific palettes.
+- Use the theme's `statusLineBg` as an opaque full-row fill unless `statusLine.transparent: true`, which inherits the terminal background. The context bar alone remains canonical: Eldritch or Rosé Pine Dawn gradient and dim empty `⛁` cells, selected by light/dark appearance, with widths of 6 (`<35` columns), 8 (`35–54`), 16 (`55–79`), or 24 (`80+`). Its percentage uses the active theme's semantic colors.
 - Published OMP 17 still types `ctx.ui.setFooter` but leaves it inert in interactive mode. Do not call it and do not restore downstream footer wiring; use the supported widget API.
 
 ## OMP updates
@@ -80,6 +82,7 @@ Tracked OMP-authored config and packages currently include:
 - `omp/.omp/agent/mcp.json`
 - `omp/.omp/agent/extensions/codegraph.ts`
 - `omp/.omp/agent/extensions/atlas-status-line.ts`
+- `omp/.omp/agent/themes/atlas-eldritch.json`
 - `packages/omp-themis/` — installable OMP Themis extension package.
 - `.claude-plugin/marketplace.json` — local marketplace catalog exposing `themis`.
 
