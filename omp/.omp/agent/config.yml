@@ -2,16 +2,18 @@ providers:
   webSearch: codex
 symbolPreset: nerd
 theme: 
-  dark: atlas-eldritch
+  dark: atlas-default
   light: light-tokyo-night
 setupVersion: 1
 extensions: 
   - ~/.omp/agent/extensions/atlas-status-line.ts
 statusLine: 
   preset: custom
-  leftSegments: []
-  rightSegments: []
-  separator: ascii
+  leftSegments: 
+    []
+  rightSegments: 
+    []
+  separator: powerline-thin
   sessionAccent: false
   transparent: false
   compactThinkingLevel: false
@@ -63,6 +65,7 @@ todo:
   reminders: 
     max: 5
   eager: default
+  remindersMax: 5
 hideThinkingBlock: false
 secrets: 
   enabled: true
@@ -77,3 +80,12 @@ colorBlindMode: true
 dev: 
   autoqa: 
     consent: granted
+browser: 
+  cmux: false
+  screenshotDir: /Users/ed/Pictures/agent-screenshots/
+inspect_image: 
+  enabled: true
+astGrep: 
+  enabled: true
+tasks: 
+  todoClearDelay: 60
