@@ -2,7 +2,7 @@ providers:
   webSearch: codex
 symbolPreset: nerd
 theme: 
-  dark: atlas-default
+  dark: atlas-eldritch
   light: light-tokyo-night
 setupVersion: 1
 extensions: 
@@ -62,24 +62,22 @@ vault:
 github: 
   enabled: true
 todo: 
-  reminders: 
-    max: 5
   eager: default
   remindersMax: 5
 hideThinkingBlock: false
 secrets: 
   enabled: true
 modelRoles: 
-  default: openai-codex/gpt-5.6-sol:high
+  default: openai-codex/gpt-5.6-sol:xhigh
   commit: openrouter/deepseek/deepseek-v4-flash
-  plan: anthropic/claude-opus-4-8:xhigh
-  smol: openai-codex/gpt-5.4-mini:high
-  advisor: openai-codex/gpt-5.6-sol-pro:max
-  slow: openai-codex/gpt-5.6-sol-pro:high
+  plan: openai-codex/gpt-5.6-sol:xhigh
+  advisor: openai-codex/gpt-5.6-sol:xhigh
+  slow: opencode-zen/grok-4.5
+  smol: openai-codex/gpt-5.4-mini
+  tiny: openai-codex/gpt-5.6-luna
 colorBlindMode: true
 dev: 
-  autoqa: 
-    consent: granted
+  autoqaConsent: granted
 browser: 
   cmux: false
   screenshotDir: /Users/ed/Pictures/agent-screenshots/
