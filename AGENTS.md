@@ -103,6 +103,7 @@ The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and
 | `pi` | `pi/.pi/agent/` | `~/.pi/agent/` | Curated Pi config only; stowed with `--no-folding` so runtime state stays local |
 | `omp` | `omp/.omp/agent/` | `~/.omp/agent/` | Curated OMP-native config only; runtime DBs, sessions, blobs, memories, and secrets stay local |
 | Skills | `skills.txt`, `install-skills.sh` | skills.sh global install targets | Manifest-installed skills; no repo-local `skills/` store |
+| OMP plugins | `omp-plugins.txt`, `install-omp-plugins.sh` | `~/.omp/plugins/` | Manifest-declared user-scoped OMP marketplace plugins; installed registry and caches stay local |
 
 Project-local Atlas artifacts live under `.agents/atlas/` (`plans/`, `handoffs/`, `artifacts/`, `worktrees/`). The entire `.agents/atlas/` folder is gitignored — local-only and untracked; these docs do not sync via git. Tracked durable documentation lives under `docs/`.
 
@@ -141,8 +142,9 @@ Detection depends on stow's conflict wording (`existing target is not owned by s
 
 ## When adding files
 
-- Adding to `claude/.claude/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow and provision the `skills.txt` manifest.
-- Adding, removing, or changing skills → edit `skills.txt`, then run `just skills-status` to review the generated `skills add` commands and `just skills-install` to install them through skills.sh.
+- Adding to `claude/.claude/`, `omp/.omp/agent/`, or curated files under `pi/.pi/agent/` → run `just up` to restow and provision both tracked manifests.
+- Adding, removing, or changing shared skills → edit `skills.txt`, then run `just skills-status` and `just skills-install`.
+- Adding, removing, or changing OMP marketplace plugins → edit `omp-plugins.txt`, then run `just omp-plugins-status` and `just omp-plugins-install`.
 - Anything that should not be symlinked into the runtime location → add a pattern to that package's `.stow-local-ignore`.
 - Archived config directories (`claude/.claude/_archived/`, `omp/.omp/**/_archived/`, `pi/.pi/**/_archived/`) are repo-only and must stay ignored by stow.
 - Pi runtime/package state (`auth.json`, `sessions/`, `cache/`, `mcp*.json`, `run-history.jsonl`, `memory/`, `npm/`, `git/`) stays in the real `~/.pi/agent`, not in atlas-config.
@@ -163,6 +165,12 @@ Detection depends on stow's conflict wording (`existing target is not owned by s
 Custom skills are manifest-managed, not stored as a repo-backed `skills/` directory. The canonical source is `skills.txt`: each line maps a skills.sh source to selected skills with `owner/repo=skill,skill`. `install-skills.sh` reads that manifest and runs `skills add <source> -g -a <agents> -s <skills> -y` for every source.
 
 Workflow: edit `skills.txt` → `just skills-status` for a dry run → `just skills-install` to install through skills.sh. Use `SKILLS_AGENTS=\"claude-code,pi,codex\"` to target specific agents; the default is all detected agents. Native/custom skills that used to live in atlas-config should move to their own skills.sh-compatible repos and be pulled in through `skills.txt`; do not recreate a local `skills/` store.
+
+### OMP plugin manifest
+
+OMP-owned marketplace packages are manifest-managed separately from cross-harness skills. The canonical source is `omp-plugins.txt`; each line maps `owner/repo=plugin@marketplace`. `install-omp-plugins.sh` adds or updates the marketplace, then installs or upgrades the user-scoped plugin. The OMP runtime registry and downloaded plugin cache under `~/.omp/plugins/` remain untracked.
+
+Workflow: edit `omp-plugins.txt` → `just omp-plugins-status` for a dry run → `just omp-plugins-install` to apply it. `just omp`, `just link`, and `just up` also provision the manifest. Compound Engineering is OMP-owned through `compound-engineering@compound-engineering-plugin`; keep the Claude installation for Claude Code, and do not copy the Pi `resources_discover` bridge into `omp/.omp/agent/extensions/`.
 
 ### Issue tracker
 

@@ -281,6 +281,7 @@
           <li><a href="#track">Track</a></li>
           <li><a href="#never-track">Never track</a></li>
           <li><a href="#adding-files">Adding OMP files</a></li>
+          <li><a href="#marketplace-plugins">OMP marketplace plugins</a></li>
           <li><a href="#atlas-status-line">Atlas status line</a></li>
           <li><a href="#updates">OMP updates</a></li>
           <li><a href="#baseline">Current tracked baseline</a></li>
@@ -331,12 +332,27 @@
           <h2>Adding OMP files</h2>
           <ol>
             <li>Put stowed global config under <code>omp/.omp/agent/</code>.</li>
-            <li>Put installable OMP extension packages under <code>packages/&lt;name&gt;/</code> with <code>package.json#omp.extensions</code>.</li>
-            <li>Put marketplace entries in <code>.claude-plugin/marketplace.json</code>.</li>
+            <li>Put installable local OMP extension packages under <code>packages/&lt;name&gt;/</code> with <code>package.json#omp.extensions</code>.</li>
+            <li>Put local marketplace entries in <code>.claude-plugin/marketplace.json</code>.</li>
+            <li>Put external OMP marketplace packages in <code>omp-plugins.txt</code> as <code>owner/repo=plugin@marketplace</code>.</li>
             <li>If the matching live stowed file already exists under <code>~/.omp/agent/</code>, use <code>stow --adopt</code> once or move the file into the repo before restowing.</li>
-            <li>Run <code>just up</code> after changing stowed global config. Package-only changes do not need stow.</li>
+            <li>Run <code>just up</code> after changing stowed global config. Run <code>just omp-plugins-status</code> and <code>just omp-plugins-install</code> after changing the plugin manifest.</li>
             <li>If stow reports a conflict, resolve the live file deliberately; do not delete runtime state directories to make stow pass.</li>
           </ol>
+        </section>
+
+        <section id="marketplace-plugins">
+          <h2>OMP marketplace plugins</h2>
+          <p><code>omp-plugins.txt</code> is the tracked desired state for user-scoped OMP marketplace packages. <code>install-omp-plugins.sh</code> adds or updates each declared marketplace, then installs or upgrades its plugin. OMP owns the live registry and downloaded cache under <code>~/.omp/plugins/</code>; those runtime files remain untracked.</p>
+          <p>Compound Engineering is declared as <code>EveryInc/compound-engineering-plugin=compound-engineering@compound-engineering-plugin</code>. OMP therefore loads CE from its own marketplace cache instead of relying on the lower-priority Claude-plugin discovery copy. Keep the Claude plugin installed for Claude Code. Do not port CE's Pi <code>resources_discover</code> extension into OMP: marketplace skill discovery already owns the root <code>skills/</code> directory, while OMP 17 does not invoke that Pi discovery event from <code>AgentSession</code>.</p>
+          <ul>
+            <li><code>just omp-plugins-status</code> prints the add/update and install/upgrade operations without applying them.</li>
+            <li><code>just omp-plugins-install</code> applies the manifest.</li>
+            <li><code>just omp</code>, <code>just link</code>, and <code>just up</code> also provision the OMP plugin manifest.</li>
+            <li>The installer validates the complete manifest before invoking OMP, treats only a user-scoped entry as installed, and refuses to update a marketplace whose registered source differs from the manifest. For an intentional source migration, run <code>omp plugin marketplace remove &lt;name&gt;</code>, then rerun provisioning.</li>
+            <li>Focused installer contracts live at <code>tests/omp/install-omp-plugins.test.ts</code>.</li>
+            <li>Verify ownership with <code>omp plugin list</code>; CE must appear under <code>Marketplace Plugins</code>.</li>
+          </ul>
         </section>
 
         <section id="atlas-status-line">
@@ -379,6 +395,7 @@
             <li><strong>Atlas Eldritch theme</strong><code>omp/.omp/agent/themes/atlas-eldritch.json</code></li>
             <li><strong>Themis package</strong><code>packages/omp-themis/</code></li>
             <li><strong>Marketplace catalog</strong><code>.claude-plugin/marketplace.json</code></li>
+            <li><strong>OMP plugin manifest</strong><code>omp-plugins.txt</code>, <code>install-omp-plugins.sh</code></li>
           </ul>
           <div class="callout"><code>omp/.omp/agent/extensions/herdr-omp-agent-state.ts</code> is currently tracked but remains herdr-managed and may be overwritten by integration updates. Do not treat it as authored baseline or change its ownership incidentally; reconcile tracking separately.</div>
         </section>

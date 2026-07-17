@@ -45,11 +45,25 @@ Runtime state, credentials, generated caches, and local identity stay out of git
 ## Adding OMP files
 
 1. Stowed global config goes under `omp/.omp/agent/`.
-2. Installable OMP extension packages go under `packages/<name>/` with `package.json#omp.extensions`.
-3. Marketplace entries go in `.claude-plugin/marketplace.json`.
-4. If the matching live stowed file already exists under `~/.omp/agent/`, use `stow --adopt` once or move the file into the repo before restowing.
-5. Run `just up` after changing stowed global config. Package-only changes do not need stow.
-6. If stow reports a conflict, resolve the live file deliberately; do not delete runtime state directories to make stow pass.
+2. Installable local OMP extension packages go under `packages/<name>/` with `package.json#omp.extensions`.
+3. Local marketplace entries go in `.claude-plugin/marketplace.json`.
+4. External OMP marketplace packages go in `omp-plugins.txt` as `owner/repo=plugin@marketplace`.
+5. If the matching live stowed file already exists under `~/.omp/agent/`, use `stow --adopt` once or move the file into the repo before restowing.
+6. Run `just up` after changing stowed global config. Run `just omp-plugins-status` and `just omp-plugins-install` after changing the plugin manifest.
+7. If stow reports a conflict, resolve the live file deliberately; do not delete runtime state directories to make stow pass.
+
+## OMP marketplace plugins
+
+`omp-plugins.txt` is the tracked desired state for user-scoped OMP marketplace packages. `install-omp-plugins.sh` adds or updates each declared marketplace, then installs or upgrades its plugin. OMP owns the live registry and downloaded cache under `~/.omp/plugins/`; those runtime files remain untracked.
+
+Compound Engineering is declared as `EveryInc/compound-engineering-plugin=compound-engineering@compound-engineering-plugin`. OMP therefore loads CE from its own marketplace cache instead of relying on the lower-priority Claude-plugin discovery copy. Keep the Claude plugin installed for Claude Code. Do not port CE's Pi `resources_discover` extension into OMP: marketplace skill discovery already owns the root `skills/` directory, while OMP 17 does not invoke that Pi discovery event from `AgentSession`.
+
+- `just omp-plugins-status` prints the add/update and install/upgrade operations without applying them.
+- `just omp-plugins-install` applies the manifest.
+- `just omp`, `just link`, and `just up` also provision the OMP plugin manifest.
+- The installer validates the complete manifest before invoking OMP, treats only a user-scoped entry as installed, and refuses to update a marketplace whose registered source differs from the manifest. For an intentional source migration, run `omp plugin marketplace remove <name>`, then rerun provisioning.
+- Focused installer contracts live at `tests/omp/install-omp-plugins.test.ts`.
+- Verify ownership with `omp plugin list`; CE must appear under `Marketplace Plugins`.
 
 ## Atlas status line
 
@@ -86,5 +100,6 @@ Tracked OMP-authored config and packages currently include:
 - `omp/.omp/agent/themes/atlas-default.json`
 - `packages/omp-themis/` — installable OMP Themis extension package.
 - `.claude-plugin/marketplace.json` — local marketplace catalog exposing `themis`.
+- `omp-plugins.txt` and `install-omp-plugins.sh` — tracked desired state and installer for user-scoped OMP marketplace plugins.
 
 `omp/.omp/agent/extensions/herdr-omp-agent-state.ts` is currently tracked but remains herdr-managed and may be overwritten by integration updates. Do not treat it as authored baseline or change its ownership incidentally; reconcile tracking separately.

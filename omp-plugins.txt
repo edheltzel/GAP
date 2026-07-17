@@ -1,0 +1,2 @@
+# Marketplace source=plugin@marketplace
+EveryInc/compound-engineering-plugin=compound-engineering@compound-engineering-plugin
