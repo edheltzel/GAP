@@ -146,10 +146,11 @@ describe('Atlas OMP status line', () => {
   });
 
 
-  it('uses the exact canonical glyph codepoints', () => {
+  it('uses single-cell canonical glyphs so the native editor border stays aligned', () => {
     expect(NERD_FONT_ICONS.branch.codePointAt(0)).toBe(0xf418);
     expect(NERD_FONT_ICONS.cache.codePointAt(0)).toBe(0xf49b);
-    expect(Array.from('⚡︎', (glyph) => glyph.codePointAt(0))).toEqual([0x26a1, 0xfe0e]);
+    expect(NERD_FONT_ICONS.thinking.codePointAt(0)).toBe(0xf0e7);
+    expect(visibleWidth(NERD_FONT_ICONS.thinking)).toBe(1);
   });
 
   it('wraps and truncates ANSI-styled items by visible width', () => {
@@ -172,7 +173,7 @@ describe('Atlas OMP status line', () => {
     const footer = stripAnsi(lines[0]);
 
     expect(footer).toContain('▲ Atlas v7.1.1');
-    expect(footer).toContain('openai/gpt-5.6 ⚡︎ high');
+    expect(footer).toContain('openai/gpt-5.6  high');
     expect(footer).toContain('π 17.0.0');
     expect(footer).toContain('…/Atlas/Config');
     expect(footer).toContain(' main');
@@ -555,7 +556,7 @@ describe('Atlas OMP status line', () => {
     expect(editor.borderColor?.('────────────────')).toBe('native:────────────────');
     expect(editor.borderColor?.('─')).toBe('native:─');
     expect(rendered).toContain('▲ Atlas v');
-    expect(rendered).toContain('openai-codex/gpt-5.6-sol ⚡︎ high');
+    expect(rendered).toContain('openai-codex/gpt-5.6-sol  high');
     expect(rendered).toContain(`π ${OMP_VERSION}`);
     expect(Array.from(rendered).filter((glyph) => glyph === '⛁')).toHaveLength(24);
     expect(rendered).toContain(sessionTitle);
@@ -595,7 +596,7 @@ describe('Atlas OMP status line', () => {
     handlers.get('session_compact')?.({}, testContext);
     expect(renderRequests).toBe(4);
     const refreshed = stripAnsi(replacementTopBorderProvider?.(236)?.content ?? '');
-    expect(refreshed).toContain('openai-codex/gpt-next ⚡︎ max');
+    expect(refreshed).toContain('openai-codex/gpt-next  max');
     expect(refreshed).toContain('73%');
     expect(refreshed).toContain(' 99%');
     expect(refreshed).toContain(sessionTitle);

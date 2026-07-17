@@ -21,7 +21,6 @@ import { getAgentDir, MAIN_CONFIG_FILENAMES } from '@oh-my-pi/pi-utils';
 
 const SYMBOLS = {
   atlas: '▲',
-  thinking: '⚡︎', // U+FE0E forces text presentation.
   omp: 'π',
   contextCell: '⛁'
 } as const;
@@ -30,7 +29,8 @@ const WIDGET_KEY = 'atlas-status-line';
 
 export const NERD_FONT_ICONS = {
   branch: '\uF418', // nf-oct-git_branch
-  cache: '\uF49B' // nf-oct-cache
+  cache: '\uF49B', // nf-oct-cache
+  thinking: '\uF0E7' // nf-fa-bolt
 } as const;
 
 type Rgb = readonly [number, number, number];
@@ -560,7 +560,7 @@ export function renderAtlasFooter(state: AtlasFooterState, terminalWidth: number
     },
     {
       key: 'model',
-      content: `${providerModel} ${color(palette.path, SYMBOLS.thinking)} ${color(palette.brand, thinking)}`
+      content: `${providerModel} ${color(palette.path, NERD_FONT_ICONS.thinking)} ${color(palette.brand, thinking)}`
     },
     {
       key: 'omp',
