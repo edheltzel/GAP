@@ -18,7 +18,7 @@
     "npm:@vndv/pi-codegraph",
     "git:github.com/EveryInc/compound-engineering-plugin"
   ],
-  "theme": "dark",
+  "theme": "atlas-eldritch",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "quietStartup": true,
