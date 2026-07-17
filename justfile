@@ -54,9 +54,9 @@ prune-broken *packages:
         echo -e "{{ green }}Pruned $total broken link(s){{ clr }}"
     fi
 
-# Restow all packages and provision skills from skills.txt
+# Restow all packages and provision skills plus OMP marketplace plugins
 [group('stow')]
-update: prune-broken && skills-install
+update: prune-broken && skills-install omp-plugins-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} --restow $pkg; done
@@ -73,9 +73,9 @@ claude: (prune-broken "claude")
     {{ stow_cmd }} --restow claude
     echo -e "{{ green }}claude restowed{{ clr }}"
 
-# Restow the omp package only
+# Restow the OMP package and provision its marketplace plugins
 [group('stow')]
-omp: (prune-broken "omp")
+omp: (prune-broken "omp") && omp-plugins-install
     #!/usr/bin/env bash
     set -eu
     {{ stow_cmd }} --restow omp
@@ -89,9 +89,9 @@ pi: (prune-broken pi_pkg)
     {{ stow_cmd }} --no-folding --restow {{ pi_pkg }}
     echo -e "{{ green }}pi restowed{{ clr }}"
 
-# Create symlinks and provision skills from skills.txt
+# Create symlinks and provision skills plus OMP marketplace plugins
 [group('stow')]
-link: prune-broken && skills-install
+link: prune-broken && skills-install omp-plugins-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} $pkg; done
@@ -193,6 +193,20 @@ skills-status:
     #!/usr/bin/env bash
     set -eu
     ./install-skills.sh --dry-run
+
+# Install user-scoped OMP marketplace plugins from omp-plugins.txt
+[group('plugins')]
+omp-plugins-install *args:
+    #!/usr/bin/env bash
+    set -eu
+    ./install-omp-plugins.sh {{ args }}
+
+# Dry-run OMP marketplace plugin provisioning
+[group('plugins')]
+omp-plugins-status:
+    #!/usr/bin/env bash
+    set -eu
+    ./install-omp-plugins.sh --dry-run
 
 # Commit and push config changes
 [group('git')]
