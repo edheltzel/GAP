@@ -24,14 +24,15 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 
 ## CURATED SKILLS
 
-- `skills/RedTeam/` is the deliberate Pi-native copy of the authoritative Claude
-  RedTeam skill at `~/.claude/skills/RedTeam/`; compare every source file before syncing.
-- Preserve RedTeam concepts and trigger coverage while adapting Claude-only paths,
-  commands, agent syntax, and lifecycle rules to functional Pi equivalents.
-- Keep `SKILL.md` valid under Pi's Agent Skills rules and make every local workflow
-  reachable through relative progressive-disclosure links.
-- Validate this tracked source directly in disposable worktrees. Restow with `just pi`
-  only from the canonical clone after merge.
+- `skills/RedTeam/` and `skills/art/` are deliberate Pi-native conversions of their authoritative Claude skills; compare every source file before syncing.
+- Preserve RedTeam concepts and trigger coverage while adapting Claude-only paths, commands, agent syntax, and lifecycle rules to functional Pi equivalents.
+- For PAI-to-Pi conversions, use a lowercase-hyphen directory and matching `name:`; use Pi frontmatter without Claude-only `version` or `effort` fields.
+- Rewrite runtime paths to `~/.pi/agent/skills/<name>/`, keep each skill self-contained, and replace Claude-only hooks with harness-neutral enforcement where needed.
+- Send best-effort notifications to Echo at `localhost:8888`, never disabled Pulse port `31337`.
+- Pi skill customizations live under `~/.pi/agent/SKILLCUSTOMIZATIONS/<name>/`; execution logs live under `~/.pi/agent/memory/skills/`.
+- Keep `SKILL.md` valid under Pi's Agent Skills rules and make every local workflow reachable through relative progressive-disclosure links.
+- Bundled Bun tools must install dependencies beside the real repository files, not through the stowed `~/.pi` symlinks, because Bun resolves imports from realpaths; keep `node_modules` and `.env` ignored.
+- Validate tracked sources directly in disposable worktrees. Restow with `just pi` only from the canonical clone after merge.
 
 ## TOOL RENDERING
 

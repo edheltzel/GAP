@@ -16,7 +16,8 @@
     "npm:@tintinweb/pi-subagents",
     "npm:pi-lens",
     "npm:@vndv/pi-codegraph",
-    "git:github.com/EveryInc/compound-engineering-plugin"
+    "git:github.com/EveryInc/compound-engineering-plugin",
+    "npm:@ogulcancelik/pi-ghost"
   ],
   "theme": "atlas-eldritch",
   "defaultProvider": "openai-codex",
