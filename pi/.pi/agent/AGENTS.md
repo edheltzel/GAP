@@ -22,6 +22,17 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 - Do not restore converter-managed `ce-*` skills or agents under `~/.pi/agent/`; the native package owns skill discovery from its Git checkout.
 - Keep `npm:@tintinweb/pi-subagents` and `npm:pi-ask-user` installed as workflow companions.
 
+## CURATED SKILLS
+
+- `skills/RedTeam/` is the deliberate Pi-native copy of the authoritative Claude
+  RedTeam skill at `~/.claude/skills/RedTeam/`; compare every source file before syncing.
+- Preserve RedTeam concepts and trigger coverage while adapting Claude-only paths,
+  commands, agent syntax, and lifecycle rules to functional Pi equivalents.
+- Keep `SKILL.md` valid under Pi's Agent Skills rules and make every local workflow
+  reachable through relative progressive-disclosure links.
+- Validate this tracked source directly in disposable worktrees. Restow with `just pi`
+  only from the canonical clone after merge.
+
 ## TOOL RENDERING
 
 - `npm:@mobrienv/pi-tidy-tools@0.3.0` is the pinned global renderer for Pi's built-in tools. It adds `/tidy`, `/diff`, and `ctrl+shift+o`.
