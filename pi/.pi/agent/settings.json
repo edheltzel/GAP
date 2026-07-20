@@ -1,7 +1,6 @@
 {
   "packages": [
     "npm:pi-mcp-adapter",
-    "npm:pi-ask-user",
     "npm:pi-web-access",
     "npm:@devkade/pi-plan",
     "npm:pi-simplify",
@@ -17,7 +16,8 @@
     "npm:pi-lens",
     "npm:@vndv/pi-codegraph",
     "git:github.com/EveryInc/compound-engineering-plugin",
-    "npm:@ogulcancelik/pi-ghost"
+    "npm:@ogulcancelik/pi-ghost",
+    "git:github.com/edheltzel/pi-ask-user@v0.13.0-herdr.1"
   ],
   "theme": "atlas-eldritch",
   "defaultProvider": "openai-codex",

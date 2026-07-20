@@ -1,5 +1,9 @@
 # Global OMP Rules
 
+## Global Rules
+
+These rules are MANDATORY with NO EXCEPTIONS for operating is loaded from `~/.omp/agent/rules/global-agent-instructions.md`. Do not duplicate it here.
+
 ## Handoff Storage
 
 When using the `/handoff` skill or creating a session handoff, always save the handoff markdown under the current project's `docs/plans/handoffs/` directory.

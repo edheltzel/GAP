@@ -1,5 +1,13 @@
 # Pi Agent Configuration
 
+## Global Rules
+
+These rules are MANDATORY with NO EXCEPTIONS for operating is loaded from `~/.pi/agent/rules/global-agent-instructions.md`. Do not duplicate it here.
+
+## MEMORY
+
+Read and follow the canonical Recall guide at `~/.pi/agent/Recall_GUIDE.md`. Use the live `recall-memory` MCP schemas as the source of truth for tool call shapes; do not duplicate them here.
+
 ## HANDOFFS
 
 When using the `/handoff` skill or creating a session handoff, follow the nearest repository
@@ -20,7 +28,12 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 
 - Compound Engineering is an intentional global package exception, loaded directly from the official `git:github.com/EveryInc/compound-engineering-plugin` Pi package in `settings.json`.
 - Do not restore converter-managed `ce-*` skills or agents under `~/.pi/agent/`; the native package owns skill discovery from its Git checkout.
-- Keep `npm:@tintinweb/pi-subagents` and `npm:pi-ask-user` installed as workflow companions.
+- Keep `npm:@tintinweb/pi-subagents` and the pinned
+  `git:github.com/edheltzel/pi-ask-user@v0.13.0-herdr.1` fork installed as
+  workflow companions.
+- The fork preserves `pi-ask-user`'s full UI, schema, and decision-gate skill
+  while adding Herdr blocked-state and metadata hooks. Do not also install
+  `npm:pi-ask-user` or `npm:pi-ask-herdr`; either would duplicate `ask_user`.
 
 ## CURATED SKILLS
 
@@ -58,10 +71,6 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 - Cache percentage is the latest successful assistant prompt's `cacheRead / (input + cacheRead + cacheWrite)`, rounded to a whole percent.
 - Preserve the canonical text symbols and Nerd Font branch/cache glyphs without emoji presentation, and preserve ANSI-styled status text published by other extensions.
 - After changes, run `just pi` and reload Pi with `/reload`.
-
-## MEMORY
-
-Read and follow the canonical Recall guide at `~/.pi/agent/Recall_GUIDE.md`. Use the live `recall-memory` MCP schemas as the source of truth for tool call shapes; do not duplicate them here.
 
 ## Maintaining this file
 
