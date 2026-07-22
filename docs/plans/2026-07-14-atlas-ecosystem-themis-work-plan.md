@@ -9,7 +9,7 @@
 
 ## Board structure (after this session's consolidation)
 
-Seven boards were closed. Recall's six phase/track boards collapsed into **one board + milestones**; Better Solarized (100% done) was closed.
+Seven boards were closed. Recall's six phase/track boards collapsed into **one board + milestones**.
 
 **Active boards:**
 

@@ -17,7 +17,9 @@
     "npm:@vndv/pi-codegraph",
     "git:github.com/EveryInc/compound-engineering-plugin",
     "npm:@ogulcancelik/pi-ghost",
-    "git:github.com/edheltzel/pi-ask-user@v0.13.0-herdr.1"
+    "git:github.com/edheltzel/pi-ask-user@v0.13.0-herdr.1",
+    "npm:pi-unified-exec",
+    "npm:pi-herdr-btw"
   ],
   "theme": "atlas-eldritch",
   "defaultProvider": "openai-codex",
@@ -25,6 +27,6 @@
   "quietStartup": true,
   "defaultThinkingLevel": "xhigh",
   "hideThinkingBlock": false,
-  "lastChangelogVersion": "0.80.10",
+  "lastChangelogVersion": "0.81.1",
   "editorPaddingX": 1
 }
