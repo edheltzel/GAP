@@ -199,7 +199,7 @@ Do not force source sharing if the harness APIs make the result less maintainabl
 
 ### 5. The lockfile does not match the manifest
 
-`skills-lock.json` currently lists only `lavish` and four Recall source-command entries. It does not cover most `skills.txt` selections such as `pm-tools`, `karpathy-guidelines`, or the Matt Pocock skills.
+At the time of this handoff, `skills-lock.json` listed only the project-scoped `lavish` entry and four Recall source-command entries. Stage 2 removed that project-scoped entry; the current lock therefore contains only the four Recall source-command entries and still does not cover most `skills.txt` selections such as `pm-tools`, `karpathy-guidelines`, or the Matt Pocock skills.
 
 The root docs/commit history imply that the lock pins resolved skill versions, but the current file does not provide complete reproducibility. Determine the actual role of `skills-lock.json` with the installed skills.sh version and either:
 

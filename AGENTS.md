@@ -166,7 +166,7 @@ Custom skills are manifest-managed, not stored as a repo-backed `skills/` direct
 
 Workflow: edit `skills.txt` → `just skills-status` for a dry run → `just skills-install` to install through skills.sh. `just link` and `just up` provision shared skills; package-only `just claude`, `just omp`, and `just pi` commands do not. Use `SKILLS_AGENTS=\"claude-code,pi,codex\"` to target specific agents; the default is all detected agents. Native/custom skills that used to live in atlas-config should move to their own skills.sh-compatible repos and be pulled in through `skills.txt`; do not recreate a local `skills/` store. The tracked Pi RedTeam and Art adaptations are deliberate harness-specific exceptions owned by `pi/.pi/agent/AGENTS.md`.
 
-Lavish stage 1 is global provisioning only: its `skills.txt` entry pins upstream commit `55045850f61e7b23c8dbf8cc30d92bd6e31649d2` and Git blob `1e792b5bfc34127ca6f00bbb44fea306ce77ea52`, while `.agents/skills/lavish/SKILL.md`, `.claude/skills/lavish`, and the project lock entry remain intentionally in place until stage 2 evidence and approval.
+Lavish is globally owned through `skills.txt`: its entry pins upstream commit `55045850f61e7b23c8dbf8cc30d92bd6e31649d2` and verifies Git blob `1e792b5bfc34127ca6f00bbb44fea306ce77ea52` during `just skills-status` and `just skills-install`. The project-scoped `.agents/skills/lavish/SKILL.md`, `.claude/skills/lavish`, and project lock entry were removed after the approved stage 2 fallback decision; do not recreate them or add a renamed fixture without a concrete later test need.
 
 ### OMP plugin manifest
 
