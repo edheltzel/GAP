@@ -43,5 +43,7 @@ just push            # commit any changes and push to origin
 - `oldSetup/`, `.audit-backup/`, and any `auth.json` files are gitignored — runtime state and local backups never get committed.
 - OMP runtime state stays local; only curated files like `config.yml`, `models.yml`, `mcp.json`, keybindings, skills, commands, tools, extensions, and themes are stowed. `omp-plugins.txt` tracks desired marketplace packages while OMP keeps its installed registry and cache under `~/.omp/plugins/`. See `docs/agents/omp.md`.
 - `just link` and `just up` provision shared skills from `skills.txt`; package-only `just claude`, `just omp`, and `just pi` commands only restow or provision their package-specific state.
-- Lavish stage 1 pins global provisioning to upstream commit `55045850f61e7b23c8dbf8cc30d92bd6e31649d2` and verifies blob `1e792b5bfc34127ca6f00bbb44fea306ce77ea52`. The project Lavish file, Claude link, and lock entry remain intentionally until stage 2 evidence and approval.
+- Lavish is globally owned through `skills.txt`, which pins upstream commit `55045850f61e7b23c8dbf8cc30d92bd6e31649d2` and verifies blob `1e792b5bfc34127ca6f00bbb44fea306ce77ea52` during `just skills-status` and `just skills-install`.
+- Fresh or disposable checkouts should run `just skills-status` and then `just skills-install` before using Lavish; `just claude` and `just pi` only restow package-specific state.
+- To roll back the project-ownership removal, revert its commit and rerun `just skills-install` to restore the pinned global copy and generated agent links; do not reintroduce a Pi package copy.
 - Worktrees (`EnterWorktree` / `ExitWorktree`) write to `.agents/atlas/worktrees/`, which is also gitignored.
