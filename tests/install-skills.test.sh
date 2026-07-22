@@ -9,10 +9,13 @@ commit="55045850f61e7b23c8dbf8cc30d92bd6e31649d2"
 blob="1e792b5bfc34127ca6f00bbb44fea306ce77ea52"
 manifest="$temp_home/skills.txt"
 installed="$temp_home/home/.agents/skills/lavish/SKILL.md"
+source_commit="$(git -C "$repo_root" log -1 --format=%H --all --diff-filter=A -- .agents/skills/lavish/SKILL.md)"
+
+[ -n "$source_commit" ]
 
 mkdir -p "$(dirname "$installed")" "$temp_home/bin"
 ln -s "$(command -v true)" "$temp_home/bin/skills"
-cp "$repo_root/.agents/skills/lavish/SKILL.md" "$installed"
+git -C "$repo_root" show "$source_commit:.agents/skills/lavish/SKILL.md" > "$installed"
 printf 'kunchenguid/lavish-axi#%s=lavish|skills/lavish/SKILL.md|%s # parser comment\n' "$commit" "$blob" > "$manifest"
 
 output="$(HOME="$temp_home/home" PATH="$temp_home/bin:$PATH" SKILLS_AGENTS='claude-code,pi' "$repo_root/install-skills.sh" --dry-run "$manifest")"
