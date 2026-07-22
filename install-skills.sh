@@ -3,8 +3,12 @@
 # install-skills.sh — provision every skills.sh skill listed in skills.txt.
 #
 # Companion to the skills.txt manifest (dotfiles packages/*.txt model). For each
-# manifest line `owner/repo=skill,skill`, installs those skills globally into all
-# detected agents via the skills.sh CLI. Exits non-zero if any source fails.
+# manifest line `owner/repo[#commit]=skill,skill`, installs those skills globally
+# into all detected agents via the skills.sh CLI. An optional `|path|git-blob`
+# suffix verifies one installed SKILL.md against an immutable upstream blob.
+# skills.sh currently treats #ref as a branch selector, so a full commit ref is
+# retained as policy metadata and enforced by the blob check while the CLI gets
+# the base repository source. Exits non-zero if any source or integrity check fails.
 
 set -uo pipefail
 
@@ -17,7 +21,8 @@ usage() {
   cat <<'EOF'
 Usage: ./install-skills.sh [-n|--dry-run] [manifest]
 
-  Installs skills from a manifest of `owner/repo=skill,skill` lines
+  Installs skills from a manifest of `owner/repo[#commit]=skill,skill[|path|git-blob]` lines.
+  A full commit ref requires the blob suffix because skills.sh treats #ref as a branch.
   (default: ./skills.txt) via `skills add <source> -g -a <agents> -s <skills> -y`.
 
 Options:
@@ -40,9 +45,9 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -t 1 ]; then
-  green=$'\e[32m'; yellow=$'\e[33m'; red=$'\e[31m'; cyan=$'\e[36m'; clr=$'\e[0m'
+  green=$'\e[32m'; yellow=$'\e[33m'; red=$'\e[31m'; cyan=$'\e[36m'; white=$'\e[37m'; clr=$'\e[0m'
 else
-  green=''; yellow=''; red=''; cyan=''; clr=''
+  green=''; yellow=''; red=''; cyan=''; white=''; clr=''
 fi
 
 # bun-first per repo convention; never npm/npx.
@@ -55,18 +60,101 @@ else
   exit 1
 fi
 
+agent_args=()
+IFS=',' read -ra agent_names <<< "$AGENTS"
+for agent in "${agent_names[@]}"; do
+  [ -n "$agent" ] && agent_args+=(-a "$agent")
+done
+
 [ -f "$MANIFEST" ] || { printf '%sManifest not found: %s%s\n' "$red" "$MANIFEST" "$clr" >&2; exit 1; }
 
 ok=0
 failed=()
+verify_installed_blob() {
+  local name="$1" source_path="$2" expected="$3" required="${4:-0}"
+  local installed
+  local actual
+
+  installed="$HOME/.agents/skills/$name/$(basename "$source_path")"
+
+  if [ ! -f "$installed" ]; then
+    printf '%s    not installed: %s%s\n' "$yellow" "$installed" "$clr"
+    [ "$required" -eq 0 ]
+    return $?
+  fi
+  if ! command -v git >/dev/null 2>&1; then
+    printf '%s    failed: git is required to verify %s%s\n' "$red" "$installed" "$clr" >&2
+    return 1
+  fi
+  actual="$(git hash-object --path="$source_path" "$installed")"
+  if [ "$actual" != "$expected" ]; then
+    printf '%s    integrity mismatch: %s (expected git blob %s, got %s)%s\n' \
+      "$red" "$installed" "$expected" "$actual" "$clr" >&2
+    return 1
+  fi
+  printf '%s    integrity verified: %s (git blob %s)%s\n' "$green" "$installed" "$actual" "$clr"
+}
+
 while IFS= read -r line || [ -n "$line" ]; do
-  line="${line%%#*}"                                 # strip comments
+  # A # in an immutable source ref is data. Only a # at the beginning or after
+  # whitespace starts a comment, preserving `owner/repo#<commit>` safely.
+  if [[ "$line" =~ ^[[:space:]]*# ]]; then continue; fi
+  if [[ "$line" =~ ^(.*[^[:space:]])[[:space:]]+#.*$ ]]; then line="${BASH_REMATCH[1]}"; fi
   line="$(printf '%s' "$line" | tr -d '[:space:]')"  # manifest tokens carry no spaces
   [ -z "$line" ] && continue
   source="${line%%=*}"
-  skills="${line#*=}"
-  { [ "$skills" = "$line" ] || [ -z "$skills" ]; } && skills='*'  # bare source → all skills
-  printf '%s==>%s %s %s(%s)%s\n' "$cyan" "$clr" "$source" "$yellow" "$skills" "$clr"
+  descriptor="${line#*=}"
+  { [ "$descriptor" = "$line" ] || [ -z "$descriptor" ]; } && descriptor='*'  # bare source → all skills
+
+  ref=''
+  if [[ "$source" == *#* ]]; then
+    ref="${source#*#}"
+    source="${source%%#*}"
+    if [[ ! "$ref" =~ ^[0-9a-fA-F]{40}$ ]]; then
+      printf '%sInvalid immutable ref in manifest entry: %s%s\n' "$red" "$line" "$clr" >&2
+      failed+=("$line")
+      continue
+    fi
+  fi
+
+  integrity_path=''
+  expected_blob=''
+  IFS='|' read -ra descriptor_parts <<< "$descriptor"
+  skills="${descriptor_parts[0]}"
+  if [ "${#descriptor_parts[@]}" -ne 1 ]; then
+    if [ "${#descriptor_parts[@]}" -ne 3 ] || [ -z "${descriptor_parts[1]}" ] || [ -z "${descriptor_parts[2]}" ]; then
+      printf '%sInvalid integrity descriptor in manifest entry: %s%s\n' "$red" "$line" "$clr" >&2
+      failed+=("$line")
+      continue
+    fi
+    if [[ "$skills" == *,* ]]; then
+      printf '%sIntegrity descriptors must select one skill: %s%s\n' "$red" "$line" "$clr" >&2
+      failed+=("$line")
+      continue
+    fi
+    integrity_path="${descriptor_parts[1]}"
+    expected_blob="${descriptor_parts[2]}"
+    if [[ "$integrity_path" = /* || "$integrity_path" == *..* || ! "$expected_blob" =~ ^[0-9a-fA-F]{40}$ ]]; then
+      printf '%sInvalid integrity path or Git blob in manifest entry: %s%s\n' "$red" "$line" "$clr" >&2
+      failed+=("$line")
+      continue
+    fi
+  fi
+
+  if [ -n "$ref" ] && [ -z "$integrity_path" ]; then
+    printf '%sImmutable refs require an integrity descriptor: %s%s\n' "$red" "$line" "$clr" >&2
+    failed+=("$line")
+    continue
+  fi
+
+  display_source="$source"
+  [ -n "$ref" ] && display_source="$source#$ref"
+  install_source="$source"
+  printf '%s==>%s %s %s(%s)%s' "$cyan" "$clr" "$display_source" "$yellow" "$skills" "$clr"
+  if [ -n "$integrity_path" ]; then
+    printf ' %s[integrity %s git-blob %s]%s' "$white" "$integrity_path" "$expected_blob" "$clr"
+  fi
+  printf '\n'
   # The skills CLI wants one -s per skill; a comma-joined value is read as a single
   # literal name and matches nothing. Expand "a,b,c" into -s a -s b -s c.
   skill_args=()
@@ -75,16 +163,29 @@ while IFS= read -r line || [ -n "$line" ]; do
     [ -n "$name" ] && skill_args+=(-s "$name")
   done
   if [ "$DRY_RUN" -eq 1 ]; then
-    printf '    %s add %s -g -a %s %s -y\n' "${runner[*]}" "$source" "$AGENTS" "${skill_args[*]}"
-    ok=$((ok + 1))
+    printf '    %s add %s -g %s %s -y\n' "${runner[*]}" "$install_source" "${agent_args[*]}" "${skill_args[*]}"
+    [ -n "$ref" ] && printf '    policy ref: %s (enforced by installed Git blob)\n' "$ref"
+    if [ -n "$integrity_path" ]; then
+      if verify_installed_blob "$skills" "$integrity_path" "$expected_blob"; then
+        ok=$((ok + 1))
+      else
+        failed+=("$line")
+      fi
+    else
+      ok=$((ok + 1))
+    fi
     continue
   fi
   # Redirect stdin from /dev/null so the interactive CLI can't consume the manifest.
-  if "${runner[@]}" add "$source" -g -a "$AGENTS" "${skill_args[@]}" -y </dev/null; then
-    ok=$((ok + 1))
+  if "${runner[@]}" add "$install_source" -g "${agent_args[@]}" "${skill_args[@]}" -y </dev/null; then
+    if [ -n "$integrity_path" ] && ! verify_installed_blob "$skills" "$integrity_path" "$expected_blob" 1; then
+      failed+=("$line")
+    else
+      ok=$((ok + 1))
+    fi
   else
-    printf '%s    failed: %s%s\n' "$red" "$source" "$clr" >&2
-    failed+=("$source")
+    printf '%s    failed: %s%s\n' "$red" "$display_source" "$clr" >&2
+    failed+=("$display_source")
   fi
 done < "$MANIFEST"
 

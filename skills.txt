@@ -1,4 +1,5 @@
 ast-grep/agent-skill=ast-grep,ast-grep-outline
+kunchenguid/lavish-axi#55045850f61e7b23c8dbf8cc30d92bd6e31649d2=lavish|skills/lavish/SKILL.md|1e792b5bfc34127ca6f00bbb44fea306ce77ea52
 edheltzel/Recall=recall-doctor,recall-loa,recall-stats,recall-update
 edheltzel/skills=pm-tools,karpathy-guidelines,
 ogulcancelik/herdr=herdr

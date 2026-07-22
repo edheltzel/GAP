@@ -162,9 +162,11 @@ Detection depends on stow's conflict wording (`existing target is not owned by s
 
 ### Skills manifest (skills.sh)
 
-Custom skills are manifest-managed, not stored as a repo-backed `skills/` directory. The canonical source is `skills.txt`: each line maps a skills.sh source to selected skills with `owner/repo=skill,skill`. `install-skills.sh` reads that manifest and runs `skills add <source> -g -a <agents> -s <skills> -y` for every source.
+Custom skills are manifest-managed, not stored as a repo-backed `skills/` directory. The canonical source is `skills.txt`: each line maps a skills.sh source to selected skills with `owner/repo[#immutable-commit]=skill,skill`; an optional `|upstream/path|git-blob-sha` suffix records an integrity check for one selected skill. `install-skills.sh` preserves pinned refs as policy metadata because the current skills.sh CLI treats `#ref` as a branch, installs from the base source, and rejects installed-byte drift against the recorded blob.
 
-Workflow: edit `skills.txt` → `just skills-status` for a dry run → `just skills-install` to install through skills.sh. Use `SKILLS_AGENTS=\"claude-code,pi,codex\"` to target specific agents; the default is all detected agents. Native/custom skills that used to live in atlas-config should move to their own skills.sh-compatible repos and be pulled in through `skills.txt`; do not recreate a local `skills/` store. The tracked Pi RedTeam and Art adaptations are deliberate harness-specific exceptions owned by `pi/.pi/agent/AGENTS.md`.
+Workflow: edit `skills.txt` → `just skills-status` for a dry run → `just skills-install` to install through skills.sh. `just link` and `just up` provision shared skills; package-only `just claude`, `just omp`, and `just pi` commands do not. Use `SKILLS_AGENTS=\"claude-code,pi,codex\"` to target specific agents; the default is all detected agents. Native/custom skills that used to live in atlas-config should move to their own skills.sh-compatible repos and be pulled in through `skills.txt`; do not recreate a local `skills/` store. The tracked Pi RedTeam and Art adaptations are deliberate harness-specific exceptions owned by `pi/.pi/agent/AGENTS.md`.
+
+Lavish stage 1 is global provisioning only: its `skills.txt` entry pins upstream commit `55045850f61e7b23c8dbf8cc30d92bd6e31649d2` and Git blob `1e792b5bfc34127ca6f00bbb44fea306ce77ea52`, while `.agents/skills/lavish/SKILL.md`, `.claude/skills/lavish`, and the project lock entry remain intentionally in place until stage 2 evidence and approval.
 
 ### OMP plugin manifest
 
