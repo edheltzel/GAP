@@ -19,7 +19,8 @@
     "npm:@ogulcancelik/pi-ghost",
     "git:github.com/edheltzel/pi-ask-user@v0.13.0-herdr.1",
     "npm:pi-unified-exec",
-    "npm:pi-herdr-btw"
+    "npm:pi-herdr-btw",
+    "npm:@ogulcancelik/pi-codex-compaction"
   ],
   "theme": "atlas-eldritch",
   "defaultProvider": "openai-codex",
