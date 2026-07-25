@@ -69,7 +69,10 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 - Render the working directory as `…/<parent>/<current>`; do not expose the full path.
 - Match the Claude line's 24-cell `⛁` context meter at normal widths, responsive smaller meters at narrow widths, and whole-number context percentage from `ctx.getContextUsage()`.
 - Cache percentage is the latest successful assistant prompt's `cacheRead / (input + cacheRead + cacheWrite)`, rounded to a whole percent.
-- Preserve the canonical text symbols and Nerd Font branch/cache glyphs without emoji presentation, and preserve ANSI-styled status text published by other extensions.
+- Preserve the canonical text symbols and Nerd Font branch/cache glyphs without
+  emoji presentation.
+- Preserve ANSI-styled status text published by other extensions, except suppress
+  the `mcp` footer status.
 - After changes, run `just pi` and reload Pi with `/reload`.
 
 ## Child DOX Index
