@@ -74,6 +74,40 @@ function stripPromptMarkers(lines: string[]): string[] {
   return lines.map(line => line.replace(OSC133_PROMPT_MARKER_RE, ''));
 }
 
+const SGR_RE = /\x1b\[([0-9;]*)m/g;
+
+/** True for any SGR that returns the cell to the terminal's default background. */
+function resetsBackground(params: string): boolean {
+  if (params === '') return true; // `ESC [ m` is `ESC [ 0 m`
+  return params.split(';').some(part => part === '' || part === '0' || part === '49');
+}
+
+export function formatBackgroundAnsi(rgb: { r: number; g: number; b: number }): string {
+  return `\x1b[48;2;${rgb.r};${rgb.g};${rgb.b}m`;
+}
+
+/**
+ * Make one overlay row opaque.
+ *
+ * Terminals composite their window backdrop behind every cell left on the
+ * DEFAULT background, so with transparency or blur turned on the desktop shows
+ * through an overlay that only ever sets foreground colours - which is why
+ * clipping and padding rows to the exact width never removed the artifacts.
+ * Cells carrying an explicit background are drawn fully opaque instead.
+ *
+ * Padding alone is not enough: content nested in the row (theme.bg(...) ends
+ * with `ESC [ 49 m`, markdown ends with `ESC [ 0 m`) resets the background
+ * mid-row and punches the hole straight back open, so the background is
+ * re-asserted after every such reset.
+ */
+export function paintRowBackground(row: string, backgroundAnsi: string): string {
+  if (!backgroundAnsi) return row;
+  const reasserted = row.replace(SGR_RE, (sequence, params: string) =>
+    resetsBackground(params) ? sequence + backgroundAnsi : sequence
+  );
+  return backgroundAnsi + reasserted + '\x1b[49m';
+}
+
 export function fitLineToWidth(line: string, width: number): string {
   const safeWidth = Math.max(0, width);
   const clipped = truncateToWidth(line, safeWidth, '');
@@ -87,6 +121,7 @@ export class GhostOverlayComponent implements Focusable {
   private readonly theme: ExtensionCommandContext['ui']['theme'];
   private readonly sessionCwd: string;
   private readonly getModelStatus: () => string;
+  private readonly getBackgroundAnsi: () => string;
   private readonly onSubmitMessage: (text: string) => void;
   private readonly onHideOverlay: () => void;
   private readonly onCloseOverlay: () => void;
@@ -115,6 +150,7 @@ export class GhostOverlayComponent implements Focusable {
     keybindings: KeybindingsManager,
     sessionCwd: string,
     getModelStatus: () => string,
+    getBackgroundAnsi: () => string,
     onSubmitMessage: (text: string) => void,
     onHideOverlay: () => void,
     onCloseOverlay: () => void
@@ -124,6 +160,7 @@ export class GhostOverlayComponent implements Focusable {
     this.theme = theme;
     this.sessionCwd = sessionCwd;
     this.getModelStatus = getModelStatus;
+    this.getBackgroundAnsi = getBackgroundAnsi;
     this.onSubmitMessage = onSubmitMessage;
     this.onHideOverlay = onHideOverlay;
     this.onCloseOverlay = onCloseOverlay;
@@ -440,6 +477,11 @@ export class GhostOverlayComponent implements Focusable {
     }
     lines.push(divider, framedLine(controls), bottomBorder);
 
+    const backgroundAnsi = this.getBackgroundAnsi();
+    if (backgroundAnsi) {
+      return lines.map(line => paintRowBackground(line, backgroundAnsi));
+    }
+
     return lines;
   }
 }
@@ -461,6 +503,15 @@ function extractMessageText(message: {
 
 export function formatModelStatus(modelId: string, thinkingLevel: string): string {
   return thinkingLevel && thinkingLevel !== 'off' ? `${modelId} (${thinkingLevel})` : modelId;
+}
+
+async function queryBackgroundAnsi(tui: TUI): Promise<string> {
+  try {
+    const rgb = await tui.queryTerminalBackgroundColor({ timeoutMs: 250 });
+    return rgb ? formatBackgroundAnsi(rgb) : '';
+  } catch {
+    return '';
+  }
 }
 
 function formatGhostCwd(cwd: string): string {
@@ -540,6 +591,16 @@ export default function (pi: ExtensionAPI) {
     void ctx.ui
       .custom<void>(
         (tui, theme, keybindings, done) => {
+          // Asked for once per overlay: the terminal's own default background,
+          // painted explicitly so the overlay's cells are opaque. Until it
+          // answers - or if it never does - rows render exactly as before.
+          let backgroundAnsi = '';
+          void queryBackgroundAnsi(tui).then(ansi => {
+            if (!ansi || overlayClosed) return;
+            backgroundAnsi = ansi;
+            tui.requestRender();
+          });
+
           const overlay = new GhostOverlayComponent(
             tui,
             theme,
@@ -550,6 +611,7 @@ export default function (pi: ExtensionAPI) {
                 ghostModelLabel ?? ctx.model?.id ?? 'unknown-model',
                 pi.getThinkingLevel()
               ),
+            () => backgroundAnsi,
             text => {
               void session.prompt(text, { images: [] });
             },

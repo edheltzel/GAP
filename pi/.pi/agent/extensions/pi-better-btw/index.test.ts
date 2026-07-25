@@ -4,15 +4,18 @@ import { visibleWidth, type KeybindingsManager, type TUI } from '@earendil-works
 import {
   fitLineToWidth,
   formatModelStatus,
+  formatBackgroundAnsi,
   GhostOverlayComponent,
   OVERLAY_MIN_HEIGHT,
+  paintRowBackground,
   resolveOverlayHeight,
   resolveOverlayMaxHeight,
 } from './index';
 
 function createOverlay(
   onHide: () => void = () => {},
-  terminal: { columns: number; rows: number } = { columns: 120, rows: 40 }
+  terminal: { columns: number; rows: number } = { columns: 120, rows: 40 },
+  backgroundAnsi = ''
 ): GhostOverlayComponent {
   const tui = {
     terminal,
@@ -29,6 +32,7 @@ function createOverlay(
     {} as KeybindingsManager,
     '/Users/ed/Developer/Atlas/Config',
     () => 'gpt-5.6-sol (high)',
+    () => backgroundAnsi,
     () => {},
     onHide,
     () => {}
@@ -136,5 +140,123 @@ describe('overlay box', () => {
       expect(lines[0]).toBe(`\u256d${'\u2500'.repeat(88)}\u256e`);
       expect(lines.at(-1)).toBe(`\u2570${'\u2500'.repeat(88)}\u256f`);
     }
+  });
+});
+
+/**
+ * Walks a rendered row the way a terminal would, tracking whether an explicit
+ * background is in effect, and reports the visible columns still sitting on the
+ * terminal's DEFAULT background. Those are the cells a translucent or blurred
+ * terminal composites its backdrop through - the bleed-through artifacts.
+ */
+function unpaintedColumns(row: string): number {
+  let backgroundActive = false;
+  let unpainted = 0;
+  let i = 0;
+
+  while (i < row.length) {
+    if (row[i] === '\x1b') {
+      const sgr = /^\x1b\[([0-9;]*)m/.exec(row.slice(i));
+      if (sgr) {
+        const params = sgr[1] === '' ? ['0'] : sgr[1].split(';');
+        for (let p = 0; p < params.length; p++) {
+          const code = params[p] === '' ? '0' : params[p];
+          if (code === '48') {
+            backgroundActive = true;
+            p += params[p + 1] === '5' ? 2 : 4; // 48;5;n or 48;2;r;g;b
+          } else if (code === '38') {
+            p += params[p + 1] === '5' ? 2 : 4;
+          } else if (code === '0' || code === '49') {
+            backgroundActive = false;
+          }
+        }
+        i += sgr[0].length;
+        continue;
+      }
+      const osc = /^\x1b\][^\x07]*\x07/.exec(row.slice(i));
+      if (osc) {
+        i += osc[0].length;
+        continue;
+      }
+      const csi = /^\x1b\[[0-9;?]*[A-Za-z]/.exec(row.slice(i));
+      i += csi ? csi[0].length : 1;
+      continue;
+    }
+
+    if (!backgroundActive) unpainted += 1;
+    i += 1;
+  }
+
+  return unpainted;
+}
+
+describe('overlay opacity', () => {
+  // Terminals composite their backdrop behind cells left on the default
+  // background, so an overlay that only sets foreground colours shows the
+  // desktop through its body when transparency or blur is on. Clipping and
+  // padding rows to the exact width cannot fix that - only an explicit
+  // background makes the cells opaque.
+  const BACKGROUND = '\x1b[48;2;24;26;41m';
+
+  function createStyledOverlay(backgroundAnsi: string): GhostOverlayComponent {
+    const tui = {
+      terminal: { columns: 120, rows: 40 },
+      requestRender() {},
+    } as unknown as TUI;
+    // Emits real ANSI, including the full reset that markdown and message
+    // components produce, which is what silently punched the background back out.
+    const theme = {
+      fg: (_color: string, text: string) => `\x1b[38;5;110m${text}\x1b[0m`,
+      bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
+    } as unknown as ExtensionCommandContext['ui']['theme'];
+
+    return new GhostOverlayComponent(
+      tui,
+      theme,
+      {} as KeybindingsManager,
+      '/Users/ed/Developer/Atlas/Config',
+      () => 'gpt-5.6-sol (high)',
+      () => backgroundAnsi,
+      () => {},
+      () => {},
+      () => {}
+    );
+  }
+
+  it('leaves no cell on the default background', () => {
+    const lines = createStyledOverlay(BACKGROUND).render(108);
+
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) {
+      expect(unpaintedColumns(line)).toBe(0);
+    }
+  });
+
+  it('keeps every row at its exact width once painted', () => {
+    const lines = createStyledOverlay(BACKGROUND).render(108);
+
+    expect(lines.every(line => visibleWidth(line) === 108)).toBe(true);
+  });
+
+  it('reports unpainted cells when no background is supplied', () => {
+    // Negative control: without this the opacity assertion could never fail.
+    const lines = createStyledOverlay('').render(108);
+
+    expect(lines.some(line => unpaintedColumns(line) > 0)).toBe(true);
+  });
+
+  it('re-asserts the background after a nested reset', () => {
+    const painted = paintRowBackground(`a\x1b[0mb\x1b[49mc`, BACKGROUND);
+
+    expect(unpaintedColumns(painted)).toBe(0);
+    expect(visibleWidth(painted)).toBe(3);
+  });
+
+  it('does not touch rows when the terminal background is unknown', () => {
+    expect(paintRowBackground('plain', '')).toBe('plain');
+  });
+
+  it('formats a truecolor background from an rgb triplet', () => {
+    expect(formatBackgroundAnsi({ r: 24, g: 26, b: 41 })).toBe('\x1b[48;2;24;26;41m');
   });
 });
