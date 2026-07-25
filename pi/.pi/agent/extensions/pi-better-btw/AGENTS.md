@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provide `/btw`, an ephemeral side-conversation overlay inside Pi's interactive TUI.
+Provide `/btw`, a temporary side-conversation overlay inside Pi's interactive TUI.
 
 ## Ownership
 

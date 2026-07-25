@@ -353,7 +353,7 @@ export class GhostOverlayComponent implements Focusable {
     );
     const title =
       ` ${th.fg('accent', th.bold('better pi'))} ` +
-      th.fg('dim', ` ${th.fg('border', '│')} same model ${th.fg('border', '│')} ephemeral session`);
+      th.fg('dim', ` ${th.fg('border', '│')} same model ${th.fg('border', '│')} temporary session`);
     const controls =
       ` ${th.fg('accent', 'up/down')} ${th.fg('dim', 'scroll')} ` +
       `${th.fg('border', '│')} ${th.fg('accent', 'ctrl+s')} ${th.fg('dim', 'hide')} ` +

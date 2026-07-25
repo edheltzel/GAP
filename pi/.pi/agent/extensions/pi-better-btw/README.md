@@ -1,6 +1,6 @@
 # pi-better-btw
 
-Ephemeral side conversation overlay for [pi](https://github.com/earendil-works/pi).
+Temporary side conversation overlay for [pi](https://github.com/earendil-works/pi).
 
 Open a temporary, "sidebar", chat session inside the current pi UI, ask something quick, hide it, bring it back, then close it without saving any session history.
 
