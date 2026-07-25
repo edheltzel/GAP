@@ -358,9 +358,9 @@ export class GhostOverlayComponent implements Focusable {
       ` ${th.fg('accent', th.bold('better pi'))} ${sep} ` +
       `${th.fg('accent', this.getModelStatus())} ${sep} ${th.fg('dim', 'temporary session')}`;
     const controls =
-      ` ${th.fg('accent', 'up/down')} ${th.fg('dim', 'scroll')} ` +
-      `${sep} ${th.fg('accent', 'ctrl+s')} ${th.fg('dim', 'hide')} ` +
-      `${sep} ${th.fg('accent', 'esc')} ${th.fg('dim', 'close')}`;
+      ` ${th.fg('accent', 'esc')} ${th.fg('dim', 'close')} ` +
+      `${sep} ${th.fg('accent', 'up/down')} ${th.fg('dim', 'scroll')} ` +
+      `${sep} ${th.fg('accent', 'ctrl+s')} ${th.fg('dim', 'hide')}`;
     const topBorder = th.fg('border', '╭' + '─'.repeat(innerW) + '╮');
     const divider = th.fg('border', '├' + '─'.repeat(innerW) + '┤');
     const bottomBorder = th.fg('border', '╰' + '─'.repeat(innerW) + '╯');

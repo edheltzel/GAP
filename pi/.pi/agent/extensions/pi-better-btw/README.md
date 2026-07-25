@@ -63,12 +63,12 @@ If the overlay is hidden, run `/btw` again to bring it back.
 
 The shortcut menu stays pinned to the bottom edge of the overlay.
 
-- `Enter` — send message to ghost pi
+- `Esc` — close the ghost session completely
 - `↑` / `↓` — scroll the transcript
 - `PageUp` / `PageDown` — scroll faster
 - `Home` / `End` — jump to top or bottom
 - `Ctrl+S` — hide the overlay
-- `Esc` — close the ghost session completely
+- `Enter` — send message to ghost pi
 
 When hidden, a small widget is shown above the prompt:
 

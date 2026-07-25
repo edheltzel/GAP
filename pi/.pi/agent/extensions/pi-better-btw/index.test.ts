@@ -40,7 +40,7 @@ describe('GhostOverlayComponent layout', () => {
     expect(lines[1]).toContain('better pi');
     expect(lines[1]).not.toContain('ctrl+s');
     expect(lines[2]).toBe(`│${' '.repeat(78)}│`);
-    expect(lines.at(-2)).toContain('up/down scroll • ctrl+s hide • esc close');
+    expect(lines.at(-2)).toContain('esc close • up/down scroll • ctrl+s hide');
   });
 
   it('shows the model and thinking level on the top row, not the footer', () => {
