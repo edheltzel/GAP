@@ -10,6 +10,8 @@ import {
   paintRowBackground,
   resolveOverlayHeight,
   resolveOverlayMaxHeight,
+  resolveOverlayColumn,
+  resolveOverlayWidth,
 } from './index';
 
 function createOverlay(
@@ -91,6 +93,18 @@ describe('GhostOverlayComponent layout', () => {
 });
 
 describe('overlay box', () => {
+  it.each([120, 80, 40, 1])('resolves to the full terminal width at %d columns', columns => {
+    expect(resolveOverlayWidth(columns)).toBe(Math.max(1, columns));
+    expect(resolveOverlayColumn(columns)).toBe(0);
+    expect(columns - resolveOverlayColumn(columns) - resolveOverlayWidth(columns)).toBe(0);
+  });
+
+  it.each([120, 80, 40])('renders a frame with no horizontal bleed at %d columns', columns => {
+    const lines = createOverlay(() => {}, { columns, rows: 20 }).render(resolveOverlayWidth(columns));
+
+    expect(lines.every(line => visibleWidth(line) === columns)).toBe(true);
+  });
+
   // Pi composites only the rows that fit the box `overlayOptions` reserves and
   // silently slices the rest, so a frame taller than the cap loses its bottom
   // border and the session shows through where the frame should be.

@@ -40,8 +40,20 @@ const SEPARATOR = '•';
  * Pi as `overlayOptions` and used here to size the frame.
  */
 const OVERLAY_MAX_HEIGHT_PERCENT = 60;
+const OVERLAY_WIDTH_PERCENT = 100;
 const OVERLAY_MARGIN_BOTTOM = 1;
+const OVERLAY_MARGIN_LEFT = 0;
+const OVERLAY_MARGIN_RIGHT = 0;
 const OVERLAY_PREFERRED_HEIGHT_FRACTION = 0.55;
+
+/** Pi's resolved horizontal geometry for the full-width overlay. */
+export function resolveOverlayWidth(terminalColumns: number): number {
+  return Math.max(1, Math.floor((terminalColumns * OVERLAY_WIDTH_PERCENT) / 100));
+}
+
+export function resolveOverlayColumn(_terminalColumns: number): number {
+  return OVERLAY_MARGIN_LEFT;
+}
 
 /** The tallest overlay Pi will composite without slicing rows off the bottom. */
 export function resolveOverlayMaxHeight(terminalRows: number): number {
@@ -650,11 +662,15 @@ export default function (pi: ExtensionAPI) {
           overlay: true,
           overlayOptions: {
             anchor: 'bottom-center',
-            width: '90%',
+            width: `${OVERLAY_WIDTH_PERCENT}%`,
             // Must stay in step with resolveOverlayMaxHeight; Pi slices any row
             // the component renders past the box these options reserve.
             maxHeight: `${OVERLAY_MAX_HEIGHT_PERCENT}%`,
-            margin: { bottom: OVERLAY_MARGIN_BOTTOM, left: 2, right: 2 },
+            margin: {
+              bottom: OVERLAY_MARGIN_BOTTOM,
+              left: OVERLAY_MARGIN_LEFT,
+              right: OVERLAY_MARGIN_RIGHT,
+            },
           },
           onHandle: handle => {
             overlayHandle = handle;
