@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'bun:test';
 import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
 import { visibleWidth, type KeybindingsManager, type TUI } from '@earendil-works/pi-tui';
-import { fitLineToWidth, formatModelStatus, GhostOverlayComponent } from './index';
+import {
+  fitLineToWidth,
+  formatModelStatus,
+  GhostOverlayComponent,
+  OVERLAY_MIN_HEIGHT,
+  resolveOverlayHeight,
+  resolveOverlayMaxHeight,
+} from './index';
 
-function createOverlay(onHide: () => void = () => {}): GhostOverlayComponent {
+function createOverlay(
+  onHide: () => void = () => {},
+  terminal: { columns: number; rows: number } = { columns: 120, rows: 40 }
+): GhostOverlayComponent {
   const tui = {
-    terminal: { columns: 120, rows: 40 },
+    terminal,
     requestRender() {},
   } as unknown as TUI;
   const theme = {
@@ -73,5 +83,58 @@ describe('GhostOverlayComponent layout', () => {
     const fitted = fitLineToWidth('\x1b[31m123456789\x1b[39m', 6);
 
     expect(visibleWidth(fitted)).toBe(6);
+  });
+});
+
+describe('overlay box', () => {
+  // Pi composites only the rows that fit the box `overlayOptions` reserves and
+  // silently slices the rest, so a frame taller than the cap loses its bottom
+  // border and the session shows through where the frame should be.
+  const SIZES = [
+    { columns: 120, rows: 40 },
+    { columns: 120, rows: 36 },
+    { columns: 100, rows: 30 },
+    { columns: 100, rows: 24 },
+    { columns: 80, rows: 20 },
+    { columns: 80, rows: 18 },
+  ];
+
+  for (const size of SIZES) {
+    it(`fits the reserved box at ${size.columns}x${size.rows}`, () => {
+      const width = Math.floor(size.columns * 0.9);
+      const lines = createOverlay(() => {}, size).render(width);
+
+      expect(lines.length).toBeLessThanOrEqual(resolveOverlayMaxHeight(size.rows));
+      expect(lines.length).toBe(resolveOverlayHeight(size.rows));
+      expect(lines.every(line => visibleWidth(line) === width)).toBe(true);
+      expect(lines.at(-1)).toBe(`╰${'─'.repeat(width - 2)}╯`);
+    });
+
+    it(`fits the reserved box at ${size.columns}x${size.rows} with a long input`, () => {
+      const width = Math.floor(size.columns * 0.9);
+      const overlay = createOverlay(() => {}, size);
+      for (const char of 'x'.repeat(width * 3)) overlay.handleInput(char);
+      const lines = overlay.render(width);
+
+      expect(lines.length).toBeLessThanOrEqual(resolveOverlayMaxHeight(size.rows));
+      expect(lines.at(-1)).toBe(`╰${'─'.repeat(width - 2)}╯`);
+    });
+  }
+
+  it('never asks for more rows than Pi reserves', () => {
+    for (let rows = 8; rows <= 200; rows++) {
+      expect(resolveOverlayHeight(rows)).toBeLessThanOrEqual(resolveOverlayMaxHeight(rows));
+    }
+  });
+
+  it('draws a whole frame at every terminal height that can hold one', () => {
+    for (let rows = 8; rows <= 200; rows++) {
+      if (resolveOverlayMaxHeight(rows) < OVERLAY_MIN_HEIGHT) continue;
+      const lines = createOverlay(() => {}, { columns: 100, rows }).render(90);
+
+      expect(lines.length).toBe(resolveOverlayHeight(rows));
+      expect(lines[0]).toBe(`\u256d${'\u2500'.repeat(88)}\u256e`);
+      expect(lines.at(-1)).toBe(`\u2570${'\u2500'.repeat(88)}\u256f`);
+    }
   });
 });

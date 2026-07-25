@@ -24,9 +24,51 @@ import {
 } from '@earendil-works/pi-tui';
 
 const OSC133_PROMPT_MARKER_RE = /\x1b\]133;[ABC]\x07/g;
-const OVERLAY_FIXED_CHROME_ROWS = 9;
+/** Frame rows that are always drawn: 3 borders, 3 dividers, title, footer, controls. */
+const OVERLAY_CHROME_ROWS = 8;
+/** The quiet blank row under the title, dropped when the overlay cannot afford it. */
+const OVERLAY_SPACER_ROWS = 1;
 /** Divider between inline items. The pipe is reserved for the frame edges. */
 const SEPARATOR = '•';
+
+/**
+ * Geometry that Pi resolves from the `overlayOptions` this extension registers.
+ * `resolveOverlayLayout` in pi-tui derives the reserved box from those options
+ * and `compositeOverlays` slices anything the component renders beyond it - so
+ * a component that sizes itself independently loses its bottom rows, frame
+ * included. These constants are the single source of truth: they are passed to
+ * Pi as `overlayOptions` and used here to size the frame.
+ */
+const OVERLAY_MAX_HEIGHT_PERCENT = 60;
+const OVERLAY_MARGIN_BOTTOM = 1;
+const OVERLAY_PREFERRED_HEIGHT_FRACTION = 0.55;
+
+/** The tallest overlay Pi will composite without slicing rows off the bottom. */
+export function resolveOverlayMaxHeight(terminalRows: number): number {
+  const fromPercent = Math.floor((terminalRows * OVERLAY_MAX_HEIGHT_PERCENT) / 100);
+  const fromMargin = terminalRows - OVERLAY_MARGIN_BOTTOM;
+  return Math.max(1, Math.min(fromPercent, fromMargin));
+}
+
+/**
+ * Smallest frame that still draws itself completely: the always-on chrome plus
+ * one input row and one transcript row. Terminals too short for this cannot
+ * show the overlay intact, and Pi will slice the bottom off.
+ */
+export const OVERLAY_MIN_HEIGHT = OVERLAY_CHROME_ROWS + 2;
+
+/**
+ * The height this overlay draws: its preferred size, raised to the smallest
+ * frame that fits its own chrome and then capped at what Pi reserves. Asking
+ * for less than the frame needs is what silently costs the bottom border.
+ */
+export function resolveOverlayHeight(terminalRows: number): number {
+  const preferred = Math.floor(terminalRows * OVERLAY_PREFERRED_HEIGHT_FRACTION);
+  return Math.min(
+    resolveOverlayMaxHeight(terminalRows),
+    Math.max(OVERLAY_MIN_HEIGHT, preferred)
+  );
+}
 
 function stripPromptMarkers(lines: string[]): string[] {
   return lines.map(line => line.replace(OSC133_PROMPT_MARKER_RE, ''));
@@ -109,10 +151,31 @@ export class GhostOverlayComponent implements Focusable {
   }
 
   private getOverlayHeight(): number {
-    return Math.max(
-      14,
-      Math.min(Math.floor(this.tui.terminal.rows * 0.55), this.tui.terminal.rows - 2)
-    );
+    return resolveOverlayHeight(this.tui.terminal.rows);
+  }
+
+  /**
+   * Row budget for one frame. The spacer row is the first thing sacrificed when
+   * the terminal is short, so the bottom border always survives inside the box
+   * Pi reserved.
+   */
+  private computeLayout(innerWidth: number): {
+    totalHeight: number;
+    inputLines: string[];
+    showSpacer: boolean;
+    viewportRows: number;
+  } {
+    const totalHeight = this.getOverlayHeight();
+    const inputLines = this.input.render(innerWidth);
+    const withSpacer = OVERLAY_CHROME_ROWS + OVERLAY_SPACER_ROWS + inputLines.length;
+    const showSpacer = totalHeight >= withSpacer + 1;
+    const chromeRows = showSpacer ? withSpacer : OVERLAY_CHROME_ROWS + inputLines.length;
+    return {
+      totalHeight,
+      inputLines,
+      showSpacer,
+      viewportRows: Math.max(1, totalHeight - chromeRows),
+    };
   }
 
   private getFallbackInnerWidth(): number {
@@ -132,10 +195,7 @@ export class GhostOverlayComponent implements Focusable {
 
   private getCurrentMaxScroll(): number {
     const innerWidth = this.lastInnerWidth || this.getFallbackInnerWidth();
-    const inputLines = this.input.render(innerWidth);
-    const totalHeight = this.getOverlayHeight();
-    const chromeRows = OVERLAY_FIXED_CHROME_ROWS + inputLines.length;
-    const viewportRows = Math.max(4, totalHeight - chromeRows);
+    const { viewportRows } = this.computeLayout(innerWidth);
     const transcriptLines = this.getTranscriptLines(innerWidth);
     return Math.max(0, transcriptLines.length - viewportRows);
   }
@@ -324,10 +384,7 @@ export class GhostOverlayComponent implements Focusable {
   render(width: number): string[] {
     const th = this.theme;
     const innerW = Math.max(1, width - 2);
-    const totalHeight = this.getOverlayHeight();
-    const inputLines = this.input.render(innerW);
-    const chromeRows = OVERLAY_FIXED_CHROME_ROWS + inputLines.length;
-    const viewportRows = Math.max(4, totalHeight - chromeRows);
+    const { inputLines, showSpacer, viewportRows } = this.computeLayout(innerW);
     const transcriptLines = this.getTranscriptLines(innerW);
     const maxScroll = Math.max(0, transcriptLines.length - viewportRows);
 
@@ -366,7 +423,9 @@ export class GhostOverlayComponent implements Focusable {
     const bottomBorder = th.fg('border', '╰' + '─'.repeat(innerW) + '╯');
     const framedLine = (line: string) =>
       th.fg('border', '│') + fitLineToWidth(line, innerW) + th.fg('border', '│');
-    const lines: string[] = [topBorder, framedLine(title), framedLine(''), divider];
+    const lines: string[] = [topBorder, framedLine(title)];
+    if (showSpacer) lines.push(framedLine(''));
+    lines.push(divider);
 
     for (const line of visibleTranscript) {
       lines.push(framedLine(line));
@@ -530,8 +589,10 @@ export default function (pi: ExtensionAPI) {
           overlayOptions: {
             anchor: 'bottom-center',
             width: '90%',
-            maxHeight: '60%',
-            margin: { bottom: 1, left: 2, right: 2 },
+            // Must stay in step with resolveOverlayMaxHeight; Pi slices any row
+            // the component renders past the box these options reserve.
+            maxHeight: `${OVERLAY_MAX_HEIGHT_PERCENT}%`,
+            margin: { bottom: OVERLAY_MARGIN_BOTTOM, left: 2, right: 2 },
           },
           onHandle: handle => {
             overlayHandle = handle;
