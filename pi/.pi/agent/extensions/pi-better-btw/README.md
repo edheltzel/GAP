@@ -4,7 +4,7 @@ Temporary side conversation overlay for [pi](https://github.com/earendil-works/p
 
 Open a temporary, "sidebar", chat session inside the current pi UI, ask something quick, hide it, bring it back, then close it without saving any session history.
 
-![Ghost pi overlay](./assets/ghost-overlay.png)
+![Better BTW pi overlay](./assets/betterbtw-overlay.png)
 
 ## Try Before You Install
 
@@ -28,13 +28,13 @@ So:
 - it uses **no persisted session file**
 - it renders with native pi components for user messages, assistant messages, thinking blocks, and tool execution cards
 - it can be **hidden** without losing the temporary conversation
-- when you **close** it, the ghost session is disposed completely
+- when you **close** it, the betterbtw session is disposed completely
 
 ## Usage
 
 ### `/btw`
 
-Open the ghost overlay, then type directly into the ghost UI.
+Open the betterbtw overlay, then type directly into its UI.
 
 ```text
 /btw
@@ -44,7 +44,7 @@ Main flow:
 
 1. run `/btw`
 2. the overlay opens
-3. type into the ghost prompt
+3. type into the betterbtw prompt
 4. press `Enter`
 
 ### `/btw <prompt>`
@@ -56,19 +56,19 @@ You can also pass the first message inline as a shortcut:
 /btw check how this helper is used across the repo
 ```
 
-If the overlay is already open, `/btw <prompt>` sends another message into the ghost session.
+If the overlay is already open, `/btw <prompt>` sends another message into the betterbtw session.
 If the overlay is hidden, run `/btw` again to bring it back.
 
 ## Controls
 
 The shortcut menu stays pinned to the bottom edge of the overlay.
 
-- `Esc` — close the ghost session completely
+- `Esc` — close the betterbtw session completely
 - `↑` / `↓` — scroll the transcript
 - `PageUp` / `PageDown` — scroll faster
 - `Home` / `End` — jump to top or bottom
 - `Ctrl+H` — hide the overlay
-- `Enter` — send message to ghost pi
+- `Enter` — send message to betterbtw pi
 
 When hidden, a small widget is shown above the prompt:
 
@@ -91,7 +91,7 @@ It has its own temporary conversation state:
 - close it → state is gone
 
 The pop-up session uses the **main session's model at the moment it is created**.
-If you change models in the main session later, the already-open ghost session keeps using its existing model until you close and reopen it.
+If you change models in the main session later, the already-open betterbtw session keeps using its existing model until you close and reopen it.
 
 ## Why
 
