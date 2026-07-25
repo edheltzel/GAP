@@ -67,7 +67,7 @@ The shortcut menu stays pinned to the bottom edge of the overlay.
 - `↑` / `↓` — scroll the transcript
 - `PageUp` / `PageDown` — scroll faster
 - `Home` / `End` — jump to top or bottom
-- `Ctrl+S` — hide the overlay
+- `Ctrl+H` — hide the overlay
 - `Enter` — send message to ghost pi
 
 When hidden, a small widget is shown above the prompt:

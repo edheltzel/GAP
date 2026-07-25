@@ -146,7 +146,7 @@ export class GhostOverlayComponent implements Focusable {
   }
 
   handleInput(data: string): void {
-    if (matchesKey(data, Key.ctrl('s'))) {
+    if (matchesKey(data, Key.ctrl('h'))) {
       this.onHideOverlay();
       return;
     }
@@ -360,7 +360,7 @@ export class GhostOverlayComponent implements Focusable {
     const controls =
       ` ${th.fg('accent', 'esc')} ${th.fg('dim', 'close')} ` +
       `${sep} ${th.fg('accent', 'up/down')} ${th.fg('dim', 'scroll')} ` +
-      `${sep} ${th.fg('accent', 'ctrl+s')} ${th.fg('dim', 'hide')}`;
+      `${sep} ${th.fg('accent', 'ctrl+h')} ${th.fg('dim', 'hide')}`;
     const topBorder = th.fg('border', '╭' + '─'.repeat(innerW) + '╮');
     const divider = th.fg('border', '├' + '─'.repeat(innerW) + '┤');
     const bottomBorder = th.fg('border', '╰' + '─'.repeat(innerW) + '╯');

@@ -3,7 +3,7 @@ import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
 import { visibleWidth, type KeybindingsManager, type TUI } from '@earendil-works/pi-tui';
 import { fitLineToWidth, formatModelStatus, GhostOverlayComponent } from './index';
 
-function createOverlay(): GhostOverlayComponent {
+function createOverlay(onHide: () => void = () => {}): GhostOverlayComponent {
   const tui = {
     terminal: { columns: 120, rows: 40 },
     requestRender() {},
@@ -20,7 +20,7 @@ function createOverlay(): GhostOverlayComponent {
     '/Users/ed/Developer/Atlas/Config',
     () => 'gpt-5.6-sol (high)',
     () => {},
-    () => {},
+    onHide,
     () => {}
   );
 }
@@ -38,9 +38,22 @@ describe('GhostOverlayComponent layout', () => {
     const lines = createOverlay().render(80);
 
     expect(lines[1]).toContain('better pi');
-    expect(lines[1]).not.toContain('ctrl+s');
+    expect(lines[1]).not.toContain('ctrl+h');
     expect(lines[2]).toBe(`│${' '.repeat(78)}│`);
-    expect(lines.at(-2)).toContain('esc close • up/down scroll • ctrl+s hide');
+    expect(lines.at(-2)).toContain('esc close • up/down scroll • ctrl+h hide');
+  });
+
+  it('hides on ctrl+h and leaves backspace to the input', () => {
+    let hidden = 0;
+    const overlay = createOverlay(() => {
+      hidden += 1;
+    });
+
+    overlay.handleInput('\x7f'); // backspace must not be swallowed as ctrl+h
+    expect(hidden).toBe(0);
+
+    overlay.handleInput('\x08'); // ctrl+h
+    expect(hidden).toBe(1);
   });
 
   it('shows the model and thinking level on the top row, not the footer', () => {
