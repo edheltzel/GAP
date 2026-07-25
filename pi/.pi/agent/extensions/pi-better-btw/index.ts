@@ -25,6 +25,8 @@ import {
 
 const OSC133_PROMPT_MARKER_RE = /\x1b\]133;[ABC]\x07/g;
 const OVERLAY_FIXED_CHROME_ROWS = 9;
+/** Divider between inline items. The pipe is reserved for the frame edges. */
+const SEPARATOR = '•';
 
 function stripPromptMarkers(lines: string[]): string[] {
   return lines.map(line => line.replace(OSC133_PROMPT_MARKER_RE, ''));
@@ -347,7 +349,7 @@ export class GhostOverlayComponent implements Focusable {
         ? `${this.scrollOffset + 1}-${Math.min(this.scrollOffset + viewportRows, transcriptLines.length)}/${transcriptLines.length}`
         : `${transcriptLines.length}L`;
     const followIcon = this.followMode ? th.fg('success', '●') : th.fg('dim', '○');
-    const sep = th.fg('border', '│');
+    const sep = th.fg('border', SEPARATOR);
     const footer = truncateToWidth(
       ` ${th.fg('dim', this.statusText)} ${sep} ${th.fg('dim', formatGhostCwd(this.sessionCwd))} ${sep} ${th.fg('dim', scrollInfo)} ${followIcon}`,
       innerW
@@ -357,8 +359,8 @@ export class GhostOverlayComponent implements Focusable {
       `${th.fg('accent', this.getModelStatus())} ${sep} ${th.fg('dim', 'temporary session')}`;
     const controls =
       ` ${th.fg('accent', 'up/down')} ${th.fg('dim', 'scroll')} ` +
-      `${th.fg('border', '│')} ${th.fg('accent', 'ctrl+s')} ${th.fg('dim', 'hide')} ` +
-      `${th.fg('border', '│')} ${th.fg('accent', 'esc')} ${th.fg('dim', 'close')}`;
+      `${sep} ${th.fg('accent', 'ctrl+s')} ${th.fg('dim', 'hide')} ` +
+      `${sep} ${th.fg('accent', 'esc')} ${th.fg('dim', 'close')}`;
     const topBorder = th.fg('border', '╭' + '─'.repeat(innerW) + '╮');
     const divider = th.fg('border', '├' + '─'.repeat(innerW) + '┤');
     const bottomBorder = th.fg('border', '╰' + '─'.repeat(innerW) + '╯');
