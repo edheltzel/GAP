@@ -72,6 +72,10 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 - Preserve the canonical text symbols and Nerd Font branch/cache glyphs without emoji presentation, and preserve ANSI-styled status text published by other extensions.
 - After changes, run `just pi` and reload Pi with `/reload`.
 
+## Child DOX Index
+
+- `extensions/pi-better-btw/AGENTS.md` — `/btw` overlay behavior, UI contracts, and verification.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
