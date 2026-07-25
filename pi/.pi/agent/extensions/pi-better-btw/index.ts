@@ -126,7 +126,7 @@ export function fitLineToWidth(line: string, width: number): string {
   return clipped + ' '.repeat(Math.max(0, safeWidth - visibleWidth(clipped)));
 }
 
-export class GhostOverlayComponent implements Focusable {
+export class BetterBtwOverlayComponent implements Focusable {
   private readonly transcriptContainer = new Container();
   private readonly input = new Input();
   private readonly tui: TUI;
@@ -457,7 +457,7 @@ export class GhostOverlayComponent implements Focusable {
     const followIcon = this.followMode ? th.fg('success', '●') : th.fg('dim', '○');
     const sep = th.fg('border', SEPARATOR);
     const footer = truncateToWidth(
-      ` ${th.fg('dim', this.statusText)} ${sep} ${th.fg('dim', formatGhostCwd(this.sessionCwd))} ${sep} ${th.fg('dim', scrollInfo)} ${followIcon}`,
+      ` ${th.fg('dim', this.statusText)} ${sep} ${th.fg('dim', formatBetterBtwCwd(this.sessionCwd))} ${sep} ${th.fg('dim', scrollInfo)} ${followIcon}`,
       innerW
     );
     const title =
@@ -526,7 +526,7 @@ async function queryBackgroundAnsi(tui: TUI): Promise<string> {
   }
 }
 
-function formatGhostCwd(cwd: string): string {
+function formatBetterBtwCwd(cwd: string): string {
   const home = process.env.HOME;
   if (home && cwd.startsWith(home)) {
     return `~${cwd.slice(home.length)}` || '~';
@@ -535,13 +535,13 @@ function formatGhostCwd(cwd: string): string {
 }
 
 export default function (pi: ExtensionAPI) {
-  let ghostSession: AgentSession | null = null;
-  let ghostSessionCwd: string | null = null;
-  let ghostModelLabel: string | null = null;
+  let betterBtwSession: AgentSession | null = null;
+  let betterBtwSessionCwd: string | null = null;
+  let betterBtwModelLabel: string | null = null;
   let overlayHandle: OverlayHandle | null = null;
   let overlayClosed = false;
 
-  const cleanupGhost = (ctx?: ExtensionCommandContext) => {
+  const cleanupBetterBtw = (ctx?: ExtensionCommandContext) => {
     overlayClosed = true;
     if (overlayHandle) {
       try {
@@ -551,12 +551,12 @@ export default function (pi: ExtensionAPI) {
       }
       overlayHandle = null;
     }
-    if (ghostSession) {
-      ghostSession.dispose();
-      ghostSession = null;
+    if (betterBtwSession) {
+      betterBtwSession.dispose();
+      betterBtwSession = null;
     }
-    ghostSessionCwd = null;
-    ghostModelLabel = null;
+    betterBtwSessionCwd = null;
+    betterBtwModelLabel = null;
     ctx?.ui.setWidget('pi-better-btw', undefined);
   };
 
@@ -581,8 +581,8 @@ export default function (pi: ExtensionAPI) {
     }
   };
 
-  const ensureGhostSession = async (ctx: ExtensionCommandContext): Promise<AgentSession> => {
-    if (ghostSession) return ghostSession;
+  const ensureBetterBtwSession = async (ctx: ExtensionCommandContext): Promise<AgentSession> => {
+    if (betterBtwSession) return betterBtwSession;
     if (!ctx.model) throw new Error('No model selected');
 
     const result = await createAgentSession({
@@ -590,14 +590,14 @@ export default function (pi: ExtensionAPI) {
       model: ctx.model,
       sessionManager: SessionManager.inMemory(ctx.cwd),
     });
-    ghostSession = result.session;
-    ghostSessionCwd = ctx.cwd;
-    ghostModelLabel = ctx.model.id;
-    return ghostSession;
+    betterBtwSession = result.session;
+    betterBtwSessionCwd = ctx.cwd;
+    betterBtwModelLabel = ctx.model.id;
+    return betterBtwSession;
   };
 
-  const openGhostOverlay = async (ctx: ExtensionCommandContext, initialPrompt?: string) => {
-    const session = await ensureGhostSession(ctx);
+  const openBetterBtwOverlay = async (ctx: ExtensionCommandContext, initialPrompt?: string) => {
+    const session = await ensureBetterBtwSession(ctx);
     overlayClosed = false;
 
     void ctx.ui
@@ -613,14 +613,14 @@ export default function (pi: ExtensionAPI) {
             tui.requestRender();
           });
 
-          const overlay = new GhostOverlayComponent(
+          const overlay = new BetterBtwOverlayComponent(
             tui,
             theme,
             keybindings,
-            ghostSessionCwd ?? ctx.cwd,
+            betterBtwSessionCwd ?? ctx.cwd,
             () =>
               formatModelStatus(
-                ghostModelLabel ?? ctx.model?.id ?? 'unknown-model',
+                betterBtwModelLabel ?? ctx.model?.id ?? 'unknown-model',
                 pi.getThinkingLevel()
               ),
             () => backgroundAnsi,
@@ -680,7 +680,7 @@ export default function (pi: ExtensionAPI) {
       .finally(() => {
         overlayHandle = null;
         if (!overlayClosed) {
-          cleanupGhost(ctx);
+          cleanupBetterBtw(ctx);
         }
       });
   };
@@ -700,17 +700,17 @@ export default function (pi: ExtensionAPI) {
           setHiddenState(ctx, false);
         }
         if (prompt) {
-          const session = await ensureGhostSession(ctx);
+          const session = await ensureBetterBtwSession(ctx);
           void session.prompt(prompt, { images: [] });
         }
         return;
       }
 
-      await openGhostOverlay(ctx, prompt || undefined);
+      await openBetterBtwOverlay(ctx, prompt || undefined);
     },
   });
 
   pi.on('session_shutdown', async (_event, ctx) => {
-    cleanupGhost(ctx as ExtensionCommandContext);
+    cleanupBetterBtw(ctx as ExtensionCommandContext);
   });
 }

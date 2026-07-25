@@ -5,7 +5,7 @@ import {
   fitLineToWidth,
   formatModelStatus,
   formatBackgroundAnsi,
-  GhostOverlayComponent,
+  BetterBtwOverlayComponent,
   OVERLAY_MIN_HEIGHT,
   paintRowBackground,
   resolveOverlayHeight,
@@ -18,7 +18,7 @@ function createOverlay(
   onHide: () => void = () => {},
   terminal: { columns: number; rows: number } = { columns: 120, rows: 40 },
   backgroundAnsi = ''
-): GhostOverlayComponent {
+): BetterBtwOverlayComponent {
   const tui = {
     terminal,
     requestRender() {},
@@ -28,7 +28,7 @@ function createOverlay(
     bold: (text: string) => text,
   } as unknown as ExtensionCommandContext['ui']['theme'];
 
-  return new GhostOverlayComponent(
+  return new BetterBtwOverlayComponent(
     tui,
     theme,
     {} as KeybindingsManager,
@@ -41,7 +41,7 @@ function createOverlay(
   );
 }
 
-describe('GhostOverlayComponent layout', () => {
+describe('BetterBtwOverlayComponent layout', () => {
   it('renders every framed row at the requested width', () => {
     const lines = createOverlay().render(80);
 
@@ -212,7 +212,7 @@ describe('overlay opacity', () => {
   // background makes the cells opaque.
   const BACKGROUND = '\x1b[48;2;24;26;41m';
 
-  function createStyledOverlay(backgroundAnsi: string): GhostOverlayComponent {
+  function createStyledOverlay(backgroundAnsi: string): BetterBtwOverlayComponent {
     const tui = {
       terminal: { columns: 120, rows: 40 },
       requestRender() {},
@@ -224,7 +224,7 @@ describe('overlay opacity', () => {
       bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
     } as unknown as ExtensionCommandContext['ui']['theme'];
 
-    return new GhostOverlayComponent(
+    return new BetterBtwOverlayComponent(
       tui,
       theme,
       {} as KeybindingsManager,
