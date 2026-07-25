@@ -48,7 +48,7 @@ export class GhostOverlayComponent implements Focusable {
   private readonly onCloseOverlay: () => void;
   private streamingComponent?: AssistantMessageComponent;
   private pendingTools = new Map<string, ToolExecutionComponent>();
-  private statusText = 'Ask something quick.';
+  private statusText = 'Ask a quick side question without interrupting the main conversation';
   private scrollOffset = Number.MAX_SAFE_INTEGER;
   private followMode = true;
   private cachedTranscriptLines?: string[];
@@ -259,7 +259,7 @@ export class GhostOverlayComponent implements Focusable {
           }
           this.streamingComponent = undefined;
         }
-        this.setStatus('Ask something quick.');
+        this.setStatus('Ask a quick side question without interrupting the main conversation');
         break;
       }
 
@@ -303,7 +303,7 @@ export class GhostOverlayComponent implements Focusable {
       case 'agent_end': {
         this.streamingComponent = undefined;
         this.pendingTools.clear();
-        this.setStatus('Ask something quick.');
+        this.setStatus('Ask a quick side question without interrupting the main conversation');
         break;
       }
     }
