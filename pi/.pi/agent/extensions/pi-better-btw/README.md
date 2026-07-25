@@ -80,6 +80,10 @@ When hidden, a small widget is shown above the prompt:
 
 A quick pop-up chat that opens at the latest message and stays in follow mode while new output streams. Scroll up to inspect older output, then use `End` to jump back to live output.
 
+The title row shows the model the side conversation is using along with its current thinking level, so you can tell at a glance what is answering you.
+
+The overlay paints itself with the terminal's own background colour rather than leaving its cells on the default background. Terminals composite their window backdrop behind default-background cells, so without this the desktop shows through the overlay body when terminal transparency or blur is enabled. If the terminal does not answer the colour query, the overlay falls back to drawing without a background.
+
 It has its own temporary conversation state:
 
 - hide it → state stays in memory
