@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
 import { visibleWidth, type KeybindingsManager, type TUI } from '@earendil-works/pi-tui';
-import { fitLineToWidth, GhostOverlayComponent } from './index';
+import { fitLineToWidth, formatModelStatus, GhostOverlayComponent } from './index';
 
 function createOverlay(): GhostOverlayComponent {
   const tui = {
@@ -18,7 +18,7 @@ function createOverlay(): GhostOverlayComponent {
     theme,
     {} as KeybindingsManager,
     '/Users/ed/Developer/Atlas/Config',
-    'gpt-5.6-sol',
+    () => 'gpt-5.6-sol (high)',
     () => {},
     () => {},
     () => {}
@@ -41,6 +41,19 @@ describe('GhostOverlayComponent layout', () => {
     expect(lines[1]).not.toContain('ctrl+s');
     expect(lines[2]).toBe(`│${' '.repeat(78)}│`);
     expect(lines.at(-2)).toContain('up/down scroll │ ctrl+s hide │ esc close');
+  });
+
+  it('shows the model and thinking level on the top row, not the footer', () => {
+    const lines = createOverlay().render(80);
+    const footer = lines.at(-5) ?? '';
+
+    expect(lines[1]).toContain('gpt-5.6-sol (high)');
+    expect(footer).not.toContain('gpt-5.6-sol');
+  });
+
+  it('omits the thinking level only when it is off', () => {
+    expect(formatModelStatus('gpt-5.6-sol', 'high')).toBe('gpt-5.6-sol (high)');
+    expect(formatModelStatus('gpt-5.6-sol', 'off')).toBe('gpt-5.6-sol');
   });
 
   it('clips and pads ANSI content to an exact width', () => {

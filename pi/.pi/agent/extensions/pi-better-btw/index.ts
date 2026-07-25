@@ -42,7 +42,7 @@ export class GhostOverlayComponent implements Focusable {
   private readonly tui: TUI;
   private readonly theme: ExtensionCommandContext['ui']['theme'];
   private readonly sessionCwd: string;
-  private readonly modelLabel: string;
+  private readonly getModelStatus: () => string;
   private readonly onSubmitMessage: (text: string) => void;
   private readonly onHideOverlay: () => void;
   private readonly onCloseOverlay: () => void;
@@ -70,7 +70,7 @@ export class GhostOverlayComponent implements Focusable {
     theme: ExtensionCommandContext['ui']['theme'],
     keybindings: KeybindingsManager,
     sessionCwd: string,
-    modelLabel: string,
+    getModelStatus: () => string,
     onSubmitMessage: (text: string) => void,
     onHideOverlay: () => void,
     onCloseOverlay: () => void
@@ -79,7 +79,7 @@ export class GhostOverlayComponent implements Focusable {
     this.tui = tui;
     this.theme = theme;
     this.sessionCwd = sessionCwd;
-    this.modelLabel = modelLabel;
+    this.getModelStatus = getModelStatus;
     this.onSubmitMessage = onSubmitMessage;
     this.onHideOverlay = onHideOverlay;
     this.onCloseOverlay = onCloseOverlay;
@@ -347,13 +347,14 @@ export class GhostOverlayComponent implements Focusable {
         ? `${this.scrollOffset + 1}-${Math.min(this.scrollOffset + viewportRows, transcriptLines.length)}/${transcriptLines.length}`
         : `${transcriptLines.length}L`;
     const followIcon = this.followMode ? th.fg('success', '●') : th.fg('dim', '○');
+    const sep = th.fg('border', '│');
     const footer = truncateToWidth(
-      ` ${th.fg('dim', this.statusText)} ${th.fg('border', '│')} ${th.fg('accent', this.modelLabel)} ${th.fg('border', '│')} ${th.fg('dim', formatGhostCwd(this.sessionCwd))} ${th.fg('border', '│')} ${th.fg('dim', scrollInfo)} ${followIcon}`,
+      ` ${th.fg('dim', this.statusText)} ${sep} ${th.fg('dim', formatGhostCwd(this.sessionCwd))} ${sep} ${th.fg('dim', scrollInfo)} ${followIcon}`,
       innerW
     );
     const title =
-      ` ${th.fg('accent', th.bold('better pi'))} ` +
-      th.fg('dim', ` ${th.fg('border', '│')} same model ${th.fg('border', '│')} temporary session`);
+      ` ${th.fg('accent', th.bold('better pi'))} ${sep} ` +
+      `${th.fg('accent', this.getModelStatus())} ${sep} ${th.fg('dim', 'temporary session')}`;
     const controls =
       ` ${th.fg('accent', 'up/down')} ${th.fg('dim', 'scroll')} ` +
       `${th.fg('border', '│')} ${th.fg('accent', 'ctrl+s')} ${th.fg('dim', 'hide')} ` +
@@ -395,6 +396,10 @@ function extractMessageText(message: {
     .map(part => part.text)
     .join('\n')
     .trim();
+}
+
+export function formatModelStatus(modelId: string, thinkingLevel: string): string {
+  return thinkingLevel && thinkingLevel !== 'off' ? `${modelId} (${thinkingLevel})` : modelId;
 }
 
 function formatGhostCwd(cwd: string): string {
@@ -479,7 +484,11 @@ export default function (pi: ExtensionAPI) {
             theme,
             keybindings,
             ghostSessionCwd ?? ctx.cwd,
-            ghostModelLabel ?? ctx.model?.id ?? 'unknown-model',
+            () =>
+              formatModelStatus(
+                ghostModelLabel ?? ctx.model?.id ?? 'unknown-model',
+                pi.getThinkingLevel()
+              ),
             text => {
               void session.prompt(text, { images: [] });
             },
