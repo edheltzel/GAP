@@ -406,7 +406,7 @@ describe('Atlas OMP status line', () => {
     expect(config.statusLine?.showHookStatus).toBeTrue();
   });
 
-  it('ships and selects a snapshot of the OMP default dark theme', async () => {
+  it('ships the OMP default snapshot and selects the Atlas Eldritch dark theme', async () => {
     const config = Bun.YAML.parse(
       await Bun.file(new URL('../../omp/.omp/agent/config.yml', import.meta.url)).text()
     ) as {
@@ -421,7 +421,7 @@ describe('Atlas OMP status line', () => {
       new URL('./modes/theme/dark.json', packageEntry)
     ).json()) as Record<string, unknown>;
 
-    expect(config.theme?.dark).toBe('atlas-default');
+    expect(config.theme?.dark).toBe('atlas-eldritch');
     expect(config.statusLine?.separator).toBe('powerline-thin');
     expect(config.statusLine?.transparent).toBeFalse();
     expect(atlasDefault).toEqual({ ...ompDefault, name: 'atlas-default' });
