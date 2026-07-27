@@ -28,12 +28,14 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 
 - Compound Engineering is an intentional global package exception, loaded directly from the official `git:github.com/EveryInc/compound-engineering-plugin` Pi package in `settings.json`.
 - Do not restore converter-managed `ce-*` skills or agents under `~/.pi/agent/`; the native package owns skill discovery from its Git checkout.
-- Keep `npm:@tintinweb/pi-subagents` and the pinned
-  `git:github.com/edheltzel/pi-ask-user@v0.13.0-herdr.1` fork installed as
-  workflow companions.
-- The fork preserves `pi-ask-user`'s full UI, schema, and decision-gate skill
-  while adding Herdr blocked-state and metadata hooks. Do not also install
-  `npm:pi-ask-user` or `npm:pi-ask-herdr`; either would duplicate `ask_user`.
+- Keep `npm:@tintinweb/pi-subagents` and the local Pi Extensions collection at
+  `local-packages/pi-extensions` installed as workflow companions.
+- `~/Developer/Atlas/PiExtensions/` owns the collection; run `just install-local`
+  there to stow and register its current source.
+- The collection preserves `pi-ask-user`'s full UI, schema, and decision-gate
+  skill while adding Herdr blocked-state and metadata hooks. Do not also install
+  standalone `pi-ask-user` or `pi-ask-herdr` packages; either would duplicate
+  `ask_user`.
 
 ## CURATED SKILLS
 
@@ -77,7 +79,7 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 
 ## Child DOX Index
 
-- `extensions/pi-better-btw/AGENTS.md` — `/btw` overlay behavior, UI contracts, and verification.
+None.
 
 ## Maintaining this file
 

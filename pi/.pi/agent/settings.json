@@ -15,7 +15,7 @@
     "npm:pi-lens",
     "npm:@vndv/pi-codegraph",
     "git:github.com/EveryInc/compound-engineering-plugin",
-    "git:github.com/edheltzel/pi-ask-user@v0.13.0-herdr.1",
+    "local-packages/pi-extensions",
     "npm:pi-unified-exec",
     "npm:@ogulcancelik/pi-codex-compaction"
   ],
