@@ -282,6 +282,7 @@
           <li><a href="#never-track">Never track</a></li>
           <li><a href="#adding-files">Adding OMP files</a></li>
           <li><a href="#marketplace-plugins">OMP marketplace plugins</a></li>
+          <li><a href="#prompt-profiles">Prompt template execution profiles</a></li>
           <li><a href="#atlas-status-line">Atlas status line</a></li>
           <li><a href="#updates">OMP updates</a></li>
           <li><a href="#baseline">Current tracked baseline</a></li>
@@ -355,6 +356,31 @@
           </ul>
         </section>
 
+        <section id="prompt-profiles">
+          <h2>Prompt template execution profiles</h2>
+          <p><code>packages/omp-prompt-template-model/</code> adds execution frontmatter to OMP prompt templates without loading Pi's extension runtime. The stowed <code>omp/.omp/agent/extensions/omp-prompt-template-model</code> link exposes the package, and <code>omp/.omp/agent/config.yml</code> loads its entrypoint explicitly.</p>
+          <pre><code>---
+description: Review with a contrasting model
+model: ["@slow", "openai-codex/gpt-5.6-sol"]
+thinking: xhigh
+skill: ce-code-review
+restore: true
+subagent: reviewer
+inheritContext: false
+---
+Review $1 against $ARGUMENTS.</code></pre>
+          <ul>
+            <li><code>model</code> accepts one selector, a comma-separated fallback list, or a YAML array; OMP tries selectors in order and uses the first model it can resolve and activate.</li>
+            <li><code>thinking</code> accepts OMP's <code>off</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, and <code>max</code> levels.</li>
+            <li><code>skill</code> injects the named OMP skill for the command's next turn.</li>
+            <li><code>subagent</code> adds native <code>task</code> delegation guidance. <code>true</code> uses the configured default agent; a string names the agent. <code>inheritContext</code> defaults to <code>false</code>.</li>
+            <li><code>restore</code> defaults to <code>true</code> and restores the prior model and thinking level after the delegated turn ends.</li>
+            <li><code>$1</code>, <code>$2</code>, <code>$@</code>, <code>$ARGUMENTS</code>, <code>$@[start:length]</code>, <code>$@[start:]</code>, <code>${@:start}</code>, <code>${@:start:length}</code>, <code>{{arguments}}</code>, <code>{{ARGUMENTS}}</code>, and <code>{{arg N}}</code> use OMP-compatible, non-recursive argument substitution.</li>
+            <li>Profile commands never shadow OMP built-ins, discovered file commands, or unrelated extension, custom, and skill commands; the existing command remains authoritative and OMP logs the collision.</li>
+          </ul>
+          <p>Execution-profile templates in <code>&lt;cwd&gt;/.omp/prompts/</code> override matching user templates in OMP's profile-aware agent prompt directory (normally <code>~/.omp/agent/prompts/</code>). Files without execution frontmatter remain owned by OMP's native prompt loader.</p>
+        </section>
+
         <section id="atlas-status-line">
           <h2>Atlas status line</h2>
           <p><code>omp/.omp/agent/extensions/atlas-status-line.ts</code> owns the canonical Atlas footer. <code>omp/.omp/agent/config.yml</code> lists it explicitly because native discovery does not traverse the stowed extension-directory symlink. Run <code>just up</code> when adding an authored OMP file and <code>just omp</code> for later package-only restows; focused tests live at <code>tests/omp/atlas-status-line.test.ts</code>.</p>
@@ -392,9 +418,11 @@
             <li><strong>MCP config</strong><code>omp/.omp/agent/mcp.json</code></li>
             <li><strong>Codegraph extension</strong><code>omp/.omp/agent/extensions/codegraph.ts</code></li>
             <li><strong>Atlas status extension</strong><code>omp/.omp/agent/extensions/atlas-status-line.ts</code></li>
+            <li><strong>Prompt profile extension link</strong><code>omp/.omp/agent/extensions/omp-prompt-template-model</code></li>
             <li><strong>Atlas default theme snapshot</strong><code>omp/.omp/agent/themes/atlas-default.json</code></li>
             <li><strong>Atlas Eldritch theme</strong><code>omp/.omp/agent/themes/atlas-eldritch.json</code></li>
             <li><strong>Themis package</strong><code>packages/omp-themis/</code></li>
+            <li><strong>Prompt profile package</strong><code>packages/omp-prompt-template-model/</code></li>
             <li><strong>Marketplace catalog</strong><code>.claude-plugin/marketplace.json</code></li>
             <li><strong>OMP plugin manifest</strong><code>omp-plugins.txt</code>, <code>install-omp-plugins.sh</code></li>
           </ul>

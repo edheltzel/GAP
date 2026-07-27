@@ -7,6 +7,7 @@ theme:
 setupVersion: 1
 extensions: 
   - ~/.omp/agent/extensions/atlas-status-line.ts
+  - ~/.omp/agent/extensions/omp-prompt-template-model/src/main.ts
 statusLine: 
   preset: custom
   leftSegments: 

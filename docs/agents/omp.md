@@ -65,6 +65,33 @@ Compound Engineering is declared as `EveryInc/compound-engineering-plugin=compou
 - Focused installer contracts live at `tests/omp/install-omp-plugins.test.ts`.
 - Verify ownership with `omp plugin list`; CE must appear under `Marketplace Plugins`.
 
+## Prompt template execution profiles
+
+`packages/omp-prompt-template-model/` adds execution frontmatter to OMP prompt templates without loading Pi's extension runtime. The stowed `omp/.omp/agent/extensions/omp-prompt-template-model` link exposes the package, and `omp/.omp/agent/config.yml` loads its entrypoint explicitly.
+
+```yaml
+---
+description: Review with a contrasting model
+model: ["@slow", "openai-codex/gpt-5.6-sol"]
+thinking: xhigh
+skill: ce-code-review
+restore: true
+subagent: reviewer
+inheritContext: false
+---
+Review $1 against $ARGUMENTS.
+```
+
+- `model` accepts one selector, a comma-separated fallback list, or a YAML array; OMP tries selectors in order and uses the first model it can resolve and activate.
+- `thinking` accepts OMP's `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max` levels.
+- `skill` injects the named OMP skill for the command's next turn.
+- `subagent` adds native `task` delegation guidance. `true` uses the configured default agent; a string names the agent. `inheritContext` defaults to `false`.
+- `restore` defaults to `true` and restores the prior model and thinking level after the delegated turn ends.
+- `$1`, `$2`, `$@`, `$ARGUMENTS`, `$@[start:length]`, `$@[start:]`, `${@:start}`, `${@:start:length}`, `{{arguments}}`, `{{ARGUMENTS}}`, and `{{arg N}}` use OMP-compatible, non-recursive argument substitution.
+- Profile commands never shadow OMP built-ins, discovered file commands, or unrelated extension, custom, and skill commands; the existing command remains authoritative and OMP logs the collision.
+
+Execution-profile templates in `<cwd>/.omp/prompts/` override matching user templates in OMP's profile-aware agent prompt directory (normally `~/.omp/agent/prompts/`). Files without execution frontmatter remain owned by OMP's native prompt loader.
+
 ## Atlas status line
 
 `omp/.omp/agent/extensions/atlas-status-line.ts` owns the canonical Atlas footer in OMP. `omp/.omp/agent/config.yml` lists it explicitly because stow folds the authored `extensions/` directory into a symlink and native glob discovery does not traverse that linked root. Run `just up` when adding an authored OMP file and the scoped `just omp` workflow for later package-only restows; focused contract tests live outside the stow package at `tests/omp/atlas-status-line.test.ts`.
@@ -97,9 +124,11 @@ Tracked OMP-authored config and packages currently include:
 - `omp/.omp/agent/mcp.json`
 - `omp/.omp/agent/extensions/codegraph.ts`
 - `omp/.omp/agent/extensions/atlas-status-line.ts`
+- `omp/.omp/agent/extensions/omp-prompt-template-model` — stowed link to the local execution-profile package.
 - `omp/.omp/agent/themes/atlas-eldritch.json`
 - `omp/.omp/agent/themes/atlas-default.json`
 - `packages/omp-themis/` — installable OMP Themis extension package.
+- `packages/omp-prompt-template-model/` — OMP-native prompt model, thinking, skill, restoration, and task-delegation profiles.
 - `.claude-plugin/marketplace.json` — local marketplace catalog exposing `themis`.
 - `omp-plugins.txt` and `install-omp-plugins.sh` — tracked desired state and installer for user-scoped OMP marketplace plugins.
 
