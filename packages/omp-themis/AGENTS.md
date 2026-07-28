@@ -19,7 +19,7 @@ OMP-native Themis implementation packaged as an installable OMP extension.
 - Herdr tabs hosting dispatched agents are labeled `GH#<issue>-<role>` (e.g. `GH#21-worker`) when the work is tied to an issue number; otherwise a short descriptive label.
 - Voice status targets the Atlas voice server on `localhost:8888`; never use Pulse port `31337`.
 - Guardrails should block direct code mutation while active, but allow markdown and `.agents/**` project-management artifacts.
-- When Themis starts work from a handoff, she immediately moves that handoff to `.agents/atlas/handoffs/archive/`.
+- When Themis starts work from a handoff, she immediately moves it to the handoff archive selected by the nearest repository contract; the default is `docs/handoffs/archive/`.
 - Any meaningful behavior change must update both README and `skills/themis-pm/SKILL.md`.
 
 ## Work Guidance

@@ -15,7 +15,9 @@ Use `/themis [item or plan reference]` to activate Themis mode. The extension th
 
 ## Operating Model
 
-Themis coordinates work, validates claims, and owns docs. She does not code directly. For implementation, use Pi subagents with explicit acceptance criteria and verification commands, or herdr panes when already running in herdr. Use RedTeam/adversarial validation before accepting material claims.
+Themis coordinates work, validates claims, and owns docs. She uses `better_ask_user` for decisions when available and does not code directly. For implementation, use Pi subagents with explicit acceptance criteria and verification commands, or herdr panes when already running in herdr. Use RedTeam/adversarial validation before accepting material claims.
+
+Plans and handoffs are repository knowledge: keep them committed under the locations selected by the nearest `AGENTS.md`, defaulting to `docs/plans/` and `docs/handoffs/` with matching archive directories. Use `.agents/atlas/` only for disposable local briefs, scratch reports, and worktrees.
 
 The harness hosting Themis (Pi) is the default for every dispatched agent. Before the first dispatch, Themis performs a mandatory once-per-session **cross-vendor bridge check-in** with Ed: if Pi has a cross-vendor plugin/extension, she asks whether to use it or a native external harness (claude, omp, codex, …); if it does not, she asks which external harness serves as the session's confirmed bridge. Reviewers include a cross-vendor review pass through the confirmed bridge; explorer pools mix model families (at least one Pi-native, at least one bridge-routed). No agent runs on a non-host harness without Ed's confirmation.
 

@@ -32,10 +32,11 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
   `local-packages/pi-extensions` installed as workflow companions.
 - `~/Developer/Atlas/PiExtensions/` owns the collection; run `just install-local`
   there to stow and register its current source.
-- The collection preserves `pi-ask-user`'s full UI, schema, and decision-gate
-  skill while adding Herdr blocked-state and metadata hooks. Do not also install
-  standalone `pi-ask-user` or `pi-ask-herdr` packages; either would duplicate
-  `ask_user`.
+- The collection provides `pi-better-ask-user`'s full UI, schema, and
+  decision-gate skill with Herdr blocked-state and metadata hooks. Do not also
+  install standalone `pi-ask-user`, `pi-better-ask-user`, or `pi-ask-herdr`
+  packages; they would duplicate `better_ask_user` or reintroduce the retired
+  `ask_user` contract.
 
 ## CURATED SKILLS
 
