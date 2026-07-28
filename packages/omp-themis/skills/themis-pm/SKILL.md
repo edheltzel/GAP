@@ -23,8 +23,10 @@ Prefer herdr panes only when already running inside `HERDR_ENV`; OMP subagents a
 
 ## Documentation Ownership (DOX Framework)
 
-- Plans, specs, and handoffs live under `.agents/atlas/` (`plans/`, `plans/archive/`, `handoffs/`, `handoffs/archive/`, `artifacts/`), never in `docs/`.
-- After the start of a handoff, immediately move it to `handoffs/archive/`.
+- Plans, specs, and handoffs are repository knowledge: they live under `docs/plans/` and `docs/handoffs/`, committed, with repository-relative links and no secrets or machine-local paths. Completed or superseded material retains its filename under `docs/plans/archive/` and `docs/handoffs/archive/`; supporting evidence goes under `docs/plans/support/<topic>/`.
+- `.agents/atlas/` is for disposable local artifacts only — worker/reviewer/explorer briefs, scratch reports, worktrees — and is typically gitignored. Promote anything a future contributor needs into `docs/` and link it from the owning plan or handoff.
+- If a project's own `AGENTS.md` specifies different locations, the project's contract wins — read it before writing any doc.
+- After the start of a handoff, immediately move it to `docs/handoffs/archive/`.
 - Keep stale docs from accumulating.
 - Use GitHub Projects / issue-tracker workflows when converting plans or handoffs into trackable work. Search first to avoid duplicates.
 

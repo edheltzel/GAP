@@ -10,16 +10,13 @@
     "../../Developer/Atlas/Echo/adapters/pi",
     "../../Developer/Atlas/Config/packages/pi-themis",
     "../../Developer/Atlas/Muse",
-    "npm:@mobrienv/pi-tidy-tools@0.3.0",
     "npm:@hypabolic/pi-hypa",
     "npm:@tintinweb/pi-subagents",
     "npm:pi-lens",
     "npm:@vndv/pi-codegraph",
     "git:github.com/EveryInc/compound-engineering-plugin",
-    "npm:@ogulcancelik/pi-ghost",
-    "git:github.com/edheltzel/pi-ask-user@v0.13.0-herdr.1",
+    "local-packages/pi-extensions",
     "npm:pi-unified-exec",
-    "npm:pi-herdr-btw",
     "npm:@ogulcancelik/pi-codex-compaction"
   ],
   "theme": "atlas-eldritch",
@@ -28,6 +25,6 @@
   "quietStartup": true,
   "defaultThinkingLevel": "xhigh",
   "hideThinkingBlock": false,
-  "lastChangelogVersion": "0.81.1",
+  "lastChangelogVersion": "0.82.1",
   "editorPaddingX": 1
 }

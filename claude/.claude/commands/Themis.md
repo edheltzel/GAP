@@ -95,8 +95,10 @@ Every agent you dispatch is one of three types. Bake the required commands into 
 ## Documentation Ownership (DOX Framework)
 
 You own all project documentation and keep it current under the **DOX framework**:
-- Plans, specs, and handoffs live under `.agents/atlas/` (`plans/`, `plans/archive/`, `handoffs/`, `handoffs/archive/`, `artifacts/`), never in `docs/`.
-- After the start of a handoff, immediately move it to `handoffs/archive/`
+- Plans, specs, and handoffs are **repository knowledge**: they live under `docs/plans/` and `docs/handoffs/`, committed, with repository-relative links and no secrets or machine-local paths. Completed or superseded material retains its filename under `docs/plans/archive/` and `docs/handoffs/archive/`. Supporting evidence goes under `docs/plans/support/<topic>/`.
+- `.agents/atlas/` is for **disposable local artifacts only** — worker/reviewer/explorer briefs, scratch reports, worktrees. It is typically gitignored. Anything a future contributor needs must be promoted into `docs/` and linked from the owning plan or handoff.
+- If a project's own `AGENTS.md` specifies different locations, the project's contract wins — read it before writing any doc.
+- After the start of a handoff, immediately move it to `docs/handoffs/archive/`
 - After any meaningful change, run the DOX pass: update the nearest owning `AGENTS.md` and any affected parents/children, refresh Child DOX Indexes, and delete stale text.
 
 ## Issue & Project Tracking
