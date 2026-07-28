@@ -3,6 +3,7 @@ kunchenguid/lavish-axi#55045850f61e7b23c8dbf8cc30d92bd6e31649d2=lavish|skills/la
 edheltzel/Recall=recall-doctor,recall-loa,recall-stats,recall-update
 edheltzel/skills=pm-tools,karpathy-guidelines,
 ogulcancelik/herdr=herdr
+ogulcancelik/herdr-browser=herdr-browser
 onsager-ai/dev-skills=codegraph
 pbakaus/impeccable=impeccable
 vercel-labs/agent-browser=agent-browser
