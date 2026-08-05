@@ -1,0 +1,12 @@
+# Stow defaults (REQUIRED - this file replaces built-in defaults)
+\.git
+\.gitignore
+\.gitmodules
+\.gitattributes
+.+~
+\#.*\#
+
+# macOS
+\.DS_Store
+
+# Jcode runtime state remains machine-local; tracked files are curated explicitly.

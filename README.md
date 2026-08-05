@@ -9,6 +9,7 @@ Minimal config for the agents Ed uses. Harness config is still linked with [GNU 
 | `claude`     | `claude/.claude/`       | `~/.claude/`     |
 | `pi`         | `pi/.pi/agent/`         | `~/.pi/agent/`   |
 | `omp`        | `omp/.omp/agent/`       | `~/.omp/agent/`  |
+| `jcode`      | `jcode/.jcode/`          | `~/.jcode/`      |
 | Skills       | `skills.txt`, `install-skills.sh` | skills.sh global install targets |
 | OMP plugins  | `omp-plugins.txt`, `install-omp-plugins.sh` | `~/.omp/plugins/` runtime registry and cache |
 
@@ -24,6 +25,7 @@ just claude          # restow the claude package only
 just omp             # restow OMP config (no-folding) and install omp-plugins.txt
 omp update           # install the latest published OMP release
 just pi              # restow the pi package only (no-folding)
+just jcode           # restow curated Jcode config only (no-folding)
 just unlink          # remove all package symlinks
 just status          # dry run — show what stow would do
 just skills          # list declared skills grouped by repo, with install status
@@ -40,9 +42,11 @@ just push            # commit any changes and push to origin
 
 - Atlas Flow is tracked as the atlas-flow epic (issues #2–#11); review it before changing Pi's global package set or implementing `/atlas-flow`.
 - `pi/` is active curated Pi config, not a placeholder.
+- `jcode/` tracks portable preferences in writable `config.toml`; the `jcode-config` clean filter removes theme selection and generated launch-hotkey state before indexing.
+- Jcode credentials, sessions, memory, caches, telemetry, generated browser assets, and MCP discovery output stay machine-local.
 - `oldSetup/`, `.audit-backup/`, and any `auth.json` files are gitignored — runtime state and local backups never get committed.
 - OMP runtime state stays local; only curated files like `config.yml`, `models.yml`, `mcp.json`, keybindings, skills, commands, tools, extensions, and themes are stowed. `omp-plugins.txt` tracks desired marketplace packages while OMP keeps its installed registry and cache under `~/.omp/plugins/`. See `docs/agents/omp.md`.
-- `just link` and `just up` provision shared skills from `skills.txt`; package-only `just claude`, `just omp`, and `just pi` commands only restow or provision their package-specific state.
+- `just link` and `just up` provision shared skills from `skills.txt`; package-only `just claude`, `just omp`, `just pi`, and `just jcode` commands only restow or provision their package-specific state.
 - Lavish is globally owned through `skills.txt`, which pins upstream commit `55045850f61e7b23c8dbf8cc30d92bd6e31649d2` and verifies blob `1e792b5bfc34127ca6f00bbb44fea306ce77ea52` during `just skills-status` and `just skills-install`.
 - Fresh or disposable checkouts should run `just skills-status` and then `just skills-install` before using Lavish; `just claude` and `just pi` only restow package-specific state.
 - To roll back the project-ownership removal, revert its commit and rerun `just skills-install` to restore the pinned global copy and generated agent links; do not reintroduce a Pi package copy.

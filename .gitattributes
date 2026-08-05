@@ -9,6 +9,7 @@
 *.json text eol=lf
 *.yaml text eol=lf
 *.yml text eol=lf
+*.toml text eol=lf
 *.html text eol=lf
 *.css text eol=lf
 *.vue text eol=lf
@@ -29,3 +30,8 @@ claudecode/.claude/settings.json merge=ours
 # Pi global settings is single-machine config too. Pi may rewrite local UI/model/package
 # preferences and runtime bookkeeping; local settings win on pull.
 pi/.pi/agent/settings.json merge=ours
+
+# Jcode rewrites config.toml and mixes portable preferences with machine-local
+# theme and generated launch-hotkey state. The clean filter keeps those fields
+# out of diffs and commits while leaving Jcode's live writable file intact.
+jcode/.jcode/config.toml filter=jcode-config

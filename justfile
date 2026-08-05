@@ -4,7 +4,7 @@ stow_dir := justfile_directory()
 stow_target := env("HOME")
 stow_cmd := "stow -d " + stow_dir + " -t " + stow_target
 pkgs := "claude"
-no_folding_pkgs := "omp pi"
+no_folding_pkgs := "omp pi jcode"
 
 yellow := '\033[33m'
 green := '\033[32m'
@@ -56,7 +56,7 @@ prune-broken *packages:
 
 # Restow all packages and provision skills plus OMP marketplace plugins
 [group('stow')]
-update: prune-broken && skills-install omp-plugins-install
+update: jcode-filter prune-broken && skills-install omp-plugins-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} --restow $pkg; done
@@ -89,9 +89,17 @@ pi: (prune-broken "pi")
     {{ stow_cmd }} --no-folding --restow pi
     echo -e "{{ green }}pi restowed{{ clr }}"
 
+# Restow the Jcode package only (no-folding)
+[group('stow')]
+jcode: jcode-filter (prune-broken "jcode")
+    #!/usr/bin/env bash
+    set -eu
+    {{ stow_cmd }} --no-folding --restow jcode
+    echo -e "{{ green }}jcode restowed{{ clr }}"
+
 # Create symlinks and provision skills plus OMP marketplace plugins
 [group('stow')]
-link: prune-broken && skills-install omp-plugins-install
+link: jcode-filter prune-broken && skills-install omp-plugins-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} $pkg; done
@@ -221,3 +229,12 @@ push:
         git push origin master
         echo -e "{{ green }}Pushed to origin{{ clr }}"
     fi
+
+# Configure the repository-local clean filter for writable Jcode config
+[group('stow')]
+jcode-filter:
+    #!/usr/bin/env bash
+    set -eu
+    git config filter.jcode-config.clean "python3 {{ stow_dir }}/filter-jcode-config.py"
+    git config filter.jcode-config.smudge cat
+    git config filter.jcode-config.required true
