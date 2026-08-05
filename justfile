@@ -3,8 +3,8 @@ set shell := ["bash", "-cu"]
 stow_dir := justfile_directory()
 stow_target := env("HOME")
 stow_cmd := "stow -d " + stow_dir + " -t " + stow_target
-pkgs := "claude omp"
-pi_pkg := "pi"
+pkgs := "claude"
+no_folding_pkgs := "omp pi jcode"
 
 yellow := '\033[33m'
 green := '\033[32m'
@@ -23,11 +23,11 @@ prune-broken *packages:
     #!/usr/bin/env bash
     set -euo pipefail
     packages="{{ packages }}"
-    if [ -z "$packages" ]; then packages="{{ pkgs }} {{ pi_pkg }}"; fi
+    if [ -z "$packages" ]; then packages="{{ pkgs }} {{ no_folding_pkgs }}"; fi
     total=0
     for pkg in $packages; do
         flags=""
-        if [ "$pkg" = "{{ pi_pkg }}" ]; then flags="--no-folding"; fi
+        case " {{ no_folding_pkgs }} " in *" $pkg "*) flags="--no-folding";; esac
         # Pruning a broken directory link can expose more beneath it, so repeat
         # until a pass finds nothing.
         for _ in 1 2 3; do
@@ -54,13 +54,14 @@ prune-broken *packages:
         echo -e "{{ green }}Pruned $total broken link(s){{ clr }}"
     fi
 
-# Restow all packages and provision skills plus OMP marketplace plugins
+# Restow all packages, reconcile shared agent instructions, and provision manifests
 [group('stow')]
-update: prune-broken && skills-install omp-plugins-install
+update: jcode-filter prune-broken && skills-install omp-plugins-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} --restow $pkg; done
-    {{ stow_cmd }} --no-folding --restow {{ pi_pkg }}
+    for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --restow $pkg; done
+    python3 ./manage-agents.py sync
     echo -e "{{ green }}All packages restowed{{ clr }}"
 
 alias up := update
@@ -73,30 +74,39 @@ claude: (prune-broken "claude")
     {{ stow_cmd }} --restow claude
     echo -e "{{ green }}claude restowed{{ clr }}"
 
-# Restow the OMP package and provision its marketplace plugins
+# Restow the OMP package without folding and provision its marketplace plugins
 [group('stow')]
 omp: (prune-broken "omp") && omp-plugins-install
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --restow omp
+    {{ stow_cmd }} --no-folding --restow omp
     echo -e "{{ green }}omp restowed{{ clr }}"
 
 # Restow the pi package only (no-folding)
 [group('stow')]
-pi: (prune-broken pi_pkg)
+pi: (prune-broken "pi")
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --no-folding --restow {{ pi_pkg }}
+    {{ stow_cmd }} --no-folding --restow pi
     echo -e "{{ green }}pi restowed{{ clr }}"
 
-# Create symlinks and provision skills plus OMP marketplace plugins
+# Restow the Jcode package only (no-folding)
 [group('stow')]
-link: prune-broken && skills-install omp-plugins-install
+jcode: jcode-filter (prune-broken "jcode")
+    #!/usr/bin/env bash
+    set -eu
+    {{ stow_cmd }} --no-folding --restow jcode
+    echo -e "{{ green }}jcode restowed{{ clr }}"
+
+# Create symlinks, reconcile shared agent instructions, and provision manifests
+[group('stow')]
+link: jcode-filter prune-broken && skills-install omp-plugins-install
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} $pkg; done
-    {{ stow_cmd }} --no-folding {{ pi_pkg }}
-    echo -e "{{ green }}Packages linked: {{ pkgs }} {{ pi_pkg }}{{ clr }}"
+    for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding $pkg; done
+    python3 ./manage-agents.py sync
+    echo -e "{{ green }}Packages linked: {{ pkgs }} {{ no_folding_pkgs }}{{ clr }}"
 
 # Remove all symlinks
 [group('stow')]
@@ -104,8 +114,19 @@ unlink:
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ pkgs }}; do {{ stow_cmd }} --delete $pkg; done
-    {{ stow_cmd }} --no-folding --delete {{ pi_pkg }}
+    for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --delete $pkg; done
+    python3 ./manage-agents.py unlink
     echo -e "{{ white }}All package symlinks removed{{ clr }}"
+
+# Reconcile the shared AGENTS.md, harness entry points, and local RULES.md indexes
+[group('agents')]
+agents *args:
+    @python3 ./manage-agents.py {{ args }}
+
+# Verify every managed global, harness, and local-rules link
+[group('agents')]
+agents-check:
+    @python3 ./manage-agents.py check
 
 # Show the state of every managed symlink (ACTIVE / BROKEN / NOT ACTIVE)
 [group('stow')]
@@ -138,7 +159,7 @@ status:
         echo ""
     }
     for pkg in {{ pkgs }}; do report "$pkg"; done
-    report {{ pi_pkg }} --no-folding
+    for pkg in {{ no_folding_pkgs }}; do report "$pkg" --no-folding; done
 
 # List declared skills (skills.txt) grouped by repo with install status
 [group('skills')]
@@ -221,3 +242,11 @@ push:
         git push origin master
         echo -e "{{ green }}Pushed to origin{{ clr }}"
     fi
+# Configure the repository-local clean filter for writable Jcode config
+[group('stow')]
+jcode-filter:
+    #!/usr/bin/env bash
+    set -eu
+    git config filter.jcode-config.clean "python3 {{ stow_dir }}/filter-jcode-config.py"
+    git config filter.jcode-config.smudge cat
+    git config filter.jcode-config.required true

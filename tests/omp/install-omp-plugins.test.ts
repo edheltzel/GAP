@@ -201,6 +201,7 @@ describe('OMP marketplace plugin installer', () => {
       const result = Bun.spawnSync({ cmd: ['just', '--dry-run', recipe], cwd: REPO_ROOT });
       const output = result.stdout.toString() + result.stderr.toString();
       expect(result.exitCode).toBe(0);
+      expect(output).toContain('--no-folding');
       const stowBody = output.lastIndexOf('stow ');
       expect(stowBody).toBeGreaterThanOrEqual(0);
       expect(output.indexOf('./install-omp-plugins.sh')).toBeGreaterThan(stowBody);

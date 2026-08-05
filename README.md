@@ -21,7 +21,7 @@ just                 # list all available commands (bare `just`)
 just link            # first-time setup — link packages and install both manifests
 just up              # restow every package and install both manifests
 just claude          # restow the claude package only
-just omp             # restow OMP config and install omp-plugins.txt
+just omp             # restow OMP config (no-folding) and install omp-plugins.txt
 omp update           # install the latest published OMP release
 just pi              # restow the pi package only (no-folding)
 just unlink          # remove all package symlinks
