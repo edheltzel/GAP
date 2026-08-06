@@ -28,6 +28,16 @@ fi
 claude_plain="$(sed $'s/\033\\[[0-9;]*m//g' <<<"$claude_output")"
 grep -F '✱ 2.1.0 · Sonnet 4.6' <<<"$claude_plain" >/dev/null
 grep -F '…/Atlas/Config' <<<"$claude_plain" >/dev/null
+
+: > "$claude_stderr"
+printf '%s' '{"workspace":{"current_dir":"/tmp/Atlas/Config"}}' \
+  | env -u COLUMNS HOME="$temp_home" ATLAS_DIR="$temp_home/.claude" bash "$claude_status" \
+    >/dev/null 2>"$claude_stderr"
+if [ -s "$claude_stderr" ]; then
+  printf 'non-TTY Claude status fallback wrote to stderr:\n%s\n' "$(<"$claude_stderr")" >&2
+  exit 1
+fi
+
 if grep -Fq 'Atlas v' <<<"$claude_plain"; then
   printf 'Claude status line rendered retired Atlas/LifeOS identity\n' >&2
   exit 1
