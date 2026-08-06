@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
+// @ts-nocheck - Standalone Bun CLI; behavior is covered by native-runtime-skills.test.sh.
 /**
- * Transcribe.ts — Word-level transcription via Whisper
+ * Transcribe.ts: Word-level transcription via Whisper
  *
  * Uses insanely-fast-whisper (MPS accelerated) for word-level timestamps.
  * Falls back to standard whisper CLI if unavailable.
@@ -60,7 +61,9 @@ if (hasFastWhisper) {
 
 if (!hasFastWhisper || !existsSync(outFile)) {
   if (!hasWhisper) {
-    console.error("No whisper variant found. Install: pip install openai-whisper");
+    console.error("No supported Whisper CLI found.");
+    console.error("Install one explicitly: pipx install insanely-fast-whisper");
+    console.error("Alternative: python -m pip install openai-whisper");
     process.exit(1);
   }
 

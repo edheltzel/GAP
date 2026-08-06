@@ -169,9 +169,9 @@ Based on the results:
 ## Run Command
 
 ```bash
-bun run ~/.claude/Skills/Evals/EvalServer/Lib/compare.ts \
-  --config {{comparison.name}}.yaml \
-  --output results/{{comparison.name}}_$(date +%Y%m%d).json
+bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts \
+  --suite {{comparison.name}} \
+  --output-file <task-output-map.json>
 ```
 
 ---

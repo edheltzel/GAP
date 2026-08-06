@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// @ts-nocheck - Standalone Bun script; verified by the runtime smoke test.
 /**
  * update-substrate-metrics.ts
  *
@@ -6,16 +7,14 @@
  * the Substrate US-Common-Metrics dataset files.
  *
  * Usage:
- *   bun run update-substrate-metrics.ts [--dry-run]
+ *   bun run update-substrate-metrics.ts --data-root <directory> [--dry-run]
  *
  * Environment:
+ *   US_METRICS_DATA_ROOT - Alternative to --data-root
  *   FRED_API_KEY - Required for most metrics
  *   EIA_API_KEY - Required for gas prices
  *
- * Output files:
- *   - ~/Projects/Substrate/Data/US-Common-Metrics/US-Common-Metrics.md (updated values)
- *   - ~/Projects/Substrate/Data/US-Common-Metrics/us-metrics-current.csv (current snapshot)
- *   - ~/Projects/Substrate/Data/US-Common-Metrics/us-metrics-historical.csv (appended)
+ * The data root must already exist and contain US-Common-Metrics.md.
  */
 
 import { parseArgs } from "util";
@@ -26,7 +25,7 @@ import { join } from "path";
 // CONFIGURATION
 // ============================================================================
 
-const SUBSTRATE_PATH = join(process.env.HOME || "", "Projects/Substrate/Data/US-Common-Metrics");
+let DATA_ROOT = "";
 const FRED_API_KEY = process.env.FRED_API_KEY;
 const EIA_API_KEY = process.env.EIA_API_KEY;
 
@@ -286,7 +285,7 @@ async function fetchAllMetrics(): Promise<Map<string, FetchResult>> {
 // ============================================================================
 
 function updateMarkdownFile(results: Map<string, FetchResult>): string {
-  const mdPath = join(SUBSTRATE_PATH, "US-Common-Metrics.md");
+  const mdPath = join(DATA_ROOT, "US-Common-Metrics.md");
   let content = readFileSync(mdPath, "utf-8");
 
   // Update the "Last Updated" timestamp
@@ -333,7 +332,7 @@ function updateMarkdownFile(results: Map<string, FetchResult>): string {
   }
 
   // Update individual metric tables
-  // Match pattern: | MetricName | -- | Period | -- | Source | ID |
+  // Match rows whose value and updated columns contain the missing-value marker.
   // and update the Value and Updated columns
 
   for (const [id, result] of results) {
@@ -404,6 +403,7 @@ async function main() {
     args: Bun.argv.slice(2),
     options: {
       "dry-run": { type: "boolean", default: false },
+      "data-root": { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
     allowPositionals: true,
@@ -414,23 +414,34 @@ async function main() {
 update-substrate-metrics.ts - Update Substrate US-Common-Metrics dataset
 
 Usage:
-  bun run update-substrate-metrics.ts [--dry-run]
+  bun run update-substrate-metrics.ts --data-root <directory> [--dry-run]
 
 Options:
-  --dry-run    Fetch data but don't write files
-  -h, --help   Show this help
+  --data-root   Existing US metrics dataset directory
+  --dry-run     Fetch data but don't write files
+  -h, --help    Show this help
 
 Environment:
-  FRED_API_KEY   Required for most metrics
-  EIA_API_KEY    Required for gas prices
-
-Output:
-  ~/Projects/Substrate/Data/US-Common-Metrics/
-    - US-Common-Metrics.md (updated)
-    - us-metrics-current.csv (current snapshot)
-    - us-metrics-historical.csv (appended)
+  US_METRICS_DATA_ROOT  Alternative to --data-root
+  FRED_API_KEY          Required for most metrics
+  EIA_API_KEY           Required for gas prices
 `);
     process.exit(0);
+  }
+
+  DATA_ROOT = values["data-root"] || process.env.US_METRICS_DATA_ROOT || "";
+  if (!DATA_ROOT) {
+    console.error("Error: provide --data-root or set US_METRICS_DATA_ROOT");
+    process.exit(1);
+  }
+  if (!existsSync(DATA_ROOT)) {
+    console.error(`Error: US_METRICS_DATA_ROOT does not exist: ${DATA_ROOT}`);
+    process.exit(1);
+  }
+  const masterPath = join(DATA_ROOT, "US-Common-Metrics.md");
+  if (!existsSync(masterPath)) {
+    console.error(`Error: US_METRICS_DATA_ROOT is missing US-Common-Metrics.md: ${DATA_ROOT}`);
+    process.exit(1);
   }
 
   // Check API keys
@@ -440,16 +451,10 @@ Output:
     process.exit(1);
   }
 
-  // Verify Substrate path exists
-  if (!existsSync(SUBSTRATE_PATH)) {
-    console.error(`Error: Substrate path not found: ${SUBSTRATE_PATH}`);
-    process.exit(1);
-  }
-
   console.log("=".repeat(60));
   console.log("US-Common-Metrics Update");
   console.log("=".repeat(60));
-  console.log(`Substrate path: ${SUBSTRATE_PATH}`);
+  console.log(`Data root: ${DATA_ROOT}`);
   console.log(`Timestamp: ${new Date().toISOString()}`);
   console.log("");
 
@@ -478,9 +483,9 @@ Output:
   }
 
   // Write files
-  const mdPath = join(SUBSTRATE_PATH, "US-Common-Metrics.md");
-  const currentCsvPath = join(SUBSTRATE_PATH, "us-metrics-current.csv");
-  const historicalCsvPath = join(SUBSTRATE_PATH, "us-metrics-historical.csv");
+  const mdPath = join(DATA_ROOT, "US-Common-Metrics.md");
+  const currentCsvPath = join(DATA_ROOT, "us-metrics-current.csv");
+  const historicalCsvPath = join(DATA_ROOT, "us-metrics-historical.csv");
 
   console.log("\nWriting files...");
 

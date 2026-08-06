@@ -10,6 +10,7 @@ effort: medium
 **You MUST send this notification BEFORE doing anything else when this skill is invoked.**
 
 1. **Send voice notification**:
+
    ```bash
    curl -s -X POST http://localhost:8888/notify \
      -H "Content-Type: application/json" \
@@ -18,6 +19,7 @@ effort: medium
    ```
 
 2. **Output text notification**:
+
    ```
    Running the **WorkflowName** workflow in the **Prompting** skill to ACTION...
    ```
@@ -28,17 +30,17 @@ effort: medium
 
 ## What It Does
 
-Generates, optimizes, and composes prompts programmatically. It's the standard library for prompt engineering — other skills call it when they need to build or improve a prompt. The output is always a prompt to be used elsewhere, never the final content itself.
+Generates, optimizes, and composes prompts programmatically. It's the standard library for prompt engineering; other skills call it when they need to build or improve a prompt. The output is always a prompt to be used elsewhere, never the final content itself.
 
 **Invoke when:** meta-prompting, template generation, prompt optimization, programmatic prompt composition, creating dynamic agents, generating structured prompts from data.
 
 ## The Problem
 
-Prompt engineering tends to get copy-pasted and rewritten by hand across every skill that needs it, so the same patterns drift apart and best practices live in one person's head. When you want to compose a prompt from data — spin up a custom agent, build an eval judge, generate a phased workflow — there's no clean way to separate the structure from the content. This skill makes structure code and content data: one Handlebars template plus different data renders specialized agents, workflows, and eval frameworks, and the engineering standards live in one place every skill can reference.
+Prompt engineering tends to get copy-pasted and rewritten by hand across every skill that needs it, so the same patterns drift apart and best practices live in one person's head. When you want to compose a prompt from data, such as spinning up a custom agent, build an eval judge, generate a phased workflow, there is no clean way to separate the structure from the content. This skill makes structure code and content data: one Handlebars template plus different data renders specialized agents, workflows, and eval frameworks, and the engineering standards live in one place every skill can reference.
 
-## Ideal-State Prompting — the Default Standard
+## Ideal-State Prompting: the Default Standard
 
-**Every prompt this library generates or optimizes articulates the ideal state, not the procedure.** Say WHAT done looks like (as testable outcomes), the CONSTRAINTS, and the high-quality TOOLS available — then trust the model to find HOW. Reasoning choreography ("first analyze, then consider, then decide") is BPE-violating scaffolding: it caps a capable model and rots as models improve. Ideal-state prompting is *more* precise, not vaguer — the specificity moves to the outcome.
+**Every prompt this library generates or optimizes articulates the ideal state, not the procedure.** Say WHAT done looks like (as testable outcomes), the CONSTRAINTS, and the high-quality TOOLS available, then trust the model to find HOW. Reasoning choreography ("first analyze, then consider, then decide") is BPE-violating scaffolding: it caps a capable model and rots as models improve. Ideal-state prompting is *more* precise, not vaguer; the specificity moves to the outcome.
 
 Four keep-classes are legitimate HOW and survive the cut: **safety-gate**, **verified-gotcha**, **tool-contract**, **output-format-contract**. Deterministic tools (`*.ts`) are exempt. The test for any procedural line: *would a smarter model make this rule unnecessary?* Yes → cut; No → it's a keep-class. Full standard: `Standards.md` § Ideal-State Prompting.
 
@@ -52,10 +54,10 @@ Three pillars carry the work:
 
 ## Workflow Routing
 
-Library skill — no `Workflows/` directory. Requests route to the rendering tools and reference docs:
+Library skill with no `Workflows/` directory. Requests route to the rendering tools and reference docs:
 
 | Trigger | Workflow | File |
-|---------|----------|------|
+| --------- | ---------- | ------ |
 | Render a template / compose a prompt from data / Handlebars template | RenderTemplate (tool) | `Tools/RenderTemplate.ts` |
 | Validate a template | ValidateTemplate (tool) | `Tools/ValidateTemplate.ts` |
 | Prompt engineering standards / best practices / prompt optimization | Standards (reference) | `Standards.md` |
@@ -66,7 +68,7 @@ Library skill — no `Workflows/` directory. Requests route to the rendering too
 
 ```typescript
 // Render a structured agent brief from data before launching general-purpose
-import { renderTemplate } from '${LIFEOS_SKILL_DIR}/Tools/RenderTemplate.ts';
+import { renderTemplate } from '~/.claude/skills/Prompting/Tools/RenderTemplate.ts';
 
 const prompt = renderTemplate('Primitives/Briefing.hbs', {
   briefing: { type: 'research' },
@@ -113,16 +115,19 @@ const brief = renderTemplate('Primitives/Briefing.hbs', {
 ## Integration with Other Skills
 
 ### Agents Skill
+
 - Uses `Templates/Primitives/Briefing.hbs` for agent context handoff
 - Uses `RenderTemplate.ts` to compose dynamic agents
 - Maintains agent-specific template: `Agents/Templates/DynamicAgent.hbs`
 
 ### Evals Skill
+
 - Uses eval-specific templates: Judge, Rubric, TestCase, Comparison, Report
 - Leverages `RenderTemplate.ts` for eval prompt generation
 - Eval templates may be stored in `Evals/Templates/` but use Prompting's engine
 
 ### Development Skill
+
 - References `Standards.md` for prompt best practices
 - Uses `Structure.hbs` for workflow patterns
 - Applies `Gate.hbs` for validation checklists
@@ -132,7 +137,7 @@ const brief = renderTemplate('Primitives/Briefing.hbs', {
 The templating system eliminated **~35,000 tokens (65% reduction)** across LifeOS:
 
 | Area | Before | After | Savings |
-|------|--------|-------|---------|
+| ------ | -------- | ------- | --------- |
 | SKILL.md Frontmatter | 20,750 | 8,300 | 60% |
 | Agent Briefings | 6,400 | 1,900 | 70% |
 | Voice Notifications | 6,225 | 725 | 88% |
@@ -142,16 +147,19 @@ The templating system eliminated **~35,000 tokens (65% reduction)** across LifeO
 ## Best Practices
 
 ### 1. Separation of Concerns
+
 - **Templates**: Structure and formatting only
 - **Data**: Content and parameters (YAML/JSON)
 - **Logic**: Rendering and validation (TypeScript)
 
 ### 2. DRY Principle
+
 - Extract repeated patterns into partials
 - Use presets for common configurations
 - Single source of truth for definitions
 
 ### 3. Version Control
+
 - Templates and data in separate files
 - Track changes independently
 - Enable A/B testing of structures
@@ -159,11 +167,13 @@ The templating system eliminated **~35,000 tokens (65% reduction)** across LifeO
 ## References
 
 **Primary Documentation:**
+
 - `Standards.md` - Complete prompt engineering guide
 - `Templates/README.md` - Template system overview
 - `Tools/RenderTemplate.ts` - Implementation details
 
 **Research Foundation:**
+
 - Anthropic: "Claude 4.x Best Practices" (November 2025)
 - Anthropic: "Effective Context Engineering for AI Agents"
 - Anthropic: "Prompt Templates and Variables"
@@ -172,6 +182,7 @@ The templating system eliminated **~35,000 tokens (65% reduction)** across LifeO
 - "The Prompt Canvas" - arXiv:2412.05127
 
 **Related Skills:**
+
 - Agents - Dynamic agent composition
 - Evals - LLM-as-Judge prompting
 - Development - Spec-driven development patterns
@@ -182,7 +193,7 @@ The templating system eliminated **~35,000 tokens (65% reduction)** across LifeO
 
 ## Gotchas
 
-- **Meta-prompting generates PROMPTS, not content.** The output is a prompt that gets used elsewhere — not the final deliverable.
+- **Meta-prompting generates PROMPTS, not content.** The output is a prompt that gets used elsewhere, not the final deliverable.
 - **Templates should be model-agnostic.** Don't write prompts that depend on specific model quirks.
 - **Test generated prompts before declaring them ready.** A prompt that looks good may perform poorly.
 

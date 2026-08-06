@@ -5,7 +5,6 @@
 
 import { BaseGrader, registerGrader, type GraderContext } from '../Base.ts';
 import type { GraderConfig, GraderResult, LLMRubricParams } from '../../Types/index.ts';
-import { inference, type InferenceLevel } from '../../../../LIFEOS/TOOLS/Inference.ts';
 import { readFileSync, existsSync } from 'fs';
 
 export class LLMRubricGrader extends BaseGrader {
@@ -14,7 +13,7 @@ export class LLMRubricGrader extends BaseGrader {
 
   async grade(context: GraderContext): Promise<GraderResult> {
     const start = performance.now();
-    const params = this.config.params as LLMRubricParams;
+    const params = this.config.params as unknown as LLMRubricParams;
 
     // Load rubric
     let rubric = params.rubric;
@@ -23,53 +22,29 @@ export class LLMRubricGrader extends BaseGrader {
     }
 
     const scale = params.scale ?? '1-5';
-    // Map model preference to inference level (default to medium/Sonnet)
-    const levelMap: Record<string, InferenceLevel> = {
-      'claude-haiku-4-5-20251001': 'low',
-      'claude-sonnet-4-6': 'medium',
-      'claude-opus-4-8': 'high',
-      'claude-opus-4-6': 'high',
-      'claude-sonnet-4-20250514': 'medium',
-      'claude-opus-4-20250514': 'high',
-      'claude-fable-5': 'max',
-    };
-    const level: InferenceLevel = levelMap[params.judge_model ?? ''] ?? 'medium';
-
-    // Build prompt
     const systemPrompt = this.buildSystemPrompt(scale, params.reasoning_first ?? true);
     const userPrompt = this.buildUserPrompt(rubric, params.assertions, context);
 
-    try {
-      const result = await inference({
-        systemPrompt,
-        userPrompt,
-        level,
-        timeout: 30000,
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Inference failed');
-      }
-
-      const text = result.output;
-      const { score, reasoning, assertion_results } = this.parseResponse(text, scale, params.assertions);
-
-      const passed = this.scoreToPassed(score, scale);
-
-      return this.createResult(score, passed, performance.now() - start, {
-        reasoning,
-        details: {
-          assertion_results,
-          inference_level: level,
-          scale,
-          raw_response: text,
-        },
-      });
-    } catch (e) {
+    if (!params.judge_response?.trim()) {
       return this.createResult(0, false, performance.now() - start, {
-        reasoning: `LLM judge error: ${e}`,
+        reasoning: 'Model grader requires params.judge_response from an explicit current adapter or inline judgment.',
+        details: { system_prompt: systemPrompt, user_prompt: userPrompt, adapter_called: false },
       });
     }
+
+    const text = params.judge_response;
+    const { score, reasoning, assertion_results } = this.parseResponse(text, scale, params.assertions);
+    const passed = this.scoreToPassed(score, scale);
+
+    return this.createResult(score, passed, performance.now() - start, {
+      reasoning,
+      details: {
+        assertion_results,
+        scale,
+        raw_response: text,
+        adapter_called: false,
+      },
+    });
   }
 
   private buildSystemPrompt(scale: string, reasoningFirst: boolean): string {

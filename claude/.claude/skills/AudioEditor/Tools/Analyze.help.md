@@ -1,46 +1,26 @@
 # Analyze.ts
 
-LLM-powered edit classification using Claude. Reads a word-level transcript and classifies segments for cutting.
+Validates edit classifications supplied as JSON, adds deterministic long-pause cuts, and writes the list consumed by `Edit.ts`. It does not call a model.
 
 ## Usage
 
 ```bash
-bun ~/.claude/skills/AudioEditor/Tools/Analyze.ts <transcript.json> [--output <path>] [--aggressive]
+bun ~/.claude/skills/AudioEditor/Tools/Analyze.ts \
+  <transcript.json> \
+  --model-edits <inline-model-edits.json> \
+  [--output <path>] [--aggressive]
+
+# Deterministic pause detection only
+bun ~/.claude/skills/AudioEditor/Tools/Analyze.ts <transcript.json> --pauses-only
 ```
 
 ## Options
 
 | Flag | Description |
 |------|-------------|
-| `--output <path>` | Specify output JSON path (default: `<filename>.edits.json`) |
-| `--aggressive` | Tighter thresholds: cuts single filler words, 1.5s pauses, more word repetition |
+| `--model-edits <path>` | Required classification JSON produced inline by the active agent |
+| `--pauses-only` | Skip classifications and emit only deterministic long-pause cuts |
+| `--output <path>` | Output JSON path, defaulting beside the transcript |
+| `--aggressive` | Treat pauses longer than 3 seconds as candidates instead of 5 seconds |
 
-## Classification Types
-
-| Type | Description |
-|------|-------------|
-| `CUT_EDIT_MARKER` | Speaker says "edit" as a verbal cue (highest priority) |
-| `CUT_STUTTER` | Unintentional word repetition ("the the", "I I") |
-| `CUT_FALSE_START` | Abandoned sentence restart |
-| `CUT_SELF_CORRECTION` | Speaker corrects themselves |
-| `CUT_FILLER` | Standalone filler words ("um", "uh", "ah") |
-| `CUT_DEAD_AIR` | Long pauses (>5s standard, >3s aggressive) |
-
-## Output Format
-
-```json
-[
-  {
-    "type": "CUT_FILLER",
-    "start": 12.5,
-    "end": 13.1,
-    "reason": "Standalone 'um' hesitation",
-    "context": "and um we decided to",
-    "confidence": 0.9
-  }
-]
-```
-
-## Requirements
-
-- `ANTHROPIC_API_KEY` environment variable
+The model-edits input must be a JSON array. Each object needs `type`, numeric `start` and `end`, `reason`, `context`, and `confidence` from 0 to 1. Entries below 0.6 confidence are excluded.

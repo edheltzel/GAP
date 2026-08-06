@@ -133,15 +133,10 @@
 To run these test cases:
 
 ```bash
-# Run all test cases
-bun run ~/.claude/Skills/Evals/EvalServer/Lib/run-eval.ts \
-  --use-case {{test_suite.name}} \
-  --all
-
-# Run specific test case
-bun run ~/.claude/Skills/Evals/EvalServer/Lib/run-eval.ts \
-  --use-case {{test_suite.name}} \
-  --test-id <test_id>
+# Supply outputs for the suite as JSON keyed by task id.
+bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts \
+  --suite {{test_suite.name}} \
+  --output-file <task-output-map.json>
 ```
 
 ---

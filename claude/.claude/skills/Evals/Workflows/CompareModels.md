@@ -26,6 +26,7 @@ Running the **CompareModels** workflow in the **Evals** skill to compare model p
 ### Step 1: Identify Comparison
 
 Ask the user:
+
 1. Which use case?
 2. Which models to compare? (Claude, GPT-4, Gemini, etc.)
 3. What's the primary evaluation criterion?
@@ -92,41 +93,43 @@ model_comparison:
   track_latency: true
 ```
 
-### Step 4: Run Model Comparison
+### Step 4: Supply Model Outputs
 
-Run the same suite once per model via `AlgorithmBridge.ts`, then collect the per-run `results.json` and compare. The suite config encodes the model under test, so vary it across runs:
+Run each candidate model through an explicit current harness adapter outside Evals. Save one JSON object per model, keyed by suite task id. Do not claim Evals selected or called a model.
 
-```bash
-# Sequential — three runs, one per model
-bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts -s <use-case>-claude
-bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts -s <use-case>-gpt
-bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts -s <use-case>-gemini
-
-# Parallel — same three runs in the background
-bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts -s <use-case>-claude &
-bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts -s <use-case>-gpt &
-bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts -s <use-case>-gemini &
-wait
+```json
+{
+  "task-id": { "output": "candidate output produced by the named adapter" }
+}
 ```
 
-Each run's `results.json` lands at `~/.claude/LIFEOS/MEMORY/STATE/Evals-Results/<use-case>-<model>/<run-id>/results.json`. Side-by-side comparison is done by reading those JSONs (`jq`) — there is no built-in cross-model comparison CLI in this skill.
-5. View side-by-side results
+### Step 5: Evaluate and Collect Results
 
-### Step 5: Collect Results
+Choose an explicit project results directory, then run the same suite against each supplied output map:
 
-Results stored in:
-- `LIFEOS/MEMORY/STATE/Evals-Results/<use-case>/models/<run-id>/`
-- `LIFEOS/MEMORY/STATE/Evals-Results/<use-case>/models/<run-id>/comparison.json`
+```bash
+RESULTS_DIR="<project-results-directory>"
+mkdir -p "$RESULTS_DIR"
+
+bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts \
+  --suite <suite-name> --output-file claude-outputs.json > "$RESULTS_DIR/claude.json"
+bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts \
+  --suite <suite-name> --output-file gpt-outputs.json > "$RESULTS_DIR/gpt.json"
+bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts \
+  --suite <suite-name> --output-file gemini-outputs.json > "$RESULTS_DIR/gemini.json"
+```
+
+The runner writes JSON to stdout and performs no hidden model call or global results persistence.
 
 ### Step 6: Generate Comparison Report
 
-Use Report template:
+Create a report data file from the collected JSON, then use the included renderer:
 
 ```bash
-bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
+bun run ~/.claude/skills/Prompting/Templates/Tools/RenderTemplate.ts \
   -t Evals/Report.hbs \
-  -d ~/.claude/LIFEOS/MEMORY/STATE/Evals-Results/<use-case>/models/<run-id>/summary.yaml \
-  -o ~/.claude/LIFEOS/MEMORY/STATE/Evals-Results/<use-case>/models/<run-id>/report.md
+  -d "$RESULTS_DIR/summary.yaml" \
+  -o "$RESULTS_DIR/report.md"
 ```
 
 ### Step 7: Analyze Results
@@ -134,7 +137,7 @@ bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
 **Multi-Model Summary Table:**
 
 | Model | Pass Rate | Mean Score | Std Dev | Cost/1K | Latency |
-|-------|-----------|------------|---------|---------|---------|
+| ------- | ----------- | ------------ | --------- | --------- | --------- |
 | Claude 3.5 Sonnet | 92% | 4.3 | 0.5 | $0.03 | 1.2s |
 | GPT-4o | 88% | 4.1 | 0.6 | $0.05 | 1.8s |
 | Gemini 1.5 Pro | 85% | 3.9 | 0.7 | $0.02 | 1.5s |
@@ -143,7 +146,7 @@ bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
 **Per-Dimension Breakdown:**
 
 | Model | Accuracy | Style | Format | Speed |
-|-------|----------|-------|--------|-------|
+| ------- | ---------- | ------- | -------- | ------- |
 | Claude 3.5 Sonnet | 4.5 | 4.6 | 4.0 | 1.2s |
 | GPT-4o | 4.4 | 3.9 | 4.2 | 1.8s |
 | Gemini 1.5 Pro | 4.2 | 3.8 | 3.8 | 1.5s |
@@ -151,6 +154,7 @@ bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
 ### Step 8: Statistical Analysis
 
 For each model pair, calculate:
+
 - **p-value**: Statistical significance of difference
 - **Effect size**: Magnitude of difference
 - **Confidence intervals**: Range of true performance
@@ -170,7 +174,7 @@ For each model pair, calculate:
 Consider trade-offs:
 
 | Factor | Weight | Best Model |
-|--------|--------|------------|
+| -------- | -------- | ------------ |
 | Quality | 50% | Claude 3.5 Sonnet |
 | Cost | 25% | Claude 3.5 Haiku |
 | Latency | 25% | Claude 3.5 Haiku |
@@ -232,6 +236,7 @@ Update use case README:
 **Problem**: Using Claude to judge Claude may be biased.
 
 **Solutions**:
+
 1. Use ensemble of judges (Claude + GPT-4)
 2. Average across different judge models
 3. Weight non-self-judgments higher
@@ -241,7 +246,7 @@ Update use case README:
 Use this framework:
 
 | Scenario | Recommended |
-|----------|-------------|
+| ---------- | ------------- |
 | Quality-critical, cost flexible | Best performing model |
 | Quality-critical, cost-sensitive | Best quality-per-dollar |
 | Latency-critical | Fastest with acceptable quality |
@@ -250,7 +255,7 @@ Use this framework:
 ### Model Selection Matrix
 
 | Use Case | Recommended Model | Why |
-|----------|-------------------|-----|
+| ---------- | ------------------- | ----- |
 | Newsletter summaries | Claude 3.5 Sonnet | Best style |
 | Data extraction | GPT-4o | Structured output strength |
 | Fast classification | Claude 3.5 Haiku | Speed + cost |

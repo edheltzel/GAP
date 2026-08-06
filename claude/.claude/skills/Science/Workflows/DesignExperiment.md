@@ -13,6 +13,7 @@ Design the smallest experiment that meaningfully tests the hypothesis. This work
 Not every experiment needs to be comprehensive. The goal is LEARNING, not perfection.
 
 Ask:
+
 - What's the **fastest** way to learn if this works?
 - What's the **cheapest** way to get meaningful data?
 - What would **DISPROVE** the hypothesis?
@@ -128,7 +129,7 @@ Ask:
 ## Experiment Quality Checklist
 
 | Criterion | Question | ✅ |
-|-----------|----------|---|
+| ----------- | ---------- | --- |
 | **Minimal** | Is this the smallest test that gives meaningful data? | |
 | **Falsifiable** | Could this experiment prove the hypothesis wrong? | |
 | **Measurable** | Do we know exactly what we're measuring? | |
@@ -174,6 +175,7 @@ Ask:
 Evals implements the Science Protocol for prompt engineering. Don't reinvent evaluation - use the battle-tested methodology.
 
 **Invocation:**
+
 ```
 → Invoke Evals skill, ComparePrompts workflow
 → Follow Evals' Science Protocol Alignment checklist
@@ -181,6 +183,7 @@ Evals implements the Science Protocol for prompt engineering. Don't reinvent eva
 ```
 
 **What Evals Provides:**
+
 - Position swapping (mitigates LLM positional bias)
 - Multi-judge panels (reduces individual model quirks)
 - Statistical significance testing
@@ -212,12 +215,15 @@ Evals implements the Science Protocol for prompt engineering. Don't reinvent eva
 ```
 
 **CLI Quick Reference:**
+
 ```bash
-# Run prompt comparison via Evals skill
-bun run ~/.claude/skills/Evals/EvalServer/cli-run.ts \
-  --use-case <name> \
-  --compare prompts/baseline.md prompts/variant-1.md \
-  --position-swap
+# Evaluate outputs already produced by the current harness
+bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts \
+  --suite <suite-name> \
+  --output-file <task-output-map.json>
+
+# task-output-map.json is an explicit JSON object keyed by task id.
+# The Evals runner does not invoke a model or generate candidate outputs.
 ```
 
 ### Feature Experiments
@@ -283,11 +289,13 @@ Hypothesis 3 ─────► Experiment 3 ─────► Results 3 ─┘
 ```
 
 **Benefits:**
+
 - Faster time to insight
 - Reduces sequential bias
 - Enables direct comparison
 
 **Requirements:**
+
 - Experiments must be independent
 - Resources available for parallel execution
 - Results can be meaningfully compared
@@ -336,22 +344,27 @@ Hypothesis 3 ─────► Experiment 3 ─────► Results 3 ─┘
 ## Common Pitfalls
 
 ### Pitfall 1: Over-Engineering
+
 ❌ Building elaborate test infrastructure for a simple question
 ✅ Finding the minimum viable test that answers the question
 
 ### Pitfall 2: Confirmation Design
+
 ❌ Designing tests that can only succeed
 ✅ Designing tests that could definitively fail
 
 ### Pitfall 3: Moving Targets
+
 ❌ Changing success criteria after seeing results
 ✅ Pre-committing to criteria before running
 
 ### Pitfall 4: Ignoring Confounders
+
 ❌ Assuming all differences are due to the treatment
 ✅ Identifying and controlling for other variables
 
 ### Pitfall 5: Insufficient Sample
+
 ❌ Declaring results from N=3
 ✅ Understanding minimum sample for statistical validity
 
@@ -360,6 +373,7 @@ Hypothesis 3 ─────► Experiment 3 ─────► Results 3 ─┘
 ## Integration with Next Phases
 
 A well-designed experiment enables:
+
 - **Clear execution** - steps are defined
 - **Objective measurement** - metrics are specified
 - **Honest analysis** - success criteria are pre-committed

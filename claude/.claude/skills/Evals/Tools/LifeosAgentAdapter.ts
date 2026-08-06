@@ -1,61 +1,47 @@
 #!/usr/bin/env bun
 /**
- * LifeosAgentAdapter — wraps LifeOS's Inference.ts as a scenario AgentAdapter.
+ * ExplicitAgentAdapter
  *
- * Lets scenario.run() drive a LifeOS agent in multi-turn simulations without
- * pulling in the ai-sdk Anthropic provider for the agent-under-test path
- * (scenario's UserSimulatorAgent + JudgeAgent still use ai-sdk directly).
+ * Scenario adapter for a caller-supplied current model function. This module
+ * never selects or invokes a model on its own.
  */
 
-import { inference, type InferenceLevel } from '../../../LIFEOS/TOOLS/Inference.ts';
 import { AgentAdapter, AgentRole, type AgentInput, type AgentReturnTypes } from '@langwatch/scenario';
 
-export interface LifeosAgentAdapterOptions {
+export interface ExplicitAgentAdapterOptions {
+  respond: (input: { systemPrompt: string; userPrompt: string }) => Promise<string>;
   systemPrompt?: string;
-  level?: InferenceLevel;
-  timeout?: number;
   name?: string;
 }
 
-export class LifeosAgentAdapter extends AgentAdapter {
+export class ExplicitAgentAdapter extends AgentAdapter {
   override role = AgentRole.AGENT;
   override name: string;
-  private opts: Required<Omit<LifeosAgentAdapterOptions, 'name'>>;
+  private readonly respond: ExplicitAgentAdapterOptions['respond'];
+  private readonly systemPrompt: string;
 
-  constructor(options: LifeosAgentAdapterOptions = {}) {
+  constructor(options: ExplicitAgentAdapterOptions) {
     super();
-    this.name = options.name ?? 'pai-agent';
-    this.opts = {
-      systemPrompt: options.systemPrompt ?? 'You are a helpful assistant.',
-      level: options.level ?? 'medium',
-      timeout: options.timeout ?? 60_000,
-    };
+    if (typeof options?.respond !== 'function') {
+      throw new Error('ExplicitAgentAdapter requires a caller-supplied respond adapter.');
+    }
+    this.name = options.name ?? 'explicit-agent';
+    this.respond = options.respond;
+    this.systemPrompt = options.systemPrompt ?? 'You are a helpful assistant.';
   }
 
   override async call(input: AgentInput): Promise<AgentReturnTypes> {
-    const userPrompt = this.renderMessages(input.messages);
-
-    const result = await inference({
-      systemPrompt: this.opts.systemPrompt,
-      userPrompt,
-      level: this.opts.level,
-      timeout: this.opts.timeout,
+    const output = await this.respond({
+      systemPrompt: this.systemPrompt,
+      userPrompt: this.renderMessages(input.messages),
     });
-
-    if (!result.success) {
-      throw new Error(`LifeosAgentAdapter inference failed: ${result.error ?? 'unknown error'}`);
-    }
-
-    return result.output.trim();
+    if (!output.trim()) throw new Error('Caller-supplied respond adapter returned an empty result.');
+    return output.trim();
   }
 
   private renderMessages(messages: AgentInput['messages']): string {
     return messages
-      .map((m) => {
-        const role = m.role ?? 'user';
-        const content = this.extractText(m.content);
-        return `[${role}]: ${content}`;
-      })
+      .map((message) => `[${message.role ?? 'user'}]: ${this.extractText(message.content)}`)
       .join('\n\n');
   }
 
@@ -65,7 +51,9 @@ export class LifeosAgentAdapter extends AgentAdapter {
       return content
         .map((part) => {
           if (typeof part === 'string') return part;
-          if (part && typeof part === 'object' && 'text' in part) return String((part as { text: unknown }).text);
+          if (part && typeof part === 'object' && 'text' in part) {
+            return String((part as { text: unknown }).text);
+          }
           return '';
         })
         .filter(Boolean)
@@ -74,3 +62,6 @@ export class LifeosAgentAdapter extends AgentAdapter {
     return JSON.stringify(content);
   }
 }
+
+/** @deprecated Use ExplicitAgentAdapter and provide respond explicitly. */
+export const LifeosAgentAdapter = ExplicitAgentAdapter;

@@ -24,35 +24,32 @@ const DEFAULTS = {
 
 function loadConfig(): Config {
   const envPath = join(homedir(), '.claude', '.env');
+  let fileValue: string | undefined;
 
-  try {
-    const envContent = readFileSync(envPath, 'utf-8');
-    const apiKey = envContent
+  if (existsSync(envPath)) {
+    fileValue = readFileSync(envPath, 'utf-8')
       .split('\n')
       .find(line => line.startsWith('API_KEY='))
-      ?.split('=')[1]
-      ?.trim();
+      ?.slice('API_KEY='.length)
+      .trim();
+  }
 
-    if (!apiKey) {
-      console.error('Error: API_KEY not found in ${LIFEOS_DIR}/.env');
-      console.error('Add: API_KEY=your_key_here');
-      process.exit(1);
-    }
-
-    return {
-      apiKey,
-      baseUrl: process.env.API_BASE_URL || DEFAULTS.baseUrl,
-    };
-  } catch (error) {
-    console.error('Error: Cannot read ${LIFEOS_DIR}/.env');
-    console.error('Create file: touch ${LIFEOS_DIR}/.env');
+  const apiKey = process.env.API_KEY || fileValue;
+  if (!apiKey) {
+    console.error('Error: API_KEY is not set in the environment or ~/.claude/.env');
     process.exit(1);
   }
+
+  return {
+    apiKey,
+    baseUrl: process.env.API_BASE_URL || DEFAULTS.baseUrl,
+  };
 }
 ```
 
 **Key principles:**
-- Load from ${LIFEOS_DIR}/.env (LifeOS standard)
+
+- Prefer the process environment, with `~/.claude/.env` as the current user-level fallback
 - Clear error messages with resolution steps
 - Defaults for optional config
 - Type-safe Config interface
@@ -142,6 +139,7 @@ async function fetchByDate(
 ```
 
 **Principles:**
+
 - Clear function signature
 - Input validation with helpful errors
 - Use loadConfig() inside function
@@ -238,7 +236,7 @@ OUTPUT:
   Exit code: 0 = success, 1 = error
 
 CONFIGURATION:
-  API Key: ${LIFEOS_DIR}/.env (API_KEY=your_key)
+  API Key: environment or ~/.claude/.env (API_KEY=your_key)
   Base URL: ${DEFAULTS.baseUrl}
 
 PHILOSOPHY:
@@ -471,7 +469,7 @@ describe('CLI', () => {
 
 When building a CLI, use these patterns:
 
-- [ ] Configuration loading (from ${LIFEOS_DIR}/.env)
+- [ ] Configuration loading (environment first, then ~/.claude/.env)
 - [ ] API client with error handling
 - [ ] One function per command
 - [ ] Manual argument parsing (Tier 1) or Commander (Tier 2)

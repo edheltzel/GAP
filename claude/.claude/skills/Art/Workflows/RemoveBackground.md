@@ -18,6 +18,7 @@ Running **RemoveBackground** in **Art**...
 ## Purpose
 
 Remove backgrounds from existing images to create transparent PNGs. Useful for:
+
 - Converting diagrams to transparent backgrounds
 - Preparing images for web display (composites cleanly over the cream blog background)
 - Creating icons with transparent backgrounds
@@ -29,9 +30,10 @@ Remove backgrounds from existing images to create transparent PNGs. Useful for:
 
 Local `rembg` (Python, ONNX-based, runs offline). No external API, no rate limits, no API keys.
 
-**Default binary path:** `~/.local/bin/rembg` (override with `REMBG_BIN` env var).
+**Availability gate:** `RemoveBg.ts` first honors `REMBG_BIN`, then searches `PATH`, then checks `~/.local/bin/rembg`. It exits before reading or modifying an image when no executable is available.
 
 **Install if missing:**
+
 ```bash
 pipx install rembg          # preferred
 # or
@@ -52,7 +54,7 @@ ls -lh /path/to/image.png
 
 ### Step 2: Remove Background
 
-Use the LifeOS `RemoveBg.ts` wrapper, which calls local `rembg` and handles the `.jpg → .png` rename automatically (rembg always emits PNG):
+Use the native Art `RemoveBg.ts` wrapper, which checks availability, calls local `rembg`, and handles the `.jpg to .png` rename automatically because rembg always emits PNG:
 
 ```bash
 # Single file (overwrites; renames .jpg→.png)
@@ -65,10 +67,11 @@ bun ~/.claude/skills/Art/Tools/RemoveBg.ts input-image.jpg output-image.png
 bun ~/.claude/skills/Art/Tools/RemoveBg.ts img1.png img2.png img3.png
 ```
 
-If you need to call `rembg` directly:
+If you need to call `rembg` directly, first verify the maintained command is available:
 
 ```bash
-~/.local/bin/rembg i input-image.png output-image.png
+command -v rembg >/dev/null || { echo "Install with: pipx install rembg" >&2; exit 1; }
+rembg i input-image.png output-image.png
 ```
 
 ### Step 3: Verify Transparency
@@ -126,18 +129,19 @@ bun ~/.claude/skills/Art/Tools/RemoveBg.ts diagram-*.png
 
 ## Troubleshooting
 
-**Problem:** `rembg not found at ~/.local/bin/rembg`
-**Solution:** `pipx install rembg` (or set `REMBG_BIN` env var to your installed path).
+**Problem:** `rembg not found or not executable`
+**Solution:** `pipx install rembg`, put it on `PATH`, or set `REMBG_BIN` to an executable path.
 
 **Problem:** First run is slow (downloads ONNX model)
 **Solution:** Expected. The default `u2net` model (~176MB) is fetched once into `~/.u2net/`, then cached forever. Subsequent runs are fast.
 
 **Problem:** Output file looks identical to input
 **Solution:** rembg failed to detect a clear subject. Try a model better suited to the content:
+
 ```bash
-~/.local/bin/rembg i -m u2netp input.png output.png       # smaller/faster
-~/.local/bin/rembg i -m isnet-general-use input.png output.png   # general-purpose, often better edges
-~/.local/bin/rembg i -m birefnet-general input.png output.png    # higher quality, slower
+rembg i -m u2netp input.png output.png             # smaller/faster
+rembg i -m isnet-general-use input.png output.png   # general-purpose, often better edges
+rembg i -m birefnet-general input.png output.png    # higher quality, slower
 ```
 
 **Problem:** Edges are jagged or hair/fine detail is lost

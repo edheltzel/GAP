@@ -12,6 +12,7 @@ effort: medium
 **You MUST send this notification BEFORE doing anything else when this skill is invoked.**
 
 1. **Send voice notification**:
+
    ```bash
    curl -s -X POST http://localhost:8888/notify \
      -H "Content-Type: application/json" \
@@ -20,6 +21,7 @@ effort: medium
    ```
 
 2. **Output text notification**:
+
    ```
    Running the **WorkflowName** workflow in the **Art** skill to ACTION...
    ```
@@ -69,7 +71,7 @@ bun ~/.claude/skills/Art/Tools/Generate.ts \
 **Routing rules - pick a workflow FIRST, before writing any prompt:**
 
 | Request shape | Required workflow |
-|---------------|-------------------|
+| --------------- | ------------------- |
 | Blog header / editorial essay illustration | **`Workflows/Essay.md`** - Steps 1-8 in order, no skipping |
 | Mermaid diagram | `Workflows/Mermaid.md` |
 | Technical / architecture diagram | `Workflows/TechnicalDiagrams.md` |
@@ -123,16 +125,19 @@ If no workflow matches the request, **stop and surface to the user** before gene
 The blog page background is sepia #EAE9DF. Inline images MUST be transparent PNG so they composite cleanly over the page. Social platforms (X, LinkedIn, RSS readers) do NOT honor transparency - they show white/black bleed-through - so the `thumbnail:` frontmatter MUST point to the sepia-backed version.
 
 **Enforcement when calling `Generate.ts`:**
+
 - `--thumbnail` is the ONLY correct flag for blog headers - it implicitly enables `--remove-bg` and produces BOTH `output.png` (transparent) AND `output-thumb.png` (#EAE9DF background).
 - Background removal runs locally via `rembg` (no external API). If the model returns JPEG (Nano Banana Pro often does), `Generate.ts` automatically renames the output from `.jpg` → `.png` after rembg processing so the final transparent file is a real PNG with a real alpha channel. If you ever see a `.jpg` labeled "transparent", that is NOT transparent.
 - If `rembg` isn't installed at `~/.local/bin/rembg`, the tool fails loudly with install instructions rather than silently producing an opaque image. Install: `pipx install rembg` (or set `REMBG_BIN` env var to override the path).
 
 **Verification step before declaring an image done (REQUIRED):**
+
 1. `file ~/Downloads/[name].png` → must report `PNG image data, ... RGBA` (8-bit/color RGBA). If it says `JPEG` or `8-bit colormap` without alpha, transparency failed.
 2. `file ~/Downloads/[name]-thumb.png` → must report `PNG image data`. The thumb is intentionally opaque with sepia background.
 3. Only after both pass: copy to the project directory and wire into the post.
 
 **Wiring into the blog post:**
+
 - Body inline: `[![Alt](/images/blog/[slug]/header.webp)](/images/blog/[slug]/header.webp)` - use the transparent WebP converted from the `.png`.
 - Frontmatter: `thumbnail: https://example.com/images/blog/[slug]/header-thumb.png` - always the `-thumb.png` (opaque sepia).
 
@@ -140,13 +145,12 @@ Never reuse the opaque thumbnail for the inline slot. Never reuse the transparen
 
 **Sanctioned exception (this section is the canonical home; _BLOGGING defers here):** transparent inline is the DEFAULT for every blog header. The one exception is thin-linework/charcoal pieces where rembg strips the artwork itself (see Gotchas) - those may ship an opaque sepia `#EAE9DF` inline image, which composites seamlessly on the matching page background. Opaque inline is a documented fallback for that failure mode, never a second default.
 
-
 ## Workflow Routing
 
 Route to the appropriate workflow based on the request.
 
 | Workflow | Trigger | File |
-|----------|---------|------|
+| ---------- | --------- | ------ |
 | Essay | Blog header or editorial illustration | `Workflows/Essay.md` |
 | RemoveBackground | Remove background from image | `Workflows/RemoveBackground.md` |
 | LogoWallpaper | brand-logo wallpaper with logo integration | `Workflows/LogoWallpaper.md` |
@@ -175,12 +179,12 @@ Route to the appropriate workflow based on the request.
 **Default:** Production-quality concept art style appropriate for editorial and technical content.
 
 **User customization** defines specific aesthetic preferences including:
+
 - Visual style and influences
 - Line treatment and rendering approach
 - Color palette and wash technique
 - Character design specifications
 - Scene composition rules
-
 
 ---
 
@@ -205,7 +209,7 @@ Route to the appropriate workflow based on the request.
 Each model accepts different `--size` formats. Using the wrong format causes validation errors.
 
 | Model | `--size` format | Valid values | Default |
-|-------|----------------|--------------|---------|
+| ------- | ---------------- | -------------- | --------- |
 | `flux` | Aspect ratio | `1:1`, `16:9`, `3:2`, `2:3`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `21:9` | `16:9` |
 | `nano-banana` | Aspect ratio | `1:1`, `16:9`, `3:2`, `2:3`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `21:9` | `16:9` |
 | `nano-banana-pro` | Resolution tier | `1K`, `2K`, `4K` (also accepts `--aspect-ratio` separately) | `2K` |
@@ -218,7 +222,7 @@ Each model accepts different `--size` formats. Using the wrong format causes val
 Three first-class models are wired into `Generate.ts`. PREFERENCES.md (if present) pins the user's default; in absence of a pin, pick by job:
 
 | Job | Recommended model | Why |
-|-----|-------------------|-----|
+| ----- | ------------------- | ----- |
 | Editorial illustration / blog header (default) | `nano-banana-pro` | Best composition fidelity for the user's editorial aesthetic; PREFERENCES.md typically pins it. |
 | Text-heavy work - stat cards, framework diagrams, taxonomies, timelines, aphorism cards | `gpt-image-2` | Currently #1 across all Image Arena leaderboards (Arena.ai, 2026-05-04) - text-to-image margin +242 Elo, single-image edit +125, multi-image edit +90. Strongest text rendering on the market right now. |
 | Editorial / blog / essay header (the DEFAULT - competing head-to-head) | `compare` (runs both `gpt-image-2` + `nano-banana-pro` in parallel on the same brief) | The two flagship models compete to make the best image; pick the winner. This is the default for any editorial header - the models have orthogonal strengths, so generating from only one leaves half the option space unexplored. See `Workflows/Essay.md`. |
@@ -235,6 +239,7 @@ Arena leaderboard sweeps measure aesthetic preference at scale, not editorial st
 Never output directly to a project's `public/images/` directory. User needs to review images in Preview before they're used.
 
 **Workflow:**
+
 1. Generate to `~/Downloads/[descriptive-name].png`
 2. User reviews in Preview
 3. If approved, THEN copy to final destination (e.g., `cms/public/images/`)
@@ -242,7 +247,7 @@ Never output directly to a project's `public/images/` directory. User needs to r
 
 ```bash
 # CORRECT - Output to Downloads for preview
-bun run ${LIFEOS_SKILL_DIR}/Tools/Generate.ts \
+bun run ~/.claude/skills/Art/Tools/Generate.ts \
   --model nano-banana-pro \
   --prompt "[PROMPT]" \
   --size 2K \
@@ -261,7 +266,7 @@ For improved character or style consistency, use multiple `--reference-image` fl
 
 ```bash
 # Multiple reference images for better likeness
-bun run ${LIFEOS_SKILL_DIR}/Tools/Generate.ts \
+bun run ~/.claude/skills/Art/Tools/Generate.ts \
   --model nano-banana-pro \
   --prompt "Person from references at a party..." \
   --reference-image face1.jpg \
@@ -273,6 +278,7 @@ bun run ${LIFEOS_SKILL_DIR}/Tools/Generate.ts \
 ```
 
 **API Limits (Gemini):**
+
 - Up to 5 human reference images
 - Up to 6 object reference images
 - Maximum 14 total reference images per request
@@ -282,6 +288,7 @@ bun run ${LIFEOS_SKILL_DIR}/Tools/Generate.ts \
 ## Examples
 
 **Example 1: Blog header image**
+
 ```
 User: "create a header for my AI agents post"
 → Invokes ESSAY workflow
@@ -292,6 +299,7 @@ User: "create a header for my AI agents post"
 ```
 
 **Example 2: Technical architecture diagram**
+
 ```
 User: "make a diagram showing the SPQA pattern"
 → Invokes TECHNICALDIAGRAMS workflow
@@ -300,6 +308,7 @@ User: "make a diagram showing the SPQA pattern"
 ```
 
 **Example 3: Comparison visualization**
+
 ```
 User: "visualize humans vs AI decision-making"
 → Invokes COMPARISONS workflow

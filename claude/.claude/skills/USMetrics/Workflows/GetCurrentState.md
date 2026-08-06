@@ -37,12 +37,16 @@ Running **GetCurrentState** in **USMetrics**...
 
 ### Step 2: Load Metric Definitions
 
-Read the master metrics document:
-```
-~/Projects/Substrate/Data/US-Common-Metrics/US-Common-Metrics.md
+Require an explicit existing dataset directory from `US_METRICS_DATA_ROOT` or the user's supplied path. Then read:
+
+```text
+<validated-dataset-directory>/US-Common-Metrics.md
 ```
 
+Fail clearly if the directory or file is absent. Do not guess a Substrate checkout path.
+
 Extract the list of all metrics with their:
+
 - FRED series IDs (or other API identifiers)
 - Categories
 - Update frequencies
@@ -55,7 +59,7 @@ For each metric with a FRED series ID, fetch historical data spanning 10+ years.
 **Key FRED Series (Priority Fetch):**
 
 | Category | Metric | FRED ID |
-|----------|--------|---------|
+| ---------- | -------- | --------- |
 | GDP | Real GDP | GDPC1 |
 | GDP | GDP Growth Rate (QoQ) | A191RL1Q225SBEA |
 | Inflation | CPI-U All Items | CPIAUCSL |
@@ -75,6 +79,7 @@ For each metric with a FRED series ID, fetch historical data spanning 10+ years.
 | Fiscal | Federal Debt | GFDEBTN |
 
 **Non-FRED Data (separate APIs):**
+
 - Gas prices: EIA API (`PET.EMM_EPMR_PTE_NUS_DPG.W`)
 - Oil prices: EIA API (`PET.RWTC.W`)
 - Federal debt (daily): Treasury FiscalData API
@@ -84,16 +89,19 @@ For each metric with a FRED series ID, fetch historical data spanning 10+ years.
 For each metric, calculate:
 
 **Timeframe Analysis:**
+
 - **10-Year:** Compound annual growth rate (CAGR), total change, volatility
 - **5-Year:** CAGR, total change, volatility, comparison to 10-year trend
 - **2-Year:** CAGR, total change, recent acceleration/deceleration
 - **1-Year:** YoY change, recent momentum, latest value vs. average
 
 **Trend Direction:**
+
 - Rising (↑), Falling (↓), Stable (→)
 - Acceleration indicator (speeding up vs. slowing down)
 
 **Example Output:**
+
 ```
 Unemployment Rate (UNRATE)
 ├── Current: 4.1% (Nov 2024)
@@ -286,6 +294,7 @@ Generate structured markdown report:
 ## Output Location
 
 Save generated report to:
+
 ```
 ~/.claude/History/research/[YYYY-MM]/[YYYY-MM-DD]_US-Economic-State-Analysis.md
 ```

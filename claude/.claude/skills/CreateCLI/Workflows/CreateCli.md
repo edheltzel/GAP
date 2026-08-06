@@ -23,6 +23,7 @@ Running the **CreateCli** workflow in the **CreateCLI** skill to generate new CL
 ## 🎯 PURPOSE
 
 This workflow generates a complete, immediately usable TypeScript CLI tool with:
+
 - Full type safety and error handling
 - Comprehensive documentation (README + QUICKSTART)
 - Clean architecture (following llcli pattern)
@@ -34,6 +35,7 @@ This workflow generates a complete, immediately usable TypeScript CLI tool with:
 ## 📍 WHEN TO USE
 
 Activate this workflow when user requests:
+
 - "Create a CLI for [API/service/tool]"
 - "Build a command-line interface"
 - "Make a CLI that does X"
@@ -67,6 +69,7 @@ START: User describes CLI requirements
 ```
 
 **Tier 1 Indicators (DEFAULT):**
+
 - ✅ 2-10 simple commands
 - ✅ API client wrapper
 - ✅ Data transformer
@@ -76,6 +79,7 @@ START: User describes CLI requirements
 - ✅ Fast development needed
 
 **Tier 2 Indicators (ESCALATION):**
+
 - ❌ 10+ commands needing organization
 - ❌ Plugin/extension system
 - ❌ Subcommands (convert json csv, convert csv json)
@@ -91,6 +95,7 @@ START: User describes CLI requirements
 ### Step 1: Gather Requirements
 
 **Extract from user request:**
+
 - CLI name (kebab-case, e.g., `ghcli`, `md2html`)
 - Purpose (one-sentence description)
 - Commands needed (list each command with arguments)
@@ -101,12 +106,14 @@ START: User describes CLI requirements
 - **Configuration flags needed** (behavioral variants - see Step 5a)
 
 **Questions to ask user if unclear:**
+
 - "What API or service does this wrap?"
 - "What are the main commands you need?"
 - "How should it authenticate?"
 - "Where should the CLI be installed?" (personal bin, project-specific, etc.)
 
 **Example extraction:**
+
 ```
 User: "Create a CLI for the GitHub API"
 
@@ -129,6 +136,7 @@ Extracted:
 **For most requests → Tier 1**
 
 Example decision:
+
 ```
 User: "CLI for GitHub API with repos, issues, search commands"
 → 3 commands (< 10) ✓
@@ -167,6 +175,7 @@ interface Config {
 ```
 
 **For file processing CLIs:**
+
 ```typescript
 interface ProcessResult {
   input: string;
@@ -202,31 +211,30 @@ const DEFAULTS = {
  * Load configuration from environment
  */
 function loadConfig(): Config {
-  const envPath = process.env.LIFEOS_CONFIG_DIR ? join(process.env.LIFEOS_CONFIG_DIR, '.env') : join(homedir(), '.claude', 'LifeOS', '.env');
+  const envPath = process.env.CLAUDE_CONFIG_DIR
+    ? join(process.env.CLAUDE_CONFIG_DIR, '.env')
+    : join(homedir(), '.claude', '.env');
+  let fileValue: string | undefined;
 
-  try {
-    const envContent = readFileSync(envPath, 'utf-8');
-    const apiKey = envContent
+  if (existsSync(envPath)) {
+    fileValue = readFileSync(envPath, 'utf-8')
       .split('\n')
       .find(line => line.startsWith('{{ENV_VAR_NAME}}='))
-      ?.split('=')[1]
-      ?.trim();
+      ?.slice('{{ENV_VAR_NAME}}='.length)
+      .trim();
+  }
 
-    if (!apiKey) {
-      console.error('Error: {{ENV_VAR_NAME}} not found in ${LIFEOS_CONFIG_DIR}/.env');
-      process.exit(1);
-    }
-
-    return {
-      apiKey,
-      baseUrl: DEFAULTS.baseUrl,
-      {{ADDITIONAL_CONFIG}}
-    };
-  } catch (error) {
-    console.error(`Error: Cannot read ${LIFEOS_CONFIG_DIR}/.env file`);
-    console.error('Make sure {{ENV_VAR_NAME}} is set in ${LIFEOS_CONFIG_DIR}/.env');
+  const apiKey = process.env.{{ENV_VAR_NAME}} || fileValue;
+  if (!apiKey) {
+    console.error('Error: {{ENV_VAR_NAME}} is not set in the environment or ~/.claude/.env');
     process.exit(1);
   }
+
+  return {
+    apiKey,
+    baseUrl: DEFAULTS.baseUrl,
+    {{ADDITIONAL_CONFIG}}
+  };
 }
 ```
 
@@ -241,19 +249,21 @@ This enables workflows and users to adapt CLI behavior without code changes.
 **Standard Flag Categories:**
 
 | Category | Examples | Purpose |
-|----------|----------|---------|
+| ---------- | ---------- | --------- |
 | **Mode flags** | `--fast`, `--thorough`, `--dry-run` | Execution behavior |
 | **Output flags** | `--format json`, `--quiet`, `--verbose` | Output control |
 | **Resource flags** | `--model haiku`, `--model opus` | Model/resource selection |
 | **Post-process flags** | `--thumbnail`, `--remove-bg` | Additional processing |
 
 **Design Checklist:**
+
 1. What execution modes does this CLI need? (fast vs thorough, dry-run)
 2. What output formats are useful? (json, table, quiet, verbose)
 3. Are there resource/model selections? (cheap vs expensive, fast vs accurate)
 4. Are there optional post-processing steps?
 
 **Example flag design for an API CLI:**
+
 ```typescript
 // Mode flags
 const dryRun = args.includes('--dry-run');
@@ -270,12 +280,12 @@ const format = formatIdx !== -1 ? args[formatIdx + 1] : 'json';
 ```
 
 **Flag Design Principles:**
+
 1. **Sensible defaults**: CLI works without flags for common case
 2. **Explicit overrides**: Flags modify default behavior
 3. **Boolean flags**: `--flag` enables (no `--no-flag` needed)
 4. **Value flags**: `--flag <value>` for choices
 5. **Composable**: Flags should combine logically
-
 
 ---
 
@@ -513,6 +523,7 @@ main().catch((error) => {
 ```
 
 **QUICKSTART.md:**
+
 ```markdown
 # {{CLI_NAME}} Quick Start
 
@@ -544,6 +555,7 @@ See: ~/.claude/tools/{{CLI_NAME}}/README.md
 ### Step 9: Generate Supporting Files
 
 **package.json:**
+
 ```json
 {
   "name": "{{CLI_NAME}}",
@@ -564,6 +576,7 @@ See: ~/.claude/tools/{{CLI_NAME}}/README.md
 ```
 
 **tsconfig.json:**
+
 ```json
 {
   "compilerOptions": {
@@ -584,6 +597,7 @@ See: ~/.claude/tools/{{CLI_NAME}}/README.md
 ```
 
 **.env.example:**
+
 ```bash
 # {{CLI_NAME}} Configuration
 {{ENV_VAR_NAME}}=your_{{TOKEN_TYPE}}_here
@@ -594,6 +608,7 @@ See: ~/.claude/tools/{{CLI_NAME}}/README.md
 ### Step 10: Validate and Report
 
 **Quality Gates:**
+
 1. ✅ TypeScript compiles without errors
 2. ✅ All commands work with test inputs
 3. ✅ Help text displays correctly
@@ -601,6 +616,7 @@ See: ~/.claude/tools/{{CLI_NAME}}/README.md
 5. ✅ File permissions set (chmod +x)
 
 **Validation Commands:**
+
 ```bash
 cd ~/.claude/tools/{{CLI_NAME}}/
 chmod +x {{CLI_NAME}}.ts
@@ -609,6 +625,7 @@ chmod +x {{CLI_NAME}}.ts
 ```
 
 **Report to user:**
+
 ```
 ✅ CLI Created: ~/.claude/tools/{{CLI_NAME}}/
 
@@ -621,7 +638,7 @@ Files generated:
 - QUICKSTART.md
 
 Next steps:
-1. Configure: Add {{ENV_VAR_NAME}} to ${LIFEOS_CONFIG_DIR}/.env
+1. Configure: export {{ENV_VAR_NAME}} or add it to ~/.claude/.env
 2. Test: ./{{CLI_NAME}}.ts --help
 3. Use: ./{{CLI_NAME}}.ts {{EXAMPLE_COMMAND}}
 
@@ -636,6 +653,7 @@ Documentation: ~/.claude/tools/{{CLI_NAME}}/README.md
 "Create a CLI for the Notion API to list databases and create pages"
 
 **Generated Output:**
+
 ```
 ✅ CLI Created: ~/.claude/tools/notioncli/
 
@@ -654,7 +672,7 @@ Commands available:
 - notioncli --help                       # Show full help
 
 Next steps:
-1. Add NOTION_API_KEY=your_key to ${LIFEOS_CONFIG_DIR}/.env
+1. Export NOTION_API_KEY=your_key or add it to ~/.claude/.env
 2. Test: notioncli databases
 3. Read: ~/.claude/tools/notioncli/README.md
 
@@ -667,11 +685,13 @@ and comprehensive documentation.
 ## 🔗 RELATED WORKFLOWS
 
 **After creating CLI:**
+
 - `add-command.md` - Add more commands to existing CLI
 - `add-testing.md` - Generate test suite
 - `setup-distribution.md` - Setup npm publishing or binary distribution
 
 **Escalation:**
+
 - `upgrade-tier.md` - Migrate from Tier 1 → Tier 2 if CLI grows complex
 
 ---
@@ -685,6 +705,7 @@ and comprehensive documentation.
 **Decision:** Tier 1 (API wrapper, simple commands)
 
 **Generated Commands:**
+
 ```bash
 stripecli customers list
 stripecli customers create --email user@example.com
@@ -701,6 +722,7 @@ stripecli balance
 **Decision:** Tier 1 (file I/O, simple transformations)
 
 **Generated Commands:**
+
 ```bash
 md-convert html input.md output.html
 md-convert pdf input.md output.pdf
@@ -717,6 +739,7 @@ md-convert stats input.md
 **Decision:** Tier 2 (complex workflow, subcommands)
 
 **Generated Commands:**
+
 ```bash
 db-migrate up                    # Run pending migrations
 db-migrate down --steps 1        # Rollback
@@ -729,27 +752,35 @@ db-migrate create --name users   # Generate new migration
 ## ✅ BEST PRACTICES
 
 ### 1. **Default to Tier 1**
+
 Start simple. 80% of CLIs don't need a framework.
 
 ### 2. **Complete Documentation**
+
 README explains "why" not just "how". Include philosophy section.
 
 ### 3. **Type Safety First**
+
 All interfaces, strict mode, no `any` types.
 
 ### 4. **Deterministic Output**
+
 JSON to stdout, errors to stderr. Consistent every time.
 
 ### 5. **Error Context**
+
 Don't just say "Error". Explain what failed and how to fix it.
 
 ### 6. **Examples in Help**
+
 Show real usage examples, not just flag descriptions.
 
 ### 7. **Test Immediately**
+
 Run `--help` and version command before reporting success.
 
 ### 8. **Follow llcli Pattern**
+
 Use proven structure from ~/.claude/tools/llcli/ as reference.
 
 ---
@@ -778,6 +809,7 @@ Use proven structure from ~/.claude/tools/llcli/ as reference.
 Before reporting CLI as complete, verify:
 
 ### Core Functionality
+
 - [ ] TypeScript compiles (run bun check)
 - [ ] File permissions set (chmod +x)
 - [ ] --help displays correctly
@@ -785,6 +817,7 @@ Before reporting CLI as complete, verify:
 - [ ] All commands in help are implemented
 
 ### Configuration Flags Standard
+
 - [ ] Configuration exposed via flags, not hardcoded
 - [ ] Mode flags present where applicable (--fast, --thorough, --dry-run)
 - [ ] Output flags present (--format, --quiet, --verbose)
@@ -793,6 +826,7 @@ Before reporting CLI as complete, verify:
 - [ ] Flags documented in --help output
 
 ### Documentation & Output
+
 - [ ] README has philosophy section
 - [ ] QUICKSTART has common examples
 - [ ] .env.example lists all required vars
@@ -804,6 +838,7 @@ Before reporting CLI as complete, verify:
 - [ ] Follows llcli structure pattern
 
 ### Workflow Integration
+
 - [ ] If this CLI will be called by workflows, document the intent-to-flag mapping pattern
 - [ ] Flag names match standard conventions (see CliFirstArchitecture.md)
 

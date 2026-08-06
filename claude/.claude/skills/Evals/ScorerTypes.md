@@ -3,7 +3,7 @@
 ## Deterministic Scorers (60% weight recommended)
 
 | Scorer | Speed | Use Case |
-|--------|-------|----------|
+| -------- | ------- | ---------- |
 | `sentence-counter` | <5ms | Format validation, length requirements |
 | `word-counter` | <5ms | Conciseness, length limits |
 | `link-counter` | <10ms | Attribution, reference validation |
@@ -18,7 +18,7 @@
 ## AI-Based Scorers (40% weight recommended)
 
 | Scorer | Speed | Use Case |
-|--------|-------|----------|
+| -------- | ------- | ---------- |
 | `llm-judge-accuracy` | ~2s | Factual accuracy, core takeaways |
 | `llm-judge-style` | ~2s | Voice authenticity, tone |
 | `link-attribution-judge` | ~2s | Author identification, citation quality |
@@ -45,7 +45,7 @@ criteria:
     - scorer: "llm-judge-accuracy"
       weight: 0.15
       params:
-        judge_model: "claude-3-5-sonnet-20241022"
+        judge_response: "<explicit response from the active judge adapter>"
         reasoning_first: true
         scale: "1-5"
 

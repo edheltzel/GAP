@@ -122,20 +122,20 @@ export interface ToolCallsParams {
 export interface LLMRubricParams {
   rubric: string;  // Path to rubric file or inline content
   assertions?: string[];
-  judge_model?: string;
+  judge_response?: string;  // Explicit response produced by the active model adapter
   reasoning_first?: boolean;
   scale?: '1-5' | '1-10' | 'pass-fail';
 }
 
 export interface NaturalLanguageAssertParams {
   assertions: string[];
-  judge_model?: string;
+  judge_response?: string;  // Explicit response produced by the active model adapter
   require_all?: boolean;
 }
 
 export interface PairwiseComparisonParams {
   reference: string;  // Path to reference output
-  judge_model?: string;
+  judge_responses?: string[];  // One response per requested position
   position_swap?: boolean;
   criteria?: string[];
 }
@@ -374,6 +374,7 @@ export interface FailureLog {
 export interface AlgorithmEvalRequest {
   isc_row: number;
   suite: string;
+  output_file?: string;
   verification_criteria?: string;
 }
 

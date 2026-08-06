@@ -20,15 +20,16 @@ description: Prompt engineering standards based on Anthropic's Claude 4.x best p
 
 ---
 
-# Ideal-State Prompting — THE Default Standard
+# Ideal-State Prompting: THE Default Standard
 
-**Every prompt this library generates articulates the ideal state, not the procedure.** This is the top-level standard; all the specific principles below are servants of it. A prompt states WHAT done looks like (as testable outcomes), the CONSTRAINTS that bound the solution space, and the high-quality TOOLS available — then trusts a capable model to find HOW. Dictating execution methodology or reasoning choreography ("first analyze X, then consider Y, then form a hypothesis, then decide") is BPE-violating scaffolding that caps the model and rots as models improve.
+**Every prompt this library generates articulates the ideal state, not the procedure.** This is the top-level standard; all the specific principles below are servants of it. A prompt states WHAT done looks like (as testable outcomes), the CONSTRAINTS that bound the solution space, and the high-quality TOOLS available, then trusts a capable model to find HOW. Dictating execution methodology or reasoning choreography ("first analyze X, then consider Y, then form a hypothesis, then decide") is BPE-violating scaffolding that caps the model and rots as models improve.
 
 **The test for every procedural line (the BPE core question):** *would a smarter model make this rule unnecessary?* Yes → it's scaffolding, cut it. No → keep it. This is the same epistemology as the ISA: the ideal-state criteria ARE the prompt, and they say only what done means.
 
 **Ideal-state prompting is MORE precise, not vaguer.** The specificity moves to the outcome. Compare:
 
 ❌ **HOW (procedural, rots):**
+
 ```
 To threat-model this: 1. First enumerate the components. 2. Then think about
 trust boundaries. 3. Consider each STRIDE category carefully. 4. For each,
@@ -36,6 +37,7 @@ brainstorm attacks. 5. Finally, write up your findings.
 ```
 
 ✅ **WHAT (ideal-state, survives model upgrades):**
+
 ```
 Produce a threat model that names every trust boundary in the system and,
 for each, a concrete attack that crosses it and the control that stops it.
@@ -43,16 +45,16 @@ Tools: [STRIDE reference], [the architecture doc]. Done = no boundary
 unlisted, every listed boundary has ≥1 attack+control pair.
 ```
 
-**Four keep-classes are legitimate HOW — a smarter model does NOT make them unnecessary, so keep them:**
+**Four keep-classes are legitimate HOW; a smarter model does NOT make them unnecessary, so keep them:**
 
 | Keep-class | What it is | Why it survives |
-|-----------|-----------|-----------------|
+| ----------- | ----------- | ----------------- |
 | **Safety-gate** | Confirmation, destructive-op guard, approval boundary | About authority/consequence, not competence |
-| **Verified-gotcha** | A documented non-obvious failure the model would otherwise hit — **needs provenance** (a dated incident, failing test, or reproduction); no provenance → it's methodology, cut it | Empirical world-fact, not a reasoning crutch |
+| **Verified-gotcha** | A documented non-obvious failure the model would otherwise hit; **needs provenance** (a dated incident, failing test, or reproduction); no provenance → it's methodology, cut it | Empirical world-fact, not a reasoning crutch |
 | **Tool-contract** | Exact CLI syntax, API params, file paths, invocation recipe | The precise WHAT of a tool call; can't be guessed |
 | **Output-format-contract** | The required shape/schema/template the deliverable must match | Model free on HOW, bound on final form |
 
-Deterministic Tools (`*.ts`) are exempt entirely — they do one fixed thing by design. Everything else that reads as procedure is a candidate to cut. When generating or optimizing any prompt: state the ideal state, state the constraints, supply the tools, keep the four keep-classes, delete the choreography. Full epistemic grounding: `LIFEOS/RULES/Philosophy.md` § Ideal-State Prompting.
+Deterministic Tools (`*.ts`) are exempt entirely; they do one fixed thing by design. Everything else that reads as procedure is a candidate to cut. When generating or optimizing any prompt: state the ideal state, state the constraints, supply the tools, keep the four keep-classes, delete the choreography. Full epistemic grounding: `LIFEOS/RULES/Philosophy.md` § Ideal-State Prompting.
 
 ---
 
@@ -68,16 +70,16 @@ Deterministic Tools (`*.ts`) are exempt entirely — they do one fixed thing by 
 
 ## Attention to Detail
 
-- **Example sensitivity:** Claude 4.x pays close attention to details in examples—ensure examples match desired outcomes exactly
+- **Example sensitivity:** Claude 4.x pays close attention to details in examples; ensure examples match desired outcomes exactly
 - **Misaligned examples encourage unintended behaviors**
 - **Be vigilant:** Every example shapes behavior
 
 ## Tool Usage Patterns
 
-- **Opus 4.5–4.8 may overtrigger tools:** Dial back aggressive language
+- **Opus 4.5-4.8 may overtrigger tools:** Dial back aggressive language
 - **Change:** "CRITICAL: You MUST use this tool" → "Use this tool when..."
 - **Softer framing:** Reduces excessive tool invocation
-- **Opus 4.8 favors reasoning over tool calls:** if you want *more* tool use, run at `high` effort (the LifeOS ceiling) or describe when/how to use the tool — don't shout
+- **Opus 4.8 favors reasoning over tool calls:** if you want *more* tool use, run at `high` effort (the LifeOS ceiling) or describe when/how to use the tool; don't shout
 
 ## Literal Instruction Following (Opus 4.8)
 
@@ -85,11 +87,12 @@ Opus 4.8 reads prompts literally and does not silently generalize. It won't appl
 
 - **State scope explicitly:** "Apply this to every section, not just the first."
 - **Upside:** precision and less thrash on tuned prompts, structured extraction, pipelines.
-- **Watch for:** instructions that *relied* on the model inferring broader intent — those now under-apply. Make the scope a written part of the instruction.
+- **Watch for:** instructions that *relied* on the model inferring broader intent; those now under-apply. Make the scope a written part of the instruction.
 
 ## Extended Thinking Sensitivity
 
 When extended thinking is disabled:
+
 - **Avoid:** "think", "think about", "think through"
 - **Use instead:** "consider", "believe", "evaluate", "reflect", "assess"
 - **Guide reflection:** "After receiving tool results, carefully reflect on their quality and determine optimal next steps before proceeding"
@@ -103,6 +106,7 @@ When extended thinking is disabled:
 **CRITICAL: We use markdown for ALL prompt structure. Never use XML tags.**
 
 ❌ **NEVER use XML-style tags:**
+
 ```
 <instructions>Do something</instructions>
 <context>Some context</context>
@@ -110,6 +114,7 @@ When extended thinking is disabled:
 ```
 
 ✅ **ALWAYS use markdown headers:**
+
 ```markdown
 ## Instructions
 
@@ -125,6 +130,7 @@ JSON
 ```
 
 **Why markdown over XML:**
+
 - Maximum readability for creators and users
 - Consistent with our markdown-zealot philosophy
 - Clear structure emphasizes what AI should do and in what order
@@ -137,6 +143,7 @@ This applies to: skill files, workflow files, prompt templates, and all document
 Claude 4.x requires clear, specific direction rather than vague requests.
 
 **Previous behavior may need explicit requesting:**
+
 - "Include as many relevant features and interactions as possible"
 - "Go beyond basics"
 - Quality modifiers enhance results
@@ -148,11 +155,13 @@ Claude 4.x requires clear, specific direction rather than vague requests.
 Explain *why* certain behavior matters to help Claude understand goals.
 
 ✅ **Good:**
+
 ```
 Your response will be read aloud by text-to-speech, so never use ellipses or incomplete sentences.
 ```
 
 ❌ **Bad:**
+
 ```
 NEVER use ellipses.
 ```
@@ -164,11 +173,13 @@ Claude generalizes well from reasoning provided in context.
 Frame instructions positively rather than as prohibitions.
 
 ✅ **Good:**
+
 ```
 Compose smoothly flowing prose paragraphs with natural transitions.
 ```
 
 ❌ **Bad:**
+
 ```
 Do not use markdown or bullet points.
 ```
@@ -191,9 +202,10 @@ Do not use markdown or bullet points.
 **The delete-test (use this to find filler).** Cut the line. Re-read the prompt. If the model's behavior wouldn't change, the line was a no-op, so leave it cut. Restore it only if you can name the *specific non-default behavior* it forces. A line earns its place only when removing it would actually change output.
 
 Three no-op classes the test catches:
-- **Restating the default** — "be thorough", "write clean code", "be comprehensive". The model already does this.
-- **Intensifier stacking** — `MANDATORY` / `CRITICAL` / "not optional" on a rule stated elsewhere. Emphasis is not a constraint; the model obeys specificity and code, not volume.
-- **Unfalsifiable lines** — "use good judgment", "as appropriate". A line with no falsifier constrains nothing.
+
+- **Restating the default**: "be thorough", "write clean code", "be comprehensive". The model already does this.
+- **Intensifier stacking**: `MANDATORY` / `CRITICAL` / "not optional" on a rule stated elsewhere. Emphasis is not a constraint; the model obeys specificity and code, not volume.
+- **Unfalsifiable lines**: "use good judgment", "as appropriate". A line with no falsifier constrains nothing.
 
 ## 6. Match Prompt Style to Output Style
 
@@ -210,6 +222,7 @@ Three no-op classes the test catches:
 ## First Context Setup
 
 Establish framework before iterative work:
+
 - Create test structures
 - Set up validation scripts
 - Define success criteria
@@ -234,6 +247,7 @@ Establish framework before iterative work:
 ## Quality of Life Tools
 
 Create setup scripts (`init.sh`) for:
+
 - Graceful server startup
 - Test environment initialization
 - State restoration
@@ -247,6 +261,7 @@ Create setup scripts (`init.sh`) for:
 ## Verification Without Human Feedback
 
 Provide testing capabilities:
+
 - Interceptor skill for browser validation
 - Computer use for visual verification
 - Automated test suites
@@ -255,6 +270,7 @@ Provide testing capabilities:
 ## Complete Context Usage
 
 For complex tasks:
+
 ```
 Spend your entire output context working on the task.
 ```
@@ -262,6 +278,7 @@ Spend your entire output context working on the task.
 ## Context Window Awareness
 
 Claude 4.5 tracks remaining context throughout conversations:
+
 ```
 Your context window will be automatically compacted as it approaches its limit, allowing you to continue working indefinitely.
 ```
@@ -347,15 +364,15 @@ Write high-quality, general-purpose solutions using standard tools. Don't create
 
 ## Coverage-First Finding (separate find from filter)
 
-**New with Opus 4.8.** The model follows "only report high-severity," "be conservative," and "don't nitpick" *more faithfully* than older models. A finder prompt tuned that way now does the same depth of investigation but silently drops real low-severity bugs — precision rises, measured recall falls. This is a harness effect, not a capability regression.
+**New with Opus 4.8.** The model follows "only report high-severity," "be conservative," and "don't nitpick" *more faithfully* than older models. A finder prompt tuned that way now does the same depth of investigation but silently drops real low-severity bugs; precision rises, measured recall falls. This is a harness effect, not a capability regression.
 
 The fix: at the finding stage, prompt for **coverage**, not judgment. Move filtering to a separate stage.
 
 ```
-Report every issue you find, including ones you are uncertain about or consider low-severity. Do not filter for importance or confidence at this stage — a separate verification step will do that. Coverage is the goal: better to surface a finding that later gets filtered than to silently drop a real bug. For each finding, include a confidence level and an estimated severity so a downstream stage can rank them.
+Report every issue you find, including ones you are uncertain about or consider low-severity. Do not filter for importance or confidence at this stage; a separate verification step will do that. Coverage is the goal: better to surface a finding that later gets filtered than to silently drop a real bug. For each finding, include a confidence level and an estimated severity so a downstream stage can rank them.
 ```
 
-If you must self-filter in a single pass, be concrete about the bar ("report any bug that could cause incorrect behavior, a test failure, or a misleading result; omit only pure style/naming nits") — never a qualitative term like "important."
+If you must self-filter in a single pass, be concrete about the bar ("report any bug that could cause incorrect behavior, a test failure, or a misleading result; omit only pure style/naming nits"); never a qualitative term like "important."
 
 This is the find→verify split the Workflow tool already encodes: finders maximize coverage, an adversarial verify stage kills the false positives. Any LifeOS review/finding prompt (Cato, `_HELIOS` finding phases, code-review fan-outs) inherits this rule.
 
@@ -374,6 +391,7 @@ This is the find→verify split the Workflow tool already encodes: finders maxim
 ## Subagent Context Design
 
 Each subagent should receive:
+
 - Minimal, task-specific context
 - Clear success criteria
 - Structured interfaces for communication
@@ -393,6 +411,7 @@ Write in clear, flowing prose using complete paragraphs. Use markdown for `inlin
 ## Format Indicators
 
 Use markdown headers to indicate desired output format:
+
 - `## Prose Output` - for flowing paragraphs
 - `## JSON Output` - for structured data
 - `## Bullet Summary` - for concise lists
@@ -415,19 +434,23 @@ For complex research tasks:
 # Frontend Development (Avoiding "AI Slop")
 
 ## Typography
+
 - Choose distinctive fonts
 - Avoid: Inter, Arial, generic system fonts
 
 ## Color
+
 - Commit to cohesive color palettes using CSS variables
 - Sharp accents complement dominant colors
 
 ## Animation
+
 - Use for high-impact moments
 - Staggered reveals with animation-delay
 - Purposeful motion
 
 ## Atmosphere
+
 - Create atmospheric backgrounds with gradients or patterns
 - Vary aesthetics across projects
 
@@ -490,6 +513,7 @@ Explicit specification of desired response structure
 ```
 
 **Research Validation:**
+
 - Background/Context: Required - reduces ambiguity
 - Instructions: Required - baseline performance component
 - Examples: +25-90% improvement (1-3 examples optimal, diminishing returns after 3)
@@ -499,27 +523,32 @@ Explicit specification of desired response structure
 ## Section Guidelines
 
 **Background Information:**
+
 - Provide minimal essential context
 - Avoid historical details unless critical
 - Focus on "what" and "why", not "how we got here"
 
 **Instructions:**
+
 - Use imperative voice ("Do X", not "You should do X")
 - Be specific and actionable
 - Order by priority or logical flow
 
 **Examples:**
+
 - Show, don't tell
 - Include both correct and incorrect examples when useful
 - Keep examples concise and representative
-- **Claude 4.x pays close attention—ensure examples match desired outcomes exactly**
+- **Claude 4.x pays close attention; ensure examples match desired outcomes exactly**
 
 **Constraints:**
+
 - Clearly state boundaries and limitations
 - Specify what NOT to do
 - Define success/failure criteria
 
 **Output Format:**
+
 - Specify exact structure (JSON, Markdown, lists, etc.)
 - Include format examples when helpful
 - Define length constraints if applicable
@@ -531,6 +560,7 @@ Explicit specification of desired response structure
 ## Clarity Over Completeness
 
 ✅ **Good:**
+
 ```markdown
 ## Instructions
 - Validate user input before processing
@@ -539,6 +569,7 @@ Explicit specification of desired response structure
 ```
 
 ❌ **Bad:**
+
 ```markdown
 ## Instructions
 You should always make sure to validate the user's input before you process it because invalid input could cause problems. When you encounter errors, you should return them in JSON format so that the calling system can parse them properly.
@@ -547,11 +578,13 @@ You should always make sure to validate the user's input before you process it b
 ## Be Direct and Specific
 
 ✅ **Good:**
+
 ```markdown
 Use the `calculate_tax` tool with amount and jurisdiction parameters.
 ```
 
 ❌ **Bad:**
+
 ```markdown
 You might want to consider using the calculate_tax tool if you need to determine tax amounts, and you should probably pass in the amount and jurisdiction if you have them available.
 ```
@@ -563,6 +596,7 @@ You might want to consider using the calculate_tax tool if you need to determine
 ## 1. Just-in-Time Context Loading
 
 **Instead of:**
+
 ```markdown
 ## Available Products
 Product 1: Widget A - $10.99 - In stock: 500 units...
@@ -570,6 +604,7 @@ Product 1: Widget A - $10.99 - In stock: 500 units...
 ```
 
 **Use:**
+
 ```markdown
 ## Available Products
 Use `get_product(sku)` to retrieve product details when needed.
@@ -578,15 +613,17 @@ Use `get_product(sku)` to retrieve product details when needed.
 ## 2. Compaction for Long Conversations
 
 When context grows too large:
+
 - Summarize older conversation segments
 - Preserve critical decisions and state
 - Discard resolved sub-tasks
 - Keep recent context verbatim
-- **Consider full context reset—Claude 4.5 excels at discovering state from filesystem**
+- **Consider full context reset; Claude 4.5 excels at discovering state from filesystem**
 
 ## 3. Structured Note-Taking
 
 For multi-step tasks:
+
 - Persist important information outside context window
 - Use external storage (files, databases) for state
 - Reference stored information with lightweight identifiers
@@ -594,6 +631,7 @@ For multi-step tasks:
 ## 4. Sub-Agent Architectures
 
 For complex tasks:
+
 - Delegate subtasks to specialized agents
 - Each agent gets minimal, task-specific context
 - Parent agent coordinates and synthesizes results
@@ -606,6 +644,7 @@ For complex tasks:
 ## Self-Contained Tools
 
 Each tool should:
+
 - Have a single, clear purpose
 - Include all necessary parameters in its definition
 - Return complete, actionable results
@@ -704,13 +743,13 @@ When creating or reviewing prompts:
 Don't explain reasoning behind every instruction. Be direct.
 
 ❌ **Negative-Only Constraints**
-Don't just say what NOT to do—tell what TO do instead.
+Don't just say what NOT to do; tell what TO do instead.
 
 ❌ **Aggressive Tool Language**
 "CRITICAL: You MUST use this tool" causes overtriggering in Claude 4.5.
 
 ❌ **Misaligned Examples**
-Examples shape behavior—misaligned examples cause unintended outcomes.
+Examples shape behavior; misaligned examples cause unintended outcomes.
 
 ❌ **Historical Context Dumping**
 Don't include how things evolved unless critical.
@@ -719,7 +758,7 @@ Don't include how things evolved unless critical.
 Don't load detailed data until actually needed.
 
 ❌ **Vague Instructions**
-Don't use "might", "could", "should consider"—be direct.
+Don't use "might", "could", "should consider"; be direct.
 
 ❌ **Example Overload**
 Don't provide 10 examples when 2 would suffice.
@@ -736,11 +775,13 @@ An **open-source framework** for augmenting humans using AI.
 ## Core Architecture
 
 **Philosophy:** UNIX principles applied to prompting
+
 - Solve each problem exactly once
 - Turn solutions into reusable modules (Patterns)
 - Make modules chainable
 
 **Components:**
+
 - **Patterns:** Granular AI use cases (242+ prompts)
 - **Stitches:** Chained patterns for advanced functionality
 - **Looms:** Client-side apps calling specific Patterns
@@ -749,10 +790,12 @@ An **open-source framework** for augmenting humans using AI.
 ## Key Principles
 
 **Markdown-First Design:**
+
 - Maximum readability for creators and users
 - Clear structure emphasizes what AI should do and in what order
 
 **Clarity in Instructions:**
+
 - Extremely clear, specific directives
 - Markdown structure for order and priority
 - Chain of Thought and Chain of Draft strategies
@@ -768,11 +811,13 @@ LifeOS maintains a local copy of all Fabric patterns for native execution. Inste
 ### When to Use Native Patterns (Default)
 
 For any pattern-based processing, the system will:
+
 1. Read `tools/fabric/Patterns/{pattern_name}/system.md`
 2. Apply the pattern instructions directly to the content
 3. Execute without external CLI calls
 
 **Examples:**
+
 - `extract_wisdom` → Read and apply `tools/fabric/Patterns/extract_wisdom/system.md`
 - `summarize` → Read and apply `tools/fabric/Patterns/summarize/system.md`
 - `analyze_claims` → Read and apply `tools/fabric/Patterns/analyze_claims/system.md`
@@ -780,6 +825,7 @@ For any pattern-based processing, the system will:
 ### When to Still Use the Fabric CLI
 
 Only use the `fabric` command for:
+
 - **`-U`** - Update patterns: `fabric -U`
 - **`-y`** - Extract YouTube transcripts: `fabric -y "https://youtube.com/..."`
 - **`-l`** - List available patterns: `fabric -l`
@@ -788,12 +834,7 @@ These operations require the CLI because they access external services or config
 
 ### Updating Patterns
 
-Run the update script to sync latest patterns:
-```bash
-~/.claude/skills/Fabric/Tools/update-patterns.sh
-```
-
-This pulls upstream updates via `fabric -U` and syncs to LifeOS's local copy.
+Follow the included updater workflow at `~/.claude/skills/Fabric/Workflows/UpdatePatterns.md`. It checks for the optional Fabric CLI, runs `fabric -U` only when available, and documents the local pattern sync.
 
 ---
 
@@ -814,12 +855,13 @@ When updating prompts for Claude 4.x:
 # References
 
 **Primary Sources:**
+
 - Anthropic: "Claude 4.x Best Practices" (November 2025)
-  https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-4-best-practices
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-4-best-practices>
 - Anthropic: "Effective Context Engineering for AI Agents"
-  https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
+  <https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents>
 - The Fabric System (January 2024)
-  https://github.com/danielmiessler/fabric
+  <https://github.com/danielmiessler/fabric>
 - "The Prompt Report" - arXiv:2406.06608 (systematic survey, 58 techniques)
 - "The Prompt Canvas" - arXiv:2412.05127 (100+ papers reviewed)
 - Microsoft PromptBench - Comprehensive benchmarking framework
@@ -833,7 +875,7 @@ When updating prompts for Claude 4.x:
 
 **Synthesized from:** Anthropic's Claude 4.x Best Practices, context engineering principles, 1,500+ academic papers, and production-validated patterns.
 
-**Design Philosophy:** Modular sections—include only what your task requires. Every section is optimized for Claude 4.x behavioral patterns.
+**Design Philosophy:** Modular sections; include only what your task requires. Every section is optimized for Claude 4.x behavioral patterns.
 
 ---
 
@@ -929,8 +971,8 @@ Track progress using:
 ## Section Selection Matrix
 
 | Task Type | Required Sections | Recommended | Optional |
-|-----------|------------------|-------------|----------|
-| **Simple Query** | Instructions, Output Format | Context | — |
+| ----------- | ------------------ | ------------- | ---------- |
+| **Simple Query** | Instructions, Output Format | Context | None |
 | **Complex Implementation** | Context, Instructions, Output Format, Tools | Examples, Constraints, Verification | Action Bias, Parallel |
 | **Research/Analysis** | Context, Instructions, Constraints | Examples, Research Mode | State Tracking |
 | **Agentic Coding** | Context, Instructions, Tools, Verification | Constraints, Parallel | State Tracking |
@@ -941,7 +983,7 @@ Track progress using:
 ## Quick Reference: Claude 4.x Transformations
 
 | ❌ Avoid | ✅ Use Instead |
-|----------|---------------|
+| ---------- | --------------- |
 | "CRITICAL: You MUST use this tool" | "Use this tool when..." |
 | "Don't use markdown" | "Write in flowing prose paragraphs" |
 | "NEVER do X" | "Do Y instead" (positive framing) |
@@ -1030,12 +1072,14 @@ Verify across multiple sources. Develop competing hypotheses. Track confidence l
 ## Why This Template Works
 
 **Empirically Validated Structure:**
+
 - Background + Instructions + Output Format = baseline performance
 - Examples add +25-90% improvement (1-3 optimal, diminishing returns after)
 - Constraints reduce hallucination
 - Output format specification improves compliance
 
 **Claude 4.x Optimized:**
+
 - Soft tool language prevents overtriggering
 - Positive framing ("do X" not "don't do Y") provides clear targets
 - Motivation/context enables generalization
@@ -1043,11 +1087,13 @@ Verify across multiple sources. Develop competing hypotheses. Track confidence l
 - Example warnings prevent misalignment
 
 **Context Engineering Principles:**
+
 - Minimal context preserves attention budget
-- Modular design—include only what's needed
+- Modular design; include only what's needed
 - Markdown headers provide semantic clarity without token waste
 
 **Production Proven:**
+
 - Multi-context state tracking patterns from Anthropic's agentic workflows
 - Parallel execution patterns reduce latency
 - Verification patterns catch errors before human review
@@ -1058,7 +1104,7 @@ Verify across multiple sources. Develop competing hypotheses. Track confidence l
 
 **Foundation:** Based on Anthropic's official `{{variable}}` syntax, industry patterns (LangChain, Handlebars, DSPy), and LifeOS's unique skill architecture.
 
-**Philosophy:** Templates enable prompts to write prompts—dynamic composition where structure is fixed but content is parameterized. This is core LifeOS DNA.
+**Philosophy:** Templates enable prompts to write prompts; dynamic composition where structure is fixed but content is parameterized. This is core LifeOS DNA.
 
 ---
 
@@ -1067,7 +1113,7 @@ Verify across multiple sources. Develop competing hypotheses. Track confidence l
 LifeOS uses Handlebars notation for template variables:
 
 | Syntax | Purpose | Example |
-|--------|---------|---------|
+| -------- | --------- | --------- |
 | `{{variable}}` | Simple interpolation | `Hello {{name}}` |
 | `{{object.property}}` | Nested access | `{{agent.voice_id}}` |
 | `{{#each items}}...{{/each}}` | Iteration | List generation |
@@ -1075,6 +1121,7 @@ LifeOS uses Handlebars notation for template variables:
 | `{{> partial}}` | Include partial | Reusable components |
 
 **Why Handlebars:**
+
 - Anthropic's official Claude Console syntax
 - Industry standard (Microsoft Semantic Kernel, LangChain)
 - Logic-less templates (business logic stays in code)
@@ -1084,16 +1131,18 @@ LifeOS uses Handlebars notation for template variables:
 
 ## Five Templating Primitives
 
-### 1. ROSTER — Agent & Skill Definitions
+### 1. ROSTER: Agent & Skill Definitions
 
 Data-driven generation of structured definitions from YAML.
 
 **Use Cases:**
+
 - Agent personality definitions (32 RedTeam analysts, 10 core agents)
 - Skill frontmatter generation (83 skills)
 - Voice configuration presets
 
 **Example:**
+
 ```yaml
 # Data: agents.yaml
 agents:
@@ -1112,16 +1161,18 @@ agents:
 {{/each}}
 ```
 
-### 2. VOICE — Personality Calibration
+### 2. VOICE: Personality Calibration
 
 Parameterized voice and tone settings for agents.
 
 **Use Cases:**
+
 - Voice parameters (stability, similarity_boost, rate_wpm)
 - Character archetype mapping
 - Personality trait presets
 
 **Example:**
+
 ```yaml
 # Data: voice_presets.yaml
 presets:
@@ -1143,16 +1194,18 @@ presets:
 }
 ```
 
-### 3. STRUCTURE — Workflow Patterns
+### 3. STRUCTURE: Workflow Patterns
 
 Standardized multi-step execution patterns.
 
 **Use Cases:**
+
 - Phased analysis (RedTeam 5-phase, OSINT 5-phase)
 - Round-based debate (Council 3-round)
 - Sequential pipeline (Development 7-gate)
 
 **Example:**
+
 ```handlebars
 {{!-- Template: phased_workflow.hbs --}}
 {{#each phases}}
@@ -1169,19 +1222,21 @@ Standardized multi-step execution patterns.
 {{/each}}
 ```
 
-### 4. BRIEFING — Agent Context Handoff
+### 4. BRIEFING: Agent Context Handoff
 
 How agents receive tasks and context for delegation.
 
 **Use Cases:**
+
 - Research agent queries
 - RedTeam analyst prompts
 - Development phase handoffs
 
 **Example:**
+
 ```handlebars
 {{!-- Template: agent_briefing.hbs --}}
-# {{briefing.type}} — {{agent.id}}: {{agent.name}}
+# {{briefing.type}}: {{agent.id}}: {{agent.name}}
 
 You are {{agent.personality}}. Your perspective is: "{{agent.perspective}}"
 
@@ -1197,17 +1252,19 @@ You are {{agent.personality}}. Your perspective is: "{{agent.perspective}}"
 {{briefing.output_format}}
 ```
 
-### 5. GATE — Validation Checklists
+### 5. GATE: Validation Checklists
 
 Reusable quality and completion checks.
 
 **Use Cases:**
+
 - Art mandatory elements
 - Development completion gates
 - Research source verification
 - OSINT ethical boundaries
 
 **Example:**
+
 ```handlebars
 {{!-- Template: validation_gate.hbs --}}
 ### {{gate.name}} Checklist
@@ -1217,7 +1274,7 @@ Reusable quality and completion checks.
 {{/if}}
 
 {{#each gate.items}}
-- [ ] **{{name}}** — {{description}}
+- [ ] **{{name}}**: {{description}}
 {{/each}}
 ```
 
@@ -1251,6 +1308,7 @@ skills/Prompting/
 ## Rendering Templates
 
 **CLI Usage:**
+
 ```bash
 bun ~/.claude/skills/Prompting/Tools/RenderTemplate.ts \
   --template Primitives/Roster.hbs \
@@ -1259,6 +1317,7 @@ bun ~/.claude/skills/Prompting/Tools/RenderTemplate.ts \
 ```
 
 **Programmatic Usage:**
+
 ```typescript
 import { renderTemplate } from '~/.claude/skills/Prompting/Tools/RenderTemplate.ts';
 
@@ -1274,21 +1333,25 @@ const output = renderTemplate('Primitives/Briefing.hbs', {
 ## Best Practices
 
 ### 1. Separation of Concerns
+
 - **Templates:** Structure and formatting only
 - **Data:** Content and parameters (YAML/JSON)
 - **Logic:** Rendering and validation (TypeScript)
 
 ### 2. Version Control
+
 - Templates and data in separate files
 - Track changes independently
 - Enable A/B testing of structures
 
 ### 3. DRY Principle
+
 - Extract repeated patterns into partials
 - Use presets for common configurations
 - Single source of truth for definitions
 
 ### 4. Validate Before Rendering
+
 - Check all required variables exist
 - Validate data against schema
 - Test with edge cases
@@ -1298,7 +1361,7 @@ const output = renderTemplate('Primitives/Briefing.hbs', {
 ## Integration with LifeOS Systems
 
 | System | Template Use |
-|--------|--------------|
+| -------- | -------------- |
 | **Agent Delegation** | BRIEFING templates standardize context handoff |
 | **Skill System** | ROSTER templates generate SKILL.md files |
 | **Voice Server** | VOICE templates configure agent personalities |
@@ -1312,7 +1375,7 @@ const output = renderTemplate('Primitives/Briefing.hbs', {
 The templating system reduces duplication by ~65% across the skill system:
 
 | Area | Before | After | Savings |
-|------|--------|-------|---------|
+| ------ | -------- | ------- | --------- |
 | Agent Briefings | 6,400 tokens | 1,900 tokens | 70% |
 | Voice Notifications | 6,225 tokens | 725 tokens | 88% |
 | SKILL.md Files | 20,750 tokens | 8,300 tokens | 60% |
@@ -1325,10 +1388,12 @@ The templating system reduces duplication by ~65% across the skill system:
 ## References
 
 **Anthropic Official:**
+
 - [Prompt Templates and Variables](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompt-templates-and-variables)
 - [Prompt Generator](https://claude.com/blog/prompt-generator)
 
 **Industry:**
+
 - [LangChain PromptTemplate](https://python.langchain.com/docs/concepts/prompt_templates/)
 - [Handlebars.js](https://handlebarsjs.com/)
 - [DSPy Signatures](https://dspy.ai/)

@@ -36,15 +36,19 @@ Running **UpdateData** in **USMetrics**...
 
 ### Step 2: Run Update Tool
 
+Choose an existing dataset directory containing `US-Common-Metrics.md`. Pass it explicitly with `--data-root`, or set `US_METRICS_DATA_ROOT`. The tool never guesses a home-directory location.
+
 Execute the update script:
 
 ```bash
-bun ~/.claude/skills/USMetrics/Tools/UpdateSubstrateMetrics.ts
+bun ~/.claude/skills/USMetrics/Tools/UpdateSubstrateMetrics.ts \
+  --data-root <validated-dataset-directory>
 ```
 
 This tool:
+
 1. Fetches current values from all configured APIs
-2. Writes to `~/Projects/Substrate/Data/US-Common-Metrics/US-Common-Metrics.md`
+2. Writes to `<validated-dataset-directory>/US-Common-Metrics.md`
 3. Exports to `us-metrics-current.csv`
 4. Appends to `us-metrics-historical.csv` (with timestamp)
 5. Logs update status
@@ -52,6 +56,7 @@ This tool:
 ### Step 3: Verify Update
 
 Check the update was successful:
+
 - Verify `US-Common-Metrics.md` has current values (not placeholders)
 - Verify `us-metrics-current.csv` exists and has data
 - Check update log for any failed fetches
@@ -59,7 +64,7 @@ Check the update was successful:
 ## API Sources
 
 | Source | API | Metrics | Auth |
-|--------|-----|---------|------|
+| -------- | ----- | --------- | ------ |
 | **FRED** | api.stlouisfed.org | GDP, CPI, unemployment, rates, etc. | FRED_API_KEY |
 | **EIA** | api.eia.gov | Gas prices, oil prices | EIA_API_KEY |
 | **Treasury** | api.fiscaldata.treasury.gov | Federal debt, budget | None |
@@ -120,7 +125,7 @@ fetch_timestamp,metric_id,value,period
 ## Update Schedule Recommendation
 
 | Frequency | Metrics |
-|-----------|---------|
+| ----------- | --------- |
 | Daily | Treasury yields, oil prices, federal debt |
 | Weekly | Gas prices, jobless claims, mortgage rates |
 | Monthly | CPI, employment, GDP, housing data |

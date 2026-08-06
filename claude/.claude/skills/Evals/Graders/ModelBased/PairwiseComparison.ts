@@ -1,12 +1,17 @@
 /**
  * Pairwise Comparison Grader
- * Compare output against a reference with position swapping to reduce bias
+ * Compare output against a reference using explicitly supplied judge responses.
  */
 
 import { BaseGrader, registerGrader, type GraderContext } from '../Base.ts';
-import type { GraderConfig, GraderResult, PairwiseComparisonParams } from '../../Types/index.ts';
-import { inference, type InferenceLevel } from '../../../../LIFEOS/TOOLS/Inference.ts';
-import { readFileSync, existsSync } from 'fs';
+import type { GraderResult, PairwiseComparisonParams } from '../../Types/index.ts';
+import { existsSync, readFileSync } from 'node:fs';
+
+type Comparison = {
+  position: 'output_first' | 'reference_first';
+  winner: 'A' | 'B' | 'tie';
+  reasoning: string;
+};
 
 export class PairwiseComparisonGrader extends BaseGrader {
   type = 'pairwise_comparison' as const;
@@ -14,13 +19,9 @@ export class PairwiseComparisonGrader extends BaseGrader {
 
   async grade(context: GraderContext): Promise<GraderResult> {
     const start = performance.now();
-    const params = this.config.params as PairwiseComparisonParams;
-
-    // Load reference
+    const params = this.config.params as unknown as PairwiseComparisonParams;
     let reference = params.reference;
-    if (existsSync(params.reference)) {
-      reference = readFileSync(params.reference, 'utf-8');
-    }
+    if (existsSync(reference)) reference = readFileSync(reference, 'utf-8');
 
     if (!reference) {
       return this.createResult(0, false, performance.now() - start, {
@@ -28,136 +29,58 @@ export class PairwiseComparisonGrader extends BaseGrader {
       });
     }
 
-    // Map model preference to inference level (default to medium/Sonnet)
-    const levelMap: Record<string, InferenceLevel> = {
-      'claude-haiku-4-5-20251001': 'low',
-      'claude-sonnet-4-6': 'medium',
-      'claude-opus-4-8': 'high',
-      'claude-opus-4-6': 'high',
-      'claude-sonnet-4-20250514': 'medium',
-      'claude-opus-4-20250514': 'high',
-      'claude-fable-5': 'max',
-    };
-    const level: InferenceLevel = levelMap[params.judge_model ?? ''] ?? 'medium';
     const positionSwap = params.position_swap ?? true;
-
-    // Run comparison(s)
-    const results: { position: string; winner: 'A' | 'B' | 'tie'; reasoning: string }[] = [];
-
-    // First comparison: Output = A, Reference = B
-    const result1 = await this.compare(context.output, reference, level, params.criteria);
-    results.push({ position: 'output_first', ...result1 });
-
-    if (positionSwap) {
-      // Second comparison: Reference = A, Output = B
-      const result2 = await this.compare(reference, context.output, level, params.criteria);
-      // Flip winner since positions are swapped
-      const flippedWinner = result2.winner === 'A' ? 'B' : result2.winner === 'B' ? 'A' : 'tie';
-      results.push({
-        position: 'reference_first',
-        winner: flippedWinner as 'A' | 'B' | 'tie',
-        reasoning: result2.reasoning,
+    const needed = positionSwap ? 2 : 1;
+    if (!params.judge_responses || params.judge_responses.length < needed) {
+      const prompts = [
+        this.buildPrompt(context.output, reference, params.criteria),
+        ...(positionSwap ? [this.buildPrompt(reference, context.output, params.criteria)] : []),
+      ];
+      return this.createResult(0, false, performance.now() - start, {
+        reasoning: `Pairwise grader requires ${needed} explicit params.judge_responses value(s).`,
+        details: { judge_prompts: prompts, adapter_called: false },
       });
     }
 
-    // Aggregate results
-    const outputWins = results.filter(r => r.winner === 'A').length;
-    const referenceWins = results.filter(r => r.winner === 'B').length;
-    const ties = results.filter(r => r.winner === 'tie').length;
+    const results: Comparison[] = [];
+    results.push({ position: 'output_first', ...this.parseResponse(params.judge_responses[0]!) });
 
-    let score: number;
-    let aggregateWinner: string;
-
-    if (outputWins > referenceWins) {
-      score = 1.0;
-      aggregateWinner = 'output';
-    } else if (referenceWins > outputWins) {
-      score = 0.0;
-      aggregateWinner = 'reference';
-    } else {
-      score = 0.5;
-      aggregateWinner = 'tie';
+    if (positionSwap) {
+      const swapped = this.parseResponse(params.judge_responses[1]!);
+      results.push({
+        position: 'reference_first',
+        winner: swapped.winner === 'A' ? 'B' : swapped.winner === 'B' ? 'A' : 'tie',
+        reasoning: swapped.reasoning,
+      });
     }
 
-    // For the score, also consider partial wins
-    if (positionSwap && results.length === 2) {
-      score = (outputWins + ties * 0.5) / 2;
-    }
+    const outputWins = results.filter((result) => result.winner === 'A').length;
+    const referenceWins = results.filter((result) => result.winner === 'B').length;
+    const ties = results.filter((result) => result.winner === 'tie').length;
+    const score = (outputWins + ties * 0.5) / results.length;
+    const aggregateWinner = outputWins > referenceWins ? 'output' : referenceWins > outputWins ? 'reference' : 'tie';
 
-    const passed = score >= 0.5;
-
-    return this.createResult(score, passed, performance.now() - start, {
+    return this.createResult(score, score >= 0.5, performance.now() - start, {
       reasoning: `${aggregateWinner} wins (output: ${outputWins}, reference: ${referenceWins}, ties: ${ties})`,
-      details: {
-        results,
-        position_swap: positionSwap,
-        inference_level: level,
-        criteria: params.criteria,
-      },
+      details: { results, position_swap: positionSwap, criteria: params.criteria, adapter_called: false },
     });
   }
 
-  private async compare(
-    outputA: string,
-    outputB: string,
-    level: InferenceLevel,
-    criteria?: string[]
-  ): Promise<{ winner: 'A' | 'B' | 'tie'; reasoning: string }> {
+  private buildPrompt(outputA: string, outputB: string, criteria?: string[]): string {
     const criteriaText = criteria?.length
-      ? `Focus on these criteria:\n${criteria.map(c => `- ${c}`).join('\n')}`
+      ? `Focus on these criteria:\n${criteria.map((criterion) => `- ${criterion}`).join('\n')}`
       : 'Consider overall quality, accuracy, clarity, and helpfulness.';
+    return `${criteriaText}\n\nOutput A:\n${outputA}\n\nOutput B:\n${outputB}\n\nRespond with REASONING and WINNER: A, B, or TIE.`;
+  }
 
-    const systemPrompt = `You are comparing two outputs to determine which is better.
-
-${criteriaText}
-
-Respond in this format:
-REASONING: <your analysis comparing A and B>
-WINNER: A or B or TIE
-
-Be objective. Consider both outputs fairly.`;
-
-    const userPrompt = `## Output A
-
-${outputA}
-
-## Output B
-
-${outputB}
-
-Compare these outputs and determine which is better.`;
-
-    try {
-      const result = await inference({
-        systemPrompt,
-        userPrompt,
-        level,
-        timeout: 30000,
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Inference failed');
-      }
-
-      const text = result.output;
-
-      const winnerMatch = text.match(/WINNER:\s*(A|B|TIE)/i);
-      const reasoningMatch = text.match(/REASONING:\s*([\s\S]*?)(?=WINNER:|$)/i);
-
-      const winner = winnerMatch?.[1]?.toUpperCase() === 'A' ? 'A'
-        : winnerMatch?.[1]?.toUpperCase() === 'B' ? 'B'
-        : 'tie';
-
-      return {
-        winner,
-        reasoning: reasoningMatch?.[1]?.trim() ?? text,
-      };
-    } catch (e) {
-      return {
-        winner: 'tie',
-        reasoning: `Comparison error: ${e}`,
-      };
-    }
+  private parseResponse(text: string): { winner: 'A' | 'B' | 'tie'; reasoning: string } {
+    const winnerMatch = text.match(/WINNER:\s*(A|B|TIE)/i);
+    const reasoningMatch = text.match(/REASONING:\s*([\s\S]*?)(?=WINNER:|$)/i);
+    const token = winnerMatch?.[1]?.toUpperCase();
+    return {
+      winner: token === 'A' ? 'A' : token === 'B' ? 'B' : 'tie',
+      reasoning: reasoningMatch?.[1]?.trim() || text.trim(),
+    };
   }
 }
 

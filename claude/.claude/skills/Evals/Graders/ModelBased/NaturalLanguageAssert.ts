@@ -5,7 +5,6 @@
 
 import { BaseGrader, registerGrader, type GraderContext } from '../Base.ts';
 import type { GraderConfig, GraderResult, NaturalLanguageAssertParams } from '../../Types/index.ts';
-import { inference, type InferenceLevel } from '../../../../LIFEOS/TOOLS/Inference.ts';
 
 export class NaturalLanguageAssertGrader extends BaseGrader {
   type = 'natural_language_assert' as const;
@@ -13,7 +12,7 @@ export class NaturalLanguageAssertGrader extends BaseGrader {
 
   async grade(context: GraderContext): Promise<GraderResult> {
     const start = performance.now();
-    const params = this.config.params as NaturalLanguageAssertParams;
+    const params = this.config.params as unknown as NaturalLanguageAssertParams;
 
     if (!params?.assertions?.length) {
       return this.createResult(0, false, performance.now() - start, {
@@ -21,17 +20,6 @@ export class NaturalLanguageAssertGrader extends BaseGrader {
       });
     }
 
-    // Map model preference to inference level (default to medium/Sonnet)
-    const levelMap: Record<string, InferenceLevel> = {
-      'claude-haiku-4-5-20251001': 'low',
-      'claude-sonnet-4-6': 'medium',
-      'claude-opus-4-8': 'high',
-      'claude-opus-4-6': 'high',
-      'claude-sonnet-4-20250514': 'medium',
-      'claude-opus-4-20250514': 'high',
-      'claude-fable-5': 'max',
-    };
-    const level: InferenceLevel = levelMap[params.judge_model ?? ''] ?? 'medium';
     const requireAll = params.require_all ?? true;
 
     const systemPrompt = `You are an assertion checker. For each assertion, determine if it is TRUE or FALSE based on the given output.
@@ -57,41 +45,22 @@ ${params.assertions.map((a, i) => `${i + 1}. ${a}`).join('\n')}
 
 Check each assertion against the output and tool calls.`;
 
-    try {
-      const result = await inference({
-        systemPrompt,
-        userPrompt,
-        level,
-        timeout: 30000,
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Inference failed');
-      }
-
-      const text = result.output;
-      const results = this.parseResults(text, params.assertions);
-
-      const passCount = results.filter(r => r.passed).length;
-      const score = passCount / params.assertions.length;
-
-      const passed = requireAll
-        ? passCount === params.assertions.length
-        : passCount > 0;
-
-      return this.createResult(score, passed, performance.now() - start, {
-        reasoning: `${passCount}/${params.assertions.length} assertions passed`,
-        details: {
-          results,
-          require_all: requireAll,
-          inference_level: level,
-        },
-      });
-    } catch (e) {
+    if (!params.judge_response?.trim()) {
       return this.createResult(0, false, performance.now() - start, {
-        reasoning: `LLM assertion check error: ${e}`,
+        reasoning: 'Model grader requires params.judge_response from an explicit current adapter or inline judgment.',
+        details: { system_prompt: systemPrompt, user_prompt: userPrompt, adapter_called: false },
       });
     }
+
+    const results = this.parseResults(params.judge_response, params.assertions);
+    const passCount = results.filter(r => r.passed).length;
+    const score = passCount / params.assertions.length;
+    const passed = requireAll ? passCount === params.assertions.length : passCount > 0;
+
+    return this.createResult(score, passed, performance.now() - start, {
+      reasoning: `${passCount}/${params.assertions.length} assertions passed`,
+      details: { results, require_all: requireAll, adapter_called: false },
+    });
   }
 
   private parseResults(

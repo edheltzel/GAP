@@ -1,18 +1,18 @@
 #!/usr/bin/env bun
+// @ts-nocheck - Standalone Bun CLI; behavior is covered by native-runtime-skills.test.sh.
 /**
- * Analyze.ts — LLM-powered edit classification
+ * Analyze.ts
  *
- * Reads a word-level transcript and uses Claude to classify segments as:
- * KEEP, CUT_FILLER, CUT_FALSE_START, CUT_EDIT_MARKER, CUT_STUTTER, CUT_DEAD_AIR
+ * Validates model edit classifications supplied by the active agent, adds
+ * deterministic long-pause edits, and writes the list consumed by Edit.ts.
+ * This tool does not call a model.
  *
- * Distinguishes rhetorical emphasis from accidental repetition.
- *
- * Usage: bun Analyze.ts <transcript.json> [--output <path>] [--aggressive]
- * Output: JSON edit decision list at <transcript>.edits.json
+ * Usage:
+ *   bun Analyze.ts <transcript.json> --model-edits <edits.json> [options]
+ *   bun Analyze.ts <transcript.json> --pauses-only [options]
  */
 
-import { existsSync } from "fs";
-import { inference } from "../../../LIFEOS/TOOLS/Inference.ts";
+import { existsSync } from "node:fs";
 
 interface Chunk {
   text: string;
@@ -28,249 +28,117 @@ interface EditDecision {
   confidence: number;
 }
 
+const ALLOWED_TYPES = new Set([
+  "CUT_FILLER",
+  "CUT_FALSE_START",
+  "CUT_EDIT_MARKER",
+  "CUT_STUTTER",
+  "CUT_SELF_CORRECTION",
+  "CUT_REDO_TAKE",
+  "CUT_DEAD_AIR",
+]);
+
+function flagValue(args: string[], name: string): string | undefined {
+  const index = args.indexOf(name);
+  return index >= 0 ? args[index + 1] : undefined;
+}
+
+function fail(message: string): never {
+  console.error(message);
+  process.exit(1);
+}
+
+function validateEdit(value: unknown, index: number): EditDecision {
+  if (!value || typeof value !== "object") fail(`Invalid model edit ${index}: expected an object`);
+  const edit = value as Record<string, unknown>;
+  if (typeof edit.type !== "string" || !ALLOWED_TYPES.has(edit.type)) {
+    fail(`Invalid model edit ${index}: unsupported type`);
+  }
+  if (typeof edit.start !== "number" || typeof edit.end !== "number" || edit.start < 0 || edit.end <= edit.start) {
+    fail(`Invalid model edit ${index}: start and end must be an increasing non-negative range`);
+  }
+  if (typeof edit.reason !== "string" || typeof edit.context !== "string") {
+    fail(`Invalid model edit ${index}: reason and context must be strings`);
+  }
+  if (typeof edit.confidence !== "number" || edit.confidence < 0 || edit.confidence > 1) {
+    fail(`Invalid model edit ${index}: confidence must be between 0 and 1`);
+  }
+  return edit as unknown as EditDecision;
+}
+
 const args = process.argv.slice(2);
-const inputFile = args.find((a) => !a.startsWith("--"));
-const outputFlag = args.indexOf("--output");
-const outputPath = outputFlag !== -1 ? args[outputFlag + 1] : undefined;
+const inputFile = args[0] && !args[0].startsWith("--") ? args[0] : undefined;
+const outputPath = flagValue(args, "--output");
+const modelEditsPath = flagValue(args, "--model-edits");
+const pausesOnly = args.includes("--pauses-only");
 const aggressive = args.includes("--aggressive");
 
 if (!inputFile) {
-  console.error("Usage: bun Analyze.ts <transcript.json> [--output <path>] [--aggressive]");
-  process.exit(1);
+  fail("Usage: bun Analyze.ts <transcript.json> (--model-edits <edits.json> | --pauses-only) [--output <path>] [--aggressive]");
+}
+if (!modelEditsPath && !pausesOnly) {
+  fail("Analyze requires --model-edits <edits.json> from inline classification, or --pauses-only for deterministic silence cuts.");
+}
+if (modelEditsPath && pausesOnly) fail("Choose either --model-edits or --pauses-only, not both.");
+if (!existsSync(inputFile)) fail(`File not found: ${inputFile}`);
+if (modelEditsPath && !existsSync(modelEditsPath)) fail(`Model edits file not found: ${modelEditsPath}`);
+
+const outFile = outputPath || inputFile.replace(/\.transcript\.json$/, ".edits.json").replace(/\.json$/, ".edits.json");
+const transcript = await Bun.file(inputFile).json();
+const chunks = transcript?.chunks as Chunk[] | undefined;
+if (!Array.isArray(chunks) || chunks.length === 0) fail("No word chunks found in transcript");
+
+for (let i = 0; i < chunks.length; i++) {
+  const chunk = chunks[i];
+  if (!chunk || typeof chunk.text !== "string" || !Array.isArray(chunk.timestamp) || typeof chunk.timestamp[0] !== "number") {
+    fail(`Invalid transcript chunk ${i}`);
+  }
 }
 
-if (!existsSync(inputFile)) {
-  console.error(`File not found: ${inputFile}`);
-  process.exit(1);
-}
-
-const outFile =
-  outputPath || inputFile.replace(/\.transcript\.json$/, ".edits.json").replace(/\.json$/, ".edits.json");
-
-console.log(`Analyzing: ${inputFile}`);
-console.log(`Mode: ${aggressive ? "aggressive" : "standard"}`);
-
-// Load transcript
-const transcript = JSON.parse(await Bun.file(inputFile).text());
-const chunks: Chunk[] = transcript.chunks || [];
-
-if (chunks.length === 0) {
-  console.error("No word chunks found in transcript");
-  process.exit(1);
-}
-
-// ===== Phase 1: Detect long pauses (no LLM needed) =====
-const pauseEdits: EditDecision[] = [];
-const pauseThreshold = aggressive ? 3.0 : 5.0;
-const keepPause = 1.0; // Keep 1s of any long pause
-
+const edits: EditDecision[] = [];
+const pauseThreshold = aggressive ? 3 : 5;
+const keepPause = 1;
 for (let i = 1; i < chunks.length; i++) {
-  const prevEnd = chunks[i - 1].timestamp[1] || chunks[i - 1].timestamp[0];
-  const currStart = chunks[i].timestamp[0];
-  const gap = currStart - prevEnd;
-
-  if (gap > pauseThreshold) {
-    const cutStart = prevEnd + keepPause;
-    const cutEnd = currStart;
-    if (cutEnd - cutStart > 0.5) {
-      const ctx = chunks
-        .slice(Math.max(0, i - 3), i + 3)
-        .map((c) => c.text.trim())
-        .join(" ");
-      pauseEdits.push({
-        type: "CUT_DEAD_AIR",
-        start: Math.round(cutStart * 100) / 100,
-        end: Math.round(cutEnd * 100) / 100,
-        reason: `${gap.toFixed(1)}s pause (keeping ${keepPause}s)`,
-        context: ctx,
-        confidence: 1.0,
-      });
-    }
-  }
-}
-
-console.log(`Found ${pauseEdits.length} long pauses (>${pauseThreshold}s)`);
-
-// ===== Phase 2: Build windowed transcript for LLM analysis =====
-// Process in ~750-word windows with overlap for context.
-// 750 keeps each Inference call comfortably under the 240s timeout even at "standard" tier;
-// 1500 was still too long on dense content (a 10-min window of 1500 words timed out).
-// Smaller windows also give each region 2x overlap coverage so timeout on one window
-// doesn't lose that region of content entirely.
-const WINDOW_SIZE = 750;
-const OVERLAP = 150;
-const allEdits: EditDecision[] = [...pauseEdits];
-
-// Build text windows with timestamp markers
-function buildWindow(startIdx: number, endIdx: number): string {
-  const lines: string[] = [];
-  let currentLine = "";
-  let lineStartTime = chunks[startIdx].timestamp[0];
-
-  for (let i = startIdx; i < endIdx && i < chunks.length; i++) {
-    const word = chunks[i].text;
-    currentLine += word;
-
-    // Break into ~15-word lines with timestamps
-    const wordCount = currentLine.trim().split(/\s+/).length;
-    if (wordCount >= 15 || i === endIdx - 1 || i === chunks.length - 1) {
-      const endTime = chunks[i].timestamp[1] || chunks[i].timestamp[0];
-      lines.push(`[${formatTime(lineStartTime)}-${formatTime(endTime)}] ${currentLine.trim()}`);
-      currentLine = "";
-      if (i + 1 < chunks.length) {
-        lineStartTime = chunks[i + 1].timestamp[0];
-      }
-    }
-  }
-
-  return lines.join("\n");
-}
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toFixed(2).padStart(5, "0")}`;
-}
-
-const aggressiveInstructions = aggressive
-  ? `\n- Be MORE aggressive: cut single filler words like isolated "like", "right", "so" when used as verbal tics
-- Cut pauses longer than 1.5 seconds
-- Cut any word repetition that isn't clearly emphatic`
-  : `\n- Be CONSERVATIVE: only cut clear mistakes, not natural speech patterns
-- Keep rhetorical devices: parallel structures, lists, emphatic repetition
-- When in doubt, classify as KEEP`;
-
-const systemPrompt = `You are an expert audio editor analyzing a podcast transcript to identify sections that should be cut. The transcript has timestamps in [MM:SS.ss-MM:SS.ss] format.
-
-Classify problematic sections. Return a JSON array of edits. Each edit has:
-- "type": one of CUT_FILLER, CUT_FALSE_START, CUT_EDIT_MARKER, CUT_STUTTER, CUT_SELF_CORRECTION, CUT_REDO_TAKE
-- "start": start timestamp in seconds (decimal)
-- "end": end timestamp in seconds (decimal)
-- "reason": brief description
-- "context": the problematic text
-- "confidence": 0.0-1.0
-
-## What to CUT
-
-**CUT_EDIT_MARKER**: Speaker says "edit" as a verbal cue to mark cut points. Cut the word "edit" and any surrounding pause. This is the HIGHEST PRIORITY — these are explicit instructions from the speaker to cut here.
-
-**CUT_REDO_TAKE**: Speaker delivers a complete idea, pauses (often 3+ seconds), then redelivers the SAME IDEA more clearly. Cut the earlier delivery; keep the cleaner second take. Look for: same key terms or phrases appearing twice in a row separated by a pause, with the second version more polished or complete. This is multi-sentence in scope, NOT a single-word stutter. Example: "as we move through the four through the four tiers... [pause]... You've got awareness, activation, alignment, and then actualization." → cut the first attempt; keep the clean enumeration. Be DECISIVE here — multi-take retakes are a strong signal the speaker wants the second take. High confidence (≥0.8) when the same proper-noun list or key phrase reappears within ~30 seconds.
-
-**CUT_STUTTER**: Unintentional word repetition like "the the", "I I", "with, with". NOT emphatic repetition like "very very important" or "many many people".
-
-**CUT_FALSE_START**: Speaker starts a sentence, abandons it, and restarts. Example: "So the thing is— so what I was saying is..." — cut "So the thing is—".
-
-**CUT_SELF_CORRECTION**: Speaker says something wrong then corrects. Example: "Not distill it. Well, they actually..." — cut "Not distill it."
-
-**CUT_FILLER**: Filler word clusters: "um", "uh", "ah". Only cut when they are standalone hesitations, not when embedded naturally in speech flow.
-
-## What to KEEP
-
-- Intentional parallel structures: "Here's the tools. Here's the decisions. Here's the sign-offs."
-- Emphatic repetition: "massive, massive reduction", "really, really important"
-- Rhetorical lists: "You're the best trainer. You're the best coach."
-- Natural discourse markers in flowing speech
-- "blah blah blah" (intentional shorthand)
-- "I mean" when used naturally in a flowing sentence${aggressiveInstructions}
-
-## Output Format
-
-Return ONLY a JSON array. No markdown, no explanation. Example:
-[{"type":"CUT_EDIT_MARKER","start":233.68,"end":237.22,"reason":"Verbal edit marker","context":"edit. We're talking about","confidence":0.95}]
-
-If no edits found in a section, return: []`;
-
-// Process in windows
-const totalWindows = Math.ceil(chunks.length / (WINDOW_SIZE - OVERLAP));
-console.log(`Processing ${chunks.length} words in ${totalWindows} windows...`);
-
-for (let windowStart = 0; windowStart < chunks.length; windowStart += WINDOW_SIZE - OVERLAP) {
-  const windowEnd = Math.min(windowStart + WINDOW_SIZE, chunks.length);
-  const windowNum = Math.floor(windowStart / (WINDOW_SIZE - OVERLAP)) + 1;
-  const windowText = buildWindow(windowStart, windowEnd);
-
-  const startTime = chunks[windowStart].timestamp[0];
-  const endTime = chunks[Math.min(windowEnd - 1, chunks.length - 1)].timestamp[1] ||
-    chunks[Math.min(windowEnd - 1, chunks.length - 1)].timestamp[0];
-
-  process.stdout.write(
-    `  Window ${windowNum}/${totalWindows} [${formatTime(startTime)}-${formatTime(endTime)}]...`
-  );
-
-  try {
-    const result = await inference({
-      systemPrompt,
-      userPrompt: `Analyze this transcript section and return the JSON array of edits:\n\n${windowText}`,
-      level: "medium",
-      timeout: 240_000,
+  const previousEnd = chunks[i - 1].timestamp[1] ?? chunks[i - 1].timestamp[0];
+  const currentStart = chunks[i].timestamp[0];
+  const gap = currentStart - previousEnd;
+  const start = previousEnd + keepPause;
+  if (gap > pauseThreshold && currentStart - start > 0.5) {
+    edits.push({
+      type: "CUT_DEAD_AIR",
+      start: Math.round(start * 100) / 100,
+      end: Math.round(currentStart * 100) / 100,
+      reason: `${gap.toFixed(1)}s pause (keeping ${keepPause}s)`,
+      context: chunks.slice(Math.max(0, i - 3), i + 3).map((chunk) => chunk.text.trim()).join(" "),
+      confidence: 1,
     });
-
-    if (!result.success) {
-      console.error(`\n  Inference error: ${result.error}`);
-      continue;
-    }
-
-    const text = result.output || "[]";
-
-    let edits: EditDecision[];
-    try {
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      edits = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-    } catch {
-      console.error(` parse error`);
-      continue;
-    }
-
-    // Deduplicate against existing edits (from overlap regions)
-    let added = 0;
-    for (const edit of edits) {
-      const isDuplicate = allEdits.some(
-        (e) => Math.abs(e.start - edit.start) < 1.0 && Math.abs(e.end - edit.end) < 1.0
-      );
-      if (!isDuplicate && edit.confidence >= 0.6) {
-        allEdits.push(edit);
-        added++;
-      }
-    }
-
-    console.log(` ${added} edits`);
-  } catch (err) {
-    console.error(` error: ${err}`);
   }
 }
 
-// ===== Phase 3: Sort and merge overlapping edits =====
-allEdits.sort((a, b) => a.start - b.start);
+if (modelEditsPath) {
+  const supplied = await Bun.file(modelEditsPath).json();
+  if (!Array.isArray(supplied)) fail("Model edits input must be a JSON array");
+  for (let i = 0; i < supplied.length; i++) {
+    const edit = validateEdit(supplied[i], i);
+    if (edit.confidence >= 0.6 && !edits.some((known) => Math.abs(known.start - edit.start) < 1 && Math.abs(known.end - edit.end) < 1)) {
+      edits.push(edit);
+    }
+  }
+}
 
+edits.sort((a, b) => a.start - b.start);
 const merged: EditDecision[] = [];
-for (const edit of allEdits) {
-  if (merged.length > 0 && edit.start < merged[merged.length - 1].end + 0.3) {
-    // Merge overlapping edits
-    const prev = merged[merged.length - 1];
-    prev.end = Math.max(prev.end, edit.end);
-    prev.type = prev.type.includes("+") ? prev.type : `${prev.type}+${edit.type}`;
-    prev.reason = `${prev.reason}; ${edit.reason}`;
+for (const edit of edits) {
+  const previous = merged[merged.length - 1];
+  if (previous && edit.start < previous.end + 0.3) {
+    previous.end = Math.max(previous.end, edit.end);
+    if (!previous.type.split("+").includes(edit.type)) previous.type += `+${edit.type}`;
+    previous.reason += `; ${edit.reason}`;
   } else {
     merged.push({ ...edit });
   }
 }
 
-// ===== Summary =====
-const totalCut = merged.reduce((sum, e) => sum + (e.end - e.start), 0);
-const byType: Record<string, number> = {};
-for (const e of merged) {
-  const baseType = e.type.split("+")[0];
-  byType[baseType] = (byType[baseType] || 0) + 1;
-}
-
-console.log(`\n=== Analysis Complete ===`);
-console.log(`Total edits: ${merged.length}`);
-console.log(`Total time to cut: ${totalCut.toFixed(1)}s (${(totalCut / 60).toFixed(1)} min)`);
-console.log(`By type:`);
-for (const [type, count] of Object.entries(byType).sort((a, b) => b[1] - a[1])) {
-  console.log(`  ${type}: ${count}`);
-}
-
-// Save
 await Bun.write(outFile, JSON.stringify(merged, null, 2));
-console.log(`\nSaved: ${outFile}`);
+console.log(`Validated ${modelEditsPath ? "inline model edits and " : ""}${edits.filter((edit) => edit.type === "CUT_DEAD_AIR").length} long pauses.`);
+console.log(`Saved: ${outFile}`);

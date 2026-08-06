@@ -21,23 +21,28 @@ Running the **ComparePrompts** workflow in the **Evals** skill to A/B test promp
 
 Before running any comparison, ensure you're following scientific rigor:
 
-### Pre-Commitment (BEFORE running):
+### Pre-Commitment (BEFORE running)
+
 - [ ] Success criteria defined (what score/metric means "better"?)
 - [ ] Pass threshold locked (what difference is meaningful?)
 - [ ] Hypothesis is falsifiable (what result would DISPROVE it?)
 
-### Falsifiability Check:
+### Falsifiability Check
+
 For every hypothesis, answer:
 > *"What result would prove that Variant B is NOT better than Variant A?"*
 
 **Example:**
+
 - Hypothesis: "v1.1.0 improves accuracy due to source verification instructions"
 - Falsifiable if: "v1.1.0 accuracy ≤ v1.0.0 accuracy, or difference < 5%"
 
 If you cannot articulate what would disprove your hypothesis, **STOP** - you don't have a scientific hypothesis.
 
-### Consider Three Variants:
+### Consider Three Variants
+
 A/B tests are good. A/B/C tests are often better.
+
 - Reduces confirmation bias toward "the first alternative"
 - Explores more of the solution space
 - Reveals if there's a different direction entirely
@@ -56,6 +61,7 @@ A/B tests are good. A/B/C tests are often better.
 ### Step 1: Identify Comparison (Science: Goal + Hypothesize)
 
 Ask the user:
+
 1. Which use case?
 2. Which prompt versions? (consider 3+ variants)
 3. What's the hypothesis? (Why might one be better?)
@@ -124,13 +130,14 @@ bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts -s <use-case>-v1.0.0
 bun run ~/.claude/skills/Evals/Tools/AlgorithmBridge.ts -s <use-case>-v1.1.0
 ```
 
-Position-swap protection (for pairwise judges that may favor the first/second option presented) is implemented inside the judge config — see the `position_swap: true` flag on `pairwise_comparison` graders in the use-case `config.yaml`. The grader handles randomization; the runner doesn't need a separate flag.
+Position-swap protection (for pairwise judges that may favor the first/second option presented) is implemented inside the judge config; see the `position_swap: true` flag on `pairwise_comparison` graders in the use-case `config.yaml`. The grader handles randomization; the runner doesn't need a separate flag.
 
 ### Step 5: Position Swapping Protocol
 
 If `position_swap: true`:
 
 For each test case:
+
 1. **Run 1**: Variant A = "Option 1", Variant B = "Option 2"
 2. **Run 2**: Variant B = "Option 1", Variant A = "Option 2"
 3. Average scores to eliminate position bias
@@ -140,9 +147,11 @@ This addresses the known bias where LLMs favor the first option presented.
 ### Step 6: Collect Results
 
 Results stored in:
+
 - `LIFEOS/MEMORY/STATE/Evals-Results/<use-case>/comparisons/<comparison-name>/<run-id>.json`
 
 Results structure:
+
 ```json
 {
   "comparison_name": "v1.0.0 vs v1.1.0",
@@ -201,7 +210,7 @@ Results structure:
 Based on results:
 
 | Outcome | Action |
-|---------|--------|
+| --------- | -------- |
 | B significantly better | Deploy B, archive A |
 | A significantly better | Keep A, iterate on B |
 | No significant difference | Keep simpler prompt, or gather more data |
@@ -241,6 +250,7 @@ Update use case README with comparison results:
 ### Judge Selection
 
 Use **different model** than the one generating outputs:
+
 - If testing Claude prompts → Use GPT-4o as judge
 - If testing GPT prompts → Use Claude as judge
 
@@ -249,7 +259,7 @@ This prevents self-serving bias.
 ### Statistical Significance
 
 | p-value | Interpretation |
-|---------|----------------|
+| --------- | ---------------- |
 | < 0.01 | Strong evidence |
 | 0.01-0.05 | Moderate evidence |
 | 0.05-0.10 | Weak evidence |
@@ -294,7 +304,7 @@ focus: "depth"
 For detailed comparison setup, use the Comparison template:
 
 ```bash
-bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
+bun run ~/.claude/skills/Prompting/Templates/Tools/RenderTemplate.ts \
   -t Evals/Comparison.hbs \
   -d ~/.claude/skills/Evals/UseCases/<name>/comparisons/<name>.yaml \
   -o ~/.claude/skills/Evals/UseCases/<name>/comparisons/<name>-setup.md \
@@ -308,13 +318,14 @@ If you've run 3+ comparisons without meaningful improvement, STOP and ask:
 **Are we testing the right thing?**
 
 | Signal | Question to Ask |
-|--------|-----------------|
+| -------- | ----------------- |
 | All variants score similarly | Is the metric actually measuring what matters? |
 | Scores are high but output feels wrong | Is there a dimension we're not measuring? |
 | Improvements don't compound | Is the base prompt fundamentally limited? |
 | Test cases all behave the same | Do we need more diverse/challenging cases? |
 
 **Paradigm Shift Indicators:**
+
 - The eval criteria might be wrong (measuring the wrong thing)
 - The test cases might be too easy or too homogeneous
 - The entire approach might need rethinking (different architecture)

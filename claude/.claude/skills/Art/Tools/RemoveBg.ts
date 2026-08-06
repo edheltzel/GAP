@@ -4,7 +4,7 @@
  * remove-bg - Background Removal CLI
  *
  * Remove backgrounds from images using local rembg.
- * Part of the Images skill for LifeOS system.
+ * Part of the native Art skill.
  *
  * Usage:
  *   remove-bg input.png                    # Overwrites original
@@ -12,15 +12,31 @@
  *   remove-bg file1.png file2.png file3.png # Batch process
  */
 
-import { resolve, extname } from "node:path";
-import { existsSync } from "node:fs";
+import { delimiter, extname, resolve } from "node:path";
+import { accessSync, constants, existsSync } from "node:fs";
 import { unlink, stat, rename } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
+function isExecutable(path: string): boolean {
+  try {
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function resolveRembgBin(): string {
-  if (process.env.REMBG_BIN) return process.env.REMBG_BIN;
+  if (process.env.REMBG_BIN) return resolve(process.env.REMBG_BIN);
+
+  for (const dir of (process.env.PATH || "").split(delimiter)) {
+    if (!dir) continue;
+    const candidate = resolve(dir, "rembg");
+    if (isExecutable(candidate)) return candidate;
+  }
+
   const home = process.env.HOME;
-  if (!home) throw new Error("HOME not set; cannot resolve rembg binary");
+  if (!home) throw new Error("HOME not set and rembg is not on PATH");
   return resolve(home, ".local/bin/rembg");
 }
 
@@ -53,6 +69,14 @@ NOTES:
   process.exit(0);
 }
 
+async function unlinkIfPresent(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch {
+    return;
+  }
+}
+
 function runRembg(bin: string, input: string, output: string): Promise<void> {
   return new Promise((resolveFn, rejectFn) => {
     const proc = spawn(bin, ["i", input, output], { stdio: ["ignore", "ignore", "pipe"] });
@@ -68,10 +92,10 @@ function runRembg(bin: string, input: string, output: string): Promise<void> {
 
 async function removeBackground(inputPath: string, outputPath?: string): Promise<void> {
   const bin = resolveRembgBin();
-  if (!existsSync(bin)) {
-    console.error(`❌ rembg not found at ${bin}`);
-    console.error("   Install: pipx install rembg  (or: uv tool install rembg)");
-    console.error("   Override path: export REMBG_BIN=/path/to/rembg");
+  if (!existsSync(bin) || !isExecutable(bin)) {
+    console.error(`rembg not found or not executable at ${bin}`);
+    console.error("Install: pipx install rembg  (or: uv tool install rembg)");
+    console.error("Alternatively put rembg on PATH or set REMBG_BIN=/path/to/rembg");
     process.exit(1);
   }
 
@@ -92,7 +116,7 @@ async function removeBackground(inputPath: string, outputPath?: string): Promise
   const start = Date.now();
   // Always cut to a temp file first, then move into place. Passing the same
   // path as both input and output makes rembg TRUNCATE its own input to 0 bytes
-  // before it reads it — the 2026-06-08 in-place-zeroing bug that silently
+  // before it reads it; the 2026-06-08 in-place-zeroing bug that silently
   // destroyed the source and failed with "cannot identify image file". A temp
   // file makes every path safe: in-place .png, explicit same-path output, and
   // jpg/webp→png all route through a distinct file rembg can actually read.
@@ -100,7 +124,7 @@ async function removeBackground(inputPath: string, outputPath?: string): Promise
   try {
     await runRembg(bin, inputPath, tmp);
   } catch (error) {
-    try { await unlink(tmp); } catch {}
+    await unlinkIfPresent(tmp);
     console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
@@ -109,14 +133,14 @@ async function removeBackground(inputPath: string, outputPath?: string): Promise
   try {
     await rename(tmp, target);
   } catch {
-    try { await unlink(tmp); } catch {}
+    await unlinkIfPresent(tmp);
     console.error(`❌ Failed to move result into place: ${target}`);
     process.exit(1);
   }
 
   // If we converted jpg/webp → png at a NEW path, remove the original source.
   if (renameAfter && renameAfter.from !== renameAfter.to) {
-    try { await unlink(renameAfter.from); } catch {}
+    await unlinkIfPresent(renameAfter.from);
   }
 
   const elapsed = Date.now() - start;
@@ -124,7 +148,9 @@ async function removeBackground(inputPath: string, outputPath?: string): Promise
   try {
     const s = await stat(target);
     dims = ` (${(s.size / 1024).toFixed(0)}KB)`;
-  } catch {}
+  } catch {
+    dims = "";
+  }
   console.log(`✅ Saved: ${target}${dims} in ${elapsed}ms`);
 }
 
@@ -136,17 +162,17 @@ async function main(): Promise<void> {
   }
 
   if (args.length === 1) {
-    await removeBackground(args[0]);
+    await removeBackground(args[0]!);
     return;
   }
 
   if (args.length === 2) {
-    if (existsSync(args[1])) {
+    if (existsSync(args[1]!)) {
       for (const file of args) {
         await removeBackground(file);
       }
     } else {
-      await removeBackground(args[0], args[1]);
+      await removeBackground(args[0]!, args[1]!);
     }
     return;
   }

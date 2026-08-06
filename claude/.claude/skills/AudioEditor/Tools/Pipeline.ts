@@ -1,10 +1,11 @@
 #!/usr/bin/env bun
+// @ts-nocheck - Standalone Bun CLI; behavior is covered by native-runtime-skills.test.sh.
 /**
- * Pipeline.ts — End-to-end audio editing pipeline
+ * Pipeline.ts: End-to-end audio editing pipeline
  *
- * Chains: transcribe → analyze → edit → (optional) polish
+ * Chains: transcribe, validate supplied classification, edit, optional polish
  *
- * Usage: bun Pipeline.ts <audio-file> [--polish] [--aggressive] [--preview]
+ * Usage: bun Pipeline.ts <audio-file> --model-edits <edits.json> [--polish] [--aggressive] [--preview]
  * Output: Edited (and optionally polished) audio file
  */
 
@@ -22,11 +23,14 @@ const aggressive = args.includes("--aggressive");
 const preview = args.includes("--preview");
 const outputFlag = args.indexOf("--output");
 const outputPath = outputFlag !== -1 ? args[outputFlag + 1] : undefined;
+const modelEditsFlag = args.indexOf("--model-edits");
+const modelEditsPath = modelEditsFlag !== -1 ? args[modelEditsFlag + 1] : undefined;
 
 if (!audioFile) {
-  console.error("Usage: bun Pipeline.ts <audio-file> [--polish] [--aggressive] [--preview] [--output <path>]");
+  console.error("Usage: bun Pipeline.ts <audio-file> --model-edits <edits.json> [--polish] [--aggressive] [--preview] [--output <path>]");
   console.error("");
   console.error("Flags:");
+  console.error("  --model-edits JSON classifications produced inline by the active agent");
   console.error("  --polish      Apply Cleanvoice cloud polish after editing (requires CLEANVOICE_API_KEY)");
   console.error("  --aggressive  Tighter detection thresholds for filler words and pauses");
   console.error("  --preview     Show proposed edits without executing them");
@@ -34,8 +38,16 @@ if (!audioFile) {
   process.exit(1);
 }
 
+if (!modelEditsPath) {
+  console.error("Pipeline requires --model-edits <edits.json>. Produce classifications inline from the transcript, then rerun.");
+  process.exit(1);
+}
 if (!existsSync(audioFile)) {
   console.error(`File not found: ${audioFile}`);
+  process.exit(1);
+}
+if (!existsSync(modelEditsPath)) {
+  console.error(`Model edits file not found: ${modelEditsPath}`);
   process.exit(1);
 }
 
@@ -77,7 +89,14 @@ console.log("");
 console.log("━━━ Step 2/4: Analyze ━━━━━━━━━━━━━━━━━━━━━");
 const editsFile = join(dir, `${base}.edits.json`);
 
-const analyzeArgs = [join(TOOLS_DIR, "Analyze.ts"), transcriptFile, "--output", editsFile];
+const analyzeArgs = [
+  join(TOOLS_DIR, "Analyze.ts"),
+  transcriptFile,
+  "--model-edits",
+  modelEditsPath,
+  "--output",
+  editsFile,
+];
 if (aggressive) analyzeArgs.push("--aggressive");
 
 const analyzeResult = await $`bun ${analyzeArgs}`.nothrow();

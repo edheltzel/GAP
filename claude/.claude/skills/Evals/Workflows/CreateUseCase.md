@@ -26,6 +26,7 @@ Running the **CreateUseCase** workflow in the **Evals** skill to create eval use
 ### Step 1: Gather Requirements
 
 Ask the user:
+
 1. What is this use case evaluating? (prompt, model, task)
 2. What does "good" output look like?
 3. What specific criteria matter? (accuracy, format, style, etc.)
@@ -75,13 +76,13 @@ criteria:
     - scorer: "llm-judge-accuracy"
       weight: 0.35
       params:
-        judge_model: "claude-3-5-sonnet-20241022"
+        judge_response: "<explicit response from the active judge adapter>"
         reasoning_first: true
         scale: "1-5"
     - scorer: "llm-judge-style"
       weight: 0.35
       params:
-        judge_model: "claude-3-5-sonnet-20241022"
+        judge_response: "<explicit response from the active judge adapter>"
         reasoning_first: true
         scale: "1-5"
 
@@ -153,6 +154,7 @@ golden_output: "../golden-outputs/001-basic.md"  # Optional reference
 ```
 
 **Recommended Test Case Distribution:**
+
 - 2-3 **Easy** cases (standard inputs, clear expectations)
 - 3-4 **Medium** cases (typical edge cases)
 - 2-3 **Hard** cases (ambiguous inputs, tricky scenarios)
@@ -167,6 +169,7 @@ If you have reference "perfect" outputs, add them:
 ```
 
 Golden outputs serve as:
+
 - Reference for AI judges
 - Baseline for comparison
 - Documentation of expected behavior
@@ -235,6 +238,7 @@ cat ~/.claude/LIFEOS/MEMORY/STATE/Evals-Results/<name>/$(ls -1t ~/.claude/LIFEOS
 ```
 
 Review:
+
 - Does the scorer configuration work?
 - Are test cases properly formatted?
 - Do AI judges produce valid output?
@@ -251,7 +255,7 @@ Review:
 ### Criteria Weights
 
 | Pattern | Deterministic | AI-Based |
-|---------|---------------|----------|
+| --------- | --------------- | ---------- |
 | Format-critical | 60-70% | 30-40% |
 | Quality-critical | 30-40% | 60-70% |
 | Balanced | 50% | 50% |
@@ -259,6 +263,7 @@ Review:
 ### Prompt Versioning
 
 Use semantic versioning:
+
 - **v1.0.0 → v1.0.1**: Bug fix, minor wording change
 - **v1.0.0 → v1.1.0**: New feature, added section
 - **v1.0.0 → v2.0.0**: Major rewrite, breaking changes

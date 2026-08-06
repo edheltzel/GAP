@@ -26,6 +26,7 @@ Running the **CreateJudge** workflow in the **Evals** skill to create LLM judge.
 ### Step 1: Gather Requirements
 
 Ask the user:
+
 1. What are you evaluating? (content type, task)
 2. What criteria matter? (accuracy, style, format, etc.)
 3. What scale? (1-5 recommended, binary for pass/fail)
@@ -65,7 +66,7 @@ output:
 ### Step 3: Render Judge Prompt
 
 ```bash
-bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
+bun run ~/.claude/skills/Prompting/Templates/Tools/RenderTemplate.ts \
   -t Evals/Judge.hbs \
   -d ~/.claude/skills/Evals/UseCases/<name>/judge-config.yaml \
   -o ~/.claude/skills/Evals/UseCases/<name>/judge-prompt.md \
@@ -75,6 +76,7 @@ bun run ~/.claude/Templates/Tools/RenderTemplate.ts \
 ### Step 4: Review Generated Prompt
 
 Check the rendered `judge-prompt.md`:
+
 - Does it capture all criteria?
 - Is the scoring scale clear?
 - Does it require reasoning before scoring?
@@ -91,7 +93,7 @@ criteria:
       weight: 0.40
       params:
         prompt_file: "judge-prompt.md"
-        judge_model: "claude-3-5-sonnet-20241022"
+        judge_response: "<explicit response from the active judge adapter>"
 ```
 
 ### Step 6: Test the Judge
@@ -106,6 +108,7 @@ cat ~/.claude/LIFEOS/MEMORY/STATE/Evals-Results/<use-case>/<run-id>/results.json
 To exercise only a single test case while iterating on the judge, scope the suite config to one task in `UseCases/<name>/test-cases/` and re-run.
 
 Review:
+
 - Does the judge produce valid JSON?
 - Is the reasoning coherent?
 - Are scores in expected range?
@@ -123,6 +126,7 @@ Review:
 ### Reasoning First
 
 Always require reasoning before scoring:
+
 ```yaml
 reasoning_required: true
 ```
@@ -132,7 +136,7 @@ This improves accuracy by 13%+ (research-backed).
 ### Scale Selection
 
 | Scale | When to Use |
-|-------|-------------|
+| ------- | ------------- |
 | 1-5 | Most reliable, nuanced evaluation |
 | Binary | Simple pass/fail, threshold-based |
 | 1-3 | When finer gradations aren't meaningful |
@@ -142,6 +146,7 @@ Avoid 0-100 scales (poor calibration).
 ### Position Swapping (A/B Tests)
 
 For comparisons, use position swapping:
+
 ```yaml
 position_swap: true
 ```
