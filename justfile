@@ -73,25 +73,27 @@ stow-preflight *packages:
     if [ "$failed" -ne 0 ]; then exit 1; fi
     echo -e "{{ green }}Stow preflight passed: $packages{{ clr }}"
 
-# Restow all packages, then provision skills and OMP marketplace plugins
+# Restow all packages, then provision native tools, skills, and OMP plugins
 [group('stow')]
 update: jcode-filter prune-broken stow-preflight
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --restow $pkg; done
+    ./install-native-skill-tools.sh
     ./install-skills.sh
     ./install-omp-plugins.sh
     echo -e "{{ green }}All packages restowed and manifests provisioned{{ clr }}"
 
 alias up := update
 
-# Restow the Claude package only (no-folding)
+# Restow Claude and provision its repository-owned native tool dependencies
 [group('stow')]
 claude: (prune-broken "claude") (stow-preflight "claude")
     #!/usr/bin/env bash
     set -eu
     {{ stow_cmd }} --no-folding --restow claude
-    echo -e "{{ green }}claude restowed{{ clr }}"
+    ./install-native-skill-tools.sh
+    echo -e "{{ green }}claude restowed and native skill tools provisioned{{ clr }}"
 
 # Restow the OMP package, then provision its marketplace plugins
 [group('stow')]
@@ -118,12 +120,13 @@ jcode: jcode-filter (prune-broken "jcode") (stow-preflight "jcode")
     {{ stow_cmd }} --no-folding --restow jcode
     echo -e "{{ green }}jcode restowed{{ clr }}"
 
-# Create package links first, then provision skills and OMP marketplace plugins
+# Create package links, then provision native tools, skills, and OMP plugins
 [group('stow')]
 link: jcode-filter prune-broken stow-preflight
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding $pkg; done
+    ./install-native-skill-tools.sh
     ./install-skills.sh
     ./install-omp-plugins.sh
     echo -e "{{ green }}Packages linked and manifests provisioned: {{ no_folding_pkgs }}{{ clr }}"
@@ -182,9 +185,23 @@ dev-modules:
     set -eu
     ./link-agent-dev-modules.sh
 
-# Validate config syntax, module resolution, manifests, and status-line behavior
+# Install locked dependencies for repository-owned native Claude skill tools
+[group('skills')]
+native-skill-tools:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./install-native-skill-tools.sh
+
+# Validate native Claude skill tool locks and installed declared dependencies
 [group('checks')]
-tooling-preflight: dev-modules
+native-skill-tools-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./install-native-skill-tools.sh --check
+
+# Validate config, manifests, native skills, and status-line behavior
+[group('checks')]
+tooling-preflight: dev-modules native-skill-tools-status
     #!/usr/bin/env bash
     set -euo pipefail
     jq empty pi/.pi/agent/settings.json
@@ -193,13 +210,39 @@ tooling-preflight: dev-modules
     ./node_modules/typescript/bin/tsc -p tsconfig.json
     ./install-skills.sh --dry-run >/dev/null
     ./install-omp-plugins.sh --dry-run >/dev/null
+    tests/install-skills.test.sh
+    tests/installed-skills-status.test.sh
+    tests/ownership-status.test.sh
+    tests/native-skill-tools.test.sh
+    tests/claude/external-skills-inventory.test.sh
+    tests/claude/native-skills-snapshot.test.sh
+    tests/claude/native-orchestration-skills.test.sh
+    tests/claude/native-residual-skills.test.sh
+    tests/claude/native-runtime-skills.test.sh
+    tests/claude/native-browser-skills.test.sh
+    tests/claude/native-continuity-skills.test.sh
     tests/statusline-recovery.test.sh
     tests/statusline-runtime.test.sh
+    tests/stow-safety.test.sh
     git diff --check
 
-# Run both Stow ownership and active tooling checks
+# Validate installed manifest/native skills and managed skill symlinks
 [group('checks')]
-preflight: status tooling-preflight
+installed-skills-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./check-installed-skills.sh
+
+# Validate optional external and app-owned skill stores without changing them
+[group('checks')]
+ownership-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./check-owned-skills.sh
+
+# Run Stow, tooling, installed-skill, and external-ownership checks
+[group('checks')]
+preflight: status tooling-preflight installed-skills-status ownership-status
 
 # List declared skills (skills.txt) grouped by repo with install status
 [group('skills')]
@@ -216,8 +259,12 @@ skills:
         line="$(printf '%s' "$line" | tr -d '[:space:]')"
         [ -z "$line" ] && continue
         source="${line%%=*}"
-        names="${line#*=}"
-        names="${names%%|*}"
+        descriptor="${line#*=}"
+        names="${descriptor%%|*}"
+        entry_agents=""
+        IFS='|' read -ra descriptor_parts <<< "$descriptor"
+        last_part="${descriptor_parts[${#descriptor_parts[@]}-1]}"
+        if [[ "$last_part" == agents=* ]]; then entry_agents="${last_part#agents=}"; fi
         echo -e "{{ yellow }}$source{{ clr }}"
         if [ "$names" = "$line" ] || [ -z "$names" ] || [ "$names" = "*" ]; then
             echo "  (all skills)"
@@ -227,10 +274,27 @@ skills:
         IFS=',' read -ra arr <<< "$names"
         for n in "${arr[@]}"; do
             [ -z "$n" ] && continue
-            if [ -e "$store/$n" ]; then
-                echo -e "  {{ green }}✓{{ clr }} $n"
+            installed=1
+            target_note=""
+            if [ -n "$entry_agents" ]; then
+                target_note=" [$entry_agents]"
+                IFS=',' read -ra targets <<< "$entry_agents"
+                for target in "${targets[@]}"; do
+                    case "$target" in
+                        claude-code) path="$HOME/.claude/skills/$n" ;;
+                        pi) path="$HOME/.pi/agent/skills/$n" ;;
+                        codex) path="$HOME/.codex/skills/$n" ;;
+                        *) installed=0; continue ;;
+                    esac
+                    [ -e "$path" ] || installed=0
+                done
             else
-                echo -e "  {{ red }}✗{{ clr }} $n {{ white }}(not installed){{ clr }}"
+                [ -e "$store/$n" ] || installed=0
+            fi
+            if [ "$installed" -eq 1 ]; then
+                echo -e "  {{ green }}✓{{ clr }} $n$target_note"
+            else
+                echo -e "  {{ red }}✗{{ clr }} $n$target_note {{ white }}(not installed){{ clr }}"
             fi
         done
         echo ""

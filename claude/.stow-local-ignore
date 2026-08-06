@@ -10,7 +10,7 @@
 \.DS_Store
 
 # Dependencies
-node_modules/
+(^|.*/)node_modules($|/.*)
 scripts/
 
 # Templates (not needed at runtime)

@@ -52,6 +52,10 @@ done
 [ -f "$temp_home/.omp/agent/extensions/atlas-status-line.ts" ]
 [ -f "$temp_home/.pi/agent/extensions/atlas-status-line.ts" ]
 [ -f "$temp_home/.jcode/preferred_terminal.json" ]
+if find "$temp_home/.claude" \( -type d -o -type l \) -name node_modules -print -quit | grep -q .; then
+  printf 'Claude package stowed repository-local native tool dependencies\n' >&2
+  exit 1
+fi
 
 dangling="$(find "$temp_home/.claude" "$temp_home/.omp" "$temp_home/.pi" "$temp_home/.jcode" \
   -type l ! -path "$temp_home/.omp/agent/extensions/echo-voice" ! -exec test -e {} \; -print)"
@@ -71,9 +75,11 @@ for recipe in update link unlink status; do
   case "$recipe" in
     update|link)
       preflight_line="$(grep -n -m1 'Stow preflight passed' <<<"$dry_run" | cut -d: -f1)"
+      native_tools_line="$(grep -n -m1 './install-native-skill-tools.sh' <<<"$dry_run" | cut -d: -f1)"
       manifest_line="$(grep -n -m1 './install-skills.sh' <<<"$dry_run" | cut -d: -f1)"
-      if [ -z "$preflight_line" ] || [ -z "$manifest_line" ] || [ "$preflight_line" -ge "$manifest_line" ]; then
-        printf 'aggregate recipe %s does not preflight before manifest provisioning\n' "$recipe" >&2
+      if [ -z "$preflight_line" ] || [ -z "$native_tools_line" ] || [ -z "$manifest_line" ] \
+        || [ "$preflight_line" -ge "$native_tools_line" ] || [ "$native_tools_line" -ge "$manifest_line" ]; then
+        printf 'aggregate recipe %s does not preflight before native tool and manifest provisioning\n' "$recipe" >&2
         exit 1
       fi
       ;;

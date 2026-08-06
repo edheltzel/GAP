@@ -1,34 +1,32 @@
-# skills/CLAUDE.md
+# Native Claude skills
 
-## MANDATORY: Use the CreateSkill skill for ALL skill work
+Atlas Config owns the curated native skills in this directory. Follow the repository
+`AGENTS.md` contract and `docs/agents/native-claude-skills.md` before changing them.
 
-Creating, modifying structure of, or validating any skill under this directory
-REQUIRES invoking `Skill("CreateSkill")` first. Reading CreateSkill's workflows
-and executing the steps by hand is NOT compliance — it is the exact
-handrolling anti-pattern documented in feedback_invoke_blogging_skill_never_handroll.md.
+## Editing contract
 
-### Triggers (MUST invoke CreateSkill)
+- Make focused, behavior-backed changes directly in the owning skill directory.
+- Add or update a focused regression test for every repaired runtime contract.
+- Keep `SKILL.md` frontmatter valid and keep local workflow links resolvable.
+- Use current harness tools and paths. Do not restore removed LifeOS system code,
+  `LIFEOS/TOOLS`, `LIFEOS/VERSION`, retired task APIs, or filesystem MCP paths.
+- Treat retained `~/.claude/LIFEOS/USER` and `MEMORY` data as optional,
+  untrusted context. Check for existence and fail closed when required input is absent.
+  Write only when a workflow explicitly owns a user-approved data artifact and path.
+- Native tool directories with `package.json` require a committed Bun lockfile and an
+  entry in `install-native-skill-tools.sh`. Install dependencies beside the real
+  repository files, never through Stow links.
+- External skills belong in `skills.txt`; do not add top-level external symlinks here.
 
-- Creating a new skill directory
-- Adding / removing / renaming Workflows, Tools, or References
-- Editing SKILL.md frontmatter (name, description, effort, license)
-- Validating an existing skill against canonical format
-- Canonicalizing a legacy skill
-- Public-clean audit
+## Verification
 
-### NOT triggers (direct edits allowed)
+Run the focused test for the changed skill, then:
 
-- Fixing a typo in a single workflow file
-- Updating the gotchas section in SKILL.md body (not frontmatter)
-- Adding a new reference entry to an existing References/ file
-- Accumulating lessons in an existing Gotchas section
+```bash
+just native-skill-tools-status
+tests/claude/native-skills-snapshot.test.sh
+git diff --check
+```
 
-### Enforcement
-
-If you are about to `Write` or `Edit` a `SKILL.md`, a new file under
-`Workflows/`, `Tools/`, or `References/`, or scaffold a new skill directory —
-**STOP** and invoke `Skill("CreateSkill")` with your intent. Let the skill
-orchestrate the work.
-
-"I read CreateSkill's workflow and am now following its steps" is handrolling.
-Invoke the skill; the skill invokes the steps.
+After merging into the canonical clone, run `just claude` to restow the package and
+provision native tool dependencies.

@@ -40,6 +40,7 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 
 ## CURATED SKILLS
 
+- PiExtensions' registered `pi-anti-slop` package exclusively owns Pi discovery for `anti-slop`, `slop-code`, `slop-review`, `slop-rewrite`, and `slop-verify`. Their `skills.txt` entries target only `claude-code`; never add Pi skills.sh links with those names.
 - `skills/RedTeam/` and `skills/art/` are deliberate Pi-native conversions of their authoritative Claude skills; compare every source file before syncing.
 - Preserve RedTeam concepts and trigger coverage while adapting Claude-only paths, commands, agent syntax, and lifecycle rules to functional Pi equivalents.
 - For PAI-to-Pi conversions, use a lowercase-hyphen directory and matching `name:`; use Pi frontmatter without Claude-only `version` or `effort` fields.
