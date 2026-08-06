@@ -15,9 +15,8 @@
     "npm:pi-lens",
     "npm:@vndv/pi-codegraph",
     "git:github.com/EveryInc/compound-engineering-plugin",
-    "local-packages/pi-extensions",
     "npm:pi-unified-exec",
-"npm:@ogulcancelik/pi-codex-compaction",
+    "npm:@ogulcancelik/pi-codex-compaction",
     "git:github.com/earendil-works/pi-review-loop",
     "../../Developer/Atlas/PiExtensions"
   ],
