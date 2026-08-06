@@ -35,7 +35,7 @@ just native-skill-tools # install locked dependencies for native Claude skill to
 just native-skill-tools-status # validate native tool locks and installed dependencies
 just tooling-preflight # validate config, types, skills, and status-line behavior
 just installed-skills-status # fail on missing skills or dangling managed skill links
-just ownership-status # validate external Firstmate and app-owned tldraw skills
+just ownership-status # require exact Firstmate and app-owned tldraw skill stores
 just preflight       # run Stow, tooling, installed-skill, and ownership validation
 just skills          # list declared skills grouped by repo, with install status
 just skills-status   # dry run: print pinned sources and integrity checks
