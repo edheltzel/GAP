@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# install-skills.sh — provision every skills.sh skill listed in skills.txt.
+# install-skills.sh - provision every skills.sh skill listed in skills.txt.
 #
 # Companion to the skills.txt manifest (dotfiles packages/*.txt model). For each
 # manifest line `owner/repo[#commit]=skill,skill`, installs those skills globally
 # into all detected agents via the skills.sh CLI. An optional `|path|git-blob`
 # suffix verifies one installed SKILL.md against an immutable upstream blob.
-# skills.sh currently treats #ref as a branch selector, so a full commit ref is
-# retained as policy metadata and enforced by the blob check while the CLI gets
-# the base repository source. Exits non-zero if any source or integrity check fails.
+# Full commit refs are fetched into a disposable local checkout before install,
+# avoiding the skills CLI's branch-only ref interpretation. Exits non-zero if
+# any source or integrity check fails.
 
 set -uo pipefail
 
@@ -56,7 +56,7 @@ if command -v skills >/dev/null 2>&1; then
 elif command -v bunx >/dev/null 2>&1; then
   runner=(bunx skills)
 else
-  printf '%sNeed the skills CLI — run: bun install -g skills%s\n' "$red" "$clr" >&2
+  printf '%sNeed the skills CLI - run: bun install -g skills%s\n' "$red" "$clr" >&2
   exit 1
 fi
 
@@ -70,6 +70,32 @@ done
 
 ok=0
 failed=()
+pinned_root=''
+prepared_source=''
+cleanup() {
+  [ -z "$pinned_root" ] || rm -rf "$pinned_root"
+}
+trap cleanup EXIT
+
+prepare_pinned_source() {
+  local source="$1" ref="$2"
+  if ! command -v git >/dev/null 2>&1; then
+    printf '%s    failed: git is required to install pinned source %s%s\n' "$red" "$source" "$clr" >&2
+    return 1
+  fi
+  if [ -z "$pinned_root" ]; then
+    pinned_root="$(mktemp -d "${TMPDIR:-/tmp}/atlas-pinned-skills.XXXXXX")"
+  fi
+  prepared_source="$pinned_root/${source//\//-}-${ref:0:12}"
+  mkdir -p "$prepared_source"
+  git -C "$prepared_source" init -q
+  if ! git -C "$prepared_source" fetch --depth 1 -q "https://github.com/$source.git" "$ref" \
+      || ! git -C "$prepared_source" checkout --detach -q FETCH_HEAD; then
+    printf '%s    failed: could not fetch %s at %s%s\n' "$red" "$source" "$ref" "$clr" >&2
+    return 1
+  fi
+}
+
 verify_installed_blob() {
   local name="$1" source_path="$2" expected="$3" required="${4:-0}"
   local installed
@@ -150,6 +176,16 @@ while IFS= read -r line || [ -n "$line" ]; do
   display_source="$source"
   [ -n "$ref" ] && display_source="$source#$ref"
   install_source="$source"
+  if [ -n "$ref" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      install_source="<checkout:$source@$ref>"
+    elif ! prepare_pinned_source "$source" "$ref"; then
+      failed+=("$display_source")
+      continue
+    else
+      install_source="$prepared_source"
+    fi
+  fi
   printf '%s==>%s %s %s(%s)%s' "$cyan" "$clr" "$display_source" "$yellow" "$skills" "$clr"
   if [ -n "$integrity_path" ]; then
     printf ' %s[integrity %s git-blob %s]%s' "$white" "$integrity_path" "$expected_blob" "$clr"
@@ -163,8 +199,9 @@ while IFS= read -r line || [ -n "$line" ]; do
     [ -n "$name" ] && skill_args+=(-s "$name")
   done
   if [ "$DRY_RUN" -eq 1 ]; then
+    [ -n "$ref" ] && printf '    checkout: https://github.com/%s.git at %s\n' "$source" "$ref"
     printf '    %s add %s -g %s %s -y\n' "${runner[*]}" "$install_source" "${agent_args[*]}" "${skill_args[*]}"
-    [ -n "$ref" ] && printf '    policy ref: %s (enforced by installed Git blob)\n' "$ref"
+    [ -n "$ref" ] && printf '    policy ref: %s (enforced by checkout and installed Git blob)\n' "$ref"
     if [ -n "$integrity_path" ]; then
       if verify_installed_blob "$skills" "$integrity_path" "$expected_blob"; then
         ok=$((ok + 1))

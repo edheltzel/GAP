@@ -94,6 +94,10 @@ fi
 
 [ -f "$skills_root/CLAUDE.md" ]
 [ -f "$agents_root/tldraw-offline.md" ]
+if find "$skills_root" -mindepth 1 -maxdepth 1 -type l | grep -q .; then
+  printf 'shared skill pointers must be manifest-managed, not tracked by Stow\n' >&2
+  exit 1
+fi
 
 expected_digest='ea71dddeb54c24a6c4182729889f17abf243c51f26ddd6e20ffb5eadd7f8abea'
 actual_digest="$(python3 - "$repo_root" <<'PY'
@@ -172,9 +176,25 @@ if [ -L "$temp_home/.claude" ]; then
   printf 'Claude package folded the runtime directory on a fresh target\n' >&2
   exit 1
 fi
-[ -f "$temp_home/.claude/skills/Agents/SKILL.md" ]
-if [ -e "$temp_home/.claude/skills/recall-add" ] || [ -L "$temp_home/.claude/skills/recall-add" ]; then
-  printf 'Recall-owned skill pointer was stowed from the recovered snapshot\n' >&2
+for skill in "${expected[@]}"; do
+  case "$skill" in
+    recall-add|recall-dump|recall-recent|recall-scout|recall-search)
+      if [ -e "$temp_home/.claude/skills/$skill" ] || [ -L "$temp_home/.claude/skills/$skill" ]; then
+        printf 'Recall-owned skill pointer was stowed from the recovered snapshot: %s\n' "$skill" >&2
+        exit 1
+      fi
+      ;;
+    *)
+      if [ ! -f "$temp_home/.claude/skills/$skill/SKILL.md" ]; then
+        printf 'native skill was not installed into the temporary HOME: %s\n' "$skill" >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+[ -f "$temp_home/.claude/agents/tldraw-offline.md" ]
+if find "$temp_home/.claude" -type l ! -exec test -e {} \; -print | grep -q .; then
+  printf 'temporary Claude installation contains a dangling managed link\n' >&2
   exit 1
 fi
 

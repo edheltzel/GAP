@@ -29,7 +29,7 @@ prune-broken *packages:
         case " {{ no_folding_pkgs }} " in *" $pkg "*) flags="--no-folding";; esac
         # Pruning a broken directory link can expose more beneath it, so repeat
         # until a pass finds nothing.
-        for _ in 1 2 3; do
+        while :; do
             removed=0
             while IFS= read -r rel; do
                 link="{{ stow_target }}/$rel"
@@ -53,35 +53,58 @@ prune-broken *packages:
         echo -e "{{ green }}Pruned $total broken link(s){{ clr }}"
     fi
 
-# Restow all packages and provision skills plus OMP marketplace plugins
+# Fail before mutation when any package has a genuine Stow ownership conflict
 [group('stow')]
-update: jcode-filter prune-broken && skills-install omp-plugins-install
+stow-preflight *packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    packages="{{ packages }}"
+    if [ -z "$packages" ]; then packages="{{ no_folding_pkgs }}"; fi
+    failed=0
+    for pkg in $packages; do
+        flags=""
+        case " {{ no_folding_pkgs }} " in *" $pkg "*) flags="--no-folding";; esac
+        if ! output="$({{ stow_cmd }} $flags -n --restow "$pkg" 2>&1)"; then
+            echo -e "{{ red }}Stow preflight failed for $pkg{{ clr }}" >&2
+            printf '%s\n' "$output" >&2
+            failed=1
+        fi
+    done
+    if [ "$failed" -ne 0 ]; then exit 1; fi
+    echo -e "{{ green }}Stow preflight passed: $packages{{ clr }}"
+
+# Restow all packages, then provision skills and OMP marketplace plugins
+[group('stow')]
+update: jcode-filter prune-broken stow-preflight
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --restow $pkg; done
-    echo -e "{{ green }}All packages restowed{{ clr }}"
+    ./install-skills.sh
+    ./install-omp-plugins.sh
+    echo -e "{{ green }}All packages restowed and manifests provisioned{{ clr }}"
 
 alias up := update
 
 # Restow the Claude package only (no-folding)
 [group('stow')]
-claude: (prune-broken "claude")
+claude: (prune-broken "claude") (stow-preflight "claude")
     #!/usr/bin/env bash
     set -eu
     {{ stow_cmd }} --no-folding --restow claude
     echo -e "{{ green }}claude restowed{{ clr }}"
 
-# Restow the OMP package and provision its marketplace plugins
+# Restow the OMP package, then provision its marketplace plugins
 [group('stow')]
-omp: (prune-broken "omp") && omp-plugins-install
+omp: (prune-broken "omp") (stow-preflight "omp")
     #!/usr/bin/env bash
     set -eu
     {{ stow_cmd }} --no-folding --restow omp
-    echo -e "{{ green }}omp restowed{{ clr }}"
+    ./install-omp-plugins.sh
+    echo -e "{{ green }}omp restowed and plugins provisioned{{ clr }}"
 
 # Restow the pi package only (no-folding)
 [group('stow')]
-pi: (prune-broken "pi")
+pi: (prune-broken "pi") (stow-preflight "pi")
     #!/usr/bin/env bash
     set -eu
     {{ stow_cmd }} --no-folding --restow pi
@@ -89,19 +112,21 @@ pi: (prune-broken "pi")
 
 # Restow the Jcode package only (no-folding)
 [group('stow')]
-jcode: jcode-filter (prune-broken "jcode")
+jcode: jcode-filter (prune-broken "jcode") (stow-preflight "jcode")
     #!/usr/bin/env bash
     set -eu
     {{ stow_cmd }} --no-folding --restow jcode
     echo -e "{{ green }}jcode restowed{{ clr }}"
 
-# Create symlinks and provision skills plus OMP marketplace plugins
+# Create package links first, then provision skills and OMP marketplace plugins
 [group('stow')]
-link: jcode-filter prune-broken && skills-install omp-plugins-install
+link: jcode-filter prune-broken stow-preflight
     #!/usr/bin/env bash
     set -eu
     for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding $pkg; done
-    echo -e "{{ green }}Packages linked: {{ no_folding_pkgs }}{{ clr }}"
+    ./install-skills.sh
+    ./install-omp-plugins.sh
+    echo -e "{{ green }}Packages linked and manifests provisioned: {{ no_folding_pkgs }}{{ clr }}"
 
 # Remove all symlinks
 [group('stow')]
@@ -111,37 +136,44 @@ unlink:
     for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --delete $pkg; done
     echo -e "{{ white }}All package symlinks removed{{ clr }}"
 
-# Show the state of every managed symlink (ACTIVE / BROKEN / NOT ACTIVE)
+# Show every managed symlink and fail loudly on Stow ownership conflicts
 [group('stow')]
 status:
     #!/usr/bin/env bash
-    set -eu
+    set -euo pipefail
     g='{{ green }}'; r='{{ red }}'; w='{{ white }}'; c='{{ cyan }}'; z='{{ clr }}'
+    failed=0
     report() {
         local pkg="$1"; shift
-        local note=""; [ $# -gt 0 ] && note=" (no-folding)"
+        local note="" output
+        [ $# -gt 0 ] && note=" (no-folding)"
         echo -e "${c}Package: $pkg$note${z}"
-        # Enumerate the real link nodes stow manages (LINK: lines from a restow
-        # dry-run), then check each one's actual state on disk.
-        {{ stow_cmd }} "$@" --restow -n -v "$pkg" 2>&1 \
-            | grep '^LINK: ' \
-            | while read -r line; do
-                rest="${line#LINK: }"
-                path="${rest%% => *}"
-                target="$HOME/$path"
-                if [ -L "$target" ]; then
-                    if [ -e "$target" ]; then
-                        printf "  ${g}ACTIVE${z}      %s\n" "$path"
-                    else
-                        printf "  ${r}BROKEN${z}      %s\n" "$path"
-                    fi
+        if ! output="$({{ stow_cmd }} "$@" --restow -n -v "$pkg" 2>&1)"; then
+            printf "  ${r}CONFLICT${z}    Stow rejected package %s\n" "$pkg" >&2
+            printf '%s\n' "$output" >&2
+            failed=1
+            echo ""
+            return
+        fi
+        while IFS= read -r line; do
+            rest="${line#LINK: }"
+            path="${rest%% => *}"
+            target="$HOME/$path"
+            if [ -L "$target" ]; then
+                if [ -e "$target" ]; then
+                    printf "  ${g}ACTIVE${z}      %s\n" "$path"
                 else
-                    printf "  ${w}NOT ACTIVE${z}  %s\n" "$path"
+                    printf "  ${r}BROKEN${z}      %s\n" "$path"
+                    failed=1
                 fi
-            done
+            else
+                printf "  ${w}NOT ACTIVE${z}  %s\n" "$path"
+            fi
+        done < <(printf '%s\n' "$output" | grep '^LINK: ' || true)
         echo ""
     }
     for pkg in {{ no_folding_pkgs }}; do report $pkg --no-folding; done
+    if [ "$failed" -ne 0 ]; then exit 1; fi
 
 # List declared skills (skills.txt) grouped by repo with install status
 [group('skills')]
@@ -153,11 +185,13 @@ skills:
     echo -e "{{ cyan }}Global (from skills.txt):{{ clr }}"
     echo ""
     while IFS= read -r line || [ -n "$line" ]; do
-        line="${line%%#*}"
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        if [[ "$line" =~ ^(.*[^[:space:]])[[:space:]]+#.*$ ]]; then line="${BASH_REMATCH[1]}"; fi
         line="$(printf '%s' "$line" | tr -d '[:space:]')"
         [ -z "$line" ] && continue
         source="${line%%=*}"
         names="${line#*=}"
+        names="${names%%|*}"
         echo -e "{{ yellow }}$source{{ clr }}"
         if [ "$names" = "$line" ] || [ -z "$names" ] || [ "$names" = "*" ]; then
             echo "  (all skills)"
@@ -225,7 +259,7 @@ push:
         echo -e "{{ green }}Pushed to origin{{ clr }}"
     fi
 
-# Configure the repository-local clean filter for writable Jcode config
+# Configure repository-local drivers for writable and machine-local config
 [group('stow')]
 jcode-filter:
     #!/usr/bin/env bash
@@ -233,3 +267,4 @@ jcode-filter:
     git config filter.jcode-config.clean "python3 {{ stow_dir }}/filter-jcode-config.py"
     git config filter.jcode-config.smudge cat
     git config filter.jcode-config.required true
+    git config merge.ours.driver true

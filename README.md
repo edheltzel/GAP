@@ -21,14 +21,15 @@ Plans, handoffs, worktrees, and artifacts live under `.agents/atlas/` at the rep
 ```bash
 just                 # list all available commands (bare `just`)
 just link            # first-time setup: link packages and install both manifests
-just up              # restow every package and install both manifests
-just claude          # restow the Claude package only (no-folding)
+just up              # preflight and restow every package, then install both manifests
+just stow-preflight  # fail on genuine ownership conflicts before package mutation
+just claude          # preflight and restow the Claude package only (no-folding)
 just omp             # restow OMP config (no-folding) and install omp-plugins.txt
 omp update           # install the latest published OMP release
 just pi              # restow the pi package only (no-folding)
 just jcode           # restow curated Jcode config only (no-folding)
 just unlink          # remove all package symlinks
-just status          # dry run: show what stow would do
+just status          # show managed links and fail on conflicts or dangling managed links
 just skills          # list declared skills grouped by repo, with install status
 just skills-status   # dry run: print pinned sources and integrity checks
 just skills-install  # install skills listed in skills.txt via skills.sh
@@ -44,13 +45,13 @@ just push            # commit any changes and push to origin
 - Atlas Flow is tracked as the atlas-flow epic (issues #2-#11); review it before changing Pi's global package set or implementing `/atlas-flow`.
 - `pi/` is active curated Pi config, not a placeholder. Its status line uses Pi's own version and its theme is `eldritch`.
 - Claude, Pi, and OMP status lines use harness-native version identity and never read the removed `LIFEOS/VERSION`.
-- `claude/.claude/{skills,agents}/` preserves the exact final native snapshot recovered from the unmerged LifeOS-removal lineage. Some restored skills retain known references to removed LifeOS machinery, and five Recall pointer directories are not stowed. See `docs/agents/native-claude-skills.md`.
+- `claude/.claude/{skills,agents}/` preserves the exact final native snapshot recovered from the unmerged LifeOS-removal lineage. Some restored skills retain known references to removed LifeOS machinery, and five Recall pointer directories are not stowed. Recoverable historical external pointers are declared in `skills.txt`; top-level shared-skill links are not tracked in the Claude package. See `docs/agents/native-claude-skills.md`.
 - `jcode/` tracks portable preferences in writable `config.toml`; the `jcode-config` clean filter removes theme selection and generated launch-hotkey state before indexing.
 - Jcode credentials, sessions, memory, caches, telemetry, generated browser assets, and MCP discovery output stay machine-local.
 - `oldSetup/`, `.audit-backup/`, and any `auth.json` files are gitignored; runtime state and local backups never get committed.
 - OMP runtime state stays local; only curated files like `config.yml`, `models.yml`, `mcp.json`, keybindings, skills, commands, tools, extensions, and themes are stowed. `omp-plugins.txt` tracks desired marketplace packages while OMP keeps its installed registry and cache under `~/.omp/plugins/`. See `docs/agents/omp.md`.
-- `just link` and `just up` stow native Claude skills and provision shared skills from `skills.txt`; package-only `just claude`, `just omp`, `just pi`, and `just jcode` commands only restow or provision their package-specific state.
-- Lavish is globally owned through `skills.txt`, which pins upstream commit `55045850f61e7b23c8dbf8cc30d92bd6e31649d2` and verifies blob `1e792b5bfc34127ca6f00bbb44fea306ce77ea52` during `just skills-status` and `just skills-install`.
+- `just link` and `just up` preflight every Stow package, link all packages, then provision shared skills and OMP plugins. This ordering prevents manifest updates when a package conflict would leave a partial restore. Package-only commands affect only their package-specific state.
+- Lavish is globally owned through `skills.txt`, which installs upstream commit `55045850f61e7b23c8dbf8cc30d92bd6e31649d2` from a disposable checkout and verifies blob `1e792b5bfc34127ca6f00bbb44fea306ce77ea52` during `just skills-status` and `just skills-install`.
 - Fresh or disposable checkouts should run `just skills-status` and then `just skills-install` before using Lavish; `just claude` and `just pi` only restow package-specific state.
 - To roll back the project-ownership removal, revert its commit and rerun `just skills-install` to restore the pinned global copy and generated agent links; do not reintroduce a Pi package copy.
 - Worktrees (`EnterWorktree` / `ExitWorktree`) write to `.agents/atlas/worktrees/`, which is also gitignored.

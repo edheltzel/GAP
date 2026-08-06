@@ -9,7 +9,7 @@ commit="55045850f61e7b23c8dbf8cc30d92bd6e31649d2"
 blob="1e792b5bfc34127ca6f00bbb44fea306ce77ea52"
 manifest="$temp_home/skills.txt"
 installed="$temp_home/home/.agents/skills/lavish/SKILL.md"
-source_commit="$(git -C "$repo_root" log -1 --format=%H --all --diff-filter=A -- .agents/skills/lavish/SKILL.md)"
+source_commit="$(git -C "$repo_root" log -1 --format=%H --all --diff-filter=A ':(top).agents/skills/lavish/SKILL.md')"
 
 [ -n "$source_commit" ]
 
@@ -20,9 +20,10 @@ printf 'kunchenguid/lavish-axi#%s=lavish|skills/lavish/SKILL.md|%s # parser comm
 
 output="$(HOME="$temp_home/home" PATH="$temp_home/bin:$PATH" SKILLS_AGENTS='claude-code,pi' "$repo_root/install-skills.sh" --dry-run "$manifest")"
 grep -F "kunchenguid/lavish-axi#$commit" <<<"$output" >/dev/null
+grep -F "checkout: https://github.com/kunchenguid/lavish-axi.git at $commit" <<<"$output" >/dev/null
 grep -F "git-blob $blob" <<<"$output" >/dev/null
 grep -F "integrity verified" <<<"$output" >/dev/null
-grep -F -- "-a claude-code -a pi" <<<"$output" >/dev/null
+grep -F -e "-a claude-code -a pi" <<<"$output" >/dev/null
 
 printf 'drift\n' > "$installed"
 if output="$(HOME="$temp_home/home" PATH="$temp_home/bin:$PATH" SKILLS_AGENTS='claude-code,pi' "$repo_root/install-skills.sh" --dry-run "$manifest" 2>&1)"; then
@@ -31,4 +32,4 @@ if output="$(HOME="$temp_home/home" PATH="$temp_home/bin:$PATH" SKILLS_AGENTS='c
 fi
 grep -F "integrity mismatch" <<<"$output" >/dev/null
 
-printf 'PASS: pinned ref survives parsing and installed Git blob drift is detected\n'
+printf 'PASS: pinned ref checkout survives parsing and installed Git blob drift is detected\n'
