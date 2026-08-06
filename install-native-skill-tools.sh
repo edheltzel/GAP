@@ -45,21 +45,47 @@ else
 fi
 
 errors=0
+for required_command in jq bun; do
+	if ! command -v "$required_command" >/dev/null 2>&1; then
+		printf 'required native skill tool command is unavailable: %s\n' "$required_command" >&2
+		errors=$((errors + 1))
+	fi
+done
+if [ "$errors" -ne 0 ]; then
+	exit 1
+fi
+
 check_installation() {
 	local dir="$1"
-	local dependency
+	local dependency constraint dependency_rows installed_version
 	if [ ! -d "$dir/node_modules" ]; then
 		printf 'missing native skill tool dependencies: %s/node_modules\n' "$dir" >&2
 		errors=$((errors + 1))
 		return
 	fi
-	while IFS= read -r dependency; do
+	if ! dependency_rows="$(jq -r '[(.dependencies // {}), (.devDependencies // {}), (.optionalDependencies // {})] | add | to_entries[] | [.key, .value] | @tsv' "$dir/package.json")"; then
+		printf 'could not enumerate native skill tool dependencies: %s/package.json\n' "$dir" >&2
+		errors=$((errors + 1))
+		return
+	fi
+	while IFS=$'\t' read -r dependency constraint; do
 		[ -n "$dependency" ] || continue
 		if [ ! -e "$dir/node_modules/$dependency/package.json" ]; then
 			printf 'missing native skill tool dependency %s in %s\n' "$dependency" "$dir" >&2
 			errors=$((errors + 1))
+			continue
 		fi
-	done < <(jq -r '[(.dependencies // {}), (.devDependencies // {}), (.optionalDependencies // {})] | add | keys[]' "$dir/package.json")
+		if ! installed_version="$(jq -er '.version | select(type == "string" and length > 0)' "$dir/node_modules/$dependency/package.json")"; then
+			printf 'native skill tool dependency %s has no valid installed version in %s\n' "$dependency" "$dir" >&2
+			errors=$((errors + 1))
+			continue
+		fi
+		if ! bun -e 'process.exit(Bun.semver.satisfies(process.argv[1], process.argv[2]) ? 0 : 1)' "$installed_version" "$constraint"; then
+			printf 'native skill tool dependency %s@%s does not satisfy %s in %s\n' \
+				"$dependency" "$installed_version" "$constraint" "$dir" >&2
+			errors=$((errors + 1))
+		fi
+	done <<<"$dependency_rows"
 }
 
 for relative in "${tool_dirs[@]}"; do
@@ -85,6 +111,13 @@ for relative in "${tool_dirs[@]}"; do
 			cd "$dir"
 			bun install --frozen-lockfile --ignore-scripts
 		)
+	elif ! (
+		cd "$dir"
+		bun install --frozen-lockfile --dry-run --ignore-scripts >/dev/null
+	); then
+		printf 'native skill tool package and lockfile disagree: %s\n' "$dir" >&2
+		errors=$((errors + 1))
+		continue
 	fi
 	check_installation "$dir"
 done
