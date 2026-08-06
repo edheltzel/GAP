@@ -1,7 +1,7 @@
 {
   "name": "pai-agents-tools",
   "version": "1.0.0",
-  "description": "Agent composition and management tools for LifeOS",
+  "description": "Agent composition and prompt management tools",
   "type": "module",
   "dependencies": {
     "yaml": "^2.3.4",

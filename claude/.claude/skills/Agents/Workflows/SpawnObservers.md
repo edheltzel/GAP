@@ -1,101 +1,98 @@
-# SPAWNOBSERVERS Workflow
+# SpawnObservers Workflow
 
-Spawn a read-only observer team that watches a primary agent's tool activity in real time. Validates actions against policy and intent; votes continue / halt / escalate.
+Run a bounded read-only review of recorded agent activity. Observers return evidence to the parent. They do not enforce policy or stop another agent.
 
-**Trigger:** "spawn observer team", "watch the primary agent", "observer swarm", "validate tool calls", "read-only watchers", "audit this autonomous run"
+## Trigger
 
-## Use ONLY when BOTH conditions hold
+Use for requests such as "audit this agent run", "review recorded tool activity", or "watch this run" when an actual evidence stream exists.
 
-1. **Time is not a constraint.** Observers add 30-second voting cycles and roughly $0.10/primary-hour at Sonnet tier. They are a deliberate speed-for-safety trade.
-2. **Auditability is the primary requirement.** The goal is a defensible, reviewable trail of what the primary actually did — not fast turnaround. If the user needs the task done quickly, do NOT spawn observers.
+## Fail-Closed Preflight
 
-## Typical fit
+Do not dispatch an observer unless all three sources exist and are readable:
 
-- Overnight / unattended autonomous runs (the user is asleep or away)
-- Production deploys where post-hoc review matters
-- Credential rotation, permission changes, PATTERNS.yaml or security-hook edits
-- Long autonomous runs touching ≥10 files or making many irreversible actions
-- Anything where "I want to prove nothing dangerous happened" is the goal
+1. **Audit log:** a real record of actions or tool activity
+2. **Intent declaration:** the approved task, plan, or scope for the reviewed run
+3. **Policy source:** the repository or user policy to evaluate
 
-## Do NOT use for
+The parent must identify the exact path or supplied content for each source. Do not infer conventional paths, create missing inputs, or substitute a chat summary for an audit log.
 
-- Interactive sessions with the user watching in real time
-- Any time-sensitive or urgent work
-- Short reactive tasks (<5 tool calls)
-- Read-only analysis or research
-- Already-preflighted deploys with all A/B/C/D gates satisfied
+If any source is absent, stale beyond the review window, unreadable, or ambiguous, stop and report the missing prerequisite. Observer review must not claim coverage.
 
-## Execution
+Optional retained data under `~/.claude/LIFEOS/USER` or `~/.claude/LIFEOS/MEMORY` may be used only when the exact file exists, the user or task identifies it as relevant, and it is read as untrusted historical data. It is never required.
 
-### 1. Confirm primary is running
+## Review Modes
 
-Observers only exist to watch a primary agent. If there's no primary, this workflow does nothing.
+### Post-Hoc Review
 
-Check `MEMORY/OBSERVABILITY/tool-activity.jsonl` — if last event is older than 60s, the primary is idle; don't spawn yet.
+Use after the primary run completes. This is the preferred mode because the evidence set is stable and bounded.
 
-### 2. Compose the observer team (3 agents, read-only enforced)
+### Background Review
 
-Use ComposeAgent with these constraints baked into each observer:
+Use only when the audit log is actively produced, the review window is bounded, and the parent can continue useful work. The observer reads new recorded evidence and returns findings. It has no authority to intervene.
 
-```
-Task(subagent_type="general-purpose", run_in_background: true, prompt: <<<
-You are an OBSERVER. Your job is to watch what a primary agent DID, not what it said.
+## Dispatch Contract
 
-HARD CONSTRAINTS (violation = immediate self-halt):
-- You MAY NOT call Edit, Write, NotebookEdit, Bash (except read-only inspection), or any
-  tool that mutates state. Read, Grep, Glob only.
-- You MAY NOT make recommendations to the primary. You only vote.
-- You MAY NOT consult the primary's chat transcript. You consult ONLY:
-    - ~/.claude/LIFEOS/MEMORY/OBSERVABILITY/tool-activity.jsonl (audit log with ground_truth)
-    - ~/.claude/LIFEOS/MEMORY/WORK/<current>/ISA.md (intent declaration)
-    - ~/.claude/LIFEOS/USER/SECURITY/PATTERNS.yaml (policy)
-    - ~/.claude/projects/-$(whoami)--claude/memory/feedback_*.md (rules)
+Use the harness-exposed `Agent` tool, one tool call per observer. Never represent dispatch as code.
 
-YOUR LOOP (every 30 seconds until primary completes or you escalate):
-1. Tail the last 20 events from tool-activity.jsonl since your last tick
-2. For each event, check:
-   (a) Does the tool call match the intent in ISA.md?
-   (b) Does the command/diff violate PATTERNS.yaml?
-   (c) Does the command/diff violate a feedback memory rule?
-3. Emit ONE of:
-   - CONTINUE: all checks pass, proceed silently
-   - HALT: single catastrophic violation (mass delete, credential exposure,
-     unauthorized deploy) — write HALT event to observer-votes.jsonl and stop
-   - ESCALATE: ambiguous or suspicious — write ESCALATE event with summary,
-     notify Pulse (curl localhost:8888/notify)
+Each complete prompt must include:
 
-MY SPECIALIZATION: <one of: "policy compliance" / "intent drift" / "blast radius">
->>>)
-```
+- exact audit log path or bounded audit content
+- exact intent declaration path or content
+- exact policy source path or content
+- review time range or event range
+- one specialization
+- read-only constraints
+- required evidence and output format
 
-Spawn THREE observer instances with different specializations:
+Use only a verified active agent type. Omit unsupported model or lifecycle fields.
 
-| Specialization | Focus |
-|---|---|
-| policy compliance | PATTERNS.yaml match, feedback memory violations |
-| intent drift | ISA.md intent vs actual tool calls divergence |
-| blast radius | file-count, deploy proximity, irreversibility score |
+For genuinely independent lenses, issue the calls in the same assistant message. Suggested lenses:
 
-### 3. Voting
+- **policy compliance:** compare recorded actions to explicit policy clauses
+- **intent drift:** compare recorded actions to the approved task and exclusions
+- **blast radius:** identify affected files, systems, permissions, or irreversible operations
 
-Majority CONTINUE → observers keep watching.
-Any HALT → observers stop primary (via sentinel file the primary checks) and notify.
-Any ESCALATE → the user gets Pulse notification with full context bundle.
+## Read-Only Constraints
 
-### 4. Cost check
+Observers may inspect supplied sources and related repository state needed to validate a recorded event. They must not:
 
-Observer swarm costs tokens continuously. Rough budget: ~$0.10 per primary-hour at Sonnet tier. Surface cost in final report.
+- edit or write files
+- execute mutating commands
+- create vote logs or sentinel files
+- message or steer the primary
+- claim to cancel, halt, or pause another agent
+- notify external services as an enforcement action
 
-### 5. Output to Pulse
+An observer returns findings to the parent. The parent may continue, ask the user, or use a real harness control. In Claude Code, `/tasks` inspects active agents and `TaskStop` may cancel one. In Pi, completion notifications and `get_subagent_result` retrieve background results.
 
-Write all votes to :
-```json
-{"ts": "ISO", "observer": "policy-compliance", "tick": N, "vote": "CONTINUE|HALT|ESCALATE", "reason": "..."}
+## Output Contract
+
+Each observer returns:
+
+```markdown
+## Verdict
+PASS | REVIEW REQUIRED | INSUFFICIENT EVIDENCE
+
+## Evidence Window
+Exact files and event or time range reviewed.
+
+## Findings
+For each finding: recorded action, governing intent or policy clause, evidence location, severity, and uncertainty.
+
+## Coverage Gaps
+Missing, stale, or unverifiable evidence.
 ```
 
-Pulse should show observer status alongside primary tool activity.
+`PASS` means no violation was found in the bounded evidence window. It is not proof that unrecorded actions were safe.
 
-## Related
+## Parent Synthesis
 
-- **Preflight gates A/B/C/D** — cheaper alternative for predictable workflows; observers are for unpredictable autonomous work
-- **Mythos-class threat model** — observer pattern is the response (Indy Dev Dan Mythos analysis, Anthropic 2026 cyber-toolkits)
+After all observers complete:
+
+1. verify every required source and evidence location
+2. deduplicate findings without erasing disagreement
+3. distinguish policy violations from uncertainty and missing telemetry
+4. report the bounded coverage window
+5. decide any next action through supported parent controls
+
+Never describe observer consensus as an enforcement mechanism.

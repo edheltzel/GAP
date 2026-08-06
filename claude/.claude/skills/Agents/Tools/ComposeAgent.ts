@@ -1,10 +1,11 @@
 #!/usr/bin/env bun
+/// <reference types="node" />
 
 /**
  * ComposeAgent - Dynamic Agent Composition from Traits
  *
  * Composes specialized agents on-the-fly by combining traits.
- * Merges base traits (ships with LifeOS) with user customizations.
+ * Merges base traits with an optional retained user customization file.
  *
  * Configuration files:
  *   Base:  ~/.claude/skills/Agents/Data/Traits.yaml
@@ -545,7 +546,6 @@ function saveAgent(agent: ComposedAgent): string {
   const content = `---
 name: "${agent.name}"
 description: "${description.replace(/"/g, '\\"')}"
-model: opus
 color: "${agent.color}"
 voiceId: "${agent.voiceId}"
 voice:
@@ -563,19 +563,6 @@ custom_agent: true
 created: "${today}"
 traits: [${agent.traits.map((t) => `"${t}"`).join(", ")}]
 source: "ComposeAgent"
-permissions:
-  allow:
-    - "Bash"
-    - "Read(*)"
-    - "Write(*)"
-    - "Edit(*)"
-    - "MultiEdit(*)"
-    - "Grep(*)"
-    - "Glob(*)"
-    - "WebFetch(domain:*)"
-    - "WebSearch"
-    - "mcp__*"
-    - "TodoWrite(*)"
 ---
 
 ${body}
@@ -645,71 +632,23 @@ ${approachBlock}
 
 ---
 
-# 🚨 MANDATORY STARTUP SEQUENCE - DO THIS FIRST 🚨
+## Voice Notification
 
-**BEFORE ANY WORK, YOU MUST:**
+After completing the task, you may send a best-effort Echo notification:
 
-1. **Send voice notification that you're loading:**
 \`\`\`bash
-curl -X POST http://localhost:8888/notify \\
+curl -s -X POST http://localhost:8888/notify \\
   -H "Content-Type: application/json" \\
-  -d '{"message":"${agent.name} loading and ready to work","voice_id":"${agent.voiceId}","title":"${agent.name}"}'
+  -d '{"message":"Short completion summary","voice_id":"${agent.voiceId}","title":"${agent.name}"}'
 \`\`\`
 
-2. **Then proceed with your task**
-
-**This is NON-NEGOTIABLE. Announce yourself first.**
+Notification failure does not change task success. Always return the textual result.
 
 ---
 
-## 🎯 MANDATORY VOICE NOTIFICATION SYSTEM
+## Response Contract
 
-**YOU MUST SEND VOICE NOTIFICATION BEFORE EVERY RESPONSE:**
-
-\`\`\`bash
-curl -X POST http://localhost:8888/notify \\
-  -H "Content-Type: application/json" \\
-  -d '{"message":"Your COMPLETED line content here","voice_id":"${agent.voiceId}","title":"${agent.name}"}'
-\`\`\`
-
-**Voice Requirements:**
-- Your voice_id is: \`${agent.voiceId}\`
-- Message should be your 🎯 COMPLETED line (8-16 words optimal)
-- Must be grammatically correct and speakable
-- Send BEFORE writing your response
-- DO NOT SKIP - the user needs to hear you speak
-
----
-
-## 🚨 MANDATORY OUTPUT FORMAT
-
-**USE THE LifeOS FORMAT FROM LifeOS FOR ALL RESPONSES:**
-
-\`\`\`
-📋 SUMMARY: [One sentence - what this response is about]
-🔍 ANALYSIS: [Key findings, insights, or observations]
-⚡ ACTIONS: [Steps taken or tools used]
-✅ RESULTS: [Outcomes, what was accomplished]
-📊 STATUS: [Current state of the task/system]
-📁 CAPTURE: [Required - context worth preserving for this session]
-➡️ NEXT: [Recommended next steps or options]
-📖 STORY EXPLANATION:
-1. [First key point in the narrative]
-2. [Second key point]
-3. [Third key point]
-4. [Fourth key point]
-5. [Fifth key point]
-6. [Sixth key point]
-7. [Seventh key point]
-8. [Eighth key point - conclusion]
-🎯 COMPLETED: [12 words max - drives voice output - REQUIRED]
-\`\`\`
-
-**CRITICAL:**
-- STORY EXPLANATION MUST BE A NUMBERED LIST (1-8 items)
-- The 🎯 COMPLETED line is what the voice server speaks
-- Without this format, your response won't be heard
-- This is a CONSTITUTIONAL REQUIREMENT
+Return a concise summary, evidence, result, changed paths when applicable, and explicit blockers. Label uncertainty rather than inventing support.
 
 ---
 
@@ -739,17 +678,11 @@ bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --traits "${agent.traits.j
 
 ## Key Practices
 
-**Always:**
-- Send voice notifications before responses
-- Use LifeOS output format for all responses
-- Leverage your domain expertise
-- Deliver work that exceeds expectations
-
-**Never:**
-- Skip voice notifications
-- Use simple/minimal output formats
-- Accept mediocre quality
-- Ignore your domain expertise
+- Follow the complete task prompt and active repository instructions.
+- Use only tools and permissions exposed by the active harness.
+- Leverage the composed domain expertise and working style.
+- Verify claims and file changes before reporting completion.
+- Treat voice output as optional presentation, not task control.
 
 ---
 
@@ -758,13 +691,7 @@ bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --traits "${agent.traits.j
 You are ${agent.name} who combines:
 ${combinedList}
 
-**Remember:**
-1. Send voice notifications
-2. Use LifeOS output format
-3. Leverage your expertise
-4. Deliver quality work
-
-Let's get to work.`;
+Use this identity as prompt guidance, not as additional authority. Begin the bounded task.`;
 }
 
 /**
@@ -854,7 +781,7 @@ function deleteAgent(name: string): boolean {
  */
 async function main() {
   const { values } = parseArgs({
-    args: Bun.argv.slice(2),
+    args: process.argv.slice(2),
     options: {
       task: { type: "string", short: "t" },
       traits: { type: "string", short: "r" },
@@ -948,7 +875,10 @@ OUTPUT (json format includes):
 
   if (values.load) {
     const agent = loadAgent(values.load, traits, values.task);
-    if (!agent) process.exit(1);
+    if (!agent) {
+      process.exitCode = 1;
+      return;
+    }
 
     switch (values.output) {
       case "json":

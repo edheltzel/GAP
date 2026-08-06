@@ -1,37 +1,28 @@
 #!/usr/bin/env bun
+/// <reference types="node" />
 
 /**
- * Load Agent Context
- *
- * Simple utility to load agent context files when spawning specialized agents.
- * Each agent type (Architect, Engineer, Designer, etc.) has ONE markdown context file
- * that references relevant parts of the Skills system.
- *
- * Usage: bun run LoadAgentContext.ts <agentType>
+ * Load one self-contained role context and optionally append a complete task.
+ * This utility prepares prompt text. It does not select a model or dispatch a worker.
  */
 
-import { readFileSync, existsSync, readdirSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync, readdirSync } from "fs";
 import { homedir } from "os";
+import { join } from "path";
+import { pathToFileURL } from "url";
 
 interface AgentContext {
   agentType: string;
   contextContent: string;
-  model: "opus" | "sonnet" | "haiku";
 }
 
 export class AgentContextLoader {
-  private claudeHome: string;
   private agentsDir: string;
 
   constructor() {
-    this.claudeHome = join(homedir(), ".claude");
-    this.agentsDir = join(this.claudeHome, "Skills", "Agents");
+    this.agentsDir = join(homedir(), ".claude", "skills", "Agents");
   }
 
-  /**
-   * Load context for a specific agent type
-   */
   loadContext(agentType: string): AgentContext {
     const contextPath = join(this.agentsDir, `${agentType}Context.md`);
 
@@ -41,68 +32,44 @@ export class AgentContextLoader {
       );
     }
 
-    const contextContent = readFileSync(contextPath, "utf-8");
-
-    // Extract model preference from context file (defaults to opus)
-    const modelMatch = contextContent.match(/\*\*Model\*\*:\s*(opus|sonnet|haiku)/i);
-    const model = (modelMatch?.[1].toLowerCase() as "opus" | "sonnet" | "haiku") || "opus";
-
     return {
       agentType,
-      contextContent,
-      model,
+      contextContent: readFileSync(contextPath, "utf-8"),
     };
   }
 
-  /**
-   * Get list of available agent types
-   */
   getAvailableAgents(): string[] {
     if (!existsSync(this.agentsDir)) {
       return [];
     }
 
-    const files = readdirSync(this.agentsDir);
-
-    return files
-      .filter((f) => f.endsWith("Context.md"))
-      .map((f) => f.replace("Context.md", ""));
+    return readdirSync(this.agentsDir)
+      .filter((file) => file.endsWith("Context.md"))
+      .map((file) => file.replace("Context.md", ""))
+      .sort();
   }
 
-  /**
-   * Generate enriched prompt for spawning agent with Task tool
-   */
-  generateEnrichedPrompt(agentType: string, taskDescription: string): {
-    prompt: string;
-    model: "opus" | "sonnet" | "haiku";
-  } {
+  generateEnrichedPrompt(agentType: string, taskDescription: string): string {
     const context = this.loadContext(agentType);
 
-    const enrichedPrompt = `${context.contextContent}
+    return `${context.contextContent}
 
 ---
 
 ## Current Task
 
 ${taskDescription}`;
-
-    return {
-      prompt: enrichedPrompt,
-      model: context.model,
-    };
   }
 }
 
-// CLI usage
-if (import.meta.main) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
     console.log("Usage: LoadAgentContext.ts <agentType> [taskDescription]");
-    console.log("\nAvailable agent types:");
+    console.log("\nAvailable role contexts:");
     const loader = new AgentContextLoader();
-    const agents = loader.getAvailableAgents();
-    agents.forEach((a) => console.log(`  - ${a}`));
+    loader.getAvailableAgents().forEach((agent) => console.log(`  - ${agent}`));
     process.exit(1);
   }
 
@@ -113,14 +80,11 @@ if (import.meta.main) {
     const loader = new AgentContextLoader();
 
     if (taskDescription) {
-      // Generate enriched prompt for spawning
-      const { prompt, model } = loader.generateEnrichedPrompt(agentType, taskDescription);
-      console.log(`\n=== Enriched Prompt for ${agentType} Agent (Model: ${model}) ===\n`);
-      console.log(prompt);
+      console.log(`\n=== Enriched Prompt for ${agentType} Role ===\n`);
+      console.log(loader.generateEnrichedPrompt(agentType, taskDescription));
     } else {
-      // Just load the context
       const context = loader.loadContext(agentType);
-      console.log(`\n=== Context for ${context.agentType} Agent (Model: ${context.model}) ===\n`);
+      console.log(`\n=== Context for ${context.agentType} Role ===\n`);
       console.log(context.contextContent);
     }
   } catch (error) {
