@@ -22,10 +22,13 @@
 *.ico binary
 *.pdf binary
 
-# PAI v5: claudecode/.claude/settings.json mutates locally (counts, feedbackSurveyState
-# timestamps) on every session. merge=ours keeps local wins on `git pull`. See atlas-config
-# CLAUDE.md "Scope" section for the single-machine-canonical implication.
-claudecode/.claude/settings.json merge=ours
+# The exact recovered native skill and agent snapshot preserves upstream whitespace.
+claude/.claude/skills/** whitespace=-blank-at-eol,-blank-at-eof
+claude/.claude/agents/** whitespace=-blank-at-eol,-blank-at-eof
+
+# Claude settings mutate locally (counts, feedbackSurveyState timestamps) on every
+# session. merge=ours keeps local wins on `git pull`. See AGENTS.md "Scope".
+claude/.claude/settings.json merge=ours
 
 # Pi global settings is single-machine config too. Pi may rewrite local UI/model/package
 # preferences and runtime bookkeeping; local settings win on pull.

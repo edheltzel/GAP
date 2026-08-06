@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, watch, type FSWatcher } from 'node:fs';
-import { homedir } from 'node:os';
 import { basename, dirname, join, parse, sep } from 'node:path';
 import {
   type ExtensionAPI,
@@ -19,8 +18,13 @@ import {
 } from '@oh-my-pi/pi-tui';
 import { getAgentDir, MAIN_CONFIG_FILENAMES } from '@oh-my-pi/pi-utils';
 
+type BunRuntime = {
+  stripANSI(text: string): string;
+  YAML: { parse(text: string): unknown };
+};
+const bunRuntime = (globalThis as typeof globalThis & { Bun: BunRuntime }).Bun;
+
 const SYMBOLS = {
-  atlas: '▲',
   omp: 'π',
   contextCell: '⛁'
 } as const;
@@ -88,7 +92,6 @@ export type StatusPalette = {
 };
 
 export type AtlasFooterState = {
-  atlasVersion: string;
   provider: string;
   model: string;
   thinking: string;
@@ -210,7 +213,7 @@ export function statusPaletteFromTheme(
 }
 
 export function sanitizeLabel(text: string): string {
-  return Bun.stripANSI(text)
+  return bunRuntime.stripANSI(text)
     .replace(/[\p{Cc}\p{Cf}]/gu, (character) =>
       character === '\r' || character === '\n' || character === '\t' ? ' ' : ''
     )
@@ -289,14 +292,6 @@ function mix(from: Rgb, to: Rgb, amount: number): Rgb {
   ];
 }
 
-async function readAtlasVersion(): Promise<string> {
-  try {
-    const version = await Bun.file(join(homedir(), '.claude', 'LIFEOS', 'VERSION')).text();
-    return sanitizeLabel(version) || '—';
-  } catch {
-    return '—';
-  }
-}
 
 function gitOutput(cwd: string, args: string[]): string | null {
   try {
@@ -360,7 +355,7 @@ export function calculateCacheHitPercent(usage: CacheUsage): number | null {
 // Session cache-hit rate from the session manager's cumulative usage snapshot.
 // The per-message session entries returned by getBranch() are a different shape
 // than the compaction module's Usage records, so read the aggregate snapshot
-// (input + cacheRead + cacheWrite) instead — the same fields calculateCacheHitPercent needs.
+// (input + cacheRead + cacheWrite) instead; the same fields calculateCacheHitPercent needs.
 export function sessionCacheHitPercent(
   sessionManager: { getUsageStatistics?: () => CacheUsage | undefined } | undefined
 ): number | null {
@@ -472,7 +467,7 @@ function cacheColor(percent: number, palette: StatusPalette): Rgb {
 
 
 type ResponsiveItem = {
-  key: 'atlas' | 'model' | 'omp' | 'path' | 'branch' | 'context' | 'cache';
+  key: 'model' | 'omp' | 'path' | 'branch' | 'context' | 'cache';
   content: string;
 };
 
@@ -499,7 +494,7 @@ function responsiveStatusLine(
   const right = renderStatusGroup(sourceRight, separator);
   const rightWidth = visibleWidth(right);
 
-  for (const key of ['path', 'omp', 'branch', 'atlas', 'model'] as const) {
+  for (const key of ['path', 'branch', 'model', 'omp'] as const) {
     const gapWidth = leftWidth > 0 && rightWidth > 0 ? 1 : 0;
     if (leftWidth + rightWidth + gapWidth <= width) break;
 
@@ -555,16 +550,12 @@ export function renderAtlasFooter(state: AtlasFooterState, terminalWidth: number
   )}`;
   const leftItems: ResponsiveItem[] = [
     {
-      key: 'atlas',
-      content: `${color(palette.brand, `${SYMBOLS.atlas} Atlas`)} ${color(palette.text, `v${sanitizeLabel(state.atlasVersion)}`)}`
+      key: 'omp',
+      content: `${color(palette.omp, SYMBOLS.omp)} ${color(palette.text, sanitizeLabel(state.ompVersion))}`
     },
     {
       key: 'model',
       content: `${providerModel} ${color(palette.path, NERD_FONT_ICONS.thinking)} ${color(palette.brand, thinking)}`
-    },
-    {
-      key: 'omp',
-      content: `${color(palette.omp, SYMBOLS.omp)} ${color(palette.text, sanitizeLabel(state.ompVersion))}`
     },
     {
       key: 'path',
@@ -614,7 +605,7 @@ export function renderExtensionStatusRows(
 function readStatusLineTransparency(): boolean {
   for (const filename of MAIN_CONFIG_FILENAMES) {
     try {
-      const config = Bun.YAML.parse(readFileSync(join(getAgentDir(), filename), 'utf8')) as {
+      const config = bunRuntime.YAML.parse(readFileSync(join(getAgentDir(), filename), 'utf8')) as {
         statusLine?: { transparent?: unknown };
       };
       return config.statusLine?.transparent === true;
@@ -636,8 +627,7 @@ function watchStatusLineConfig(onChange: () => void): FSWatcher | undefined {
   }
 }
 
-export default async function atlasStatusLine(omp: ExtensionAPI): Promise<void> {
-  const atlasVersion = await readAtlasVersion();
+export default function atlasStatusLine(omp: ExtensionAPI): void {
   let requestRender: (() => void) | undefined;
   let restoreSetStatus: (() => void) | undefined;
   let removeWidget: (() => void) | undefined;
@@ -707,7 +697,6 @@ export default async function atlasStatusLine(omp: ExtensionAPI): Promise<void> 
           const usage = ctx.getContextUsage();
           const activeTheme = ctx.ui.theme;
           return {
-            atlasVersion,
             provider: ctx.model?.provider || 'no-provider',
             model: ctx.model?.id || 'no-model',
             thinking: omp.getThinkingLevel() || 'off',

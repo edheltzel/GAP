@@ -21,7 +21,7 @@
     "git:github.com/earendil-works/pi-review-loop",
     "../../Developer/Atlas/PiExtensions"
   ],
-  "theme": "atlas-eldritch",
+  "theme": "eldritch",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "quietStartup": true,

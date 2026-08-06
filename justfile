@@ -3,8 +3,7 @@ set shell := ["bash", "-cu"]
 stow_dir := justfile_directory()
 stow_target := env("HOME")
 stow_cmd := "stow -d " + stow_dir + " -t " + stow_target
-pkgs := "claude"
-no_folding_pkgs := "omp pi jcode"
+no_folding_pkgs := "claude omp pi jcode"
 
 yellow := '\033[33m'
 green := '\033[32m'
@@ -23,7 +22,7 @@ prune-broken *packages:
     #!/usr/bin/env bash
     set -euo pipefail
     packages="{{ packages }}"
-    if [ -z "$packages" ]; then packages="{{ pkgs }} {{ no_folding_pkgs }}"; fi
+    if [ -z "$packages" ]; then packages="{{ no_folding_pkgs }}"; fi
     total=0
     for pkg in $packages; do
         flags=""
@@ -59,18 +58,17 @@ prune-broken *packages:
 update: jcode-filter prune-broken && skills-install omp-plugins-install
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ pkgs }}; do {{ stow_cmd }} --restow $pkg; done
     for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --restow $pkg; done
     echo -e "{{ green }}All packages restowed{{ clr }}"
 
 alias up := update
 
-# Restow the claude package only
+# Restow the Claude package only (no-folding)
 [group('stow')]
 claude: (prune-broken "claude")
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --restow claude
+    {{ stow_cmd }} --no-folding --restow claude
     echo -e "{{ green }}claude restowed{{ clr }}"
 
 # Restow the OMP package and provision its marketplace plugins
@@ -102,16 +100,14 @@ jcode: jcode-filter (prune-broken "jcode")
 link: jcode-filter prune-broken && skills-install omp-plugins-install
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ pkgs }}; do {{ stow_cmd }} $pkg; done
     for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding $pkg; done
-    echo -e "{{ green }}Packages linked: {{ pkgs }} {{ no_folding_pkgs }}{{ clr }}"
+    echo -e "{{ green }}Packages linked: {{ no_folding_pkgs }}{{ clr }}"
 
 # Remove all symlinks
 [group('stow')]
 unlink:
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ pkgs }}; do {{ stow_cmd }} --delete $pkg; done
     for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --delete $pkg; done
     echo -e "{{ white }}All package symlinks removed{{ clr }}"
 
@@ -145,7 +141,6 @@ status:
             done
         echo ""
     }
-    for pkg in {{ pkgs }}; do report "$pkg"; done
     for pkg in {{ no_folding_pkgs }}; do report $pkg --no-folding; done
 
 # List declared skills (skills.txt) grouped by repo with install status

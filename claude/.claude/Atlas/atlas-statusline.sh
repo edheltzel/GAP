@@ -30,7 +30,7 @@ SETTINGS_FILE="$ATLAS_DIR/settings.json"
 MODEL_CACHE="$ATLAS_DIR/MEMORY/STATE/model-cache.txt"
 EXTRA_USAGE_CACHE="$ATLAS_DIR/MEMORY/STATE/extra-usage-cache.json"
 
-# Extra usage cache TTL — only for Max plan overage (API-only field)
+# Extra usage cache TTL - only for Max plan overage (API-only field)
 EXTRA_USAGE_CACHE_TTL=300
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -44,10 +44,6 @@ if [ "${1:-}" = "--print-theme" ]; then
 else
   input=$(cat)
 fi
-
-# Get LifeOS version (canonical: LIFEOS/VERSION file, same source as LIFEOS_StatusLine.sh)
-ATLAS_VERSION=$(tr -d '[:space:]' < "$ATLAS_DIR/LIFEOS/VERSION" 2>/dev/null)
-ATLAS_VERSION="${ATLAS_VERSION:-—}"
 
 # Extract all data from JSON in single jq call
 eval "$(echo "$input" | jq -r '
@@ -106,7 +102,7 @@ cc_version="${cc_version_json:-}"
 # Session name (Claude Code's live session registry, matched by sessionId).
 # Rendered as a right-aligned chip on the usage row. Claude Code's native prompt
 # bar shows the same name, but only once the session has a /color set, so we draw
-# it here too — unconditionally — as the always-visible copy.
+# it here too - unconditionally - as the always-visible copy.
 SESSION_LABEL=""
 if [ -n "$session_id" ]; then
   SESSION_LABEL=$(jq -r --arg sid "$session_id" 'select(.sessionId==$sid) | .name // empty' "$ATLAS_DIR"/sessions/*.json 2>/dev/null | head -1)
@@ -134,14 +130,14 @@ if [ "$has_rate_limits" = "true" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EXTRA USAGE (API-only — Max plan overage, fetched with long cache)
+# EXTRA USAGE (API-only - Max plan overage, fetched with long cache)
 # ─────────────────────────────────────────────────────────────────────────────
 
 extra_display=""
 if [ -f "$EXTRA_USAGE_CACHE" ]; then
   cache_age=$(($(date +%s) - $(stat -f %m "$EXTRA_USAGE_CACHE" 2>/dev/null || echo 0)))
   if [ "$cache_age" -gt "$EXTRA_USAGE_CACHE_TTL" ]; then
-    # Refresh in background — non-blocking
+    # Refresh in background - non-blocking
     {
       keychain_data=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)
       token=$(echo "$keychain_data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('claudeAiOauth',{}).get('accessToken',''))" 2>/dev/null)
@@ -220,7 +216,7 @@ fi
 # COLOR PALETTE
 # ─────────────────────────────────────────────────────────────────────────────
 # Multi-theme: Eldritch (dark), Vesper (dark warm-mono), Rosé Pine Dawn (light),
-# Catppuccin Latte (light) and Catppuccin Mocha (dark — covers frappe/macchiato/mocha).
+# Catppuccin Latte (light) and Catppuccin Mocha (dark - covers frappe/macchiato/mocha).
 #
 # Resolution priority:
 #   1. settings.json override → "statusline": { "theme": "auto"|"light"|"dark"|"vesper" }
@@ -248,7 +244,7 @@ detect_appearance() {
     ;;
   esac
 
-  # Dotfiles theme-switcher state file — single source of truth when present
+  # Dotfiles theme-switcher state file - single source of truth when present
   local theme_state="$HOME/.config/theme-switcher/current"
   if [ -f "$theme_state" ]; then
     case "$(cat "$theme_state" 2>/dev/null)" in
@@ -421,7 +417,7 @@ elif [ "$STATUSLINE_THEME" = "catppuccin-light" ]; then
   USAGE_TIER_CRIT="$ROSE"
 
 elif [ "$STATUSLINE_THEME" = "catppuccin-dark" ]; then
-  # ── Catppuccin Mocha (dark — frappe/macchiato/mocha) ──────────────────────────────────────────────
+  # ── Catppuccin Mocha (dark - frappe/macchiato/mocha) ──────────────────────────────────────────────
   # text:#cdd6f4  subtext0:#a6adc8  surface1:#45475a
   # green:#a6e3a1  red:#f38ba8  mauve:#cba6f7  sky:#89dceb  peach:#fab387  pink:#f5c2e7  yellow:#f9e2af
 
@@ -679,7 +675,7 @@ render_context_bar() {
 }
 
 # Render the shared tail of LINE 2: context bar + percentage, then cache hit rate.
-# Identical across every width mode — only the bar width differs.
+# Identical across every width mode - only the bar width differs.
 # Reads display_pct, ctx_warn, pct_color, cache_total, cache_hit_rate from scope.
 render_ctx_cache_tail() {
   local bar_width=$1 ctx_bar cache_num_color
@@ -693,7 +689,7 @@ render_ctx_cache_tail() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LINE 1: ATLAS HEADER
+# LINE 1: HEADER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Display just the directory basename (e.g., /atlas-config)
@@ -703,7 +699,7 @@ if [ ${#dir_display} -gt 20 ]; then
   dir_display="${dir_display:0:19}…"
 fi
 
-# Get current git branch (runs each refresh — always up to date)
+# Get current git branch (runs each refresh - always up to date)
 # Middle-truncate to 24 chars (head + … + tail) to preserve date suffixes
 # on worktree branches like `worktree-pai-upgrade-2026-04-17`.
 git_branch=$(git -C "$current_dir" rev-parse --abbrev-ref HEAD 2>/dev/null)
@@ -717,7 +713,11 @@ if [ -n "$git_branch" ]; then
   git_display_plain=" · ${NF_BRANCH} ${git_branch}"
 fi
 
-# Build version suffix: model + CC version
+# Claude Code version leads the statusline: ✱ icon + version from stdin JSON
+cc_display="${CC_ICON}✱ ${SLATE_300}${cc_version:-?}${RESET}"
+cc_display_plain="✱ ${cc_version:-?}"
+
+# Build version suffix: model
 ver_suffix=""
 ver_suffix_plain=""
 ver_suffix="${PAI_A}${model_name_short}${RESET}"
@@ -730,13 +730,9 @@ ver_suffix_plain="${model_name_short}"
   ver_suffix="${ver_suffix} ${SLATE_500}⚡${effort_level}${RESET}"
   ver_suffix_plain="${ver_suffix_plain} ⚡${effort_level}"
 }
-[ -n "$cc_version" ] && {
-  ver_suffix="${ver_suffix} ${SLATE_600}·${RESET} ${CC_ICON}✱ ${SLATE_300}${cc_version}${RESET}"
-  ver_suffix_plain="${ver_suffix_plain} · ${cc_version}"
-}
 
 # Build context tags (worktree, agent, output style) for header
-# Skip worktree tag when it duplicates the cwd basename (common case — the worktree
+# Skip worktree tag when it duplicates the cwd basename (common case - the worktree
 # folder IS the cwd, so showing both is redundant).
 ctx_tags=""
 ctx_tags_plain=""
@@ -756,16 +752,16 @@ cwd_basename="${current_dir##*/}"
 
 case "$MODE" in
 nano)
-  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
+  printf "${cc_display} ${SLATE_600}·${RESET} ${ver_suffix}\n"
   ;;
 micro)
-  # Identity on line 1, location (pwd + branch) on line 2 — avoids wrap at narrow widths.
-  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
+  # Identity on line 1, location (pwd + branch) on line 2 - avoids wrap at narrow widths.
+  printf "${cc_display} ${SLATE_600}·${RESET} ${ver_suffix}\n"
   printf "${DIR_DISPLAY}${dir_display}${RESET}${git_display}\n"
   ;;
 mini)
   # Identity on line 1, location + context tags on line 2.
-  printf "${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix}\n"
+  printf "${cc_display} ${SLATE_600}·${RESET} ${ver_suffix}\n"
   printf "${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags}\n"
   ;;
 *)
@@ -775,10 +771,10 @@ mini)
   # longer duplicate it here.
   #
   # Header is built into h_out (colored, no trailing dashes) with its plain width
-  # in h_plain_len, then printed in the LINE 2 normal case — joined onto one line
+  # in h_plain_len, then printed in the LINE 2 normal case - joined onto one line
   # when header+usage fit the terminal width, else split across two lines.
-  local_left="▲ Atlas v${ATLAS_VERSION} · ${ver_suffix_plain} · ${dir_display}${git_display_plain}${ctx_tags_plain}"
-  h_out="${GREET_PRIMARY}▲ Atlas ${SLATE_300}v${ATLAS_VERSION}${RESET} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags}"
+  local_left="${cc_display_plain} · ${ver_suffix_plain} · ${dir_display}${git_display_plain}${ctx_tags_plain}"
+  h_out="${cc_display} ${SLATE_600}·${RESET} ${ver_suffix} ${SLATE_600}·${RESET} ${DIR_DISPLAY}${dir_display}${RESET}${git_display}${ctx_tags}"
   h_plain_len=${#local_left}
   ;;
 esac

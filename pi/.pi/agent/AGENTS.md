@@ -58,8 +58,8 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 
 ## THEME
 
-- `themes/atlas-eldritch.json` is Pi's curated Eldritch theme; `settings.json`
-  selects it by name.
+- `themes/eldritch.json` is Pi's curated Eldritch theme; `settings.json` selects
+  `eldritch` by name.
 - Keep its reusable palette aligned with the Claude and OMP Eldritch themes while
   mapping only Pi-supported semantic tokens.
 - Validate theme changes against Pi's installed schema and loader. Apply them with
@@ -68,7 +68,8 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 ## STATUS LINE
 
 - `extensions/atlas-status-line.ts` owns Pi's global custom footer; `claude/.claude/Atlas/atlas-statusline.sh` is its canonical visual and information-design reference.
-- Keep the display order Atlas/version → provider/model/thinking → Pi/version → directory/branch → context meter/cache.
+- Keep the display order Pi/version → provider/model/thinking → directory/branch → context meter/cache.
+- Never read or render the removed `LIFEOS/VERSION` or Atlas/LifeOS identity.
 - Render the working directory as `…/<parent>/<current>`; do not expose the full path.
 - Match the Claude line's 24-cell `⛁` context meter at normal widths, responsive smaller meters at narrow widths, and whole-number context percentage from `ctx.getContextUsage()`.
 - Cache percentage is the latest successful assistant prompt's `cacheRead / (input + cacheRead + cacheWrite)`, rounded to a whole percent.
