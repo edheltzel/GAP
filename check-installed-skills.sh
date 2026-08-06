@@ -14,6 +14,7 @@ native_source="${NATIVE_SKILLS_SOURCE:-$repo_root/claude/.claude/skills}"
 pi_settings="${PI_SETTINGS:-$repo_root/pi/.pi/agent/settings.json}"
 pi_extensions_root="${PI_EXTENSIONS_ROOT:-$(dirname "$canonical_root")/PiExtensions}"
 pi_extensions_registration="${PI_EXTENSIONS_REGISTRATION:-../../Developer/Atlas/PiExtensions}"
+pi_command="${PI_COMMAND:-pi}"
 errors=0
 checked=0
 
@@ -134,8 +135,27 @@ else
 		fail "Pi anti-slop registration: retired local-packages/pi-extensions entry remains in $pi_settings"
 	fi
 fi
+if ! command -v "$pi_command" >/dev/null 2>&1 && [ ! -x "$pi_command" ]; then
+	fail "Pi anti-slop discovery: Pi command is unavailable: $pi_command"
+elif ! pi_list_output="$("$pi_command" list 2>&1)"; then
+	fail "Pi anti-slop discovery: pi list failed: $pi_list_output"
+else
+	discovered_registration_count=0
+	discovered_root_count=0
+	while IFS= read -r output_line; do
+		output_line="$(trim_whitespace "$output_line")"
+		[ "$output_line" = "$pi_extensions_registration" ] && discovered_registration_count=$((discovered_registration_count + 1))
+		[ "$output_line" = "$pi_extensions_root" ] && discovered_root_count=$((discovered_root_count + 1))
+	done <<<"$pi_list_output"
+	if [ "$discovered_registration_count" -ne 1 ] || [ "$discovered_root_count" -ne 1 ]; then
+		fail "Pi anti-slop discovery: pi list must resolve exactly one $pi_extensions_registration entry to $pi_extensions_root"
+	fi
+fi
 for name in "${pi_anti_slop_skills[@]}"; do
 	check_skill "$pi_extensions_root/packages/pi-anti-slop/skills/$name" "PiExtensions native package"
+	if [ -e "$HOME/.pi/agent/skills/$name" ] || [ -L "$HOME/.pi/agent/skills/$name" ]; then
+		fail "Pi anti-slop discovery: duplicate physical skill must be removed: $HOME/.pi/agent/skills/$name"
+	fi
 done
 
 if [ ! -d "$native_source" ]; then
@@ -160,7 +180,7 @@ for root in "${roots[@]}"; do
 	[ -d "$root" ] || [ -L "$root" ] || continue
 	while IFS= read -r dangling; do
 		fail "dangling link under managed skill root: $dangling"
-	done < <(find "$root" -type l ! -exec test -e {} \; -print)
+	done < <(find -L "$root" -type l ! -exec test -e {} \; -print)
 done
 
 if [ "$errors" -ne 0 ]; then

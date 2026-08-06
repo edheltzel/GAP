@@ -82,11 +82,16 @@ if ! grep -Fq '\.claude/skills/recall-(add|dump|recent|scout|search)' "$repo_roo
 	exit 1
 fi
 
-actual="$(find "$skills_root" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | LC_ALL=C sort)"
-expected_sorted="$(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)"
-if [ "$actual" != "$expected_sorted" ]; then
-	printf 'native skill inventory differs from the maintained recovery set\n' >&2
-	diff -u <(printf '%s\n' "$expected_sorted") <(printf '%s\n' "$actual") >&2 || true
+actual_entries="$(find "$skills_root" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort)"
+expected_entries="$({ printf '%s\n' "${expected[@]}"; printf '%s\n' CLAUDE.md; } | LC_ALL=C sort)"
+if [ "$actual_entries" != "$expected_entries" ]; then
+	printf 'native skill root contains missing or unexpected entries\n' >&2
+	diff -u <(printf '%s\n' "$expected_entries") <(printf '%s\n' "$actual_entries") >&2 || true
+	exit 1
+fi
+untracked="$(git -C "$repo_root" ls-files --others --exclude-standard -- claude/.claude/skills)"
+if [ -n "$untracked" ]; then
+	printf 'native skill snapshot contains untracked installable content:\n%s\n' "$untracked" >&2
 	exit 1
 fi
 

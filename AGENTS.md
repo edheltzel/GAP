@@ -105,7 +105,7 @@ The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and
 | `pi` | `pi/.pi/agent/` | `~/.pi/agent/` | Curated Pi config only; stowed with `--no-folding` so runtime state stays local |
 | `omp` | `omp/.omp/agent/` | `~/.omp/agent/` | Curated OMP-native config only; stowed with `--no-folding` so generated integrations and runtime state stay local |
 | `jcode` | `jcode/.jcode/` | `~/.jcode/` | Curated portable preferences only; stowed with `--no-folding` so runtime state stays local |
-| Native Claude skills/agents | `claude/.claude/{skills,agents}/` | `~/.claude/{skills,agents}/` | Exact curated snapshot from the final LifeOS-removal lineage |
+| Native Claude skills/agents | `claude/.claude/{skills,agents}/` | `~/.claude/{skills,agents}/` | Curated 48-directory recovery snapshot; Config stows 43 active skills and preserves five Recall-owned pointer records |
 | Shared skills | `skills.txt`, `install-skills.sh` | skills.sh global install targets | External skills provisioned across detected harnesses |
 | OMP plugins | `omp-plugins.txt`, `install-omp-plugins.sh` | `~/.omp/plugins/` | Manifest-declared user-scoped OMP marketplace plugins; installed registry and caches stay local |
 
@@ -151,7 +151,7 @@ Detection depends on stow's conflict wording (`existing target is not owned by s
 ## When adding files
 
 - Adding to `claude/.claude/`, `omp/.omp/agent/`, `pi/.pi/agent/`, or `jcode/.jcode/` → run `just up` to restow, provision native Claude tools, and install both tracked manifests.
-- Jcode runtime state (`auth*.json`, sessions, memory, caches, models, telemetry, browser/hotkey assets, logs, builds, and machine-specific MCP output) stays in the real `~/.jcode`, not in atlas-config.
+- Jcode runtime state (`auth*.json`, sessions, memory, caches, models, telemetry, browser/hotkey assets, logs, builds, machine-specific MCP output, and its local `skills/` cache) stays in the real `~/.jcode`, not in atlas-config. The current skills.sh CLI has no Jcode target; validate manifest skills through their shared `~/.agents/skills` store rather than requiring duplicate Jcode copies.
 - Adding, removing, or changing native Claude skills or agents → edit `claude/.claude/{skills,agents}/`, add or update a focused behavior test, run `tests/claude/native-skills-snapshot.test.sh`, then run `just claude` from the canonical clone. Native tool package directories must include a committed Bun lockfile and appear in `install-native-skill-tools.sh`.
 - Adding, removing, or changing shared skills → edit `skills.txt`, then run `just skills-status` and `just skills-install`.
 - Adding, removing, or changing OMP marketplace plugins → edit `omp-plugins.txt`, then run `just omp-plugins-status` and `just omp-plugins-install`.
@@ -172,7 +172,7 @@ Detection depends on stow's conflict wording (`existing target is not owned by s
 
 ### Skill stores
 
-Two skill stores coexist. The native Claude inventory recovered from the LifeOS-removal lineage lives directly under `claude/.claude/skills/`; this repository maintains that tree. External skills are manifest-managed through `skills.txt`, which accepts remote `owner/repo[#immutable-commit]` sources and pinned `local:path#immutable-commit` sibling sources. `|upstream/path|git-blob-sha` records one selected skill's integrity; a final `|agents=name,name` limits harness ownership. Do not track top-level shared-skill symlinks in the Claude Stow package. `install-skills.sh` prepares immutable disposable checkouts and rejects installed-byte drift.
+Two skill stores coexist. The Claude recovery snapshot contains 48 source directories under `claude/.claude/skills/`: Config actively stows 43 and preserves five ignored Recall pointer records for lineage evidence. External skills, including the five active Recall runtime copies, are manifest-managed through `skills.txt`, which accepts remote `owner/repo[#immutable-commit]` sources and pinned `local:path#immutable-commit` sibling sources. `|upstream/path|git-blob-sha` records one selected skill's integrity; a final `|agents=name,name` limits harness ownership. Do not track top-level shared-skill symlinks in the Claude Stow package. `install-skills.sh` prepares immutable disposable checkouts and rejects installed-byte drift.
 
 Maintain recovered native skills through focused, behavior-backed changes. Do not preserve removed LifeOS machinery when a current harness adapter or explicit fail-closed boundary can replace it. `docs/agents/native-claude-skills.md` records pointer exceptions, external ownership, and verification.
 

@@ -5,12 +5,13 @@ stows its repository-owned contents to `~/.claude/skills/`.
 
 ## Ownership
 
-- The repository owns the 48 native skill directories asserted by
-  `tests/claude/native-skills-snapshot.test.sh`.
+- The repository preserves the 48-directory recovery snapshot asserted by
+  `tests/claude/native-skills-snapshot.test.sh`; Config actively owns and stows 43 of those
+  skills.
 - Five snapshot directories (`recall-add`, `recall-dump`, `recall-recent`, `recall-scout`,
-  and `recall-search`) preserve absolute pointers into Recall's shared installation. Stow
-  ignores those directories because GNU Stow rejects absolute source links; Recall owns
-  their runtime links under `~/.claude/skills/`.
+  and `recall-search`) are lineage records containing absolute pointers into Recall's shared
+  installation. Stow ignores them because GNU Stow rejects absolute source links; Recall and
+  `skills.txt` own their active runtime links under `~/.claude/skills/`.
 - `skills.txt` separately owns external skills with explicit per-entry harness targets when
   ownership differs. Top-level external-skill symlinks must not be tracked or Stowed from
   `claude/.claude/skills/`; skills.sh creates runtime installations after restoration.
@@ -87,5 +88,8 @@ just ownership-status
 
 After merging into the canonical clone, run `just up` to restow native skills, provision
 native tool dependencies, and install external skills. Do not restow from a disposable
-worktree. A complete live validation requires every declared skill to resolve under
-`~/.claude/skills/` and zero dangling links under the managed harness directories.
+worktree. A complete live validation requires every declared Claude skill to resolve under
+`~/.claude/skills/`, Pi's anti-slop package to appear exactly once in `pi list`, and zero
+dangling links under the managed harness directories. Jcode's local `~/.jcode/skills/`
+cache is runtime-owned and is not a skills.txt target; the current skills.sh CLI exposes no
+Jcode agent target.

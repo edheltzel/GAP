@@ -44,7 +44,10 @@ if [ "$(git -C "$repo_root" config --get merge.ours.driver)" != 'true' ]; then
 fi
 
 HOME="$temp_home" "${just_cmd[@]}" stow-preflight >/dev/null
-HOME="$temp_home" "${just_cmd[@]}" status >/dev/null
+if HOME="$temp_home" "${just_cmd[@]}" status >/dev/null 2>&1; then
+	printf 'status accepted an inactive package installation\n' >&2
+	exit 1
+fi
 space_home="$temp_home/home with spaces"
 mkdir -p "$space_home"
 HOME="$space_home" "${just_cmd[@]}" stow-preflight >/dev/null
@@ -95,12 +98,13 @@ for pkg in claude omp pi jcode; do
 	stow -d "$repo_root" -t "$temp_home" --no-folding --restow "$pkg"
 done
 
-for dir in "$temp_home/.claude" "$temp_home/.omp" "$temp_home/.pi/agent" "$temp_home/.jcode"; do
+for dir in "$temp_home/.claude" "$temp_home/.omp" "$temp_home/.pi/agent" "$temp_home/.jcode" "$temp_home/.jcode/rules"; do
 	if [ ! -d "$dir" ] || [ -L "$dir" ]; then
 		printf 'no-folding package directory is not real: %s\n' "$dir" >&2
 		exit 1
 	fi
 done
+HOME="$temp_home" "${just_cmd[@]}" status >/dev/null
 
 [ -f "$temp_home/.claude/Atlas/atlas-statusline.sh" ]
 [ -f "$temp_home/.omp/agent/extensions/atlas-status-line.ts" ]
@@ -111,12 +115,25 @@ if find "$temp_home/.claude" \( -type d -o -type l \) -name node_modules -print 
 	exit 1
 fi
 
-dangling="$(find "$temp_home/.claude" "$temp_home/.omp" "$temp_home/.pi" "$temp_home/.jcode" \
-	-type l ! -path "$temp_home/.omp/agent/extensions/echo-voice" ! -exec test -e {} \; -print)"
-if [ -n "$dangling" ]; then
-	printf 'temporary all-package installation contains dangling links:\n%s\n' "$dangling" >&2
+echo_runtime="$temp_home/.omp/agent/extensions/echo-voice"
+echo_source="$repo_root/omp/.omp/agent/extensions/echo-voice"
+git_common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir)"
+canonical_root="${git_common_dir%/.git}"
+while IFS= read -r dangling; do
+	if [ "$dangling" = "$echo_runtime" ] &&
+		[ "$repo_root" != "$canonical_root" ] &&
+		[ -L "$echo_source" ] &&
+		[ "$(readlink "$echo_source")" = '../../../../../Echo/adapters/omp' ] &&
+		[ -d "$canonical_root/omp/.omp/agent/extensions/echo-voice" ]; then
+		# This source-owned relative link is valid only at the canonical clone's
+		# documented depth. A disposable worktree may verify that exact canonical
+		# counterpart instead, but no other dangling fixture is excused.
+		continue
+	fi
+	printf 'temporary all-package installation contains dangling link: %s\n' "$dangling" >&2
 	exit 1
-fi
+done < <(find "$temp_home/.claude" "$temp_home/.omp" "$temp_home/.pi" "$temp_home/.jcode" \
+	-type l ! -exec test -e {} \; -print)
 
 for recipe in update link unlink status; do
 	dry_run="$("${just_cmd[@]}" --dry-run "$recipe" 2>&1)"

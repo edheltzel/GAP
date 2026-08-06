@@ -143,18 +143,30 @@ unlink:
     for pkg in {{ no_folding_pkgs }}; do stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --delete "$pkg"; done
     echo -e "{{ white }}All package symlinks removed{{ clr }}"
 
-# Show every managed symlink and fail loudly on Stow ownership conflicts
+# Summarize managed links and fail on conflicts, inactive links, or broken targets
 [group('stow')]
 status:
     #!/usr/bin/env bash
     set -euo pipefail
-    g='{{ green }}'; r='{{ red }}'; w='{{ white }}'; c='{{ cyan }}'; z='{{ clr }}'
+    g='{{ green }}'; r='{{ red }}'; c='{{ cyan }}'; z='{{ clr }}'
     failed=0
+    git_common_dir="$(git -C "$ATLAS_STOW_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    canonical_root="${git_common_dir%/.git}"
+    worktree_echo_source_is_valid() {
+        local path="$1"
+        local source="$ATLAS_STOW_DIR/omp/.omp/agent/extensions/echo-voice"
+        [ "$path" = '.omp/agent/extensions/echo-voice' ] &&
+            [ "$ATLAS_STOW_DIR" != "$canonical_root" ] &&
+            [ -L "$source" ] &&
+            [ "$(readlink "$source")" = '../../../../../Echo/adapters/omp' ] &&
+            [ -d "$canonical_root/omp/.omp/agent/extensions/echo-voice" ]
+    }
     report() {
         local pkg="$1"; shift
-        local note="" output
+        local note="" output rest path target
+        local active=0 canonical_only=0
         [ $# -gt 0 ] && note=" (no-folding)"
-        echo -e "${c}Package: $pkg$note${z}"
+        printf "${c}Package: %s%s${z}\n" "$pkg" "$note"
         if ! output="$(stow -d "$ATLAS_STOW_DIR" -t "$HOME" "$@" --restow -n -v "$pkg" 2>&1)"; then
             printf "  ${r}CONFLICT${z}    Stow rejected package %s\n" "$pkg" >&2
             printf '%s\n' "$output" >&2
@@ -166,18 +178,23 @@ status:
             rest="${line#LINK: }"
             path="${rest%% => *}"
             target="$HOME/$path"
-            if [ -L "$target" ]; then
-                if [ -e "$target" ]; then
-                    printf "  ${g}ACTIVE${z}      %s\n" "$path"
-                else
-                    printf "  ${r}BROKEN${z}      %s\n" "$path"
-                    failed=1
-                fi
+            if [ -L "$target" ] && [ -e "$target" ]; then
+                active=$((active + 1))
+            elif [ -L "$target" ] && worktree_echo_source_is_valid "$path"; then
+                canonical_only=$((canonical_only + 1))
+            elif [ -L "$target" ]; then
+                printf "  ${r}BROKEN${z}      %s\n" "$path"
+                failed=1
             else
-                printf "  ${w}NOT ACTIVE${z}  %s\n" "$path"
+                printf "  ${r}NOT ACTIVE${z}  %s\n" "$path"
+                failed=1
             fi
         done < <(printf '%s\n' "$output" | grep '^LINK: ' || true)
-        echo ""
+        printf "  ${g}ACTIVE${z}      %s managed link(s)" "$active"
+        if [ "$canonical_only" -ne 0 ]; then
+            printf "; %s canonical-only Echo link verified from this worktree" "$canonical_only"
+        fi
+        printf '\n\n'
     }
     for pkg in {{ no_folding_pkgs }}; do report $pkg --no-folding; done
     if [ "$failed" -ne 0 ]; then exit 1; fi

@@ -11,6 +11,7 @@ native="$tmp/native"
 pi_settings="$tmp/pi-settings.json"
 pi_extensions="$tmp/PiExtensions"
 pi_registration="test-pi-extensions-registration"
+pi_command="$tmp/pi"
 mkdir -p \
 	"$home/.agents/skills/shared" \
 	"$home/.claude/skills/anti-slop/scripts" \
@@ -24,6 +25,11 @@ done
 cat >"$pi_settings" <<EOF
 {"packages":["$pi_registration"]}
 EOF
+cat >"$pi_command" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' 'User packages:' '  $pi_registration' '    $pi_extensions'
+EOF
+chmod +x "$pi_command"
 printf '%s\n' '# shared' >"$home/.agents/skills/shared/SKILL.md"
 printf '%s\n' '# anti-slop' >"$home/.claude/skills/anti-slop/SKILL.md"
 printf '%s\n' '# native runtime' >"$home/.claude/skills/Native/SKILL.md"
@@ -42,7 +48,7 @@ EOF
 run_check() {
 	HOME="$home" SKILLS_MANIFEST="$manifest" NATIVE_SKILLS_SOURCE="$native" \
 		PI_SETTINGS="$pi_settings" PI_EXTENSIONS_ROOT="$pi_extensions" \
-		PI_EXTENSIONS_REGISTRATION="$pi_registration" \
+		PI_EXTENSIONS_REGISTRATION="$pi_registration" PI_COMMAND="$pi_command" \
 		"$repo_root/check-installed-skills.sh"
 }
 
@@ -72,6 +78,31 @@ fi
 grep -q 'PiExtensions native package: missing SKILL.md' "$tmp/pi-package.out"
 printf '%s\n' '# slop-verify' >"$pi_extensions/packages/pi-anti-slop/skills/slop-verify/SKILL.md"
 
+cat >"$pi_command" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' 'User packages:'
+EOF
+chmod +x "$pi_command"
+if run_check >"$tmp/pi-discovery.out" 2>&1; then
+	printf 'installed skill checker accepted missing Pi package discovery\n' >&2
+	exit 1
+fi
+grep -q 'pi list must resolve exactly one' "$tmp/pi-discovery.out"
+cat >"$pi_command" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' 'User packages:' '  $pi_registration' '    $pi_extensions'
+EOF
+chmod +x "$pi_command"
+
+mkdir -p "$home/.pi/agent/skills/anti-slop"
+printf '%s\n' '# duplicate' >"$home/.pi/agent/skills/anti-slop/SKILL.md"
+if run_check >"$tmp/pi-duplicate.out" 2>&1; then
+	printf 'installed skill checker accepted duplicate physical Pi anti-slop skill\n' >&2
+	exit 1
+fi
+grep -q 'duplicate physical skill must be removed' "$tmp/pi-duplicate.out"
+rm -rf "$home/.pi/agent/skills/anti-slop"
+
 cat >"$pi_settings" <<EOF
 {"packages":["$pi_registration","local-packages/pi-extensions"]}
 EOF
@@ -91,5 +122,15 @@ if run_check >"$tmp/dangling.out" 2>&1; then
 	exit 1
 fi
 grep -q 'dangling link under managed skill root' "$tmp/dangling.out"
+rm "$home/.jcode/skills/broken"
 
-printf 'PASS: installed skill checker rejects missing skills, package registrations, and dangling links\n'
+mkdir -p "$tmp/external-skill"
+ln -s "$tmp/does-not-exist" "$tmp/external-skill/broken-descendant"
+ln -s "$tmp/external-skill" "$home/.jcode/skills/nested"
+if run_check >"$tmp/nested-dangling.out" 2>&1; then
+	printf 'installed skill checker ignored a dangling descendant behind a valid skill link\n' >&2
+	exit 1
+fi
+grep -q 'broken-descendant' "$tmp/nested-dangling.out"
+
+printf 'PASS: installed skill checker rejects missing skills, package discovery drift, duplicates, and dangling links\n'
