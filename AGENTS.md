@@ -87,11 +87,11 @@ Default section order:
 
 The LifeOS runtime and system tree were removed on 2026-07-31. Local `USER` and `MEMORY` data survive under `~/.claude/LIFEOS/`, so recovered historical skills may still read those trees. No active status line or current contract may depend on the removed `LIFEOS/VERSION` or `LIFEOS/TOOLS`.
 
-The recovered native Claude snapshot is preserved exactly from the final unmerged cleanup lineage. Preservation does not certify that every legacy command is standalone; some skills intentionally retain references to removed LifeOS machinery pending separate adaptation.
+The native Claude inventory is derived from the final unmerged cleanup lineage, then maintained against current harness contracts. Focused tests reject operational references to removed LifeOS machinery and retired task APIs.
 
 ## Scope
 
-**atlas-config is single-machine-canonical.** The `merge=ours` rules on `claude/.claude/settings.json`, `pi/.pi/agent/settings.json`, and `omp/.omp/agent/config.yml` (see `.gitattributes`) mean changes to those files do not propagate across machines via `git pull`; local edits always win. `just jcode-filter` registers the required repository-local `merge.ours.driver` along with Jcode's clean filter. Multi-machine sync requires explicit `git checkout origin/master -- <path>` on the receiving Mac, then a re-personalization pass if needed. This is intentional: these settings files carry per-session mutating fields (`counts`, `feedbackSurveyState.lastShownTime`, UI/model/package prefs) that would otherwise churn the repo.
+**atlas-config is single-machine-canonical.** The `merge=ours` rules on `claude/.claude/settings.json`, `pi/.pi/agent/settings.json`, and `omp/.omp/agent/config.yml` (see `.gitattributes`) preserve local versions only when Git performs a merge that invokes the driver. A fast-forward that changes one of these tracked files can stop on local modifications; it does not invoke `merge=ours`. Before updating, capture a patch and restore the machine-local file explicitly when the incoming tree changes it. `just jcode-filter` registers the required repository-local `merge.ours.driver` along with Jcode's clean filter. Multi-machine sync requires an explicit checkout of the remote path followed by re-personalization. This is intentional: these settings files carry per-session mutating fields (`counts`, `feedbackSurveyState.lastShownTime`, UI/model/package prefs) that would otherwise churn the repo.
 
 The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and the Recall MEMORY/ vault (`~/.agents/Recall/MEMORY/`) also live **outside** atlas-config; they are out-of-band like `~/.env`. Cold-archive these to an external location on a schedule (1Password vault, Time Machine, external drive); they are the only USER content not in git.
 
@@ -204,7 +204,7 @@ Five canonical triage roles using default label strings (`needs-triage`, `needs-
 
 ### OMP config
 
-OMP-native config is stowed from `omp/.omp/agent/` to `~/.omp/agent/`. Track authored config only; keep runtime DBs, sessions, blobs, memories, and secrets local. OMP rewrites `config.yml`, so its `merge=ours` rule preserves machine-local provider, model-role, and UI preferences. Published OMP releases are canonical: install them with `omp update`; never restore a local source link, downstream patch branch, or an older pinned release. See `docs/agents/omp.md`.
+OMP-native config is stowed from `omp/.omp/agent/` to `~/.omp/agent/`. Track authored config only; keep runtime DBs, sessions, blobs, memories, and secrets local. OMP rewrites `config.yml`; its `merge=ours` rule protects machine-local provider, model-role, and UI preferences during real merges, not fast-forwards. Patch and restore local changes explicitly when an incoming fast-forward changes the tracked file. Published OMP releases are canonical: install them with `omp update`; never restore a local source link, downstream patch branch, or an older pinned release. See `docs/agents/omp.md`.
 
 ### Domain docs
 

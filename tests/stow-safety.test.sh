@@ -45,6 +45,9 @@ fi
 
 HOME="$temp_home" "${just_cmd[@]}" stow-preflight >/dev/null
 HOME="$temp_home" "${just_cmd[@]}" status >/dev/null
+space_home="$temp_home/home with spaces"
+mkdir -p "$space_home"
+HOME="$space_home" "${just_cmd[@]}" stow-preflight >/dev/null
 if grep -Fq '"local-packages/pi-extensions"' "$repo_root/pi/.pi/agent/settings.json"; then
   printf 'tracked Pi settings still register the retired local package path\n' >&2
   exit 1
@@ -71,6 +74,22 @@ if [ -L "$temp_home/.jcode/preferred_terminal.json" ]; then
 	printf 'prune-broken did not remove a Stow-blocking dangling link\n' >&2
 	exit 1
 fi
+
+mkdir -p "$temp_home/.claude/skills/Apify"
+ln -s missing "$temp_home/.claude/skills/Apify/node_modules"
+HOME="$temp_home" "${just_cmd[@]}" prune-native-dependency-links >/dev/null
+if [ -L "$temp_home/.claude/skills/Apify/node_modules" ]; then
+	printf 'native dependency pruning left a dangling ignored node_modules link\n' >&2
+	exit 1
+fi
+mkdir -p "$temp_home/external/valid-node-modules"
+ln -s "$temp_home/external/valid-node-modules" "$temp_home/.claude/skills/Apify/node_modules"
+HOME="$temp_home" "${just_cmd[@]}" prune-native-dependency-links >/dev/null
+if [ ! -e "$temp_home/.claude/skills/Apify/node_modules" ]; then
+	printf 'native dependency pruning removed a valid node_modules link\n' >&2
+	exit 1
+fi
+rm "$temp_home/.claude/skills/Apify/node_modules"
 
 for pkg in claude omp pi jcode; do
 	stow -d "$repo_root" -t "$temp_home" --no-folding --restow "$pkg"
@@ -109,11 +128,12 @@ for recipe in update link unlink status; do
 	done
 	case "$recipe" in
 	update | link)
+		prune_dependencies_line="$(grep -n -m1 './prune-stale-native-dependency-links.sh' <<<"$dry_run" | cut -d: -f1)"
 		preflight_line="$(grep -n -m1 'Stow preflight passed' <<<"$dry_run" | cut -d: -f1)"
 		native_tools_line="$(grep -n -m1 './install-native-skill-tools.sh' <<<"$dry_run" | cut -d: -f1)"
 		manifest_line="$(grep -n -m1 './install-skills.sh' <<<"$dry_run" | cut -d: -f1)"
-		if [ -z "$preflight_line" ] || [ -z "$native_tools_line" ] || [ -z "$manifest_line" ] ||
-			[ "$preflight_line" -ge "$native_tools_line" ] || [ "$native_tools_line" -ge "$manifest_line" ]; then
+		if [ -z "$prune_dependencies_line" ] || [ -z "$preflight_line" ] || [ -z "$native_tools_line" ] || [ -z "$manifest_line" ] ||
+			[ "$prune_dependencies_line" -ge "$preflight_line" ] || [ "$preflight_line" -ge "$native_tools_line" ] || [ "$native_tools_line" -ge "$manifest_line" ]; then
 			printf 'aggregate recipe %s does not preflight before native tool and manifest provisioning\n' "$recipe" >&2
 			exit 1
 		fi

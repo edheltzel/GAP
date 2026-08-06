@@ -23,6 +23,13 @@ MANIFEST="$SCRIPT_DIR/skills.txt"
 AGENTS="${SKILLS_AGENTS:-}" # override: SKILLS_AGENTS="claude-code,pi,codex"
 DRY_RUN=0
 
+trim_whitespace() {
+	local value="$1"
+	value="${value#"${value%%[![:space:]]*}"}"
+	value="${value%"${value##*[![:space:]]}"}"
+	printf '%s' "$value"
+}
+
 usage() {
 	cat <<'EOF'
 Usage: ./install-skills.sh [-n|--dry-run] [manifest]
@@ -190,7 +197,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 	# whitespace starts a comment, preserving `owner/repo#<commit>` safely.
 	if [[ "$line" =~ ^[[:space:]]*# ]]; then continue; fi
 	if [[ "$line" =~ ^(.*[^[:space:]])[[:space:]]+#.*$ ]]; then line="${BASH_REMATCH[1]}"; fi
-	line="$(printf '%s' "$line" | tr -d '[:space:]')" # manifest tokens carry no spaces
+	line="$(trim_whitespace "$line")"
 	[ -z "$line" ] && continue
 	source="${line%%=*}"
 	descriptor="${line#*=}"
@@ -210,7 +217,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 	local_source=''
 	if [[ "$source" == local:* ]]; then
 		local_token="${source#local:}"
-		if [ -z "$local_token" ] || [[ "$local_token" == *' '* ]]; then
+		if [ -z "$local_token" ]; then
 			printf '%sInvalid local source in manifest entry: %s%s\n' "$red" "$line" "$clr" >&2
 			failed+=("$line")
 			continue

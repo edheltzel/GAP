@@ -19,7 +19,7 @@ stows its repository-owned contents to `~/.claude/skills/`.
 - A sibling Firstmate checkout owns its 19 internal skills under `.agents/skills/` and its
   `.claude/skills -> ../.agents/skills` compatibility link. Their `metadata.internal: true`
   marker intentionally keeps them out of Config and `skills.txt`. `just ownership-status`
-  validates that external checkout when present and skips it when absent.
+  requires that checkout and fails if it is absent or incomplete.
 
 ## tldraw ownership
 
@@ -28,9 +28,9 @@ tldraw Desktop owns its installed skill, agent, commands, hooks, and bundled too
 `Develop > Install Agent Skills` menu. Atlas Config no longer tracks duplicate tldraw files.
 
 The app records declared files and hooks in
-`~/Library/Application Support/tldraw/agent-skills.json`. `just ownership-status` verifies
-all declared files, ownership markers, exact hook commands, and that no declared runtime
-artifact resolves into Atlas Config.
+`~/Library/Application Support/tldraw/agent-skills.json`. `just ownership-status` requires
+version 1.12.1's exact 12-file and two-hook inventory, ownership markers, matcher and command
+types, and confirms that no declared runtime artifact resolves into Atlas Config.
 
 ## Runtime boundaries
 
@@ -46,8 +46,11 @@ team expertise, TELOS documents, and WorldThreatModel model files.
 
 Repository-owned native tool dependencies install beside the real source files through
 `install-native-skill-tools.sh`. The locked package directories are `Agents/Tools`, `Apify`,
-`Art/Tools`, `Evals`, and `Prompting/Templates/Tools`. Never install dependencies through
-the Stowed runtime links.
+`Art/Tools`, `Evals`, and `Prompting/Templates/Tools`. Checks require Bun and jq, verify the
+frozen lockfile, and reject installed versions outside declared ranges. Never install
+dependencies through the Stowed runtime links. Stow ignores every nested `node_modules`
+path, while `prune-native-dependency-links` removes only dangling links hidden under those
+ignored runtime paths.
 
 ## External pointer reconciliation
 

@@ -1,8 +1,7 @@
 set shell := ["bash", "-cu"]
 
 stow_dir := justfile_directory()
-stow_target := env("HOME")
-stow_cmd := "stow -d " + stow_dir + " -t " + stow_target
+export ATLAS_STOW_DIR := stow_dir
 no_folding_pkgs := "claude omp pi jcode"
 
 yellow := '\033[33m'
@@ -32,7 +31,7 @@ prune-broken *packages:
         while :; do
             removed=0
             while IFS= read -r rel; do
-                link="{{ stow_target }}/$rel"
+                link="$HOME/$rel"
                 # Only ever remove a link that is BOTH stow-blocking and dangling.
                 # Real files and valid links pointing elsewhere are left for stow
                 # to report as genuine conflicts.
@@ -41,7 +40,7 @@ prune-broken *packages:
                     if command -v trash >/dev/null 2>&1; then trash "$link"; else rm "$link"; fi
                     removed=$((removed + 1))
                 fi
-            done < <({{ stow_cmd }} $flags -n --restow "$pkg" 2>&1 \
+            done < <(stow -d "$ATLAS_STOW_DIR" -t "$HOME" $flags -n --restow "$pkg" 2>&1 \
                 | sed -n 's/^ *\* existing target is not owned by stow: //p')
             total=$((total + removed))
             if [ "$removed" -eq 0 ]; then break; fi
@@ -52,6 +51,11 @@ prune-broken *packages:
     else
         echo -e "{{ green }}Pruned $total broken link(s){{ clr }}"
     fi
+
+# Remove dangling links hidden beneath ignored native Claude dependency paths
+[group('stow')]
+prune-native-dependency-links:
+    @./prune-stale-native-dependency-links.sh
 
 # Fail before mutation when any package has a genuine Stow ownership conflict
 [group('stow')]
@@ -64,7 +68,7 @@ stow-preflight *packages:
     for pkg in $packages; do
         flags=""
         case " {{ no_folding_pkgs }} " in *" $pkg "*) flags="--no-folding";; esac
-        if ! output="$({{ stow_cmd }} $flags -n --restow "$pkg" 2>&1)"; then
+        if ! output="$(stow -d "$ATLAS_STOW_DIR" -t "$HOME" $flags -n --restow "$pkg" 2>&1)"; then
             echo -e "{{ red }}Stow preflight failed for $pkg{{ clr }}" >&2
             printf '%s\n' "$output" >&2
             failed=1
@@ -75,10 +79,10 @@ stow-preflight *packages:
 
 # Restow all packages, then provision native tools, skills, and OMP plugins
 [group('stow')]
-update: jcode-filter prune-broken stow-preflight
+update: jcode-filter prune-broken prune-native-dependency-links stow-preflight
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --restow $pkg; done
+    for pkg in {{ no_folding_pkgs }}; do stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow "$pkg"; done
     ./install-native-skill-tools.sh
     ./install-skills.sh
     ./install-omp-plugins.sh
@@ -88,10 +92,10 @@ alias up := update
 
 # Restow Claude and provision its repository-owned native tool dependencies
 [group('stow')]
-claude: (prune-broken "claude") (stow-preflight "claude")
+claude: (prune-broken "claude") prune-native-dependency-links (stow-preflight "claude")
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --no-folding --restow claude
+    stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow claude
     ./install-native-skill-tools.sh
     echo -e "{{ green }}claude restowed and native skill tools provisioned{{ clr }}"
 
@@ -100,7 +104,7 @@ claude: (prune-broken "claude") (stow-preflight "claude")
 omp: (prune-broken "omp") (stow-preflight "omp")
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --no-folding --restow omp
+    stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow omp
     ./install-omp-plugins.sh
     echo -e "{{ green }}omp restowed and plugins provisioned{{ clr }}"
 
@@ -109,7 +113,7 @@ omp: (prune-broken "omp") (stow-preflight "omp")
 pi: (prune-broken "pi") (stow-preflight "pi")
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --no-folding --restow pi
+    stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow pi
     echo -e "{{ green }}pi restowed{{ clr }}"
 
 # Restow the Jcode package only (no-folding)
@@ -117,15 +121,15 @@ pi: (prune-broken "pi") (stow-preflight "pi")
 jcode: jcode-filter (prune-broken "jcode") (stow-preflight "jcode")
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --no-folding --restow jcode
+    stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow jcode
     echo -e "{{ green }}jcode restowed{{ clr }}"
 
 # Create package links, then provision native tools, skills, and OMP plugins
 [group('stow')]
-link: jcode-filter prune-broken stow-preflight
+link: jcode-filter prune-broken prune-native-dependency-links stow-preflight
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding $pkg; done
+    for pkg in {{ no_folding_pkgs }}; do stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding "$pkg"; done
     ./install-native-skill-tools.sh
     ./install-skills.sh
     ./install-omp-plugins.sh
@@ -136,7 +140,7 @@ link: jcode-filter prune-broken stow-preflight
 unlink:
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --delete $pkg; done
+    for pkg in {{ no_folding_pkgs }}; do stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --delete "$pkg"; done
     echo -e "{{ white }}All package symlinks removed{{ clr }}"
 
 # Show every managed symlink and fail loudly on Stow ownership conflicts
@@ -151,7 +155,7 @@ status:
         local note="" output
         [ $# -gt 0 ] && note=" (no-folding)"
         echo -e "${c}Package: $pkg$note${z}"
-        if ! output="$({{ stow_cmd }} "$@" --restow -n -v "$pkg" 2>&1)"; then
+        if ! output="$(stow -d "$ATLAS_STOW_DIR" -t "$HOME" "$@" --restow -n -v "$pkg" 2>&1)"; then
             printf "  ${r}CONFLICT${z}    Stow rejected package %s\n" "$pkg" >&2
             printf '%s\n' "$output" >&2
             failed=1
@@ -233,12 +237,12 @@ installed-skills-status:
     set -euo pipefail
     ./check-installed-skills.sh
 
-# Validate optional external and app-owned skill stores without changing them
+# Require the external Firstmate and app-owned tldraw skill stores
 [group('checks')]
 ownership-status:
     #!/usr/bin/env bash
     set -euo pipefail
-    ./check-owned-skills.sh
+    ./check-owned-skills.sh --strict
 
 # Run Stow, tooling, installed-skill, and external-ownership checks
 [group('checks')]
@@ -249,7 +253,7 @@ preflight: status tooling-preflight installed-skills-status ownership-status
 skills:
     #!/usr/bin/env bash
     set -eu
-    manifest="{{ stow_dir }}/skills.txt"
+    manifest="$ATLAS_STOW_DIR/skills.txt"
     store="$HOME/.agents/skills"
     echo -e "{{ cyan }}Global (from skills.txt):{{ clr }}"
     echo ""
@@ -354,7 +358,7 @@ push:
 jcode-filter:
     #!/usr/bin/env bash
     set -eu
-    git config filter.jcode-config.clean "python3 {{ stow_dir }}/filter-jcode-config.py"
+    git config filter.jcode-config.clean "python3 $ATLAS_STOW_DIR/filter-jcode-config.py"
     git config filter.jcode-config.smudge cat
     git config filter.jcode-config.required true
     git config merge.ours.driver true
