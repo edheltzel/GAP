@@ -1,60 +1,77 @@
-# Explore Workflow — Iterative Depth
+# Explore Workflow: Iterative Depth
 
 ## Purpose
 
-Run N structured exploration passes over the same problem, each from a different lens, to extract richer ISC criteria than single-pass analysis produces.
-
-## Invocation
-
-This workflow is invoked:
-1. **Directly** by the user: "use iterative depth on this problem"
-2. **By the Algorithm** during OBSERVE phase when the Capability Audit selects IterativeDepth
-3. **By other skills** that need enhanced requirement extraction
+Run 2 to 8 structured exploration passes over one problem and return a bounded set of plain Markdown criteria that another person or workflow can evaluate directly.
 
 ## Inputs
 
-- **Problem/Request:** The original user request or problem statement
-- **Context:** Any available context (conversation history, codebase state, prior work)
-- **Lenses:** drawn from `TheLenses.md` — pick the ones the problem calls for
+- **Problem or request:** The original question or desired outcome.
+- **Context:** Available facts, constraints, code or project state, and prior work.
+- **Existing criteria (optional):** Criteria that may be confirmed or refined.
+- **Lens preference (optional):** Requested inclusions or exclusions from `TheLenses.md`.
+
+If the problem is missing, stop and request it. Do not infer a hidden objective from unrelated context.
 
 ## Execution
 
-Read `TheLenses.md` and select the lenses that fit the problem. Explore the problem through each in turn, carrying the criteria found so far into the next lens so later passes build on earlier ones. Every pass should surface genuinely new criteria; stop adding lenses once a pass only restates what earlier ones found. Lenses can run inline or as parallel background agents.
+1. Read `TheLenses.md`.
+2. Select 2 to 8 lenses that fit the problem.
+3. Apply each lens to the same problem.
+4. Carry prior findings into later passes so a lens can confirm, refine, or challenge them.
+5. Stop when a pass adds no distinct criterion, refinement, anti-criterion, or unresolved question.
+6. Deduplicate findings without losing stronger evidence expectations.
+7. Keep the final set to a maximum of 12 criteria. Prioritize criteria supported by multiple lenses or tied to severe failure modes.
 
-## Synthesize
+## Criterion Rules
 
-After the passes:
+Each primary criterion must have:
 
-1. **Deduplicate:** remove criteria that are semantically identical across lenses.
-2. **Merge refinements:** when multiple lenses refined the same criterion, keep the most specific version.
-3. **Prioritize:** a criterion surfaced by several lenses ranks higher.
-4. **Format:** every criterion in ISC form — 8-12 words, state not action, binary testable.
+- a stable ID in sequence, starting with `C-01`;
+- a status of `NEW`, `REFINED`, `CONFIRMED`, or `OPEN`;
+- one binary-testable statement;
+- an evidence expectation naming what would prove it;
+- the lens or lenses that surfaced it.
 
-Return the enriched criteria to the calling context: feed directly into TaskCreate calls when called from Algorithm OBSERVE, or present the set to the user when called standalone.
+Refinements keep the original ID. Anti-criteria use stable IDs starting with `A-01` and state an observable outcome that must not occur.
 
-## Output Format
+## Output Contract
 
+Return plain Markdown in this shape:
+
+```markdown
+# Iterative Depth Result
+
+## Scope
+- Problem: ...
+- Context used: ...
+- Lenses used: ...
+- Stop reason: ...
+
+## Criteria
+| ID | Status | Criterion | Evidence expectation | Source lenses |
+|----|--------|-----------|----------------------|---------------|
+| C-01 | NEW | ... | ... | ... |
+
+## Refined criteria
+### C-02
+- Previous: ...
+- Refined: ...
+- Why: ...
+- Evidence expectation: ...
+
+## Anti-criteria
+| ID | Status | Must not occur | Evidence expectation | Source lenses |
+|----|--------|----------------|----------------------|---------------|
+| A-01 | NEW | ... | ... | ... |
+
+## Cross-angle insight
+...
+
+## Assumptions and unresolved questions
+- ...
 ```
-🔍 ITERATIVE DEPTH COMPLETE ({N} lenses applied)
 
-📊 Coverage:
-- Lenses used: {list of lens names}
-- New criteria discovered: {count}
-- Existing criteria refined: {count}
-- Anti-criteria discovered: {count}
+If no criteria are refined, keep the `Refined criteria` heading and state `None`. If no anti-criteria are found, keep the `Anti-criteria` heading and state `None`.
 
-📋 NEW ISC CRITERIA:
-[Use TaskCreate for each, prefixed "ISC-"]
-
-📋 REFINED ISC CRITERIA:
-[Use TaskUpdate for each, with evidence of what changed]
-
-📋 NEW ANTI-CRITERIA:
-[Use TaskCreate for each, prefixed "ISC-A"]
-
-💡 Key Insight: [The most surprising finding across all lenses — the thing single-pass analysis would have missed]
-```
-
-## Integration with Algorithm OBSERVE Phase
-
-When the Capability Audit selects IterativeDepth, it runs after Reverse Engineering and before ISC CREATION, so ISC criteria are informed by multi-angle exploration before they're written rather than corrected after the fact.
+The output is complete when a caller can evaluate every item without access to hidden state or external machinery.

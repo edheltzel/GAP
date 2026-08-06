@@ -1,153 +1,64 @@
 # Explore Workflow
 
-Creative divergence engine for generating fresh, original story ideas. Uses multiple agents and the BeCreative skill for wide exploration.
+Generate fresh options for an open story layer while preserving confirmed continuity and writer ownership.
 
-## Purpose
+## Preflight
 
-When the writer needs ideas — for characters, plot twists, world details, mystery structures, or any story element — this workflow generates multiple creative options through parallel exploration.
+1. Require the writer to confirm the project directory.
+2. Stop if the path is missing or ambiguous.
+3. If `story-bible.md` exists, read it in full before proposing ideas.
+4. Read any writer-supplied source material named for this exploration.
+5. Treat retained material outside the confirmed project as optional and read-only.
+6. Do not update project files until the writer chooses a direction.
 
-## When to Use
+## Define the Exploration Target
 
-- Writer says "I'm stuck" or "I need ideas for..."
-- A layer in the Story Bible is sparse/empty
-- Writer wants to explore "what if" scenarios
-- Need fresh alternatives to avoid cliché territory
-- Want to combine known-great elements in new ways
+Confirm:
 
-## Procedure
+- the open layer: meaning, character change, plot, mystery, world, relationships, or prose;
+- fixed constraints from `story-bible.md`;
+- the desired range from conservative to radical;
+- references the writer wants used or avoided.
 
-### Step 1: Define the Exploration Target
+## Generate Options
 
-Identify what needs creative exploration:
-- Which layer? (Character, Plot, Mystery, World, Relationships, Meaning, Prose)
-- What constraints exist? (Must fit existing story, must match genre, etc.)
-- How wild should it get? (Conservative variations vs. radically different approaches)
+Use at least three distinct approaches when useful:
 
-### Step 2: Gather Context
+1. **Combinatorial:** Combine compatible elements from the writer's references.
+2. **Constraint reversal:** Invert the expected choice while preserving fixed facts.
+3. **Cross-genre:** Borrow a technique from another genre or medium.
+4. **Wild card:** Offer one higher-risk option that still serves the confirmed story.
 
-Read relevant Story Bible sections (if they exist) to understand:
-- What's already decided (constraints)
-- What tone/genre the story operates in
-- Which characters and plot points are fixed
-- The sacred flaw and thematic direction
+Every option must state whether it is inferred from supplied material or newly offered.
 
-### Step 3: Launch Creative Exploration
+## Freshness Filter
 
-Deploy multiple approaches in parallel using Task tool agents:
+Read `AntiCliche.md`. Reject or revise an option when it is only a familiar trope, contradicts confirmed continuity, or ignores the writer's stated aesthetic.
 
-**Approach A: Combinatorial Exploration**
-Spawn 2-4 agents, each combining different known-great story elements:
-```
-Agent prompt: "Given these story constraints: [constraints]
-Combine elements from [2-3 reference stories] in a fresh way.
-Generate 3 ideas for [target layer].
-Each idea must: be original, serve the sacred flaw, avoid the cliché list.
-SLA: Return in 90 seconds."
-```
+## Output
 
-**Approach B: Constraint Reversal**
-Spawn 1-2 agents that deliberately invert expectations:
-```
-Agent prompt: "Given these story constraints: [constraints]
-What would the OPPOSITE of the expected [layer element] be?
-What if the most obvious choice is wrong?
-Generate 3 contrarian ideas that still serve the story.
-SLA: Return in 60 seconds."
+Return each option with:
+
+```markdown
+### Option [N]: [Name]
+- Source: inferred from supplied material | new option
+- Idea: ...
+- Why it fits: ...
+- Continuity impact: ...
+- Risk: ...
+- Freshness: ...
 ```
 
-**Approach C: BeCreative Deep Dive**
-Use the BeCreative skill for extended thinking on the most promising angle:
-```
-"Apply extended creative thinking to: [specific creative problem]
-Consider: what hasn't been done before in [genre]?
-What would make a reader say 'I've never seen that before'?
-Use the full thinking budget."
-```
+Include a short comparison and ask the writer which direction, if any, they want to adopt.
 
-**Approach D: Cross-Genre Pollination**
-Spawn agents that borrow from other genres/media:
-```
-Agent prompt: "This is a [genre] story about [premise].
-What would a [different genre] storyteller bring to this?
-How would a mystery writer handle the character arc?
-How would a romance writer handle the political plot?
-Generate 2 cross-pollinated ideas.
-SLA: Return in 60 seconds."
-```
+## Integrate a Chosen Direction
 
-### Step 4: Anti-Cliché Filter
+After explicit selection:
 
-Read `AntiCliche.md` and apply the freshness checks to all generated ideas:
-- Does this feel like the first thing anyone would think of?
-- Has this been done in major fiction in the last 20 years?
-- Could you describe this idea using only genre tropes?
+1. Re-read `story-bible.md` before editing.
+2. Update only the affected sections.
+3. Preserve all unrelated writer material.
+4. Update ordinary checklist items and ripple effects where needed.
+5. Add a change-log entry naming the writer-approved decision.
 
-If YES to any → flag it and push for fresher alternatives.
-
-### Step 5: Present Options
-
-Present the best ideas to the writer in this format:
-
-```
-## Creative Exploration Results: [Target]
-
-### Option 1: [Evocative Name]
-**The idea:** [2-3 sentence description]
-**Why it works:** [How it serves the story/theme/character]
-**Risk:** [What could go wrong with this approach]
-**Freshness:** [What makes this NOT the obvious choice]
-
-### Option 2: [Evocative Name]
-[same format]
-
-### Option 3: [Evocative Name]
-[same format]
-
-### Wild Card: [The Unexpected One]
-**The idea:** [The most daring/unconventional option]
-**Why it might be genius:** [The upside]
-**Why it might fail:** [The risk]
-```
-
-### Step 6: Iterate or Integrate
-
-Based on writer's response:
-- **"I love option 2"** → Integrate into Story Bible, update relevant layer
-- **"I like parts of 1 and 3"** → Combine elements, present synthesis
-- **"None of these work, but they made me think of..."** → The exploration did its job — capture what it triggered and integrate
-- **"Go deeper on option 1"** → Spawn more agents to develop that direction in detail
-
-### Step 7: Update Story Bible
-
-After a direction is chosen:
-1. Update the relevant layer in the Story Bible PRD
-2. Create/update ISC criteria for the new elements
-3. Check for ripple effects on other layers (new character detail may affect plot, mystery, etc.)
-4. Flag any new gaps created by the change
-
-## Exploration Templates by Layer
-
-### Character Exploration
-- "What if the sacred flaw was [X] instead of [Y]?"
-- "What if the origin wound happened differently?"
-- "What if this character's arc was negative instead of positive?"
-
-### Plot Exploration
-- "What if the catalyst was [X] instead of [Y]?"
-- "What if the midpoint was a false defeat instead of false victory?"
-- "What if the ending was bittersweet instead of triumphant?"
-
-### Mystery Exploration
-- "What if the reader thinks [X] but it's actually [Y]?"
-- "What if the biggest mystery is about [character] rather than [plot event]?"
-- "What are five things the reader could be wrong about?"
-
-### World Exploration
-- "What unique rule/constraint would create the most interesting conflicts?"
-- "What if this world's history had one key difference from the obvious?"
-- "What cultural detail would most pressure the sacred flaw?"
-
-### Relationship Exploration
-- "What if these two characters had [unexpected dynamic] instead of [obvious one]?"
-- "Who is the unlikely ally? The surprising antagonist?"
-- "What relationship would most challenge the protagonist's sacred flaw?"
+If the writer selects nothing, make no file changes.

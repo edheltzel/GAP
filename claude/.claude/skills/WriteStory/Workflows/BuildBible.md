@@ -1,239 +1,105 @@
 # BuildBible Workflow
 
-Construct the comprehensive Story Bible — a PRD-based plan that maps the entire story across all seven layers from start to finish.
+Construct or update `story-bible.md`, the project-local continuity source for the story.
 
-## Purpose
+## Preflight
 
-The Story Bible is the central artifact of the WriteStory system. It IS the ISC for the story — a comprehensive, layered plan that becomes the verification criteria for every chapter written. This is what transforms scattered ideas into a structured, writable narrative.
-
-## Prerequisites
-
-- Read `StoryLayers.md` for layer definitions
-- Read `StorrFramework.md` for character construction protocol
-- Read `PressfieldFramework.md` for concept, hook, theme-question, villain design
-- Read `PhasesAndEvents.md` for three-act phases and mandatory event positions
-- Read `StoryStructures.md` for additional framework perspectives
+1. Require a user-confirmed project directory.
+2. Require `<project>/interview.md` or equivalent writer-supplied planning input.
+3. Stop if the path or required input is missing. Do not invent a location or story state.
+4. Read `interview.md` in full.
+5. If `story-bible.md` exists, read it in full before changing anything.
+6. Treat other retained user material as optional and read-only.
 
 ## Procedure
 
-### Step 1: Establish Story Parameters and Pressfield Foundation
+### 1. Confirm Story Parameters
 
-From the Interview output or user input, confirm:
-- **Scope:** Short story / Novella / Novel / Series
-- **Genre:** Primary + secondary genres
-- **Aesthetic Profile:** From AestheticProfiles.md
-- **POV:** First person / Third limited / Third omniscient / Second / Multiple POV
-- **Tense:** Past / Present
+Confirm scope, genre, aesthetic profile, point of view, tense, concept, theme question, hook, opposition, and intended reader experience. Label any unresolved element as open.
 
-Then establish the Pressfield foundation (from `PressfieldFramework.md`):
-- **Concept:** One sentence — the clothesline everything hangs from
-- **High Concept test:** Does the one-sentence pitch get "I'd read that"?
-- **Theme-Question:** The inquiry the story investigates (yes/no or either/or)
-- **Hook:** How does the opening promise the concept?
-- **Villain design:** Who/what embodies the counter-argument to the theme?
-- **The Gift:** What wisdom will the hero bring back?
+### 2. Build Character Architecture
 
-### Step 2: Build Character Architecture
+For each major character, record flaw or misbelief, origin wound, external want, internal need, thematic purpose, crisis choice, arc direction, status dynamics, and mystery hooks.
 
-For EACH major character, follow the Storr Character Construction Protocol (from StorrFramework.md):
+### 3. Map the Plot
 
-1. Define the sacred flaw
-2. Establish the origin wound
-3. Set the external want
-4. Set the internal need (inverse of flaw)
-5. Define the philosophical purpose (how they connect to theme)
-6. Map the crisis point
-7. Choose arc direction (positive/negative/flat)
-8. Design status dynamics
-9. Plant mystery hooks
-10. Connect to theme
+Use `PhasesAndEvents.md` and `StoryStructures.md` as optional scaffolding. For every major beat, record the event, its cause, its consequence, the character choice that drives it, and the layers it advances.
 
-Create ISC criteria for each major character's arc:
-```
-TaskCreate: "ISC-CHAR-[Name]: [Character] transforms from [flaw state] to [new state]"
-TaskCreate: "ISC-CHAR-[Name]: Sacred flaw [flaw] is established through behavior by [beat]"
-TaskCreate: "ISC-CHAR-[Name]: Crisis forces choice between [flaw] and [need] at [beat]"
-```
+### 4. Design Mystery and Information Flow
 
-### Step 3: Map the Plot Skeleton
+Record the primary question, clue plants, red herrings, reveal sequence, resolution, and the reader's expected belief at each stage.
 
-Using the Phases and Events map (`PhasesAndEvents.md`) as scaffolding, map the plot through all three acts and their phases:
+### 5. Build World and Relationship Constraints
 
-For EACH mandatory event in the Master Event Table:
-1. What event occurs?
-2. What causes it? (causal chain from previous event)
-3. What does it cause? (leads to next event)
-4. Which character decisions drive it?
-5. Does this scene hang from the Clothesline? (Pressfield test)
+Include only world details that affect character behavior, conflict, plot, or meaning. Map each key relationship from initial state through pressure, crisis, and resolution.
 
-Create ISC criteria for major plot beats:
-```
-TaskCreate: "ISC-PLOT: Catalyst event [event] disrupts [character]'s world at ~10%"
-TaskCreate: "ISC-PLOT: Midpoint [false victory/defeat] raises stakes at ~50%"
-TaskCreate: "ISC-PLOT: All Is Lost moment exposes [character]'s sacred flaw at ~75%"
-```
+### 6. Define Prose Strategy
 
-### Step 4: Design the Mystery Architecture
+Record voice, sentence patterns, dialogue distinctions, description density, rhetorical figure preferences, and explicit anti-cliche constraints.
 
-Map information management across the narrative:
+### 7. Build the Beat Map
 
-1. **Primary mystery:** What central question drives the whole story?
-2. **Mystery timeline:** When is each piece of information revealed?
-3. **Clue plants:** What must be planted early for later payoff?
-4. **Red herrings:** What false trails maintain uncertainty?
-5. **Reveal cascade:** How do revelations build on each other?
+Map all seven layers for every major beat: meaning, character change, plot, mystery, world, relationships, and prose.
 
-For each mystery element, track:
-- Plant point (when/where it's introduced)
-- Development points (when it gets complicated/redirected)
-- Resolution point (when it's answered)
-- Reader state (what the reader believes at each point)
+### 8. Write or Update the Artifact
 
-Create ISC criteria:
-```
-TaskCreate: "ISC-MYSTERY: Primary mystery [question] introduced by [beat]"
-TaskCreate: "ISC-MYSTERY: [N] clues planted before reveal at [beat]"
-TaskCreate: "ISC-MYSTERY: At least [N] micro-mysteries active at any point"
-```
+Write to `<project>/story-bible.md`. Read the existing file in full before updating it. Preserve writer material verbatim unless the writer approves a revision. Add proposals in clearly labeled blocks rather than blending them into confirmed material.
 
-### Step 5: Build the World Framework
-
-Map world elements needed for the story:
-
-1. Physical geography (only what the story visits/references)
-2. Political/power structures (only what affects characters)
-3. Rules/magic systems (if applicable — apply Sanderson's Laws)
-4. Cultural details (only what drives character behavior or conflict)
-5. History (only what matters to the present story)
-
-**Rule:** Every world element must serve the story. If you can remove it and nothing changes, remove it.
-
-### Step 6: Map Relationship Arcs
-
-For each key relationship:
-
-1. Initial state (how they meet, first dynamic)
-2. Tension points (disagreements, challenges)
-3. Deepening moments (vulnerability, shared experience)
-4. Crisis point (relationship tested)
-5. Resolution (new equilibrium)
-
-Special attention to the **Influence Character** relationship — this is the relationship that most directly challenges the protagonist's sacred flaw.
-
-### Step 7: Define Prose Strategy
-
-Based on the Aesthetic Profile:
-
-1. Which rhetorical figures to use at key moments
-2. Sentence length and complexity patterns
-3. POV consistency rules
-4. Dialogue voice guidelines per character
-5. Description density by scene type
-
-### Step 8: Assemble the Full Beat Map
-
-Now create the FULL beat map — every major story beat with ALL seven layers mapped:
-
-```markdown
-## Beat Map
-
-### Beat 1: Opening Image (0-1%)
-- **MEANING:** [thematic element present]
-- **CHARACTER:** [sacred flaw visible through behavior]
-- **PLOT:** [establishing event]
-- **MYSTERY:** [first question planted]
-- **WORLD:** [initial setting established]
-- **RELATIONSHIP:** [key bond introduced]
-- **PROSE:** [register, tone, key figures planned]
-
-### Beat 2: Setup / Theme Stated (1-10%)
-[same structure]
-
-### Beat 3: Catalyst (10%)
-[same structure]
-
-... [continue for all 15 beats]
-
-### Beat 15: Final Image (99-100%)
-[same structure]
-```
-
-### Step 9: Write the Story Bible as a Project ISA
-
-The Story Bible IS the project's ISA — the living plan that grows across sessions and tracks what's done versus what's left. Create it through the ISA system, not as a one-off PRD.
-
-
-Create it via `Skill("ISA", "scaffold project ISA at <path>")`, then fill it. Map the Story Bible content into the ISA's sections:
-
-- The story's **CRITERIA** (character arcs, plot beats, mystery reveals, the reader-experience target from the interview) become the ISA's `## Criteria` as ISCs — the things that must be true for the book to work.
-- The **beat map and layer detail** live in the ISA body. The **Foolscap spine** from the interview seeds the `## Goal`.
-- Each session updates the ISA: mark beats drafted, criteria met, what's next. The ISA is the source of truth for continuity — always read it before writing new chapters.
-
-The bible body (below) is the working content the ISA carries:
+Use normal Markdown sections and checklists:
 
 ```markdown
 # Story Bible: [Title]
 
-> [One sentence: what this story is about thematically]
+## Continuity status
+- Current phase: ...
+- Last confirmed change: ...
+- Next agreed action: ...
 
-## STATUS
-| What | State |
-|------|-------|
-| Progress | 0/{N} criteria passing |
-| Scope | [scope] |
-| Next action | [first writing action] |
+## Confirmed spine
+- ...
 
-## CHARACTERS
-[Full character profiles with sacred flaws, wants, needs]
+## Characters
+- ...
 
-## BEAT MAP
-[Full 15-beat map with all 7 layers per beat]
+## Beat map
+### Beat 1: ...
+- Meaning: ...
+- Character change: ...
+- Plot: ...
+- Mystery: ...
+- World: ...
+- Relationships: ...
+- Prose: ...
 
-## MYSTERY ARCHITECTURE
-[Information management timeline]
+## Mystery architecture
+- ...
 
-## WORLD FRAMEWORK
-[Essential world elements]
+## World framework
+- ...
 
-## RELATIONSHIP ARCS
-[Key relationship timelines]
+## Relationship arcs
+- ...
 
-## PROSE STRATEGY
-[Aesthetic profile, figure deployment plan]
+## Prose strategy
+- ...
 
-## CRITERIA
-- [ ] C1: [First story criterion]
-- [ ] C2: [Second story criterion]
-... [all ISC criteria from steps 2-7]
+## Story checklist
+- [ ] C-01: [Observable story requirement]
+- [ ] C-02: [Observable continuity requirement]
 
-## LOG
-[Session entries]
+## Open questions
+- [ ] ...
+
+## Change log
+- [Date]: [Writer-approved change and source]
 ```
 
-### Step 10: Scale for Series (if applicable)
+Checklist items are ordinary project-local Markdown. Keep IDs stable when wording changes and note the reason in the change log.
 
-For multi-book series:
-1. Create a PARENT PRD for the series
-2. Create CHILD PRDs for each book
-3. Map cross-book arcs (character change that spans books)
-4. Track series-level mysteries and their per-book development
-5. Ensure each book works as a satisfying standalone AND advances the series
+## Series Scale
 
-```
-Parent: PRD-{date}-{series-slug}.md
-Children:
-  - PRD-{date}-{series-slug}--book-1.md
-  - PRD-{date}-{series-slug}--book-2.md
-  - PRD-{date}-{series-slug}--book-3.md
-```
+For a series, keep one `story-bible.md` in the confirmed series directory with a series section and separate book sections. Do not create child directories or additional files without explicit path confirmation.
 
-### Step 11: Output and Next Steps
+## Output
 
-Present the Story Bible to the writer with:
-1. Summary of what's been mapped
-2. Any gaps or decisions still needed
-3. Recommendations for which chapters to write first
-4. Option to run **Explore** workflow for any layer that needs creative development
-5. Option to jump directly to **WriteChapter** for the strongest section
-
-The Story Bible is now the living document that guides all writing.
+Present a summary of mapped sections, preserved material, new proposals, remaining gaps, and the next writer decision. Do not claim completion for open or unratified material.

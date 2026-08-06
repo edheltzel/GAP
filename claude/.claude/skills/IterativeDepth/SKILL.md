@@ -1,7 +1,7 @@
 ---
 name: IterativeDepth
-version: 1.1.15
-description: "Structured multi-angle exploration running 2-8 sequential passes over the same problem, each through a different scientific lens, to surface hidden requirements and edge cases invisible from one angle; each pass yields new ISC criteria. USE WHEN iterative depth, explore deeper, multi-angle analysis, surface hidden requirements, blind spot check, what am I missing. NOT FOR scope/zoom analysis (use ApertureOscillation)."
+version: 1.2.0
+description: "Structured multi-angle exploration running 2-8 passes over the same problem, each through a different scientific lens, to surface hidden testable criteria and edge cases. USE WHEN iterative depth, explore deeper, multi-angle analysis, surface hidden requirements, blind spot check, what am I missing. NOT FOR scope and zoom analysis (use ApertureOscillation)."
 effort: high
 ---
 
@@ -9,38 +9,46 @@ effort: high
 
 ## What It Does
 
-IterativeDepth examines one problem through several structurally different lenses — literal, stakeholder, failure, temporal, and more — merging what each angle surfaces into ISC criteria a single pass misses. Grounded in 20 established techniques across cognitive science, AI/ML, requirements engineering, and design thinking (see `ScientificFoundation.md`).
+IterativeDepth examines one problem through several structurally different lenses, such as literal, stakeholder, failure, temporal, adversarial, and experiential. Each pass must add a distinct finding or refine an earlier one.
 
-## The Deliverable
+The method is standalone. It does not require an external task tracker, hidden criteria system, or orchestration phase.
 
-A done run produces:
+## Inputs
 
-- **A deduplicated ISC set** — each criterion binary-testable, 8-12 words, phrased as a state not an action. No two criteria restate each other.
-- **Refinements** to existing criteria, each noting what changed and why.
-- **Anti-criteria** — failure modes that must NOT happen.
-- **At least one surprising cross-angle finding** — a requirement that only appeared because two lenses collided. A run that surfaces nothing a single pass would have missed added no value.
+- **Problem or request:** The exact subject to explore.
+- **Context:** Relevant facts, constraints, known decisions, and existing criteria.
+- **Lens preference (optional):** Lenses the caller wants included or excluded.
 
-Passes stop when a new lens repeats what earlier lenses already found. Non-redundant angles are what matter; more angles for their own sake are not.
+Read `TheLenses.md` for the lens catalog and `ScientificFoundation.md` for the method's grounding.
 
-## The Lenses
+## Deliverable
 
-`TheLenses.md` is a catalog of eight exploration angles. Draw from it — pick the lenses the problem calls for, in whatever order, as many as earn their keep. No fixed count, no prescribed sequence: a security problem leans on the failure and adversary angles, a UX problem on the experiential one. Let the problem select the lenses.
+Return a bounded plain Markdown criteria set with:
+
+- stable criterion IDs;
+- status for every criterion;
+- a binary-testable statement;
+- evidence expectations;
+- source lenses;
+- refined criteria with their previous wording and reason for change;
+- anti-criteria describing outcomes that must not occur;
+- the most useful cross-angle insight;
+- assumptions and unresolved questions.
+
+Use 2 to 8 lenses and return no more than 12 primary criteria. Stop early when another pass adds no distinct criterion or refinement.
 
 ## Workflow Routing
 
-| Workflow | Trigger | File |
-|----------|---------|------|
-| Explore | "iterative depth", "explore deeper", "multi-angle" | `Workflows/Explore.md` |
+| Workflow | Trigger                                               | File                   |
+| -------- | ----------------------------------------------------- | ---------------------- |
+| Explore  | "iterative depth", "explore deeper", "multi-angle"    | `Workflows/Explore.md` |
 
-## Reference
+## Quality Rules
 
-- Lens catalog: `TheLenses.md`
-- Scientific grounding: `ScientificFoundation.md`
-
-## Gotchas
-
-- **2-8 lens passes, not infinite.** Diminishing returns after ~5 passes for most topics.
-- **Each pass should surface genuinely NEW requirements, not restate previous findings.** If passes start repeating, stop early.
-- **This is a BPE-fragile skill.** Monitor whether smarter models make it unnecessary. Quarterly test recommended.
-
-Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.
+- Criteria are plain testable statements, not commands to another system.
+- Keep IDs stable when refining a criterion.
+- Prefer observable evidence over vague judgments.
+- Deduplicate semantic repeats.
+- Record anti-criteria separately from desired outcomes.
+- Never invent missing context. Surface it as an unresolved question.
+- Optional retained user material may be read only when the user identifies it. Never modify it.
