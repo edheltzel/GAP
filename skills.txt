@@ -15,8 +15,8 @@ stablyai/orca=computer-use,orca-cli,orchestration
 vercel-labs/agent-browser=agent-browser
 vercel-labs/opensrc=opensrc
 # Claude-only anti-slop skills from the locally committed PiExtensions package.
-local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=anti-slop|packages/pi-anti-slop/skills/anti-slop/SKILL.md|bd292c4f14236460cdb67cc09853f6e245426b9a|agents=claude-code
-local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=slop-code|packages/pi-anti-slop/skills/slop-code/SKILL.md|0888d48b719867ed03b05d4becaf76c677c7db34|agents=claude-code
-local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=slop-review|packages/pi-anti-slop/skills/slop-review/SKILL.md|92bbb50d19de4124ca7f44aac54208b3144a854e|agents=claude-code
-local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=slop-rewrite|packages/pi-anti-slop/skills/slop-rewrite/SKILL.md|13e5477f3d2070495240a9a66d279b09ebda843f|agents=claude-code
-local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=slop-verify|packages/pi-anti-slop/skills/slop-verify/SKILL.md|201207638e521324e1e356e1c60e5eb0586adff2|agents=claude-code
+local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=anti-slop|packages/pi-anti-slop/skills/anti-slop/SKILL.md|b8401a2c5ac728df72cc47cebbdb435377030015|agents=claude-code
+local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=slop-code|packages/pi-anti-slop/skills/slop-code/SKILL.md|03915f045166d28261f4da58c71f7628edcb25bc|agents=claude-code
+local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=slop-review|packages/pi-anti-slop/skills/slop-review/SKILL.md|2ac3b9ee18da40a333e72832ba47c10893be139a|agents=claude-code
+local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=slop-rewrite|packages/pi-anti-slop/skills/slop-rewrite/SKILL.md|a2d57f5934d0ea783f6db16793232f1f0f30a7ab|agents=claude-code
+local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=slop-verify|packages/pi-anti-slop/skills/slop-verify/SKILL.md|2c1cc247b2c95f49f191f95af8d147ddd0a299fb|agents=claude-code

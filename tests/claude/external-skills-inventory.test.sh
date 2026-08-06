@@ -87,7 +87,7 @@ if [ -e "$repo_root/claude/.claude/skills/anti-slop" ] || [ -L "$repo_root/claud
 	exit 1
 fi
 
-anti_slop_commit='7676913e981d2c663024ca9926850bf3f8e6d980'
+anti_slop_commit='3a9f04d287e492e38ad9ac24c76c9760266225aa'
 anti_slop_entries="$(grep -E "^local:\.\./PiExtensions#$anti_slop_commit=(anti-slop|slop-code|slop-review|slop-rewrite|slop-verify)\\|packages/pi-anti-slop/skills/[^|]+/SKILL\.md\\|[0-9a-f]{40}\\|agents=claude-code$" "$manifest" || true)"
 if [ "$(printf '%s\n' "$anti_slop_entries" | sed '/^$/d' | wc -l | tr -d ' ')" -ne 5 ]; then
 	printf 'anti-slop skills must use pinned local PiExtensions sources owned only by Claude\n' >&2
