@@ -14,7 +14,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST="$SCRIPT_DIR/skills.txt"
-AGENTS="${SKILLS_AGENTS:-*}"   # override: SKILLS_AGENTS="claude-code,pi,codex"
+AGENTS="${SKILLS_AGENTS:-}"   # override: SKILLS_AGENTS="claude-code,pi,codex"
 DRY_RUN=0
 
 usage() {
@@ -23,14 +23,14 @@ Usage: ./install-skills.sh [-n|--dry-run] [manifest]
 
   Installs skills from a manifest of `owner/repo[#commit]=skill,skill[|path|git-blob]` lines.
   A full commit ref requires the blob suffix because skills.sh treats #ref as a branch.
-  (default: ./skills.txt) via `skills add <source> -g -a <agents> -s <skills> -y`.
+  (default: ./skills.txt) via `skills add <source> -g -s <skills> -y`.
 
 Options:
   -n, --dry-run   Print the install commands without running them.
   -h, --help      Show this help.
 
 Env:
-  SKILLS_AGENTS   Comma-separated target agents (default: * = all detected).
+  SKILLS_AGENTS   Comma-separated target agents (default: skills CLI detected agents).
 EOF
 }
 
@@ -61,10 +61,12 @@ else
 fi
 
 agent_args=()
-IFS=',' read -ra agent_names <<< "$AGENTS"
-for agent in "${agent_names[@]}"; do
-  [ -n "$agent" ] && agent_args+=(-a "$agent")
-done
+if [ -n "$AGENTS" ]; then
+  IFS=',' read -ra agent_names <<< "$AGENTS"
+  for agent in "${agent_names[@]}"; do
+    [ -n "$agent" ] && agent_args+=(-a "$agent")
+  done
+fi
 
 [ -f "$MANIFEST" ] || { printf '%sManifest not found: %s%s\n' "$red" "$MANIFEST" "$clr" >&2; exit 1; }
 
@@ -198,9 +200,16 @@ while IFS= read -r line || [ -n "$line" ]; do
   for name in "${names[@]}"; do
     [ -n "$name" ] && skill_args+=(-s "$name")
   done
+  install_args=(add "$install_source" -g)
+  if [ -n "$AGENTS" ]; then
+    install_args+=("${agent_args[@]}")
+  fi
+  install_args+=("${skill_args[@]}" -y)
   if [ "$DRY_RUN" -eq 1 ]; then
     [ -n "$ref" ] && printf '    checkout: https://github.com/%s.git at %s\n' "$source" "$ref"
-    printf '    %s add %s -g %s %s -y\n' "${runner[*]}" "$install_source" "${agent_args[*]}" "${skill_args[*]}"
+    printf '    %s' "${runner[*]}"
+    printf ' %s' "${install_args[@]}"
+    printf '\n'
     [ -n "$ref" ] && printf '    policy ref: %s (enforced by checkout and installed Git blob)\n' "$ref"
     if [ -n "$integrity_path" ]; then
       if verify_installed_blob "$skills" "$integrity_path" "$expected_blob"; then
@@ -214,7 +223,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     continue
   fi
   # Redirect stdin from /dev/null so the interactive CLI can't consume the manifest.
-  if "${runner[@]}" add "$install_source" -g "${agent_args[@]}" "${skill_args[@]}" -y </dev/null; then
+  if "${runner[@]}" "${install_args[@]}" </dev/null; then
     if [ -n "$integrity_path" ] && ! verify_installed_blob "$skills" "$integrity_path" "$expected_blob" 1; then
       failed+=("$line")
     else

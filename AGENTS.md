@@ -91,7 +91,7 @@ The recovered native Claude snapshot is preserved exactly from the final unmerge
 
 ## Scope
 
-**atlas-config is single-machine-canonical.** The `merge=ours` rules on `claude/.claude/settings.json` and `pi/.pi/agent/settings.json` (see `.gitattributes`) mean changes to those files do not propagate across machines via `git pull`; local edits always win. `just jcode-filter` registers the required repository-local `merge.ours.driver` along with Jcode's clean filter. Multi-machine sync requires explicit `git checkout origin/master -- <path>` on the receiving Mac, then a re-personalization pass if needed. This is intentional: these settings files carry per-session mutating fields (`counts`, `feedbackSurveyState.lastShownTime`, UI/model/package prefs) that would otherwise churn the repo.
+**atlas-config is single-machine-canonical.** The `merge=ours` rules on `claude/.claude/settings.json`, `pi/.pi/agent/settings.json`, and `omp/.omp/agent/config.yml` (see `.gitattributes`) mean changes to those files do not propagate across machines via `git pull`; local edits always win. `just jcode-filter` registers the required repository-local `merge.ours.driver` along with Jcode's clean filter. Multi-machine sync requires explicit `git checkout origin/master -- <path>` on the receiving Mac, then a re-personalization pass if needed. This is intentional: these settings files carry per-session mutating fields (`counts`, `feedbackSurveyState.lastShownTime`, UI/model/package prefs) that would otherwise churn the repo.
 
 The Recall MCP database (`~/.agents/Recall/recall.db`, shared by all agents) and the Recall MEMORY/ vault (`~/.agents/Recall/MEMORY/`) also live **outside** atlas-config; they are out-of-band like `~/.env`. Cold-archive these to an external location on a schedule (1Password vault, Time Machine, external drive); they are the only USER content not in git.
 
@@ -137,6 +137,8 @@ Provider chain: edge-tts → ElevenLabs → Kokoro → macOS `say`. **ElevenLabs
 Multi-package stow with the repo root as `STOW_DIR`. See `justfile` for commands. Claude, OMP, Pi, and Jcode are stowed with `--no-folding`: their runtime directories must remain real directories, with only curated config files symlinked into them. This prevents runtime-generated state and integrations from being written through folded links into the repository. Aggregate restore commands run a conflict-aware Stow preflight before linking any package, then provision shared skills and OMP plugins only after every package succeeds. The per-package `.stow-local-ignore` files **replace** stow's built-in defaults; when adding a new one, copy from `claude/.stow-local-ignore` and re-include `\.git`, `\.gitignore`, etc.
 
 Jcode rewrites its tracked `config.toml`; `just jcode-filter` configures the repository-local clean filter that strips theme selection and generated launch-hotkey state before indexing, plus the `merge.ours.driver` required by `.gitattributes`.
+
+Local TypeScript tooling resolves the installed Pi/OMP packages through ignored links created by `just dev-modules`; never commit `node_modules` or install a second harness dependency tree. Run `just tooling-preflight` for config parsing, type checking, manifest checks, and executable status-line tests.
 
 Keep package source paths identical in case to their runtime paths. Stow compares symlink ownership lexically even on case-insensitive APFS; Claude rules therefore live at lowercase `claude/.claude/rules/`, matching `~/.claude/rules/`.
 
@@ -198,7 +200,7 @@ Five canonical triage roles using default label strings (`needs-triage`, `needs-
 
 ### OMP config
 
-OMP-native config is stowed from `omp/.omp/agent/` to `~/.omp/agent/`. Track authored config only; keep runtime DBs, sessions, blobs, memories, and secrets local. Published OMP releases are canonical: install them with `omp update`; never restore a local source link, downstream patch branch, or an older pinned release. See `docs/agents/omp.md`.
+OMP-native config is stowed from `omp/.omp/agent/` to `~/.omp/agent/`. Track authored config only; keep runtime DBs, sessions, blobs, memories, and secrets local. OMP rewrites `config.yml`, so its `merge=ours` rule preserves machine-local provider, model-role, and UI preferences. Published OMP releases are canonical: install them with `omp update`; never restore a local source link, downstream patch branch, or an older pinned release. See `docs/agents/omp.md`.
 
 ### Domain docs
 

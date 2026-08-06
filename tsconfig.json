@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "types": ["node"]
+  },
+  "include": [
+    "pi/.pi/agent/extensions/atlas-status-line.ts",
+    "omp/.omp/agent/extensions/atlas-status-line.ts",
+    "tests/pi/atlas-status-line.test.ts",
+    "tests/omp/atlas-status-line.test.ts"
+  ]
+}

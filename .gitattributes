@@ -30,9 +30,10 @@ claude/.claude/agents/** whitespace=-blank-at-eol,-blank-at-eof
 # session. merge=ours keeps local wins on `git pull`. See AGENTS.md "Scope".
 claude/.claude/settings.json merge=ours
 
-# Pi global settings is single-machine config too. Pi may rewrite local UI/model/package
-# preferences and runtime bookkeeping; local settings win on pull.
+# Pi and OMP global settings are single-machine config too. Both harnesses rewrite
+# local UI/model/package preferences and runtime bookkeeping; local settings win on pull.
 pi/.pi/agent/settings.json merge=ours
+omp/.omp/agent/config.yml merge=ours
 
 # Jcode rewrites config.toml and mixes portable preferences with machine-local
 # theme and generated launch-hotkey state. The clean filter keeps those fields

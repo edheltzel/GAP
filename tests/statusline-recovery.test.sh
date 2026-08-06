@@ -16,12 +16,18 @@ for file in "$claude_status" "$pi_status" "$omp_status"; do
 done
 
 mkdir -p "$temp_home/.claude/MEMORY/STATE"
+claude_stderr="$temp_home/claude-statusline.stderr"
 claude_output="$(
   printf '%s' '{"workspace":{"current_dir":"/tmp/Atlas/Config"},"model":{"id":"claude-sonnet-4-6","display_name":"Sonnet 4.6"},"version":"2.1.0","context_window":{"used_percentage":42,"current_usage":{"cache_read_input_tokens":99,"cache_creation_input_tokens":1}}}' \
-    | HOME="$temp_home" ATLAS_DIR="$temp_home/.claude" COLUMNS=120 bash "$claude_status" 2>/dev/null
+    | HOME="$temp_home" ATLAS_DIR="$temp_home/.claude" COLUMNS=120 bash "$claude_status" 2>"$claude_stderr"
 )"
+if [ -s "$claude_stderr" ]; then
+  printf 'Claude status line wrote to stderr:\n%s\n' "$(<"$claude_stderr")" >&2
+  exit 1
+fi
 claude_plain="$(sed $'s/\033\\[[0-9;]*m//g' <<<"$claude_output")"
 grep -F '✱ 2.1.0 · Sonnet 4.6' <<<"$claude_plain" >/dev/null
+grep -F '…/Atlas/Config' <<<"$claude_plain" >/dev/null
 if grep -Fq 'Atlas v' <<<"$claude_plain"; then
   printf 'Claude status line rendered retired Atlas/LifeOS identity\n' >&2
   exit 1

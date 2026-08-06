@@ -175,6 +175,32 @@ status:
     for pkg in {{ no_folding_pkgs }}; do report $pkg --no-folding; done
     if [ "$failed" -ne 0 ]; then exit 1; fi
 
+# Link the globally installed harness modules needed for local type checking
+[group('checks')]
+dev-modules:
+    #!/usr/bin/env bash
+    set -eu
+    ./link-agent-dev-modules.sh
+
+# Validate config syntax, module resolution, manifests, and status-line behavior
+[group('checks')]
+tooling-preflight: dev-modules
+    #!/usr/bin/env bash
+    set -euo pipefail
+    jq empty pi/.pi/agent/settings.json
+    bun -e 'Bun.YAML.parse(await Bun.file("omp/.omp/agent/config.yml").text())'
+    ./link-agent-dev-modules.sh --check
+    ./node_modules/typescript/bin/tsc -p tsconfig.json
+    ./install-skills.sh --dry-run >/dev/null
+    ./install-omp-plugins.sh --dry-run >/dev/null
+    tests/statusline-recovery.test.sh
+    tests/statusline-runtime.test.sh
+    git diff --check
+
+# Run both Stow ownership and active tooling checks
+[group('checks')]
+preflight: status tooling-preflight
+
 # List declared skills (skills.txt) grouped by repo with install status
 [group('skills')]
 skills:

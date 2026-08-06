@@ -3,12 +3,6 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 global_modules="$HOME/.bun/install/global/node_modules"
-node_modules="$repo_root/node_modules"
-created_link=0
-cleanup() {
-  if [ "$created_link" -eq 1 ]; then rm "$node_modules"; fi
-}
-trap cleanup EXIT
 
 for package in @earendil-works/pi-coding-agent @oh-my-pi/pi-coding-agent @oh-my-pi/pi-tui; do
   if [ ! -d "$global_modules/$package" ]; then
@@ -17,10 +11,10 @@ for package in @earendil-works/pi-coding-agent @oh-my-pi/pi-coding-agent @oh-my-
   fi
 done
 
-if [ ! -e "$node_modules" ] && [ ! -L "$node_modules" ]; then
-  ln -s "$global_modules" "$node_modules"
-  created_link=1
-fi
+"$repo_root/link-agent-dev-modules.sh" >/dev/null
+"$repo_root/link-agent-dev-modules.sh" --check >/dev/null
+
+"$repo_root/node_modules/typescript/bin/tsc" -p "$repo_root/tsconfig.json"
 
 bun test \
   "$repo_root/tests/pi/atlas-status-line.test.ts" \

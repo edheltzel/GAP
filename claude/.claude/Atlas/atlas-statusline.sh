@@ -187,15 +187,24 @@ fi
 
 detect_terminal_width() {
   local width=""
+  local tty_path=""
 
-  # Tier 1: Direct TTY query (works in most terminals)
-  width=$(stty size </dev/tty 2>/dev/null | awk '{print $2}')
+  # Claude invokes status commands without a controlling TTY. Prefer the width
+  # it supplies and never open /dev/tty unless `tty` confirms one exists.
+  case "${COLUMNS:-}" in
+  '' | *[!0-9]*) ;;
+  *) [ "$COLUMNS" -gt 0 ] 2>/dev/null && width="$COLUMNS" ;;
+  esac
 
-  # Tier 2: tput fallback
-  [ -z "$width" ] || [ "$width" = "0" ] && width=$(tput cols 2>/dev/null)
+  if [ -z "$width" ]; then
+    tty_path=$(tty 2>/dev/null || true)
+    if [ -n "$tty_path" ] && [ "$tty_path" != "not a tty" ] && [ -e "$tty_path" ]; then
+      width=$(stty size <"$tty_path" 2>/dev/null | awk '{print $2}')
+    fi
+  fi
 
-  # Tier 3: Environment variable
-  [ -z "$width" ] || [ "$width" = "0" ] && width=${COLUMNS:-80}
+  [ -n "$width" ] && [ "$width" != "0" ] || width=$(tput cols 2>/dev/null || true)
+  [ -n "$width" ] && [ "$width" != "0" ] || width=80
 
   echo "$width"
 }
@@ -692,11 +701,13 @@ render_ctx_cache_tail() {
 # LINE 1: HEADER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Display just the directory basename (e.g., /atlas-config)
-# Tail-truncate to 20 chars with ellipsis if basename is long.
-dir_display="/${current_dir##*/}"
-if [ ${#dir_display} -gt 20 ]; then
-  dir_display="${dir_display:0:19}…"
+# Display the parent plus current directory, matching the Pi/OMP footer.
+# Middle-truncate long locations while preserving both ends.
+cwd_basename=$(basename "$current_dir")
+cwd_parent=$(basename "$(dirname "$current_dir")")
+dir_display="…/${cwd_parent}/${cwd_basename}"
+if [ ${#dir_display} -gt 28 ]; then
+  dir_display="${dir_display:0:13}…${dir_display: -14}"
 fi
 
 # Get current git branch (runs each refresh - always up to date)
