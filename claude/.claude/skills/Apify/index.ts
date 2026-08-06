@@ -5,35 +5,14 @@
  * Enables in-code filtering and control flow for massive token savings.
  */
 
-import { ApifyClient } from 'apify-client'
+import {
+  ApifyClient,
+  type ActorCollectionListItem,
+  type ActorRun as ClientActorRun,
+} from 'apify-client'
 
-export interface Actor {
-  id: string
-  name: string
-  username: string
-  title: string
-  description?: string
-  createdAt?: string
-  modifiedAt?: string
-  stats?: {
-    totalRuns?: number
-    lastRunStartedAt?: string
-  }
-}
-
-export interface ActorRun {
-  id: string
-  actorId: string
-  status: 'READY' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'TIMED-OUT' | 'ABORTED'
-  startedAt: string
-  finishedAt?: string
-  defaultDatasetId: string
-  defaultKeyValueStoreId: string
-  buildNumber?: string
-  exitCode?: number
-  containerUrl?: string
-  output?: any
-}
+export type Actor = ActorCollectionListItem
+export type ActorRun = ClientActorRun
 
 export interface DatasetOptions {
   offset?: number
@@ -41,6 +20,18 @@ export interface DatasetOptions {
   fields?: string[]
   omit?: string[]
   clean?: boolean
+}
+
+export function resolveApifyToken(token?: string): string {
+  const resolved = token || process.env.APIFY_TOKEN || process.env.APIFY_API_KEY
+
+  if (!resolved) {
+    throw new Error(
+      'Apify credentials are required before use. Set APIFY_TOKEN or APIFY_API_KEY in the process environment.',
+    )
+  }
+
+  return resolved
 }
 
 /**
@@ -51,7 +42,7 @@ export class Apify {
 
   constructor(token?: string) {
     this.client = new ApifyClient({
-      token: token || process.env.APIFY_TOKEN || process.env.APIFY_API_KEY
+      token: resolveApifyToken(token)
     })
   }
 
@@ -92,7 +83,7 @@ export class Apify {
     })
 
     // Return requested number of matches
-    return filtered.slice(0, options?.limit ?? 10) as Actor[]
+    return filtered.slice(0, options?.limit ?? 10)
   }
 
   /**
@@ -118,7 +109,7 @@ export class Apify {
       build: options?.build
     })
 
-    return run as ActorRun
+    return run
   }
 
   /**
@@ -139,7 +130,12 @@ export class Apify {
    */
   async getRun(runId: string): Promise<ActorRun> {
     const run = await this.client.run(runId).get()
-    return run as ActorRun
+
+    if (!run) {
+      throw new Error(`Apify run not found: ${runId}`)
+    }
+
+    return run
   }
 
   /**
@@ -158,7 +154,7 @@ export class Apify {
     const run = await this.client.run(runId).waitForFinish({
       waitSecs: options?.waitSecs
     })
-    return run as ActorRun
+    return run
   }
 }
 

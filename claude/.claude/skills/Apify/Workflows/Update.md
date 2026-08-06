@@ -1,88 +1,30 @@
 # Update Workflow
 
-Check Apify API and actor ecosystem for updates.
+Review and update the bundled Apify wrapper without making live actor calls during validation.
 
-## Voice Notification
+## Sources
 
-```bash
-curl -s -X POST http://localhost:8888/notify \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Running the Update workflow in the Apify skill to check updates"}' \
-  > /dev/null 2>&1 &
-```
+- API changelog: <https://docs.apify.com/api/v2/changelog>
+- Actor Store: <https://apify.com/store>
+- `apify-client` package: <https://www.npmjs.com/package/apify-client>
 
-Running **Update** in **Apify**...
+## Procedure
 
----
+1. Read the changelog and actor schemas relevant to the requested update.
+2. Update wrappers and types under `~/.claude/skills/Apify`.
+3. If the dependency changes, update the exact version in `package.json` and regenerate `bun.lock` with Bun.
+4. Install with `bun install --frozen-lockfile --ignore-scripts` to prove the lock is complete.
+5. Run the offline smoke test and TypeScript check.
+6. Review the diff for actor IDs, input fields, output assumptions, and accidental network execution.
+7. Document any actor behavior that still requires an explicitly authorized live check.
 
-## When to Use
-
-- Monthly capability check
-- After Apify announces new features
-- If actor calls fail unexpectedly
-- When new popular actors become available
-
-## Official Source
-
-**API Docs:** https://docs.apify.com/api/v2
-**Changelog:** https://docs.apify.com/api/v2/changelog
-**Actor Store:** https://apify.com/store
-
-## Steps
-
-### 1. Check API Changelog
+## Verification
 
 ```bash
-open https://docs.apify.com/api/v2/changelog
+cd ~/.claude/skills/Apify
+bun install --frozen-lockfile --ignore-scripts
+bun examples/smoke-test.ts
+bunx tsc --noEmit -p tsconfig.json
 ```
 
-Review for:
-- New endpoints
-- Breaking changes
-- Deprecated features
-- Rate limit changes
-
-### 2. Check Popular Actors
-
-Review commonly used actors for updates:
-
-| Actor | Purpose | Check For |
-|-------|---------|-----------|
-| apify/instagram-scraper | Instagram posts/profiles | Schema changes |
-| apify/twitter-scraper | Twitter/X data | API changes |
-| apify/google-maps-scraper | Business data | New fields |
-| apify/web-scraper | General scraping | New options |
-
-### 3. Test Current Implementation
-
-```bash
-# Verify API wrapper works
-bun run ../scrape-instagram.ts --help 2>/dev/null || echo "Check script"
-```
-
-### 4. Update Implementation
-
-If new critical functionality found:
-1. Update `index.ts` API wrapper
-2. Add new actor scripts to skill
-3. Update type definitions
-4. Update SKILL.md documentation
-
-### 5. Update Actor Registry
-
-Maintain list of tested actors:
-
-| Actor | Last Tested | Status |
-|-------|-------------|--------|
-| instagram-scraper | 2026-01 | Working |
-| twitter-scraper | 2026-01 | Working |
-| google-maps | 2026-01 | Working |
-
-## Version Tracking
-
-```
-# Last sync: 2026-01-03
-# Apify API: v2
-# Tested actors: 10+
-# Known issues: None
-```
+These checks must not execute an actor or query the Apify API.

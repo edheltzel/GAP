@@ -1,17 +1,18 @@
 {
-  "name": "@pai/filesystem-mcp-apify",
-  "version": "1.0.0",
+  "name": "@atlas/claude-skill-apify",
+  "version": "1.1.0",
+  "private": true,
   "type": "module",
-  "description": "Code-first Apify interface for LifeOS - replaces token-heavy MCP calls",
-  "main": "index.ts",
+  "description": "Self-contained code-first Apify wrappers for the native Claude skill",
   "scripts": {
-    "example": "bun run examples/instagram-scraper.ts"
+    "check": "tsc --noEmit -p tsconfig.json",
+    "smoke": "bun examples/smoke-test.ts"
   },
   "dependencies": {
-    "apify-client": "^2.22.3"
+    "apify-client": "2.22.3"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "typescript": "^5.0.0"
+    "@types/bun": "1.2.21",
+    "typescript": "5.9.2"
   }
 }

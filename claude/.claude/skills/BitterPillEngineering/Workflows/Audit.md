@@ -1,53 +1,20 @@
 # Audit Workflow
 
-Full audit of all force-loaded AI instructions for over-prompting.
+Run a full audit of the current instruction hierarchy.
 
 ## Steps
 
-### 1. Discover what's loaded
+1. **Define scope.** Name the repository, harness, and target behavior being audited.
+2. **Discover active instructions.** Start with active harness instructions, then walk the repository hierarchy for applicable `AGENTS.md`, `CLAUDE.md`, and equivalent files. Inspect configuration, hooks, manifests, and routing tables only when present.
+3. **Record loading evidence.** For each source, state why it applies. Distinguish force-loaded, path-scoped, on-demand, generated, and merely present files.
+4. **Read each applicable source completely.** Count files, lines, and independently actionable rules.
+5. **Apply the six tests.** Use the tests and classifications in `../SKILL.md`.
+6. **Check cross-source conflicts.** Compare scope, precedence, duplicated contracts, stale paths, retired tools, and conflicting output requirements.
+7. **Estimate context value.** Identify always-loaded material that is rarely actionable and could move to on-demand guidance.
+8. **Report uncertainty.** Do not invent settings semantics or model defaults. Mark anything not verified.
+9. **Produce the report.** Use the output format in `../SKILL.md`.
+10. **Offer edits separately.** Change files only after explicit user direction.
 
-Read `settings.json` to find:
-- `loadAtStartup.files` — force-loaded every session
-- `postCompactRestore.fullFiles` — re-loaded after compaction
-- `dynamicContext` sections — relationship, learning, work summaries
-- CLAUDE.md — native instruction file
+## Verification
 
-Also check for project-level CLAUDE.md files if working in a specific project.
-
-### 2. Read every instruction file
-
-Read each discovered file completely. Count total lines and rules.
-
-### 3. Evaluate each rule against the Five Questions
-
-For every rule found, apply the five questions from SKILL.md. Cross-reference with Claude Code's built-in system prompt behavior:
-
-**Claude already does by default (common false adds):**
-- Read files before editing them
-- Ask before destructive operations (rm, reset --hard, force push)
-- Make minimal changes, don't add unrequested features
-- Don't modify quoted/user text
-- Check safer alternatives before destructive git ops
-- Use structured choices when asking questions
-
-### 4. Check for cross-file conflicts
-
-Compare rules across all files for:
-- Same concept stated differently in two places
-- Rules that contradict each other
-- Outdated references (skill names, file paths, tool names)
-
-### 5. Evaluate context-to-value ratio
-
-For each force-loaded file, estimate:
-- How many tokens it consumes
-- How often its content actually affects output quality
-- Whether it could be on-demand (via the CLAUDE.md routing table) instead of always-loaded
-
-### 6. Produce the report
-
-Use the output format from SKILL.md. Include estimated token savings.
-
-### 7. Offer trimmed versions
-
-If the user approves, produce cleaned versions of the files with dead weight removed.
+Before reporting, confirm that every cited source exists, every claimed configuration key was observed, and every proposed deletion preserves higher-priority safety and tool contracts.
