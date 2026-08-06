@@ -5,126 +5,208 @@ mode: single-run
 
 # Test Idea Against World Threat Models
 
-Test any idea, strategy, investment, brand, or concept against all 11 persistent world models
-to assess viability across time horizons.
+Test an idea, strategy, investment, brand, or concept against 11 user-owned world model files spanning six months to 50 years.
 
 ## When to Use
 
-- User says "test this idea," "how will this hold up," "test my strategy," "stress test this"
-- User provides an idea/strategy/investment and wants temporal viability analysis
-- User wants to understand when an idea breaks or thrives
+- The user says "test this idea," "how will this hold up," "test my strategy," or "stress test this."
+- The user wants temporal viability analysis across multiple horizons.
+- The user understands that these are scenarios, not predictions.
 
-## Prerequisites
+## Required Runtime Data
 
-- World models must exist at `~/.claude/LIFEOS/MEMORY/RESEARCH/WorldModels/`
-- If models don't exist, prompt user to run UpdateModels workflow first
+This restored skill does not ship the world model corpus. It must not invent, approximate, or silently replace missing models.
+
+The required directory is:
+
+`~/.claude/LIFEOS/MEMORY/RESEARCH/WorldModels/`
+
+The required files are:
+
+1. `6-month.md`
+2. `1-year.md`
+3. `2-year.md`
+4. `3-year.md`
+5. `5-year.md`
+6. `7-year.md`
+7. `10-year.md`
+8. `15-year.md`
+9. `20-year.md`
+10. `30-year.md`
+11. `50-year.md`
+
+`INDEX.md` is useful for freshness metadata but does not replace any horizon file.
+
+## Required Frameworks
+
+Framework availability depends on the active installation. Resolve each required skill in the current harness before analysis begins.
+
+| Tier     | Required skills                              |
+|----------|----------------------------------------------|
+| Fast     | None beyond this skill                       |
+| Standard | FirstPrinciples, RedTeam                     |
+| Deep     | FirstPrinciples, RedTeam, Council            |
+
+Deep also requires the active harness to expose `web_search`, `source_check`, and
+`fetch_content` or equivalent interfaces that return cited current sources. The output
+template at `~/.claude/skills/WorldThreatModel/OutputFormat.md` is required for every tier.
+
+If a required skill, research interface, or the output template is unavailable, STOP. Do
+not substitute an informal approximation and do not downgrade the tier unless the user
+explicitly chooses a lower tier whose prerequisites pass.
 
 ## Tier Detection
 
-Detect from user prompt:
-- **"fast"** or **"quick"** → Fast tier
-- **"deep"** or **"thorough"** or **"comprehensive"** → Deep tier
-- **No modifier** → Standard tier (default)
+- "fast" or "quick" selects Fast.
+- "deep," "thorough," or "comprehensive" selects Deep.
+- No modifier selects Standard.
 
-## Workflow Steps
+State the selected tier before dispatch.
 
-### Step 0: Validate Models Exist
+## Workflow
 
+### Step 0: Fail-Closed Preflight
+
+Run the model-file check before reading content, invoking frameworks, or launching agents:
+
+```bash
+model_root="$HOME/.claude/LIFEOS/MEMORY/RESEARCH/WorldModels"
+required_models=(
+  6-month.md
+  1-year.md
+  2-year.md
+  3-year.md
+  5-year.md
+  7-year.md
+  10-year.md
+  15-year.md
+  20-year.md
+  30-year.md
+  50-year.md
+)
+missing=()
+for model in "${required_models[@]}"; do
+  [ -f "$model_root/$model" ] || missing+=("$model")
+done
+if [ "${#missing[@]}" -ne 0 ]; then
+  printf 'World models incomplete at %s\n' "$model_root" >&2
+  printf 'Missing: %s\n' "${missing[*]}" >&2
+  exit 1
+fi
 ```
-Check ~/.claude/LIFEOS/MEMORY/RESEARCH/WorldModels/ for all 11 model files.
-If any missing: "World models incomplete. Run 'update world models' first."
-If models older than 30 days: warn user but proceed.
-```
 
-### Step 1: Voice Notification
+Then verify `OutputFormat.md` exists and resolve every framework required by the selected tier through the active skill interface.
+
+On any preflight failure, report the exact missing files or frameworks, then STOP. Do not run any analysis. The user may populate the model corpus through a separately verified process and retry.
+
+### Step 1: Check Freshness
+
+Read the frontmatter or update date in each required model. If any model is older than 30 days, warn before continuing. If freshness cannot be determined, label it unknown. Staleness is a warning after completeness passes, not permission to fabricate an update.
+
+### Step 2: Notify
 
 ```bash
 curl -s -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Testing your idea against all eleven world threat models at TIER tier", "voice_id": "fTtv3eikoepIosk8dTZ5"}'
+  -d '{"message": "Testing your idea against eleven world models"}' \
+  > /dev/null 2>&1 &
 ```
 
-### Step 2: Extract and Decompose the Idea
+### Step 3: Decompose the Idea
 
-Before hitting it with world models, decompose the idea:
+Write:
 
-1. **State the idea** in 1-2 sentences
-2. **Identify core assumptions** the idea relies on (market conditions, technology state, cultural norms, regulatory environment, competitive landscape)
-3. **Identify success dependencies** — what must remain true for this to work?
+1. A one or two sentence statement of the idea
+2. Core assumptions about markets, technology, culture, regulation, competition, and timing
+3. Success dependencies that must remain true
 
-For **Standard and Deep tiers:** Invoke FirstPrinciples skill to classify assumptions:
-- Hard constraints (physics, demographics, math)
-- Soft constraints (policy, regulation, cultural norms)
-- Assumptions (unvalidated beliefs the idea depends on)
+For Standard and Deep, invoke the verified FirstPrinciples skill and require it to classify:
 
-### Step 3: Run Against World Models
+- hard constraints
+- soft constraints
+- unvalidated assumptions
 
-Read all 11 model files from `~/.claude/LIFEOS/MEMORY/RESEARCH/WorldModels/`.
+If the required framework invocation fails, STOP and report the failure. Do not continue with an improvised substitute.
 
-#### Fast Tier (~2 min)
-Single-agent analysis:
-1. Read all 11 models sequentially
-2. For each horizon, generate: Verdict (🟢/🟡/🔴) + 2-3 bullet points
-3. Write Executive Verdict
-4. Output using abbreviated format from OutputFormat.md
+### Step 4: Analyze the Horizons
 
-#### Standard Tier (~10 min)
-Parallel agent analysis:
-1. Spawn up to 11 parallel agents (Task tool, `run_in_background: true`)
-2. Each agent:
-   - Reads ONE world model document
-   - Analyzes the idea against that specific horizon
-   - Tests each assumption against the horizon's conditions
-   - Returns: Verdict, Key Factors, Analysis, Assumptions Tested
-3. After all agents return, invoke **RedTeam skill** with:
-   - Prompt: "Attack this idea across all time horizons. Here are the per-horizon analyses: {results}"
-   - Extract adversarial findings per horizon
-4. Synthesize Cross-Horizon Synthesis section
-5. Output using full format from OutputFormat.md
+Read only the 11 validated files from the required runtime directory.
 
-#### Deep Tier (up to 1 hr)
-Full capability invocation:
-1. **FirstPrinciples** (if not already run): Full deconstruct → challenge → reconstruct cycle on the idea
-2. **Research update check**: For each horizon, run quick Research check for any new developments that affect this specific idea
-3. **Parallel horizon analysis**: Same as Standard but with deeper prompts and longer analysis per horizon
-4. **RedTeam** (32 agents): Full adversarial analysis of the idea across all horizons
-5. **Council**: Multi-agent debate on the idea's long-term viability
-   - Prompt: "Debate the viability of {idea} across time horizons from 6 months to 50 years. Consider: {per-horizon results}"
-   - Extract Council Deliberation section
-6. Synthesize all findings
-7. Output using complete format from OutputFormat.md (all sections)
+#### Fast Tier
 
-### Step 4: Format Output
+The parent analyzes all 11 models directly. For each horizon, return:
 
-Use the template in `OutputFormat.md` (loaded from skill root). Ensure:
-- Each horizon is clearly separated with its own section header
-- Verdicts use consistent emoji indicators
-- Confidence levels reflect model confidence × analysis certainty
-- Adversarial findings attribute to specific horizon contexts
+- verdict
+- confidence
+- two or three key factors
+- assumptions that fail or strengthen
 
-### Step 5: Voice Summary
+Then produce the abbreviated format from `OutputFormat.md`.
+
+#### Standard Tier
+
+Use the current `Agent` tool exposed by the active Pi or Claude harness.
+
+In one assistant message, issue one `Agent` call per horizon. Each call must include:
+
+- a horizon-specific `description`
+- a complete `prompt` containing the idea, decomposed assumptions, the exact model file path, evidence requirements, and output contract
+- `subagent_type` set to a verified general-purpose agent type
+- `run_in_background` set to `true` when coordinator work can continue while analyses run
+
+Each horizon prompt must require:
+
+- verdict and confidence
+- key conditions from that model
+- assumption-by-assumption testing
+- evidence quoted or referenced from the assigned model
+- risks, opportunities, and uncertainty
+
+Trust harness completion notifications. Do not poll or read agent output files. In Claude Code, use `/tasks` to inspect active work and `TaskStop` to cancel a failed run. In Pi, use the returned agent ID with `get_subagent_result` only when the result is needed and no completion result is already present.
+
+After all 11 analyses complete, invoke the verified RedTeam skill with the idea, assumptions, and all horizon results. If any required horizon result or RedTeam result is missing, STOP and report the incomplete coverage.
+
+Synthesize using the full format in `OutputFormat.md`.
+
+#### Deep Tier
+
+Deep runs the Standard procedure plus:
+
+1. Use `web_search` for current developments relevant to each horizon, `source_check` for load-bearing claims, and `fetch_content` for primary-source passages. Keep current research separate from the stored model text and cite it.
+2. Require deeper horizon prompts with counterfactuals, leading indicators, and mitigation triggers.
+3. Invoke the verified RedTeam skill for cross-horizon adversarial analysis.
+4. Invoke the verified Council skill with all validated horizon and adversarial results.
+5. Synthesize the complete format from `OutputFormat.md`.
+
+If current-source research, RedTeam, Council, or any horizon analysis fails, STOP. Do not silently omit the section or claim Deep coverage.
+
+### Step 5: Validate the Synthesis
+
+Before delivery, confirm:
+
+- all 11 horizons appear exactly once
+- every conclusion traces to a stored model, cited research, or named framework result
+- stored-model evidence and new research are clearly distinguished
+- confidence reflects both model freshness and analytical uncertainty
+- disagreement between horizons or frameworks is preserved
+- no missing framework or horizon is represented as completed
+
+### Step 6: Deliver and Notify
+
+Use `OutputFormat.md`. Present scenarios and probability ranges, not predictions.
 
 ```bash
 curl -s -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Analysis complete. SUMMARY_OF_EXECUTIVE_VERDICT", "voice_id": "fTtv3eikoepIosk8dTZ5"}'
+  -d '{"message": "World model analysis complete"}' \
+  > /dev/null 2>&1 &
 ```
 
-## Output Format
+## Failure Rules
 
-See `OutputFormat.md` in the skill root directory.
-
-## Integration Points
-
-| Skill | Tier | Purpose |
-|-------|------|---------|
-| **FirstPrinciples** | Standard, Deep | Decompose idea assumptions before testing |
-| **RedTeam** | Standard, Deep | Adversarial attack on idea across horizons |
-| **Council** | Deep only | Multi-perspective debate on viability |
-| **Research** | Deep only | Quick refresh of horizon-relevant current events |
-
-## Error Handling
-
-- If a parallel agent fails: continue with remaining agents, note missing horizon in output
-- If a skill invocation fails: degrade gracefully (e.g., skip Council section, note in footer)
-- If models are stale (>90 days): prominently warn in header, recommend update
+- Missing model file: fail preflight and stop.
+- Missing required framework: fail preflight and stop.
+- Missing output template: fail preflight and stop.
+- Failed required agent: retry once with a corrected complete prompt, then stop if still incomplete.
+- Stale model: warn and label confidence; do not fabricate a refresh.
+- User requests downgrade after failure: rerun preflight for the newly selected tier before analysis.

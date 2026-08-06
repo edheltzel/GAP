@@ -34,6 +34,7 @@ import Handlebars from "handlebars";
 // Paths
 const HOME = process.env.HOME || "~";
 const BASE_TRAITS_PATH = `${HOME}/.claude/skills/Agents/Data/Traits.yaml`;
+const USER_TRAITS_PATH = `${HOME}/.claude/LIFEOS/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml`;
 const TEMPLATE_PATH = `${HOME}/.claude/skills/Agents/Templates/DynamicAgent.hbs`;
 const CUSTOM_AGENTS_DIR = `${HOME}/.claude/custom-agents`;
 
@@ -535,8 +536,8 @@ function saveAgent(agent: ComposedAgent): string {
   const personalityNames = agent.personality.map((p) => p.name.toLowerCase());
   const description =
     expertiseNames.length > 0
-      ? `${agent.name} — ${expertiseNames.join(" and ")} with ${personalityNames.join(", ")} approach.`
-      : `${agent.name} — custom agent with ${personalityNames.join(", ")} approach.`;
+      ? `${agent.name}: ${expertiseNames.join(" and ")} with ${personalityNames.join(", ")} approach.`
+      : `${agent.name}: custom agent with ${personalityNames.join(", ")} approach.`;
 
   // Build Claude Code compatible body
   const body = buildSavedAgentBody(agent, personaTitle, slug);
@@ -627,7 +628,7 @@ function buildSavedAgentBody(
     ...agent.approach.map((a) => `- ${a.name} methodology`),
   ].join("\n");
 
-  return `# Character: ${agent.name} — "${personaTitle}"
+  return `# Character: ${agent.name}: "${personaTitle}"
 
 **Real Name**: ${agent.name}
 **Character Archetype**: "${personaTitle}"
@@ -889,6 +890,7 @@ OPTIONS:
 
 CONFIGURATION:
   Base traits:    ~/.claude/skills/Agents/Data/Traits.yaml
+  User traits:    ~/.claude/LIFEOS/USER/SKILLCUSTOMIZATIONS/Agents/Traits.yaml
   Custom agents:  ~/.claude/custom-agents/
 
   User traits are merged over base (user takes priority).

@@ -1,264 +1,221 @@
 ---
 name: Delegation
-version: 1.0.23
-description: "Parallelizes work across six patterns — built-in agents, worktree-isolated agents, background agents, custom inline-brief agents, multi-turn agent teams, and parallel task dispatch — choosing teams when agents must share state, subagents when independent. USE WHEN parallel execution, agent team, swarm, spawn agents, fan out, divide and conquer, multi-agent, coordinate agents, custom agents."
+version: 1.0.24
+description: "Routes independent work through current Agent dispatch, background execution, role briefs, worktree isolation, and coordinator-managed synthesis. USE WHEN parallel execution, agent team, swarm, spawn agents, fan out, divide and conquer, multi-agent, coordinate agents, custom agents."
 effort: medium
 ---
 
-# Delegation — Agent Orchestration & Parallelization
+# Delegation: Agent Orchestration and Parallelization
 
 ## What It Does
 
-Parallelizes work across six patterns: built-in agents, worktree-isolated agents, background agents, custom agents via inline briefs, agent teams via TeamCreate, and parallel task dispatch. It also splits delegation into two weights — lightweight one-shot workers (capped turns) versus full agents that iterate with tools. The Algorithm auto-invokes it once work hits three or more independent workstreams.
+Delegates bounded work through the current `Agent` tool exposed by Pi or Claude Code. It distinguishes direct work from delegated work, independent workers from coordinator-managed role cohorts, foreground results from background execution, and shared-checkout work from worktree-isolated edits.
 
-## The Problem
+## Core Rule
 
-Doing independent work serially wastes time, but throwing every task at a heavyweight agent wastes more — spawning a full agent for a one-shot classification burns 10-30 seconds of startup for nothing. Worse, people conflate two different systems: fire-and-forget custom agents with no shared state, and persistent agent teams that message each other and share a task list. Pick the wrong one and you either over-coordinate simple work or under-coordinate complex work. This skill routes each job to the right pattern and the right weight.
+Delegate only when specialization, context isolation, or parallel execution saves more time than dispatch and verification cost.
 
-## How It Works
+Independent agents do not share context, memory, task state, or results. The parent conversation remains the coordinator. Every agent prompt must be complete, and the parent must validate each result before using it.
 
-**Auto-invoked by the Algorithm when work can be parallelized or requires agent specialization.**
+## Current Agent Contract
 
-## 🚨 CRITICAL ROUTING — Two COMPLETELY Different Systems
+Use the `Agent` tool supplied by the active harness. Do not write source-code snippets that pretend to call the tool.
 
-| the user Says | System | Tool | What Happens |
-|-------------|--------|------|-------------|
-| "**custom agents**", "**specialized agents**", "spin up agents", "launch agents" | **Inline briefs** | `Task(subagent_type="general-purpose", prompt=<inline brief: name + role + stance>)` | Distinct personas written per topic |
-| "**create an agent team**", "**agent team**", "**swarm**" | **Claude Code Teams** | `TeamCreate` → `TaskCreate` → `SendMessage` | Persistent team with shared task list, message coordination, multi-turn collaboration |
+Use only fields exposed by the current tool schema. The portable core is:
 
-**These are NOT the same thing:**
-- **Custom agents** = one-shot parallel workers with unique identities, launched via `Task()`, no shared state
-- **Agent teams** = persistent coordinated teams with shared task lists, messaging, and multi-turn collaboration via `TeamCreate`
+- `description`: short human-readable unit label
+- `prompt`: complete task, context, constraints, permissions, and expected output
+- `subagent_type`: an agent type confirmed by the active harness
+- `run_in_background`: use when coordinator work can continue before the result is needed
+- `max_turns`: optional bound for small one-shot work when supported
+- `isolation`: request worktree isolation for editing work when supported
 
-## When the Algorithm Should Use This Skill
+A new `Agent` dispatch starts a fresh worker. Do not assume persistent peer messaging or a shared task list. For another round, launch a fresh agent and include the prior result plus the new question in its prompt.
 
-- **3+ independent workstreams** exist at Extended+ effort level
-- **Multiple identical non-serial tasks** need parallel execution
-- **Specialized expertise** needed (architecture design, implementation, ISC optimization)
-- **Large codebase changes** spanning 5+ files benefit from parallel workers
-- **Research + execution** can proceed simultaneously
-- **"Create an agent team"** — use TeamCreate for persistent coordinated teams
-- **Unattended autonomous work where auditability matters more than speed** — the Observer-team pattern (read-only agents watching the tool-activity audit log, voting continue/halt/escalate) is a fit here, but it is not currently implemented; it was retired with the Agents skill and would need to be rebuilt as its own component before use.
+### Harness Controls
+
+- **Claude Code**: background completions notify the parent. Use `/tasks` to inspect running agents and `TaskStop` to cancel a specific task or agent.
+- **Pi**: background completions notify the parent. Use the returned agent ID with `get_subagent_result` only when the result is needed and no completion result is already present. Use `steer_subagent` only for a supported running background agent that needs correction.
+- **Both**: do not poll, sleep, tail output files, or duplicate work while a background agent is already handling it.
+
+## Delegation Gate
+
+Run this gate before dispatch:
+
+1. **Direct-work check**: If the answer is already known or a few direct reads can settle it, use zero agents.
+2. **Independence check**: Parallelize only units that do not depend on each other's unfinished results.
+3. **Context check**: Include every fact the worker needs. Agents start without the parent's implicit working context.
+4. **Write-conflict check**: Agents editing overlapping files must use supported worktree isolation or run serially.
+5. **Verification reservation**: Keep enough time and context to inspect outputs, diffs, tests, and evidence.
+6. **Fan-out bound**: Dispatch the smallest number of agents that covers the independent units.
+
+Output the decision as: `RIGHT-SIZE: direct` or `RIGHT-SIZE: N agents, verification reserved`.
 
 ## Delegation Patterns
 
-### 1. Built-In Agents
+### 1. Direct Work
 
-**⚠️ Built-in agents are for internal workflow routing ONLY.** When the user asks for custom, specialized, or uniquely-voiced agents, write an inline brief per agent (section 4 below) and launch `general-purpose`.
+Use no agent when:
 
-Use `Task(subagent_type="AgentType")` with these specialized agents:
+- the task is a single small file or lookup
+- direct tools can answer quickly
+- delegation setup would exceed the work
+- the parent already has the needed context
 
-| Agent Type | Specialization | When to Use |
-|-----------|---------------|-------------|
-| `general-purpose` (+ role brief) | Code, architecture, design work | Add a senior-engineer/TDD or system-design brief in the prompt — the `Engineer`/`Architect` types were retired |
-| `Algorithm` | ISC optimization, criteria work | ISC-specialized verification |
-| `Explore` | Fast codebase search | Quick file/pattern discovery |
-| `Plan` | Implementation strategy | Design before execution |
+### 2. Foreground Agent
 
-**Always include:** Full context, effort budget, expected output format.
+Use one foreground `Agent` dispatch when the parent needs the result before proceeding.
 
-### 2. Worktree-Isolated Agents
+Best for:
 
-Run agents in their own git worktree with `isolation: "worktree"` for file-safe parallelism:
+- bounded exploration that determines the next step
+- an independent review before implementation continues
+- a specialist answer needed by the current decision
 
-```
-Task(subagent_type="general-purpose", isolation: "worktree", prompt="Senior engineer, TDD. ...")
-```
+The prompt must define the result contract. Verify the returned claim directly when it affects files or external state.
 
-- Each agent gets its own working tree — no file conflicts with other agents
-- Worktree auto-created on spawn, auto-cleaned when agent finishes (unless changes made)
-- Use when multiple agents edit the same files or for competing approaches
-- Can combine with `run_in_background: true` for non-blocking isolated work
-- **Built-in agents with `isolation: worktree` in frontmatter** auto-isolate on every spawn
+### 3. Parallel Background Agents
 
-### 3. Background Agents
+Use background agents for independent work while the parent can continue useful coordinator tasks.
 
-Run agents with `run_in_background: true` for non-blocking parallel work:
+Issue one `Agent` tool call per independent unit in the same assistant message. Set `run_in_background` to `true`. Trust completion notifications and continue non-dependent work.
 
-```
-Task(subagent_type="general-purpose", run_in_background: true, prompt="Senior engineer, TDD. ...")
-```
+Best for:
 
-- Use when results aren't needed immediately
-- Check output with `Read` tool on the output_file path
-- Ideal for: research, long builds, parallel investigations
+- separate research questions
+- analysis of separate files or modules
+- independent review perspectives
+- bounded data extraction across distinct inputs
 
-### 3b. Foreground Agents (the default — contrast to pattern 3, not a seventh pattern)
+Do not launch background agents when the next parent action immediately requires every result.
 
-Standard `Task()` calls that block until complete:
+### 4. Worktree-Isolated Editing Agents
 
-- Use when you need the result before proceeding
-- Use for sequential dependencies
-- Default mode — most common
+Use worktree isolation when parallel writers could touch the same checkout or when competing implementations must remain separate.
 
-### 4. Custom Agents (inline briefs)
+Requirements:
 
-**Trigger:** "custom agents", "spin up agents", "launch agents", "specialized agents"
-**Action:** Write a distinct brief for each agent — a name, a role/expertise, and a stance — then launch each with `Task(subagent_type="general-purpose")`. No composition tool; the orchestrator writes the persona.
+- confirm the current `Agent` schema supports worktree isolation
+- give each worker a non-overlapping objective
+- verify the worker's actual diff and test evidence
+- integrate deliberately; do not assume changes appear in the parent checkout
 
-```typescript
-Task(
-  subagent_type="general-purpose",
-  prompt=<agent brief: "You are a skeptical security reviewer focused on auth bypass..."> + <task + context>
-)
-```
+If isolation is unavailable, serialize editing work.
 
-- Give each agent a DIFFERENT brief so their perspectives actually diverge
-- A capable model writes a sharper topic-specific persona than any trait lookup
-- Ideal for: domain experts, adversarial reviewers, creative brainstormers, parallel analysis
+### 5. Custom Role Briefs
 
-### 5. Agent Teams (via TeamCreate)
+When the user asks for custom, specialized, or contrasting agents, write one explicit role brief per perspective and dispatch a verified general-purpose agent type.
 
-**Trigger:** "create an agent team", "agent team", "swarm", "team of agents"
-**Action:** Use `TeamCreate` tool → `TaskCreate` → spawn teammates via `Task(team_name=...)` → coordinate via `SendMessage`
+Each role brief needs:
 
-```
-1. TeamCreate(team_name="my-project")           # Creates team + task list
-2. TaskCreate(subject="Implement auth module")   # Create team tasks
-3. Task(subagent_type="general-purpose", team_name="my-project", name="auth-engineer")  # Spawn teammate (senior-engineer/TDD brief in prompt)
-4. TaskUpdate(taskId="1", owner="auth-engineer") # Assign task
-5. SendMessage(type="message", recipient="auth-engineer", content="...")  # Coordinate
-```
+- role and domain expertise
+- stance or decision lens
+- the complete shared task
+- unique focus and exclusions
+- evidence standard
+- expected output
 
-**This is a COMPLETELY DIFFERENT system from custom agents:**
-- **Custom agents** (inline briefs) = fire-and-forget parallel workers, no shared state
-- **Agent teams** (TeamCreate) = persistent coordinated teams with shared task lists, messaging, multi-turn
+Distinct labels without distinct briefs do not produce meaningful diversity.
 
-**Team Guidelines:**
-- Use for 3+ independently workable criteria at Extended+
-- Large complex coding tasks benefit most
-- Each teammate works independently on assigned tasks via shared task list
-- Parent coordinates via `SendMessage`, reconciles results
-- Teammates go idle between turns — send messages to wake them
+### 6. Coordinator-Managed Role Cohort
 
-### When to Use Teams vs Subagents (Decision Matrix)
+Use a role cohort when several complementary specialists contribute to one deliverable. This is the portable replacement for workflows that assumed persistent teams or shared task infrastructure.
 
-| Factor | Subagents (Task) | Agent Teams (TeamCreate) |
-|--------|------------------|--------------------------|
-| **Communication** | Fire-and-forget, no peer messaging | Persistent messaging between teammates |
-| **Context** | Fresh context each spawn, limited window | Full context window per teammate, preserved across turns |
-| **Coordination** | Parent collects results, no shared state | Shared task list, direct peer DMs, idle/wake cycle |
-| **Duration** | Single-turn execution | Multi-turn, iterative work with course corrections |
-| **Overhead** | Low — spawn and forget | Higher — team setup, task creation, message routing |
-| **Best for** | Parallel research, one-shot analysis, simple delegation | Complex multi-file changes, iterative debugging, cross-layer coordination |
+The parent coordinator must:
 
-**Decision rule:** If agents need to talk to each other or iterate on shared work → Teams. If each agent does independent one-shot work → Subagents.
+1. Define the role catalog and select the minimum useful subset.
+2. Give each fresh agent the full shared context and a role-specific result contract.
+3. Dispatch independent first-round work in parallel.
+4. Collect every required result.
+5. Pass relevant prior results explicitly into any fresh follow-up or adjudication agent.
+6. Verify claims, preserve material dissent, and synthesize one deliverable.
 
-**Concrete examples:**
-- "Research 4 topics in parallel" → **Subagents** (independent, no coordination needed)
-- "Build a feature spanning API + UI + tests with shared state" → **Teams** (cross-layer, needs coordination)
-- "Run 10 file updates with same pattern" → **Subagents** (parallel, identical, independent)
-- "Debug a complex issue with competing hypotheses" → **Teams** (need to share findings, adjust approach)
+Use this pattern for cross-layer design, competing hypotheses, or review panels. Use simple parallel dispatch when every worker performs the same operation on a different input.
 
-### 6. Parallel Task Dispatch
+## Lightweight and Full Delegation
 
-For N identical operations (e.g., updating 10 files with the same pattern):
+### Lightweight
 
-1. Create N `Task()` calls in a single message (parallel launch)
-2. Each agent gets one unit of work
-3. Results collected when all complete
+Use for one-shot extraction, classification, summarization, or transformation where all input fits in the prompt and no tool use is expected.
 
-## Effort-Level Scaling
+- keep the prompt self-contained
+- set a small `max_turns` only when the active schema supports it
+- demand a compact output contract
 
-| Effort | Delegation Strategy |
-|--------|-------------------|
-| Instant/Fast | No delegation — direct tools only |
-| Standard | 1-2 foreground agents max for discrete subtasks |
-| Extended | 2-4 agents, background agents for research |
-| Advanced | 4-8 agents, agent teams for 3+ workstreams |
-| Deep | Full team orchestration, parallel workers |
-| Comprehensive | Unbounded — teams + parallel + background |
+### Full
 
-## Two-Tier Delegation (Lightweight vs Full)
+Use when the worker must read files, search, browse, edit, test, or iterate.
 
-Not all delegation needs a full agent. Match delegation weight to task complexity:
+- provide repository and scope context
+- state allowed side effects
+- define verification requirements
+- do not impose a turn cap that prevents completion
 
-### Lightweight Delegation
-**For:** One-shot extraction, classification, summarization, simple Q&A against provided content.
+Decision rule: if the worker needs tools or iteration, use full delegation.
 
-```
-Task(subagent_type="general-purpose", max_turns=3, prompt="...")
-```
+## Parallel Dispatch Procedure
 
-- Model is a per-dispatch judgment call (`model` param; unspecified inherits the session model)
-- Set `max_turns=3` — if it can't finish in 3 turns, it needs full delegation
-- Provide all input inline in the prompt (no tool use expected)
-- Examples: "Classify this text as X/Y/Z", "Extract the 5 key points from this", "Summarize this in 2 sentences"
+1. Enumerate independent units.
+2. Remove units that are faster to handle directly.
+3. Write one complete prompt per remaining unit.
+4. Issue all independent `Agent` calls in one assistant message.
+5. Continue only work that does not depend on pending results.
+6. Collect completion results without polling.
+7. Verify coverage, evidence, and any disk effects.
+8. Retry a failed unit once with a corrected prompt or report the gap.
+9. Synthesize the validated results.
 
-### Full Delegation
-**For:** Multi-step reasoning, tasks requiring tool use (file reads, searches, web), tasks that need their own iteration loop.
+## Verification Contract
 
-```
-Task(subagent_type="general-purpose", prompt="...")  # or specialized agent type
-```
+An agent completion message is a claim, not proof.
 
-- Unspecified model inherits the session model (harness behavior)
-- No max_turns restriction — agent iterates until done
-- Agent uses tools autonomously (Read, Grep, Bash, etc.)
-- Examples: "Research X and produce a report", "Refactor these 5 files", "Debug why test Y fails"
+For every writing agent:
 
-### Decision Rule
-**Ask:** "Can this be answered in one LLM call with no tool use?" → Lightweight. Otherwise → Full.
+- confirm the claimed file exists
+- inspect the actual diff
+- run the relevant checks
+- confirm only allowed paths changed
 
-| Signal | Tier |
-|--------|------|
-| Input fits in prompt, output is extraction/classification | Lightweight |
-| Needs to read files, search, or browse | Full |
-| Needs iteration or self-correction | Full |
-| Simple transform of provided content | Lightweight |
-| Requires domain expertise + research | Full |
+For every research or analysis agent:
 
-**Why this matters:** Spawning a full agent for a one-shot extraction wastes ~10-30s of startup overhead and unnecessary context. Lightweight delegation returns in 2-5s. Over an Extended+ Algorithm run with 10+ delegations, this saves minutes. Inspired by RLM's `llm_query()` vs `rlm_query()` two-tier pattern (Zhang/Kraska/Khattab 2025).
+- check that the requested scope is complete
+- inspect cited evidence when the claim matters
+- compare conflicting results
+- label unresolved uncertainty
 
-## Right-Sizing Pre-Gate (PLAN, all tiers)
+Do not claim full delegation coverage when a required unit failed or returned an unverifiable result.
 
-The tier delegation floors set a *minimum* fan-out. This gate sets the *ceiling* and the proof you owe. Run it before any fan-out. It exists because over-delegation is one of the most expensive recurring wastes in the reflection log: teams spawned for single-file rewrites, a writing agent that reported "completed" with zero disk writes (110k tokens spent for nothing), 300-agent waves with no headroom left to verify them. The outside proof is Cloudflare's risk-tiered dispatch — scale the agent count to the size of the job. Don't send the dream team to review a typo fix.
+## Anti-Patterns
 
-- **(a) Zero-agent check.** Is the answer already in working memory, or reachable by `Glob`+`Grep`+`Read` in under 30s, or isolated to a single file? Then **0 agents** — do it inline. A subagent isn't free; its setup, context load, and result handling cost more than a direct read.
-- **(b) Disk-effect probe on every writing agent.** An agent that says it wrote or edited files isn't trusted until you confirm it: the file exists AND the diff is non-empty (`Read` / `git diff` / `Grep` the claimed change). A "completed" report is a claim, not evidence. Rule 1 Live-Probe binds delegates exactly as it binds the primary.
-- **(c) Budget reservation above ~8 agents.** A fan-out past ~8 concurrent agents must reserve explicit verification budget — you can't spend it all generating and none confirming — and name a non-agent fallback branch in `## Decisions` for when the wave comes back unusable. This bounds the 5-level nesting capability: nesting multiplies agent count, so the ceiling is on the whole tree, not just the top layer.
-
-**Output at the Delegation Gate:** `📐 RIGHT-SIZE: [0-agent inline | N agents, disk-probed | N>8, verify-budget reserved + fallback named]`.
-
-## Agent Briefs Are Ideal-State Prompts
-
-**Every inline brief and Workflow subagent prompt articulates the ideal state, not the procedure.** State WHAT a done result looks like (as testable outcomes), the CONSTRAINTS, and the TOOLS available — then trust the agent to find HOW. A brief that choreographs the agent's reasoning ("first search, then extract, then verify, then synthesize") is BPE-violating scaffolding: it caps a capable agent and rots as models improve. This is the highest-volume prompting surface in the system (subagent briefs are written constantly at runtime), so the discipline matters most here. Keep the four keep-classes — safety-gate, verified-gotcha, tool-contract, output-format-contract — and delete the choreography. Prefer stating the coverage OUTCOME over a hardcoded fan-out count ("trust a match only when 3+ independent sources align", not "spawn exactly 15 agents"). Full standard: `skills/Prompting/Standards.md` § Ideal-State Prompting.
-
-## Anti-Patterns (Don't Do These)
-
-- Don't delegate what Grep/Glob/Read can do in <2 seconds
-- Don't spawn agents for single-file changes
-- Don't create teams for fewer than 3 independent workstreams
-- Don't send agents work without full context — they start fresh
-- Don't use built-in agent names for custom agents
-- Don't use bare built-in agent types when user asks for specialized or custom agents — write a distinct inline brief per agent and launch `general-purpose`
-- Don't use full delegation for one-shot extraction/classification — use lightweight tier
-
-## Gotchas
-
-- **Delegation uses Claude Code's built-in TeamCreate** for coordinated teams — distinct from one-shot custom agents (inline briefs on `general-purpose`). These are different patterns.
-- **3+ independent workstreams warrant delegation.** For 1-2 tasks, direct work is faster than team coordination overhead.
-- **Agent teams share a task list.** Use TaskCreate/TaskUpdate for coordination, not ad-hoc messages.
-- **Teams overkill for single-file tasks.** (Mar 2026 reflection: "one agent that can both read code and write JSX is better than three specialists who can't coordinate")
-- **Forked subagents inherit the full main-thread conversation + share its prompt cache** (Anthropic CC v2.1.133+, enabled via `CLAUDE_CODE_FORK_SUBAGENT=1` env or agent frontmatter `context: fork`). Use forked subagents for **nuance-dependent work**: design variations, follow-on research, anything that depends on context the main thread already established. **DO NOT FORK for code review** — a forked reviewer defends its own code (R Amjad: "biased toward defending own code"). For convergence questions, run one fork + one non-fork in parallel and look at where they disagree.
+- delegating a lookup that direct tools can answer immediately
+- spawning agents for one trivial file edit
+- sending incomplete prompts that rely on parent-only context
+- parallelizing dependent tasks
+- allowing parallel writers to collide in one checkout
+- assuming workers share state or can coordinate privately
+- polling background agents or reading their output files
+- trusting a worker's claimed disk changes without inspection
+- launching more agents than the parent can verify
+- naming specialized agent types that the active harness does not expose
 
 ## Examples
 
-**Example 1: Parallel implementation**
-```
-User: "build the frontend and backend in parallel"
-→ Creates team via TeamCreate
-→ Spawns frontend and backend agents
-→ Shared task list for coordination
-→ Agents work independently, merge results
-```
+### Parallel research
 
-**Example 2: Research swarm**
-```
-User: "launch an agent team to research these 5 topics"
-→ Creates team with 5 research agents
-→ Each agent handles one topic independently
-→ Results synthesized by team lead
-```
+Four independent topics can use four fresh agents with the same evidence and output contract. The parent validates and synthesizes their results.
 
-Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.
+### Cross-layer feature
+
+API, UI, and test work may run in separate worktrees when interfaces are already defined. If interfaces are unresolved, design them first, then dispatch implementation.
+
+### Competing hypotheses
+
+Dispatch one agent per hypothesis with the same evidence standard. After results return, launch a fresh adjudicator agent with all prior results embedded in its prompt, then verify the adjudication directly.
+
+## Gotchas
+
+- Agent types differ by harness and installation. Confirm the available types before dispatch.
+- Background execution is useful only when the parent has non-dependent work.
+- Worktree changes require explicit inspection and integration.
+- Fresh dispatches do not remember earlier workers. Include prior results in follow-up prompts.
+- The parent owns final verification and user-facing synthesis.
