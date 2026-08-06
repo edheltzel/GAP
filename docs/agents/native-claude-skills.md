@@ -46,8 +46,9 @@ team expertise, TELOS documents, and WorldThreatModel model files.
 
 Repository-owned native tool dependencies install beside the real source files through
 `install-native-skill-tools.sh`. The locked package directories are `Agents/Tools`, `Apify`,
-`Art/Tools`, `Evals`, and `Prompting/Templates/Tools`. Checks require Bun and jq, verify the
-frozen lockfile, and reject installed versions outside declared ranges. Never install
+`Art/Tools`, `Evals`, `Prompting/Templates/Tools`, and `Telos/DashboardTemplate`. Checks
+require Bun and jq, verify the frozen lockfile, and reject installed versions outside
+declared ranges. Never install
 dependencies through the Stowed runtime links. Stow ignores every nested `node_modules`
 path, while `prune-native-dependency-links` removes only dangling links hidden under those
 ignored runtime paths.

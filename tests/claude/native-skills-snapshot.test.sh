@@ -115,7 +115,7 @@ if find "$skills_root" -mindepth 1 -maxdepth 1 -type l | grep -q .; then
 	exit 1
 fi
 
-expected_digest='0f496ab15eaef42022cf0411202e0fe862e9af0a0b4f8584562dda0a09be7f67'
+expected_digest='2c9802d58948406e0c65ef5311072da1431b32820d317d8507cdf0ae10ffb301'
 actual_digest="$(
 	python3 - "$repo_root" <<'PY'
 from pathlib import Path

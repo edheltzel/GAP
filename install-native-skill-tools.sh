@@ -41,6 +41,7 @@ else
 		"claude/.claude/skills/Art/Tools"
 		"claude/.claude/skills/Evals"
 		"claude/.claude/skills/Prompting/Templates/Tools"
+		"claude/.claude/skills/Telos/DashboardTemplate"
 	)
 fi
 
