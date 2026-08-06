@@ -21,11 +21,11 @@
     "../../Developer/Atlas/PiExtensions"
   ],
   "theme": "eldritch",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-sol",
+  "defaultProvider": "xai",
+  "defaultModel": "grok-4.5",
   "quietStartup": true,
-  "defaultThinkingLevel": "xhigh",
+  "defaultThinkingLevel": "medium",
   "hideThinkingBlock": false,
-  "lastChangelogVersion": "0.82.1",
+  "lastChangelogVersion": "0.83.0",
   "editorPaddingX": 1
 }

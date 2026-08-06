@@ -1,90 +1,126 @@
-providers: 
-  webSearch: codex
+providers:
+  webSearchOrder:
+    - codex
+    - perplexity
+    - gemini
+    - anthropic
+    - xai
+    - zai
+    - exa
+    - tinyfish
+    - jina
+    - kagi
+    - tavily
+    - firecrawl
+    - brave
+    - kimi
+    - parallel
+    - synthetic
+    - searxng
+    - startpage
+    - duckduckgo
+    - ecosia
+    - google
+    - mojeek
+    - public
 symbolPreset: nerd
-theme: 
+theme:
   dark: atlas-eldritch
   light: light-tokyo-night
 setupVersion: 1
-extensions: 
+extensions:
   - ~/.omp/agent/extensions/atlas-status-line.ts
   - ~/.omp/agent/extensions/omp-prompt-template-model/src/main.ts
-statusLine: 
+statusLine:
   preset: custom
-  leftSegments: 
+  leftSegments:
     []
-  rightSegments: 
+  rightSegments:
     []
   separator: powerline-thin
   sessionAccent: false
   transparent: false
   compactThinkingLevel: false
   showHookStatus: true
-terminal: 
+terminal:
   showProgress: false
-display: 
+display:
   showTokenUsage: true
   cacheMissMarker: false
   shimmer: kitt
 showHardwareCursor: true
-task: 
+task:
   showResolvedModelBadge: false
   eager: default
   enableLsp: false
-  agentModelOverrides: 
+  agentModelOverrides:
     code-reviewer: sol
     code-simplifier: sol
-tui: 
+tui:
   tight: false
 defaultThinkingLevel: auto
 textVerbosity: high
 personality: default
-advisor: 
+advisor:
   enabled: false
   subagents: true
 interruptMode: immediate
-loop: 
+loop:
   mode: prompt
 treeFilterMode: default
-stt: 
+stt:
   submitTrigger: never
-collab: 
+collab:
   displayName: ▲
-marketplace: 
+marketplace:
   autoUpdate: auto
-collapseChangelog: true
-power: 
+power:
   sleepPrevention: "off"
-compaction: 
+compaction:
   handoffSaveToDisk: true
-checkpoint: 
+checkpoint:
   enabled: true
-vault: 
+vault:
   enabled: true
-github: 
+github:
   enabled: true
-todo: 
+todo:
   eager: default
   remindersMax: 5
 hideThinkingBlock: false
-secrets: 
+secrets:
   enabled: true
-modelRoles: 
-  default: openai-codex/gpt-5.6-sol:xhigh
+modelRoles:
   commit: openrouter/deepseek/deepseek-v4-flash
-  plan: openai-codex/gpt-5.6-sol:xhigh
   advisor: openai-codex/gpt-5.6-sol:xhigh
   slow: opencode-zen/grok-4.5
-  smol: openai-codex/gpt-5.4-mini
+  smol: openrouter/deepseek/deepseek-v4-flash
+  designer: openrouter/moonshotai/kimi-k3
+  plan: anthropic/claude-fable-5:xhigh
+  default: xai-oauth/grok-4.5:medium
+  vision: openai-codex/gpt-5.6-terra
+  task: xai-oauth/grok-4.5
+  REVIEWER: openai-codex/gpt-5.6-sol:xhigh
   tiny: openai-codex/gpt-5.6-luna
 colorBlindMode: true
-dev: 
+dev:
   autoqaConsent: granted
-browser: 
+browser:
   cmux: false
   screenshotDir: /Users/ed/Pictures/agent-screenshots/
-inspect_image: 
+inspect_image:
+  mode: "on"
+astGrep:
   enabled: true
-astGrep: 
-  enabled: true
-tasks: 
+tasks:
   todoClearDelay: 60
+startup:
+  changelogMode: summary
+retry:
+  fallbackChains:
+    tiny:
+      - openrouter/deepseek/deepseek-v4-flash
+    commit:
+      - openai-codex/gpt-5.6-luna
+    designer:
+      - anthropic/claude-opus-5
