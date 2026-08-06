@@ -14,3 +14,9 @@ pbakaus/impeccable=impeccable
 stablyai/orca=computer-use,orca-cli,orchestration
 vercel-labs/agent-browser=agent-browser
 vercel-labs/opensrc=opensrc
+# Claude-only anti-slop skills from the locally committed PiExtensions package.
+local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=anti-slop|packages/pi-anti-slop/skills/anti-slop/SKILL.md|bd292c4f14236460cdb67cc09853f6e245426b9a|agents=claude-code
+local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=slop-code|packages/pi-anti-slop/skills/slop-code/SKILL.md|0888d48b719867ed03b05d4becaf76c677c7db34|agents=claude-code
+local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=slop-review|packages/pi-anti-slop/skills/slop-review/SKILL.md|92bbb50d19de4124ca7f44aac54208b3144a854e|agents=claude-code
+local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=slop-rewrite|packages/pi-anti-slop/skills/slop-rewrite/SKILL.md|13e5477f3d2070495240a9a66d279b09ebda843f|agents=claude-code
+local:../PiExtensions#7676913e981d2c663024ca9926850bf3f8e6d980=slop-verify|packages/pi-anti-slop/skills/slop-verify/SKILL.md|201207638e521324e1e356e1c60e5eb0586adff2|agents=claude-code
