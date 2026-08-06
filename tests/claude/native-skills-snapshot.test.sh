@@ -104,35 +104,50 @@ actual_digest="$(python3 - "$repo_root" <<'PY'
 from pathlib import Path
 import hashlib
 import os
+import subprocess
 import sys
 
 root = Path(sys.argv[1])
+tracked = {
+    raw.decode()
+    for raw in subprocess.check_output(
+        [
+            'git',
+            'ls-files',
+            '-z',
+            '--',
+            'claude/.claude/skills',
+            'claude/.claude/agents',
+        ],
+        cwd=root,
+    ).split(b'\0')
+    if raw
+}
 skills = root / 'claude/.claude/skills'
-items = sorted(
-    (child for child in skills.iterdir() if child.is_dir() and not child.is_symlink()),
-    key=lambda path: path.name,
+paths = []
+for child in sorted(
+    (entry for entry in skills.iterdir() if entry.is_dir() and not entry.is_symlink()),
+    key=lambda entry: entry.name,
+):
+    prefix = child.relative_to(root).as_posix() + '/'
+    paths.extend(root / relative for relative in sorted(tracked) if relative.startswith(prefix))
+paths.append(skills / 'CLAUDE.md')
+paths.extend(
+    root / relative
+    for relative in sorted(tracked)
+    if relative.startswith('claude/.claude/agents/')
 )
-items += [skills / 'CLAUDE.md', root / 'claude/.claude/agents']
 
 digest = hashlib.sha256()
-for base in items:
-    paths = (
-        [base]
-        if base.is_file() or base.is_symlink()
-        else sorted(
-            (path for path in base.rglob('*') if path.is_file() or path.is_symlink()),
-            key=lambda path: path.as_posix(),
-        )
-    )
-    for path in paths:
-        relative = path.relative_to(root).as_posix().encode()
-        if path.is_symlink():
-            mode = b'120000'
-            data = os.readlink(path).encode()
-        else:
-            mode = b'100755' if path.stat().st_mode & 0o111 else b'100644'
-            data = path.read_bytes()
-        digest.update(mode + b' ' + relative + b'\0' + data + b'\0')
+for path in paths:
+    relative = path.relative_to(root).as_posix().encode()
+    if path.is_symlink():
+        mode = b'120000'
+        data = os.readlink(path).encode()
+    else:
+        mode = b'100755' if path.stat().st_mode & 0o111 else b'100644'
+        data = path.read_bytes()
+    digest.update(mode + b' ' + relative + b'\0' + data + b'\0')
 
 print(digest.hexdigest())
 PY

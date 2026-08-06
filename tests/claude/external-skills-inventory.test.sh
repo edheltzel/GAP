@@ -82,4 +82,9 @@ if [ -e "$repo_root/claude/.claude/skills/anti-slop" ] || [ -L "$repo_root/claud
   exit 1
 fi
 
+if [ -d "$repo_root/.claude/skills" ] && find "$repo_root/.claude/skills" -mindepth 1 -print -quit | grep -q .; then
+  printf 'shared skills must not leave project-scoped pointers under .claude/skills\n' >&2
+  exit 1
+fi
+
 printf 'PASS: shared skill manifest covers every recoverable final-lineage pointer\n'
