@@ -17,6 +17,12 @@ import { accessSync, constants, existsSync } from "node:fs";
 import { unlink, stat, rename } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
+function errorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
+  const code = Reflect.get(error, "code");
+  return typeof code === "string" ? code : undefined;
+}
+
 function isExecutable(path: string): boolean {
   try {
     accessSync(path, constants.X_OK);
@@ -72,8 +78,8 @@ NOTES:
 async function unlinkIfPresent(path: string): Promise<void> {
   try {
     await unlink(path);
-  } catch {
-    return;
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") throw error;
   }
 }
 
@@ -132,9 +138,10 @@ async function removeBackground(inputPath: string, outputPath?: string): Promise
   // Move temp → target (overwrites safely; same dir means an atomic rename).
   try {
     await rename(tmp, target);
-  } catch {
+  } catch (error) {
     await unlinkIfPresent(tmp);
-    console.error(`❌ Failed to move result into place: ${target}`);
+    const detail = error instanceof Error ? `: ${error.message}` : "";
+    console.error(`❌ Failed to move result into place: ${target}${detail}`);
     process.exit(1);
   }
 
@@ -144,13 +151,8 @@ async function removeBackground(inputPath: string, outputPath?: string): Promise
   }
 
   const elapsed = Date.now() - start;
-  let dims = "";
-  try {
-    const s = await stat(target);
-    dims = ` (${(s.size / 1024).toFixed(0)}KB)`;
-  } catch {
-    dims = "";
-  }
+  const s = await stat(target);
+  const dims = ` (${(s.size / 1024).toFixed(0)}KB)`;
   console.log(`✅ Saved: ${target}${dims} in ${elapsed}ms`);
 }
 
@@ -185,8 +187,9 @@ async function main(): Promise<void> {
     try {
       await removeBackground(file);
       success++;
-    } catch {
+    } catch (error) {
       failed++;
+      console.error(`❌ ${file}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
