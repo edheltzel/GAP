@@ -3,14 +3,30 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+git_common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [[ "$git_common_dir" == */.git ]]; then
+	canonical_root="${git_common_dir%/.git}"
+else
+	canonical_root="$repo_root"
+fi
 manifest="${SKILLS_MANIFEST:-$repo_root/skills.txt}"
 native_source="${NATIVE_SKILLS_SOURCE:-$repo_root/claude/.claude/skills}"
+pi_settings="${PI_SETTINGS:-$repo_root/pi/.pi/agent/settings.json}"
+pi_extensions_root="${PI_EXTENSIONS_ROOT:-$(dirname "$canonical_root")/PiExtensions}"
+pi_extensions_registration="${PI_EXTENSIONS_REGISTRATION:-../../Developer/Atlas/PiExtensions}"
 errors=0
 checked=0
 
 fail() {
 	printf 'FAIL %s\n' "$1" >&2
 	errors=$((errors + 1))
+}
+
+trim_whitespace() {
+	local value="$1"
+	value="${value#"${value%%[![:space:]]*}"}"
+	value="${value%"${value##*[![:space:]]}"}"
+	printf '%s' "$value"
 }
 
 check_skill() {
@@ -43,7 +59,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 	if [[ "$line" =~ ^(.*[^[:space:]])[[:space:]]+#.*$ ]]; then
 		line="${BASH_REMATCH[1]}"
 	fi
-	line="$(printf '%s' "$line" | tr -d '[:space:]')"
+	line="$(trim_whitespace "$line")"
 	[ -z "$line" ] && continue
 
 	descriptor="${line#*=}"
@@ -101,6 +117,26 @@ if [ -d "$anti_slop_root" ]; then
 		fi
 	done
 fi
+
+pi_anti_slop_skills=(anti-slop slop-code slop-review slop-rewrite slop-verify)
+if ! command -v jq >/dev/null 2>&1; then
+	fail "Pi anti-slop registration: jq is required"
+elif [ ! -f "$pi_settings" ]; then
+	fail "Pi anti-slop registration: missing settings file: $pi_settings"
+else
+	direct_count="$(jq --arg registration "$pi_extensions_registration" \
+		'[.packages[]? | select(. == $registration)] | length' "$pi_settings")"
+	legacy_count="$(jq '[.packages[]? | select(. == "local-packages/pi-extensions")] | length' "$pi_settings")"
+	if [ "$direct_count" -ne 1 ]; then
+		fail "Pi anti-slop registration: expected exactly one $pi_extensions_registration entry in $pi_settings"
+	fi
+	if [ "$legacy_count" -ne 0 ]; then
+		fail "Pi anti-slop registration: retired local-packages/pi-extensions entry remains in $pi_settings"
+	fi
+fi
+for name in "${pi_anti_slop_skills[@]}"; do
+	check_skill "$pi_extensions_root/packages/pi-anti-slop/skills/$name" "PiExtensions native package"
+done
 
 if [ ! -d "$native_source" ]; then
 	fail "native Claude source is missing: $native_source"
