@@ -126,8 +126,9 @@ import { Audio, Video, staticFile } from 'remotion'
 ## Reference Documentation
 
 For detailed patterns on specific topics, see:
+
 ```
-~/.claude/skills/Remotion/Tools/Reference/
+~/.claude/skills/Remotion/Tools/Ref-*.md
 ```
 
 Topics include: animations, audio, 3d, charts, captions, fonts, transitions, and more.

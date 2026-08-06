@@ -1,69 +1,34 @@
 # Update Workflow
 
-## Voice Notification
+## Voice notification
 
 ```bash
 curl -s -X POST http://localhost:8888/notify \
   -H "Content-Type: application/json" \
-  -d '{"message": "Running the Update workflow in the Browser skill to sync capabilities"}' \
+  -d '{"message": "Running the Update workflow in the Browser skill to verify browser capabilities"}' \
   > /dev/null 2>&1 &
 ```
 
 Running **Update** in **Browser**...
 
----
-
-Verify browser tools are current and working.
-
-## When to Use
-
-- After agent-browser releases new version
-- If browser tools fail unexpectedly
-- Periodic capability check
+Verify the installed browser CLI without making network calls unless the user explicitly supplies and approves a target URL.
 
 ## Steps
 
-### 1. Check Versions
+```bash
+BROWSER_CLI=/opt/homebrew/bin/chrome-devtools-axi
+test -x "$BROWSER_CLI"
+"$BROWSER_CLI" --help
+"$BROWSER_CLI" update --check
+```
+
+For an approved local smoke target:
 
 ```bash
-agent-browser --version
+"$BROWSER_CLI" open http://127.0.0.1:<port>
+"$BROWSER_CLI" snapshot
+"$BROWSER_CLI" screenshot /tmp/browser-update-test.png
+"$BROWSER_CLI" stop
 ```
 
-### 2. Verify Headless agent-browser
-
-```bash
-agent-browser --session update-test open https://example.com
-agent-browser --session update-test snapshot
-agent-browser --session update-test screenshot /tmp/update-test.png
-```
-
-### 3. Verify One-Shot Screenshot
-
-```bash
-agent-browser open https://example.com && agent-browser screenshot /tmp/oneshot-test.png
-```
-
-### 4. Verify AI-agent automation
-
-```
-Agent(subagent_type="general-purpose", prompt="Navigate to https://example.com. Take a snapshot. Report page title.")
-```
-
-### 5. Verify Stories and Recipes
-
-```bash
-ls ~/.claude/skills/Browser/Stories/*.yaml
-ls ~/.claude/skills/Browser/Recipes/*.md
-```
-
-## Version Tracking
-
-```
-# Last sync: 2026-04-04
-# Version: 8.0.0
-# Headless: agent-browser (Rust CLI daemon, headless default)
-# One-shot: agent-browser open <url> && agent-browser screenshot <path>
-# Agents: general-purpose (headless agent-browser)
-# Orchestration: ReviewStories, Automate
-# Custom code: NONE
-```
+Also confirm `Stories/*.yaml` and `Recipes/*.md` are readable. Do not run the mutating `update` command unless the user explicitly requests an upgrade.

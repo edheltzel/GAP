@@ -1,244 +1,95 @@
 ---
 name: Browser
-description: "Headless browser automation via agent-browser - Rust CLI daemon with persistent auth profiles for fast, scriptable, parallel browser work. Batch commands, network interception, device emulation, per-site profile auth (one-time headed login, headless forever after), parallel isolated sessions via --session. Workflows: ReviewStories (fan out YAML user stories to parallel reviewer agents), Automate (parameterized recipe templates), Update. Delegates background parallel scraping to general-purpose agents; falls back to Interceptor if a site has bot detection. USE WHEN headless browser, batch scrape, fast screenshot, dev server test, parallel browser, background automation, extract data, review stories, automate recipe, batch screenshots, scrape multiple pages in parallel. NOT FOR deploy verification or UI confirmation with real Chrome (use Interceptor), simple single-URL fetching (use WebFetch), CAPTCHA or bot-detection bypass (use BrightData or Interceptor), or social platform actor-based scraping (use Apify)."
-version: 10.0.0
+description: "Browser automation through the installed chrome-devtools-axi CLI. Opens pages, reads accessibility snapshots, clicks and fills by generation-scoped refs, captures screenshots, evaluates JavaScript, and inspects console or network activity. Workflows: ReviewStories, Automate, and Update. USE WHEN browser automation, screenshot, dev server test, form fill, extract rendered data, review stories, automate recipe, console debugging, or network inspection. NOT FOR simple static URL fetching (use fetch_content), residential-proxy crawling (use BrightData), or social actor scraping (use Apify)."
+version: 10.1.0
 effort: medium
 ---
 
 ## MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
 
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
-
-1. **Send voice notification**:
-   ```bash
-   curl -s -X POST http://localhost:8888/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the WORKFLOWNAME workflow in the Browser skill to ACTION"}' \
-     > /dev/null 2>&1 &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **WorkflowName** workflow in the **Browser** skill to ACTION...
-   ```
-
-**This is not optional. Execute this curl command immediately upon skill invocation.**
-
-# Browser v10.0.0 - Browser Automation
-
-## What It Does
-
-Drives a headless browser from the command line through `agent-browser`, a Rust CLI daemon. Opens pages, clicks, fills forms, takes screenshots, runs JS, intercepts network, and emulates devices. Holds per-site auth profiles so you log in once and stay logged in for headless runs after that. Batches commands, runs sessions in parallel, and hands browser work to background agents.
-
-## The Problem
-
-Most browser automation is slow to script, leaks state between runs, and forces a fresh login every time. You either babysit a headed browser or fight a framework that re-authenticates on every call. When you need to screenshot ten pages, scrape a logged-in site, or run several scrapes at once, the per-run startup and auth cost dominates. This skill keeps a daemon warm, persists auth per site, and lets you fan work out to parallel sessions and agents.
-
-## How It Works
-
-**Tool:** `agent-browser` - headless Rust CLI daemon with persistent auth profiles.
-
-**If agent-browser isn't working or a site has bot detection, use the Interceptor skill instead.** Interceptor is a Chrome extension with zero CDP fingerprint - passes all major bot detection checks.
-
-### Does the site need auth?
-
-Use `--profile ~/.agent-browser/profiles/<site>`. If profile exists, auth is automatic. If not, run `--headed` once for login, then headless forever.
-
----
-
-## agent-browser
-
-Native Rust daemon. Persistent profiles for auth. Headless by default.
-
-### Quick One-Shot Commands
+Send the notification before running a workflow:
 
 ```bash
-agent-browser open https://example.com && agent-browser screenshot /tmp/shot.png
-agent-browser open https://example.com && agent-browser screenshot --full /tmp/full.png
-agent-browser open https://example.com && agent-browser pdf /tmp/page.pdf
+curl -s -X POST http://localhost:8888/notify \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Running the WORKFLOWNAME workflow in the Browser skill to ACTION"}' \
+  > /dev/null 2>&1 &
 ```
 
-### Session-Based Interaction
+Then output:
+
+```
+Running the **WorkflowName** workflow in the **Browser** skill to ACTION...
+```
+
+# Browser
+
+Use the installed `/opt/homebrew/bin/chrome-devtools-axi` executable and follow the `chrome-devtools-axi` manifest skill contract. Do not publish commands for a direct `agent-browser` executable; that executable is not installed on this machine.
+
+## Core workflow
 
 ```bash
-# 1. OPEN
-agent-browser open https://example.com
-
-# 2. WORK
-agent-browser snapshot                    # a11y tree with @eN refs (for AI)
-agent-browser click @e12                  # click by ref
-agent-browser fill @e15 "hello"           # fill input by ref
-agent-browser screenshot /tmp/shot.png    # screenshot
-agent-browser eval "document.title"       # run JS
-
-# 3. CLOSE - when done
-agent-browser close
+BROWSER_CLI=/opt/homebrew/bin/chrome-devtools-axi
+"$BROWSER_CLI" open https://example.com
+"$BROWSER_CLI" snapshot
+"$BROWSER_CLI" click @g1:button-1
+"$BROWSER_CLI" snapshot
+"$BROWSER_CLI" screenshot /tmp/example.png
+"$BROWSER_CLI" stop
 ```
 
-### Authenticated Browsing (Per-Site Profiles)
+1. `open <url>` starts or reuses the persistent Chrome bridge and returns an accessibility snapshot.
+2. Interactive refs include a generation prefix such as `g1:`. Pass refs back exactly as printed.
+3. A rerender can invalidate refs. On `STALE_REF`, run a fresh `snapshot` and retry with the new ref.
+4. After every state-changing action, confirm the outcome with a fresh `snapshot`, `eval`, or screenshot.
+5. Use `console` and `network` for diagnosis. Use `lighthouse` or `perf-start` and `perf-stop` for audits.
+6. Run `stop` when the browser session is no longer needed.
 
-**First-time setup (headed, one-time):**
-```bash
-# Close any running daemon first
-agent-browser close --all
-
-# Launch headed with persistent profile - log in manually
-agent-browser --headed --profile ~/.agent-browser/profiles/<site> open https://example.com
-
-# After login completes, all future runs reuse the profile headlessly
-```
-
-**Subsequent runs (headless, automatic):**
-```bash
-agent-browser --profile ~/.agent-browser/profiles/<site> open https://example.com
-# Auth is automatic - cookies, IndexedDB, cache all persist
-```
-
-**To add a new site:** Close daemon, run `--headed --profile ~/.agent-browser/profiles/<name>` once, log in, done.
-
-### Auth Vault (Alternative)
+## Common commands
 
 ```bash
-agent-browser auth save mysite --url https://example.com --username user --password-stdin
-agent-browser auth login mysite    # auto-fills login form
-agent-browser auth list            # show saved profiles
+BROWSER_CLI=/opt/homebrew/bin/chrome-devtools-axi
+"$BROWSER_CLI" open https://example.com
+"$BROWSER_CLI" snapshot --full
+"$BROWSER_CLI" fill @g1:textbox-1 "hello"
+"$BROWSER_CLI" fillform @g2:textbox-1="Ada" @g2:textbox-2="ada@example.com"
+"$BROWSER_CLI" click @g2:button-1
+"$BROWSER_CLI" snapshot
+"$BROWSER_CLI" eval 'document.title'
+"$BROWSER_CLI" console
+"$BROWSER_CLI" network
+"$BROWSER_CLI" resize 390 844
+"$BROWSER_CLI" screenshot /tmp/mobile.png
+"$BROWSER_CLI" stop
 ```
 
-### Batch Execution
+For authenticated work, use the Chrome session managed by the CLI. If login requires a password, hardware approval, or another human-only step, drive the browser to that exact boundary and request only the missing action. Never claim authentication succeeded without a confirming snapshot.
 
-```bash
-# Send multiple commands in one shot (fewer tool calls = fewer tokens)
-echo '[["open","https://example.com"],["snapshot"],["click","@e12"]]' | agent-browser batch
-```
+## Delegating browser work
 
-### Advanced Features
+A general-purpose agent can load the `chrome-devtools-axi` skill and use the installed CLI. Give each agent a bounded URL/task packet and require it to return screenshot paths plus fresh-snapshot evidence after mutations. Do not invent session flags or profile commands that are outside the current CLI contract.
 
-```bash
-# Connect to already-running Chrome
-agent-browser --auto-connect snapshot
-
-# Network interception
-agent-browser route "**/*.{png,jpg}" abort     # block images
-agent-browser route "https://api.com/*" mock '{"data":"test"}'
-
-# Device emulation
-agent-browser --device "iPhone 15" open https://example.com
-
-# Session persistence (cookies + localStorage by name)
-agent-browser --session-name myapp open https://example.com
-```
-
-### agent-browser Rules
-
-- **Daemon model** - first command starts daemon, subsequent commands connect instantly.
-- **Refs use @eN syntax** - `@e12` not `e12`.
-- **Profiles persist everything** - cookies, IndexedDB, cache, localStorage.
-- **Close with `agent-browser close`** or `close --all` to kill daemon.
-
----
-
-### Delegating Browser Work to Agents
-
-When you need parallel or background browser work (scraping multiple pages, monitoring), spawn **general-purpose agents** with browser instructions. No dedicated browser agent type needed - this skill IS the expertise.
-
-```
-Agent(subagent_type="general-purpose", prompt="
-  Use agent-browser CLI for all browser work.
-  Commands: open <url>, snapshot, click @eN, fill @eN 'text', screenshot /path.
-  For authenticated sites: --profile ~/.agent-browser/profiles/<site>
-  Refs use @eN syntax from snapshots.
-  [your specific task instructions here]
-")
-```
-
-For parallel isolation, each agent uses `--session <name>`:
-```
-Agent 1: agent-browser --session scrape1 open https://site-a.com
-Agent 2: agent-browser --session scrape2 open https://site-b.com
-```
-
-**Fallback:** If agent-browser fails or the site has bot detection, use the **Interceptor** skill instead.
-
-**Legacy built-in agents - REMOVED 2026-06-10.** BrowserAgent and UIReviewer were Claude Code built-ins whose internals cannot be modified; they run browser automation that LifeOS no longer uses. Route all browser work through the **Interceptor** skill (verification, authenticated flows) or **agent-browser** (headless scraping).
-
----
-
-## Workflow Routing
+## Workflow routing
 
 | Workflow | Trigger | File |
-|----------|---------|------|
-| ReviewStories | "review stories", "run stories", "ui review", "validate stories" - fan out YAML stories to parallel reviewer agents | `Workflows/ReviewStories.md` |
-| Automate | "automate", "recipe", "template", or a recipe name - load and execute a parameterized recipe template | `Workflows/Automate.md` |
-| Update | "update", "check version" - verify browser tools are current and working | `Workflows/Update.md` |
+| --- | --- | --- |
+| ReviewStories | review stories, run stories, UI review, validate stories | `Workflows/ReviewStories.md` |
+| Automate | automate, recipe, template, or a recipe name | `Workflows/Automate.md` |
+| Update | update, check version, verify browser tooling | `Workflows/Update.md` |
 
----
+## Stories
+
+Story files live in `Stories/`. Each action target should be human-readable, and each assertion should produce a clear pass or fail. Reviewers must refresh the snapshot after each action before evaluating assertions.
+
+## Recipes
+
+Recipes live in `Recipes/` and use either `chrome-devtools-axi` for deterministic browser steps or `ai-agent` for page-dependent reasoning. The Automate workflow resolves placeholders and executes the resulting steps through the installed CLI.
 
 ## Gotchas
 
-- **SKIP-gate (check before anything else): task is deploy-verification or UI confirmation → STOP, route to Interceptor.** Machine-checkable precheck: scan the request for `deploy|verify|verification|confirm.*UI|UI.*confirm` - if the task is verifying a deploy or confirming a UI change, deploy/UI verification routes to Interceptor (real Chrome), not headless Browser. When this gate fires, announce the skip and why in the response ("Skipping Browser - deploy/UI verification routes to Interceptor per system-prompt mandate") - a silent skip is a failure.
-
----
-
-## Stories - YAML User Story Validation
-
-Define user stories in YAML and validate them in parallel with general-purpose reviewer agents.
-
-**Directory:** `skills/Browser/Stories/`
-
-```yaml
-name: App Name
-url: https://example.com
-stories:
-  - name: Story name
-    steps:
-      - action: click
-        target: "LLM-readable description"
-    assertions:
-      - type: snapshot_contains
-        text: "expected text"
-```
-
-Run with: `"review stories"` or `"run stories in HackerNews.yaml"`
-
----
-
-## Recipes - Parameterized Templates
-
-Reusable Markdown templates with `{PROMPT}` injection.
-
-**Directory:** `skills/Browser/Recipes/`
-
-| Recipe | Description | Tool |
-|--------|-------------|------|
-| `SummarizePage.md` | Extract content summary | ai-agent |
-| `ScreenshotCompare.md` | Before/after comparison | agent-browser |
-| `FormFill.md` | Fill form fields | agent-browser |
-
-Run with: `"automate SummarizePage for https://example.com"`
-
----
-
-## Examples
-
-**Example 1: Batch screenshots of a dev server**
-```
-User: "screenshot the five main pages of the dev server"
-→ agent-browser open + screenshot per page (batch mode, one daemon)
-→ Saves PNGs, returns paths
-```
-
-**Example 2: Authenticated scrape**
-```
-User: "extract the data table from my dashboard"
-→ Opens with --profile ~/.agent-browser/profiles/<site> (auth persists from one-time headed login)
-→ snapshot + eval to pull the table, returns structured text
-```
-
-**Example 3: Story validation**
-```
-User: "review stories in HackerNews.yaml"
-→ ReviewStories workflow: fans YAML stories out to parallel reviewer agents
-→ Each agent runs steps + assertions, results aggregated
-```
-
----
+- Refs are generation-scoped. Preserve the complete ref, including `g<N>:`.
+- A successful click command does not prove the page changed. Verify with a fresh snapshot.
+- Relative screenshot and trace paths resolve from the command's working directory.
+- Large network bodies should be saved with `network-get --response-file` rather than printed into the transcript.
+- Use `fetch_content` instead of launching Chrome when the page is public and static.
+- If the installed Chrome path cannot access a target because of CAPTCHA or residential-IP controls, route to BrightData's optional credentialed escalation rather than an absent fallback executable.

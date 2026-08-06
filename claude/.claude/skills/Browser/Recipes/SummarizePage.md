@@ -8,13 +8,14 @@ defaults:
 
 # Summarize Page
 
-1. Open an agent-browser session
-2. Navigate to: {URL}
-3. Run `agent-browser snapshot` to get page content
-4. Extract the main content area (ignore navigation, headers, footers)
-5. Summarize in {format} format
+1. Load the `chrome-devtools-axi` skill contract.
+2. Run `/opt/homebrew/bin/chrome-devtools-axi open {URL}`.
+3. Take a full snapshot and extract the main content area, excluding navigation, headers, and footers.
+4. Summarize in {format} format.
+5. Stop the browser session when finished.
 
 **Output requirements:**
+
 - Title of the page
 - Main content summary (3-5 bullet points)
 - Key links or calls to action found

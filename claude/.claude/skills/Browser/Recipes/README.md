@@ -1,67 +1,38 @@
-# Browser Recipes — Parameterized Workflow Templates
+# Browser Recipes
 
-Recipes are Markdown templates with parameter placeholders that encode reusable browser task patterns. They're the composable building blocks for browser automation.
+Recipes are Markdown templates with parameter placeholders for reusable browser tasks.
 
 ## Format
-
-Each recipe is a Markdown file with YAML frontmatter:
 
 ```markdown
 ---
 name: Recipe Name
 description: What this recipe does
-tool: agent-browser | ai-agent
+tool: chrome-devtools-axi | ai-agent
 defaults:
   param1: default_value
-  param2: default_value
 ---
 
 # Recipe Name
 
-1. Step one using {param1}
-2. Step two using {param2}
+1. Step using {param1}
 
 {PROMPT}
 ```
 
 ## Parameters
 
-- **`{PROMPT}`** — injected from the user's input. Always included as the final section.
-- **`{URL}`** — target URL, commonly provided by the user.
-- **`{param}`** — any custom parameter defined in `defaults`. User can override at invocation.
+- **`{PROMPT}`:** the user's full request
+- **`{URL}`:** the target URL
+- **`{param}`:** a custom parameter defined in `defaults`
 
-Parameters are resolved by simple string replacement. Unresolved parameters (no default and no user input) are left as-is for the executing agent to interpret.
+Unresolved parameters remain visible so the executing agent can ask for them.
 
-## Frontmatter Fields
+## Tool selection
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Human-readable recipe name |
-| `description` | Yes | What the recipe does (one sentence) |
-| `tool` | Yes | Which tool executes: `agent-browser` or `ai-agent` |
-| `defaults` | No | Default values for template parameters |
+| Tool | When to use |
+| --- | --- |
+| `chrome-devtools-axi` | Deterministic browser steps through `/opt/homebrew/bin/chrome-devtools-axi` |
+| `ai-agent` | Page-dependent reasoning by a bounded general-purpose agent that loads the browser skill contract |
 
-## Tool Selection
-
-| Tool | When to Use |
-|------|------------|
-| `agent-browser` | Deterministic steps, no AI reasoning needed |
-| `ai-agent` | AI-driven via general-purpose agent — page-dependent decisions or structured validation |
-
-## Running Recipes
-
-Recipes are executed by the **Automate** workflow:
-
-```
-# Run a recipe by name
-"Automate SummarizePage for https://example.com"
-
-# Run with parameter overrides
-"Automate FormFill with URL=http://localhost:3000/signup and name=John"
-```
-
-## File Naming
-
-- Use PascalCase: `SummarizePage.md`, `FormFill.md`
-- One recipe per file
-- Name should clearly describe the action
+Recipes are discovered dynamically from `Recipes/*.md` and executed by `Workflows/Automate.md`.

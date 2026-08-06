@@ -1,4 +1,4 @@
-# FullCycle — All 9 Phases via Loop Controller
+# FullCycle - All 9 Phases via Loop Controller
 
 **Default Ideate workflow.** Runs the full evolutionary cycle through all 9 phases (CONSUME → DREAM → DAYDREAM → CONTEMPLATE → STEAL → MATE → TEST → EVOLVE → META-LEARN), with a Loop Controller that decides continue / pivot / stop after each cycle.
 
@@ -28,7 +28,10 @@ Phases run **sequentially within a cycle** (each phase consumes the previous pha
 **Input:** Problem statement + optional seeds. On cycle 2+, also receives survivors from EVOLVE, research questions from META-LEARN, and domain weight adjustments.
 
 **How:**
-- Invoke `Skill("Research")` in standard or extensive mode across problem-adjacent and problem-distant domains
+
+- Run varied `web_search` queries across problem-adjacent and problem-distant domains
+- Use `fetch_content` for selected source pages and `source_check` for consequential factual claims
+- Parallelize independent queries with the harness's supported agent mechanism when useful
 - Require minimum 3 distinct domains per cycle (prevents monoculture)
 - Domain selection is weighted by Meta-Learner output but includes a random lottery element
 - Extract atomic ideas (one concept per item); tag each with source domain, confidence, surprise factor
@@ -39,35 +42,39 @@ Phases run **sequentially within a cycle** (each phase consumes the previous pha
 **Input:** Raw Input Pool from CONSUME
 
 **How:**
+
 - Invoke `Skill("BeCreative")` MaximumCreativity workflow
-- Each agent receives a random subset of the Input Pool (default N/3) selected by Fisher-Yates shuffle with cryptographic seed (NOT LLM-selected — structural randomness)
+- Each agent receives a random subset of the Input Pool (default N/3) selected by Fisher-Yates shuffle with cryptographic seed (NOT LLM-selected - structural randomness)
 - 3 agents × 3-5 fragments = 9-15 dream fragments per cycle
 
-**Constraint:** NO problem-awareness. Pure free-association on the random input subset — surface connections nobody has made.
+**Constraint:** NO problem-awareness. Pure free-association on the random input subset - surface connections nobody has made.
 
 ### Phase 3: DAYDREAM (Perturb at noise=0.5)
 
 **Input:** Raw Input Pool + Dream Fragments + Problem Statement (loosely held)
 
 **How:**
+
 - Agents receive accumulated material PLUS a gentle reminder of the problem
 - 2-3 agents × 3-5 tangential insights each
 
-**Constraint:** problem held loosely in the background, NOT being solved. The constraint relaxation is the mechanism — wander, follow what catches attention.
+**Constraint:** problem held loosely in the background, NOT being solved. The constraint relaxation is the mechanism - wander, follow what catches attention.
 
-### Phase 4: CONTEMPLATE (Perturb at noise=0.1) — MANDATORY
+### Phase 4: CONTEMPLATE (Perturb at noise=0.1) - MANDATORY
 
 **ENFORCEMENT:** Skipping CONTEMPLATE is a hard error. Without it, STEAL and MATE operate on disconnected material.
 
 **Input:** Everything accumulated so far (Input Pool + Dream Fragments + Tangential Insights + Problem Statement front-and-center)
 
 **How:**
+
 - Invoke `Skill("IterativeDepth")` with 4 lenses: Literal, Failure, Analogical, Constraint Inversion
 - 2-4 agents × 2-4 structured analyses each
 
-**Constraint:** problem front-and-center. Structured analysis of the accumulated material — what patterns emerge, what a rigorous approach looks like.
+**Constraint:** problem front-and-center. Structured analysis of the accumulated material - what patterns emerge, what a rigorous approach looks like.
 
 **Mid-Cycle Checkpoint A:**
+
 - Gate: "Do at least 30% of structured analyses reference the original problem statement?"
 - If FAIL: re-run CONTEMPLATE with problem statement injected more prominently
 
@@ -76,7 +83,9 @@ Phases run **sequentially within a cycle** (each phase consumes the previous pha
 **Input:** Problem Statement + Structured Analyses
 
 **How:**
-- Invoke `Skill("Research")` targeting domains selected via weighted random lottery from the 50+ candidate domain pool
+
+- Select domains via the weighted random lottery, then research each with `web_search`
+- Fetch primary material with `fetch_content` and verify load-bearing claims with `source_check`
 - Each cycle's STEAL must include at least 1 domain NOT used in the previous cycle (forced exploration)
 - For each foreign domain, find 2-3 patterns/solutions/approaches that solve analogous problems
 - Map each foreign pattern onto the problem: "In [foreign domain], they solve [analogous problem] by [technique]. Applied to our problem: [mapping]."
@@ -87,6 +96,7 @@ Phases run **sequentially within a cycle** (each phase consumes the previous pha
 **Input:** ALL accumulated ideas from phases 1-5
 
 **How:**
+
 - Select idea pairs using Fisher-Yates shuffle (structural randomness, not LLM-selected)
 - Pre-allocated cross-phase slots: first 20% of pairs are forced cross-phase (e.g. Dream Fragment + Borrowed Pattern)
 - For each pair, perform THREE operations:
@@ -94,7 +104,7 @@ Phases run **sequentially within a cycle** (each phase consumes the previous pha
   - **Mutation:** dice-roll from 8 mutation operations (see Structural Randomness Engine in `../SKILL.md`)
   - **Cloning with drift:** copy one parent with small random modifications
 - Each agent produces 3-5 offspring; minimum 10 offspring per cycle (prevents premature convergence)
-- Explicitly instruct agents to produce BAD ideas too — selection happens in TEST
+- Explicitly instruct agents to produce BAD ideas too - selection happens in TEST
 
 ### Phase 7: TEST (Select)
 
@@ -103,6 +113,7 @@ Phases run **sequentially within a cycle** (each phase consumes the previous pha
 **Scoring dimensions (each 0-100):** Feasibility, Novelty, Impact, Elegance
 
 **How:**
+
 - Invoke `Skill("RedTeam")` to adversarially attack each candidate
 - 3-5 judge agents independently score each candidate on all 4 dimensions
 - Final score = average across judges; confidence = inverse of variance
@@ -110,6 +121,7 @@ Phases run **sequentially within a cycle** (each phase consumes the previous pha
 - **External validation** (optional): pluggable hooks add real-world signal as score modifiers
 
 **Mid-Cycle Checkpoint B:**
+
 - Gate: "Is this cycle's avg composite score >= previous cycle's avg − 5 points?"
 - If FAIL: increment `stagnation_counter` in Loop Controller. If counter ≥ 2, Meta-Learner is triggered to propose strategy pivot before EVOLVE.
 
@@ -118,6 +130,7 @@ Phases run **sequentially within a cycle** (each phase consumes the previous pha
 **Input:** Scored Candidates from TEST
 
 **How:**
+
 - **Selection:** Rank by composite score (adjusted for external validation if enabled)
 - **Kill threshold:** Bottom 50% eliminated (no carry-forward)
 - **Elitism:** Top 10% carry forward UNCHANGED
@@ -128,13 +141,14 @@ Phases run **sequentially within a cycle** (each phase consumes the previous pha
 
 ### Phase 9: META-LEARN (Lamarckian Learning)
 
-**Input:** Full cycle results — survivors, killed ideas, scoring data, provenance chains, phase contribution stats
+**Input:** Full cycle results - survivors, killed ideas, scoring data, provenance chains, phase contribution stats
 
 **How:**
 
 1. **Fitness landscape analysis:** which parent domains produced highest-scoring offspring? which phases contributed most to survivors? what scoring dimensions are hardest to satisfy?
 
 2. **Strategy adjustments (JSON output):**
+
    ```json
    {
      "domain_weights": {"biology": 1.5, "history": 0.5},
@@ -161,7 +175,7 @@ ELIF stagnation_counter >= 3:
     ELSE:
         STOP (exhausted all strategies)
 ELIF fitness_history[-1].diversity_index < 0.3:
-    PIVOT (diversity collapse — inject immigrants and widen search)
+    PIVOT (diversity collapse - inject immigrants and widen search)
 ELIF fitness_history[-1].top_score >= target_score (if set):
     STOP (target reached)
 ELSE:
@@ -175,6 +189,7 @@ On STOP, invoke the Insight Extractor (The Historian) for post-loop analysis.
 Runs once after the Loop Controller issues STOP. Analyzes the entire evolutionary run.
 
 **Output sections:**
+
 - Dominant Lineages (which idea families dominated, common ancestors of top scorers)
 - Fertile Combinations (which domain pairings produced breakthrough offspring)
 - Fitness Landscape (peaks, valleys, unexplored regions)
@@ -183,11 +198,10 @@ Runs once after the Loop Controller issues STOP. Analyzes the entire evolutionar
 
 ## State Persistence
 
-Each run persists to `~/.claude/LIFEOS/MEMORY/WORK/{slug}/ideate/`. See `../SKILL.md` § "State Persistence" for the full directory layout and idea data structure.
+Keep state in the conversation unless the user requests persistence. When requested, write under the current project's `.agents/atlas/artifacts/ideate/{slug}/` directory. See `../SKILL.md` section "State Persistence" for the layout.
 
 ## Final Output
 
 See `../SKILL.md` § "Final Output Format" for the markdown template.
 
 ## Execution Log
-

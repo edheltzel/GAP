@@ -1,7 +1,7 @@
 ---
 name: BrightData
 version: 1.2.19
-description: "4-tier progressive web scraping that auto-escalates WebFetch to curl to Interceptor to Bright Data proxy for bot detection and CAPTCHAs, with single-URL and multi-page crawl modes, output as markdown. USE WHEN Bright Data, scrape URL, web scraping, bot detection, crawl site, CAPTCHA, can't access, site blocking, extract page content, scrape whole site, spider domain, convert URL to markdown, getting blocked. NOT FOR simple public content (use WebFetch directly), social platform scraping with named actors (use Apify), or real-Chrome bot bypass with logged-in sessions and zero CDP fingerprint (use Interceptor)."
+description: "Progressive web scraping that starts with current content fetching, preserves a public curl path, uses installed Chrome tooling for JavaScript-rendered pages, and offers optional credentialed Bright Data API escalation for blocked targets. USE WHEN Bright Data, scrape URL, web scraping, bot detection, crawl site, CAPTCHA, site blocking, extract page content, or scrape a site. NOT FOR simple public content that fetch_content can retrieve directly or social platform scraping with named actors (use Apify)."
 effort: medium
 ---
 
@@ -10,6 +10,7 @@ effort: medium
 **You MUST send this notification BEFORE doing anything else when this skill is invoked.**
 
 1. **Send voice notification**:
+
    ```bash
    curl -s -X POST http://localhost:8888/notify \
      -H "Content-Type: application/json" \
@@ -18,6 +19,7 @@ effort: medium
    ```
 
 2. **Output text notification**:
+
    ```
    Running the **WorkflowName** workflow in the **BrightData** skill to ACTION...
    ```
@@ -26,18 +28,18 @@ effort: medium
 
 # BrightData
 
-Scrapes a single URL (FourTierScrape) or crawls a whole site (Crawl), escalating through four tiers only as far as each page needs. Output is always markdown. Start at Tier 1 and step up only when blocked — reaching for the heavy proxy every time wastes Tier-4 credits. A Cloudflare `Accept: text/markdown` pre-check runs before Tier 1 (recipe in FourTierScrape.md).
+Scrapes a single URL (FourTierScrape) or crawls a site (Crawl), escalating only as far as each page needs. Output is markdown. Start at Tier 1 and step up only when blocked. A Cloudflare `Accept: text/markdown` pre-check runs before Tier 1.
 
 ## The four tiers (tool contract)
 
 | Tier | Tool | Wins on | Cost / latency |
-|------|------|---------|----------------|
-| 1 | WebFetch | public content, no bot detection | free · ~2-5s |
-| 2 | curl + Chrome headers | user-agent / basic header checks | free · ~3-7s |
-| 3 | Interceptor (real Chrome) | JavaScript-rendered / SPA pages | free · ~10-20s |
-| 4 | Bright Data MCP `mcp__Brightdata__scrape_as_markdown` | CAPTCHA, advanced fingerprinting, residential-IP needs | Bright Data credits · ~5-15s |
+| ------ | ------ | --------- | ---------------- |
+| 1 | `fetch_content` | public content and video/page extraction | free, usually seconds |
+| 2 | public `curl` with browser headers | user-agent and basic header checks | free, usually seconds |
+| 3 | `/opt/homebrew/bin/chrome-devtools-axi` | JavaScript-rendered pages and browser interaction | local browser startup cost |
+| 4 | Bright Data HTTP API | CAPTCHA, advanced fingerprinting, or residential-IP needs | paid credits and credentials |
 
-Playwright is banned across LifeOS — Tier 3 is Interceptor. Skip-ahead: explicit "use Bright Data" → Tier 4; "use browser" → Tier 3; a domain that already failed Tier 1 → start at Tier 2. The exact curl header block, Cloudflare pre-check, and Interceptor commands live in `Workflows/FourTierScrape.md`.
+Tier 4 is an optional credentialed escalation. Use it only when the user explicitly approves the paid path and `BRIGHT_DATA_API_KEY` plus the required dataset or zone configuration are present. Do not name or invoke a Bright Data MCP unless the current harness actually exposes one. The exact public curl and Chrome commands live in `Workflows/FourTierScrape.md`.
 
 ## Workflows
 
@@ -48,13 +50,13 @@ When routing, output: `Running the **WorkflowName** workflow in the **BrightData
 | FourTierScrape | "scrape/fetch/pull/get/retrieve [URL]", "can't access this site", "site is blocking me", "use Bright Data to fetch" | `Workflows/FourTierScrape.md` |
 | Crawl | "crawl this site", "spider this domain", "map this website", "get all pages from", "scrape the whole site", "crawl all pages under /docs" | `Workflows/Crawl.md` |
 
-Crawl picks Light Crawl (MCP `scrape_batch` + link loop, ≤50 pages, ~$0.006/page) for a section, or Full Crawl (Bright Data Crawl API `api.brightdata.com/datasets/v3/trigger`, $1.50/1K pages) for whole sites.
+Crawl picks Light Crawl (per-page tier chain plus link loop, up to 50 pages) for a section, or an explicitly approved Full Crawl through the credentialed Bright Data HTTP API for whole sites.
 
 ## Gotchas
 
-- **4-tier escalation: WebFetch → curl → Interceptor → Bright Data proxy.** Always start at Tier 1 and escalate only when blocked. Playwright is banned across LifeOS.
-- **Bright Data proxy has usage costs.** Don't use Tier 4 for sites accessible via Tier 1-3.
-- **CAPTCHA-solving introduces latency.** Allow extra time for Tier 4 responses.
-- **Credentials in `~/.claude/.env`** — BRIGHTDATA_API_KEY.
+- **Escalation order:** `fetch_content`, public `curl`, installed `chrome-devtools-axi`, then optional Bright Data HTTP API.
+- **Bright Data has usage costs.** Confirm before Tier 4 and never imply that credentials or an MCP are configured.
+- **CAPTCHA solving introduces latency.** Allow extra time for Tier 4 responses.
+- **Credential:** `BRIGHT_DATA_API_KEY` in the environment. Dataset or zone identifiers must be supplied for the selected API product.
 
 Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

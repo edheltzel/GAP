@@ -21,17 +21,19 @@ Topic/Script
             └── Remotion composition ──► MP4 via bunx remotion render
 ```
 
-## Step 1 — Generate scene images
+## Step 1 - Generate scene images
 
 Use the Art skill. Save into the project's `/public` directory so `staticFile()` resolves them.
 
 ```bash
 # Inside your Remotion project root
-bun Tools/Art.ts generate --prompt "Cyberpunk city skyline at dusk, neon" \
-  --model nano-banana-pro --out public/scene-1.png
+bun ~/.claude/skills/Art/Tools/Generate.ts \
+  --prompt "Cyberpunk city skyline at dusk, neon" \
+  --model nano-banana-pro \
+  --out public/scene-1.png
 ```
 
-## Step 2 — Generate narration (ElevenLabs TTS)
+## Step 2 - Generate narration (ElevenLabs TTS)
 
 ```tsx
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
@@ -47,7 +49,7 @@ const audio = await client.textToSpeech.convert('VOICE_ID', {
 fs.writeFileSync('public/narration.mp3', Buffer.from(await audio.arrayBuffer()));
 ```
 
-## Step 3 — Transcribe for captions
+## Step 3 - Transcribe for captions
 
 Feed the TTS output back through ElevenLabs STT to get word-level timings.
 
@@ -65,7 +67,7 @@ fs.writeFileSync('public/captions.json', JSON.stringify(captions));
 
 See `Ref-elevenlabs-captions.md` for the caption pipeline details.
 
-## Step 4 — Compose
+## Step 4 - Compose
 
 ```tsx
 import { AbsoluteFill, Sequence, staticFile, useVideoConfig } from 'remotion';
@@ -110,7 +112,7 @@ export const AiVideo: React.FC = () => {
 };
 ```
 
-## Step 5 — Render
+## Step 5 - Render
 
 ```bash
 bunx remotion render AiVideo ~/Downloads/ai-video.mp4 --codec=h264
@@ -118,12 +120,12 @@ bunx remotion render AiVideo ~/Downloads/ai-video.mp4 --codec=h264
 
 ## Automation
 
-The full pipeline is wrapped in `Workflows/GeneratedContentVideo.md` — invoke that when a user asks "make a short about X" or "turn this blog into a video."
+The full pipeline is wrapped in `Workflows/GeneratedContentVideo.md` - invoke that when a user asks "make a short about X" or "turn this blog into a video."
 
 ## Related references
 
-- `Ref-elevenlabs-captions.md` — STT → Caption[] details
-- `Ref-display-captions.md` — TikTok-style caption rendering
-- `Ref-images.md` — `<Img>` component specifics
-- `Ref-audio.md` — audio control (volume, trim, loop)
-- `Workflows/GeneratedContentVideo.md` — orchestration workflow
+- `Ref-elevenlabs-captions.md` - STT → Caption[] details
+- `Ref-display-captions.md` - TikTok-style caption rendering
+- `Ref-images.md` - `<Img>` component specifics
+- `Ref-audio.md` - audio control (volume, trim, loop)
+- `Workflows/GeneratedContentVideo.md` - orchestration workflow

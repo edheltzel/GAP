@@ -1,6 +1,6 @@
-# Steal — STEAL Phase Only (Cross-Domain Pattern Transfer)
+# Steal - STEAL Phase Only (Cross-Domain Pattern Transfer)
 
-**Use when:** you want to scavenge solutions from foreign domains and map them onto your problem. Pure cross-pollination — no scoring, no breeding, no iteration.
+**Use when:** you want to scavenge solutions from foreign domains and map them onto your problem. Pure cross-pollination - no scoring, no breeding, no iteration.
 
 **Phase invoked:** STEAL only.
 
@@ -27,11 +27,12 @@ curl -s -X POST http://localhost:8888/notify \
    - Otherwise: weighted random lottery from the 50+ candidate pool (defined in `../SKILL.md` § Structural Randomness Engine)
    - Force constraint: at least 1 domain must be DISTANT from the problem's native field (biology for software, jazz for military, etc.)
 
-2. **Spawn one Thief agent per domain in parallel** via Task tool. Each receives:
+2. **Spawn one bounded research agent per domain when the harness supports agents.** Each receives:
    - Problem statement
    - Its assigned foreign domain
    - Deliverable: 2-3 patterns from the domain that solve analogous problems, each written as the mapping `In [foreign domain], they solve [analogous problem] by [technique]. Applied to our problem: [mapping].`
-   - Each agent invokes `Skill("Research")` to gather domain-specific material
+   - Research contract: use `web_search` for discovery, `fetch_content` for selected sources, and `source_check` for consequential claims
+   - If agents are unavailable, run the same domain packets serially with those tools
 
 3. **Aggregate the borrowed patterns** into a single output. Each pattern includes:
    - Foreign domain name
@@ -63,9 +64,8 @@ curl -s -X POST http://localhost:8888/notify \
 
 ## Distinguishing Notes
 
-- **Domain selection is structurally random.** Don't ask the LLM to "pick interesting domains" — the lottery defeats LLM bias toward training-distribution-favored domains.
-- **The mapping IS the creative act.** The pattern exists in the foreign domain; the cross-domain application is novel. If a pattern can't be mapped, it's not borrowed — it's noise.
+- **Domain selection is structurally random.** Don't ask the LLM to "pick interesting domains" - the lottery defeats LLM bias toward training-distribution-favored domains.
+- **The mapping IS the creative act.** The pattern exists in the foreign domain; the cross-domain application is novel. If a pattern can't be mapped, it's not borrowed - it's noise.
 - **No scoring here.** Steal produces raw cross-pollination material. Use Test (or FullCycle) to score these against fitness criteria.
 
 ## Execution Log
-

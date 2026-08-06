@@ -13,8 +13,8 @@ End-to-end AI video generation: topic or script → scene images + narration + c
 
 ## Difference from ContentToAnimation
 
-- `ContentToAnimation.md` — typography/motion-graphics for an existing piece of content. No AI image generation.
-- `GeneratedContentVideo.md` — produces the entire video INCLUDING scene b-roll, narration, and captions from scratch via AI.
+- `ContentToAnimation.md` - typography/motion-graphics for an existing piece of content. No AI image generation.
+- `GeneratedContentVideo.md` - produces the entire video INCLUDING scene b-roll, narration, and captions from scratch via AI.
 
 ## Prerequisites
 
@@ -26,11 +26,11 @@ End-to-end AI video generation: topic or script → scene images + narration + c
 
 ### 1. Parse input
 
-Detect input type — topic string, URL (blog/tweet/YouTube), or file path. Route to Parser skill if extraction needed. Output: a clean script of 60-300 words and a scene outline.
+Detect input type: topic string, URL (article, social post, or video), or local file path. Use `fetch_content` for URL content and video transcripts; read supported local files directly. Output a clean script of 60-300 words and a scene outline.
 
 ### 2. Write the narration script
 
-If input is a topic, write a 30-90 second script in the user's voice (load `USER/PRINCIPAL/WRITINGSTYLE.md`). If input is already content, compress to 60-90 seconds targeting the platform (Shorts/Reels/TikTok = 9:16, X/YouTube = 16:9).
+If input is a topic, write a 30-90 second script in the user's demonstrated voice and stated preferences. If input is already content, compress to 60-90 seconds targeting the platform (Shorts/Reels/TikTok = 9:16, X/YouTube = 16:9).
 
 Output: `script.txt` and a parallel `scenes.json` with 4-8 entries describing visual b-roll per section.
 
@@ -104,20 +104,20 @@ open ~/Downloads/video.mp4
 
 ## Output
 
-- `~/Downloads/<slug>.mp4` — final video
+- `~/Downloads/<slug>.mp4` - final video
 - Project kept in your local Remotion projects directory for iteration (same location Remotion studio uses)
 
 ## Related
 
-- `Tools/Ref-ai-pipeline.md` — per-step technical reference
-- `Tools/Ref-elevenlabs-captions.md` — caption pipeline
-- `Tools/Ref-lambda.md` — cloud rendering
-- `ArtIntegration.md` — theme + color integration
-- `Workflows/ContentToAnimation.md` — the non-AI variant
+- `Tools/Ref-ai-pipeline.md` - per-step technical reference
+- `Tools/Ref-elevenlabs-captions.md` - caption pipeline
+- `Tools/Ref-lambda.md` - cloud rendering
+- `ArtIntegration.md` - theme + color integration
+- `Workflows/ContentToAnimation.md` - the non-AI variant
 
 ## Gotchas
 
-- **Audio length drives duration** — always set `durationInFrames` from the actual narration length, not estimated.
-- **Image aspect ratio must match composition** — generate scenes at 9:16 for Shorts, 16:9 for YouTube. Passing `objectFit="cover"` hides mismatch but crops.
-- **STT on TTS output works but is redundant if script is known** — for known scripts, skip STT and time tokens manually against audio duration. Only use STT when the audio source is unknown.
-- **Lambda has no AV1** — use h264 for Lambda renders; AV1 only for local.
+- **Audio length drives duration** - always set `durationInFrames` from the actual narration length, not estimated.
+- **Image aspect ratio must match composition** - generate scenes at 9:16 for Shorts, 16:9 for YouTube. Passing `objectFit="cover"` hides mismatch but crops.
+- **STT on TTS output works but is redundant if script is known** - for known scripts, skip STT and time tokens manually against audio duration. Only use STT when the audio source is unknown.
+- **Lambda has no AV1** - use h264 for Lambda renders; AV1 only for local.

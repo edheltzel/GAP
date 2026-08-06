@@ -12,42 +12,24 @@ Transform any content into professional LifeOS-themed animations.
 
 ## Input Types
 
-This workflow handles ANY input via the Parser skill:
+This workflow handles inputs through current content tools and direct local reads:
 
 | Input Type | Detection | Extraction Method |
-|------------|-----------|-------------------|
-| YouTube URL | `youtube.com`, `youtu.be` | Parser: ExtractYoutube → transcript |
-| Article URL | HTTP(S) URL | Parser: ExtractArticle → text |
-| Blog file | `.md` file path | Direct read → markdown content |
-| PDF file | `.pdf` file path | Parser: ExtractPdf → text |
-| Tweet/Thread | `twitter.com`, `x.com` | Parser: ExtractTwitter → thread |
+| --- | --- | --- |
+| YouTube or video URL | supported video URL | `fetch_content` transcript extraction |
+| Article or social URL | HTTP(S) URL | `fetch_content` readable extraction |
+| Markdown or text file | local file path | Read directly |
+| PDF file | `.pdf` file path | `fetch_content` on the local file URI when supported, otherwise use the harness PDF reader |
 | Raw text | No URL/path detected | Use directly |
 
 ## Execution Steps
 
 ### 1. Extract Content
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ STEP 1: CONTENT EXTRACTION                                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 1. Detect input type (URL, file path, or raw text)                         │
-│ 2. Route to appropriate Parser workflow OR read directly                    │
-│ 3. Extract: title, sections, key points, quotes, data                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**For YouTube:**
-```bash
-# Get transcript via Parser skill
-# Load: ~/.claude/skills/Parser/Workflows/ExtractYoutube.md
-```
-
-**For articles/blogs:**
-```bash
-# Read file directly for .md
-# Or use Parser: ExtractArticle for URLs
-```
+1. Detect URL, local file, or raw text.
+2. Use `fetch_content` for URL/video extraction, requesting a transcript for video sources.
+3. Read local Markdown or text directly. Use the harness PDF reader for local PDFs if `fetch_content` cannot read the file URI.
+4. Extract title, sections, key points, quotes, and data from the resulting content.
 
 ### 2. Analyze Structure
 
@@ -68,6 +50,7 @@ This workflow handles ANY input via the Parser skill:
 ```
 
 **Output structure:**
+
 ```typescript
 interface ContentStructure {
   title: string
@@ -107,6 +90,7 @@ interface ContentStructure {
 ```
 
 **Timing formula:**
+
 - Title: 90 frames (3 seconds at 30fps)
 - Per section: 120-180 frames (4-6 seconds)
 - Conclusion: 90 frames (3 seconds)
@@ -132,7 +116,7 @@ interface ContentStructure {
 Verify the story flows logically:
 
 | Check | What It Tests | Failure Example |
-|-------|---------------|-----------------|
+| ------- | --------------- | ----------------- |
 | **Section connectivity** | Adjacent sections share ≥15% concepts | Section 2 "Authentication" → Section 3 "Database Schema" with 0% overlap |
 | **Context completeness** | No forward references to undefined concepts | Scene 2 uses "ISC" acronym before defining it in Scene 4 |
 | **Transition bridges** | Last point of section N relates to first point of section N+1 | Jarring topic jump with no conceptual bridge |
@@ -141,6 +125,7 @@ Verify the story flows logically:
 | **Conclusion validity** | Conclusion only references introduced concepts | Conclusion mentions "OWASP" never discussed in content |
 
 **Test method:**
+
 ```typescript
 // Pseudo-code for verification
 const narrativeChecks = {
@@ -162,7 +147,7 @@ if (Object.values(narrativeChecks).some(check => !check)) {
 Verify timing adapts to content density:
 
 | Check | What It Tests | Failure Example |
-|-------|---------------|-----------------|
+| ------- | --------------- | ----------------- |
 | **Reading speed validation** | Text duration allows comfortable reading (≤4 words/second) | 47-word paragraph shown for 2 seconds (23.5 wps) |
 | **Content-density adaptation** | Duration scales with word count, key points, data items | Simple 2-word title gets same 3s as complex 15-word title |
 | **Data comprehension time** | Statistics get 1-2 seconds per item for mental processing | 5 data points crammed into 3 seconds |
@@ -170,6 +155,7 @@ Verify timing adapts to content density:
 | **Duration bounds** | Timing stays within 2-10 seconds per point | Critical concept: 1s, Minor detail: 12s |
 
 **Test method:**
+
 ```typescript
 // Calculate adaptive timing based on content density
 function calculateSectionDuration(section: Section): number {
@@ -201,13 +187,14 @@ function calculateSectionDuration(section: Section): number {
 Verify correct scene template chosen for content:
 
 | Check | What It Tests | Failure Example |
-|-------|---------------|-----------------|
+| ------- | --------------- | ----------------- |
 | **Data scene validation** | DataScene only used when `data` array exists with items | DataScene receives empty data array → blank screen |
 | **Numeric content detection** | Statistics in text trigger DataScene, not KeyPointsScene | "10M users, 95% accuracy" shown as bullet points |
 | **KeyPoints scene validation** | KeyPointsScene used for 2+ text items without numeric data | Single quote forced into KeyPointsScene template |
 | **Quote handling** | Quotes get appropriate visual treatment | Quote buried in bullet list with no emphasis |
 
 **Selection logic:**
+
 ```typescript
 function selectSceneType(section: Section): SceneType {
   // Priority 1: Has structured data? → DataScene
@@ -298,6 +285,7 @@ console.log('✅ Logical coherence verified - proceeding to component generation
 **Example output:**
 
 **PASS:**
+
 ```
 ✅ Logical coherence verified - proceeding to component generation
 
@@ -308,6 +296,7 @@ Checks passed:
 ```
 
 **FAIL:**
+
 ```
 ❌ LOGICAL COHERENCE CHECK FAILED:
 
@@ -320,6 +309,7 @@ Cannot proceed - fix logical issues before rendering
 ```
 
 **WARN:**
+
 ```
 ⚠️  COHERENCE WARNINGS (review recommended):
 
@@ -332,7 +322,7 @@ Cannot proceed - fix logical issues before rendering
 **Why this matters:**
 
 | Without Verification | With Verification |
-|---------------------|-------------------|
+| --------------------- | ------------------- |
 | Video renders successfully | Video renders successfully |
 | 47-word text shown for 2s → unreadable | Timing adapted to 13s → readable |
 | Conclusion references undefined "ISC" → confusing | Blocked: "ISC mentioned but never defined" |
@@ -361,8 +351,9 @@ Cannot proceed - fix logical issues before rendering
 ```
 
 **MANDATORY: Apply LifeOS Theme**
+
 ```typescript
-import { LIFEOS_THEME } from '~/.claude/skills/Remotion/theme'
+import { LIFEOS_THEME } from '~/.claude/skills/Remotion/Tools/Theme'
 
 // All components MUST use:
 // - LIFEOS_THEME.colors for all colors
@@ -520,7 +511,7 @@ const DataScene: React.FC<{ data: { label: string; value: string }[] }> = ({ dat
 ## Output Formats
 
 | Format | Dimensions | Use Case |
-|--------|------------|----------|
+| -------- | ------------ | ---------- |
 | YouTube landscape | 1920x1080 | Default, blog content |
 | YouTube Shorts | 1080x1920 | Vertical clips |
 | Square | 1080x1080 | Instagram, social |
@@ -528,16 +519,19 @@ const DataScene: React.FC<{ data: { label: string; value: string }[] }> = ({ dat
 ## Example Usage
 
 **Blog post:**
+
 ```
 User: animate my blog post at ~/path/to/your/blog/example-post.md
 ```
 
 **YouTube video:**
+
 ```
 User: create animations for https://youtube.com/watch?v=xyz123
 ```
 
 **Raw text:**
+
 ```
 User: animate this content: "The three pillars of AI safety are..."
 ```
@@ -545,5 +539,6 @@ User: animate this content: "The three pillars of AI safety are..."
 ## Integration with Art Skill
 
 This workflow inherits visual theming from Art preferences:
+
 - Apply: Charcoal aesthetic, purple accents, organic animations
 - Reference: `~/.claude/`

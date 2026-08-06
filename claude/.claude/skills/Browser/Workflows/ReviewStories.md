@@ -1,4 +1,4 @@
-# ReviewStories Workflow — Parallel User Story Validation
+# ReviewStories Workflow - Parallel User Story Validation
 
 ## Voice Notification
 
@@ -28,8 +28,9 @@ Fan out YAML user stories to parallel general-purpose reviewer agents and aggreg
 ## Input
 
 Either:
+
 - **Specific file:** `Stories/HackerNews.yaml` (or full path)
-- **All stories:** "all" — globs `Stories/*.yaml`
+- **All stories:** "all" - globs `Stories/*.yaml`
 
 ## Steps
 
@@ -46,6 +47,7 @@ Glob: skills/Browser/Stories/*.yaml
 ### 2. Parse YAML
 
 For each `.yaml` file:
+
 - Extract `name`, `url`, and `stories[]` array
 - Each story in the array becomes one reviewer-agent dispatch
 
@@ -103,10 +105,10 @@ Include screenshot paths from each reviewer's report for failed stories.
 
 ## Design Decisions
 
-- **Task parallelism, not TeamCreate.** parallel reviewer agents are stateless parallel workers. Multiple `Task(subagent_type="general-purpose")` calls in one message achieve true parallelism without swarm coordination overhead.
-- **Stories as YAML text in prompt.** Avoids the agent needing to read the story file — reduces agent tool calls and speeds execution.
-- **RESULT sentinel parsing.** Simple string parsing on the last line — no fragile JSON extraction from freeform agent output.
-- **8-agent limit.** Matches LifeOS's parallel agent guidance and avoids resource contention.
+- **Independent Agent dispatch.** Issue one current `Agent` tool call per story in the same assistant message, with a complete self-contained reviewer prompt.
+- **Stories as YAML text in prompt.** This avoids extra file discovery and keeps each reviewer scoped to one story.
+- **RESULT sentinel parsing.** Parse the final sentinel instead of extracting JSON from freeform reviewer output.
+- **Bounded concurrency.** Cap one batch at eight reviewers, or lower when the active harness reports a smaller safe limit.
 
 ## Error Handling
 

@@ -1,6 +1,6 @@
 # Crawl Workflow
 
-**Purpose:** Crawl multiple pages from a website — following links, extracting content, and returning structured results. Two modes: **Light Crawl** (agent-driven, using MCP batch scraping) and **Full Crawl** (Bright Data Crawl API for entire sites).
+**Purpose:** Crawl multiple pages from a website by following links, extracting content, and returning structured results. Two modes are supported: **Light Crawl** uses the per-page tier chain, while **Full Crawl** is an optional credentialed Bright Data HTTP API path for entire sites.
 
 ---
 
@@ -19,10 +19,11 @@
 
 | Mode | Pages | Method | Cost | Best For |
 |------|-------|--------|------|----------|
-| **Light Crawl** | 1-50 pages | MCP `scrape_batch` + link extraction loop | ~$0.006/page | Section of a site, specific content |
+| **Light Crawl** | 1-50 pages | FourTierScrape per page + link extraction loop | local and public-fetch costs only | Section of a site, specific content |
 | **Full Crawl** | 50-unlimited | Bright Data Crawl API (HTTP POST) | $1.50/1K pages | Entire site maps, comprehensive extraction |
 
 **Decision logic:**
+
 - User says "crawl this section" or "get all pages under /docs" → **Light Crawl**
 - User says "crawl the entire site" or "map this whole site" → **Full Crawl**
 - User says "crawl" without scope → **Ask** how many pages or what section, then choose
@@ -31,7 +32,7 @@
 
 ## Light Crawl (Agent-Driven)
 
-Uses MCP `scrape_batch` (up to 10 URLs per call) with iterative link discovery.
+Uses iterative link discovery and applies FourTierScrape to each page. Public fetch and curl stay free; optional paid escalation is handled per page only after approval.
 
 ### Step 1: Scrape the Starting URL
 
@@ -42,6 +43,7 @@ Scrape starting URL → Extract all <a href="..."> links → Filter to same-doma
 ```
 
 **Link filtering rules:**
+
 - Same domain only (no external links unless user requests it)
 - Respect URL path scope if user specified one (e.g., only links under `/docs/`)
 - Deduplicate URLs (normalize trailing slashes, query params)
@@ -49,24 +51,26 @@ Scrape starting URL → Extract all <a href="..."> links → Filter to same-doma
 
 ### Step 2: Batch Scrape Discovered Links
 
-Use `mcp__Brightdata__scrape_as_markdown` or `scrape_batch` to fetch pages in batches of up to 10.
+Fetch unvisited URLs in bounded groups of up to 10, running FourTierScrape for each URL. Do not assume a batch MCP exists.
 
 ```
-For each batch of up to 10 unvisited URLs:
-  1. Call scrape_batch with the URLs
-  2. Extract new internal links from results
-  3. Add new links to the queue (if not already visited)
-  4. Store page content in results collection
-  5. Repeat until: queue empty OR page limit reached OR depth limit reached
+For each bounded group of unvisited URLs:
+  1. Run FourTierScrape for each URL
+  2. Extract new internal links from successful results
+  3. Add unseen links to the queue
+  4. Store page content in the results collection
+  5. Repeat until the queue is empty or a page/depth limit is reached
 ```
 
 **Depth tracking:**
+
 - Starting URL = depth 0
 - Links found on starting URL = depth 1
 - Links found on depth 1 pages = depth 2
 - Default max depth: 3 (override with user preference)
 
 **Page limit:**
+
 - Default: 30 pages
 - User can specify: "crawl up to 100 pages"
 - Hard cap: 50 pages per Light Crawl (for cost/time control)
@@ -105,16 +109,18 @@ Assemble all crawled pages into a structured output:
 
 ---
 
-## Full Crawl (Bright Data Crawl API)
+## Full Crawl (optional Bright Data HTTP API)
 
-For large-scale site crawling. Uses Bright Data's dedicated Crawl API via HTTP POST.
+For large-scale site crawling. This is a paid, credentialed path. Confirm cost and scope with the user before making requests. Require `BRIGHT_DATA_API_KEY` and a real `BRIGHT_DATA_DATASET_ID`; never leave a placeholder dataset ID in an executable request.
 
 ### Step 1: Configure the Crawl
 
 Build the API request based on user requirements:
 
 ```bash
-curl -X POST "https://api.brightdata.com/datasets/v3/trigger?dataset_id=CRAWL_DATASET_ID&format=json" \
+test -n "${BRIGHT_DATA_API_KEY:-}" || { echo "BRIGHT_DATA_API_KEY is required" >&2; exit 1; }
+test -n "${BRIGHT_DATA_DATASET_ID:-}" || { echo "BRIGHT_DATA_DATASET_ID is required" >&2; exit 1; }
+curl -X POST "https://api.brightdata.com/datasets/v3/trigger?dataset_id=${BRIGHT_DATA_DATASET_ID}&format=json" \
   -H "Authorization: Bearer ${BRIGHT_DATA_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '[{
@@ -126,11 +132,12 @@ curl -X POST "https://api.brightdata.com/datasets/v3/trigger?dataset_id=CRAWL_DA
 ```
 
 **Key parameters:**
-- `url` — Starting URL for the crawl
-- `crawl_depth` — How many link hops to follow (default: 3)
-- `url_filter` — Regex to restrict which URLs to crawl (e.g., `"https://example\\.com/docs/.*"`)
-- `format` — Output format: `markdown`, `html`, `json`, `ld_json`
-- `include_errors` — Set to `true` for detailed error logs
+
+- `url`: Starting URL for the crawl
+- `crawl_depth`: How many link hops to follow (default: 3)
+- `url_filter`: Regex to restrict which URLs to crawl (e.g., `"https://example\\.com/docs/.*"`)
+- `format`: Output format: `markdown`, `html`, `json`, `ld_json`
+- `include_errors`: Set to `true` for detailed error logs
 
 ### Step 2: Monitor Progress
 
@@ -161,6 +168,7 @@ Results come as an array of page objects, each with URL and content.
 ### Step 4: Present Results
 
 Same structured output format as Light Crawl, plus:
+
 - Total pages crawled
 - Total cost estimate ($1.50/1K pages)
 - Any errors encountered
@@ -178,18 +186,18 @@ Same structured output format as Light Crawl, plus:
 
 For both modes:
 
-1. **Present site map** — hierarchical URL tree showing crawl structure
-2. **Present content** — each page's content in the requested format
-3. **Summary stats** — pages crawled, depth, time taken, cost
-4. **Quality check** — flag any pages that returned empty or error content
-5. **Offer export** — if large result set, offer to write to a file
+1. **Present site map:** hierarchical URL tree showing crawl structure
+2. **Present content:** each page's content in the requested format
+3. **Summary stats:** pages crawled, depth, time taken, cost
+4. **Quality check:** flag any pages that returned empty or error content
+5. **Offer export:** if the result set is large, offer to write it to a file
 
 ---
 
 ## Cost Considerations
 
 | Mode | Cost | Time |
-|------|------|------|
+| ------ | ------ | ------ |
 | Light Crawl (10 pages) | ~$0.06 | 30-60 seconds |
 | Light Crawl (30 pages) | ~$0.18 | 1-3 minutes |
 | Light Crawl (50 pages) | ~$0.30 | 2-5 minutes |
@@ -198,6 +206,7 @@ For both modes:
 | Full Crawl (10K pages) | ~$15.00 | 15-60 minutes |
 
 **Always confirm with user before:**
+
 - Light Crawl exceeding 20 pages
 - Any Full Crawl (involves Bright Data API costs)
 
@@ -213,4 +222,4 @@ For both modes:
 
 ## Related Workflows
 
-- **FourTierScrape.md** — Single-page scraping (used internally by Light Crawl for the starting URL and as fallback)
+- **FourTierScrape.md:** Single-page scraping used internally by Light Crawl
