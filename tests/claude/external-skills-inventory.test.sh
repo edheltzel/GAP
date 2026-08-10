@@ -4,8 +4,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 manifest="$repo_root/skills.txt"
 
+# Recovered final-lineage names plus every later skill reconciled from
+# ~/.agents/.skill-lock.json. Keep in sync when skills.txt gains an entry.
 expected=(
 	agent-browser
+	agent-first-repo
 	anti-slop
 	ast-grep
 	ast-grep-outline
@@ -13,19 +16,27 @@ expected=(
 	codegraph
 	computer-use
 	gh-axi
+	gh-stack
 	git-guardrails-claude-code
 	grill-me
 	grill-with-docs
 	handoff
 	herdr
 	herdr-browser
+	herdr-pre-release-audit
+	herdr-throwaway-repro
 	impeccable
 	improve-codebase-architecture
 	karpathy-guidelines
 	lavish
+	linear-tickets
 	migrate-to-shoehorn
 	opensrc
 	orca-cli
+	orca-emulator
+	orca-emulator-android
+	orca-linear
+	orca-per-workspace-env
 	orchestration
 	pm-tools
 	prototype
@@ -40,6 +51,7 @@ expected=(
 	recall-stats
 	recall-update
 	scaffold-exercises
+	semantic-review
 	setup-matt-pocock-skills
 	setup-pre-commit
 	slop-code

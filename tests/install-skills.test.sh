@@ -36,10 +36,7 @@ git -C "$repo_root" show "$source_commit:.agents/skills/lavish/SKILL.md" >"$inst
 printf 'kunchenguid/lavish-axi#%s=lavish|skills/lavish/SKILL.md|%s # parser comment\n' "$commit" "$blob" >"$manifest"
 
 default_output="$(env -u SKILLS_AGENTS HOME="$temp_home/home" PATH="$temp_home/bin:$PATH" "$repo_root/install-skills.sh" --dry-run "$manifest")"
-if grep -Eq '(^|[[:space:]])-a([[:space:]]|$)' <<<"$default_output"; then
-	printf 'default install should let the skills CLI detect agents\n' >&2
-	exit 1
-fi
+grep -F -e '-a claude-code -a codex -a pi -a grok' <<<"$default_output" >/dev/null
 
 output="$(HOME="$temp_home/home" PATH="$temp_home/bin:$PATH" SKILLS_AGENTS='claude-code,pi' "$repo_root/install-skills.sh" --dry-run "$manifest")"
 grep -F "kunchenguid/lavish-axi#$commit" <<<"$output" >/dev/null
@@ -88,14 +85,17 @@ fi
 printf 'owner/repo=demo\n' >"$temp_home/unpinned-skills.txt"
 env -u SKILLS_AGENTS HOME="$temp_home/home" PATH="$temp_home/bin:$PATH" SKILLS_ARGS_FILE="$args_file" \
 	"$repo_root/install-skills.sh" "$temp_home/unpinned-skills.txt" >/dev/null
-if grep -Fx -e '-a' "$args_file" >/dev/null || grep -Fx -e '*' "$args_file" >/dev/null; then
+if grep -Fx -e '*' "$args_file" >/dev/null; then
 	printf 'default execution forwarded an explicit all-agent selector\n' >&2
 	exit 1
 fi
+for default_agent in claude-code codex pi grok; do
+	grep -Fx -e "$default_agent" "$args_file" >/dev/null
+done
 grep -Fx -e 'add' "$args_file" >/dev/null
 grep -Fx -e 'owner/repo' "$args_file" >/dev/null
 grep -Fx -e '-g' "$args_file" >/dev/null
 grep -Fx -e '-s' "$args_file" >/dev/null
 grep -Fx -e 'demo' "$args_file" >/dev/null
 
-printf 'PASS: pinned installs are verified and default agent detection stays CLI-owned\n'
+printf 'PASS: pinned installs are verified and the default targets claude-code,codex,pi,grok\n'

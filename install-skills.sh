@@ -20,7 +20,7 @@ else
 	SOURCE_BASE="$SCRIPT_DIR"
 fi
 MANIFEST="$SCRIPT_DIR/skills.txt"
-AGENTS="${SKILLS_AGENTS:-}" # override: SKILLS_AGENTS="claude-code,pi,codex"
+AGENTS="${SKILLS_AGENTS:-claude-code,codex,pi,grok}" # override: SKILLS_AGENTS="claude-code,pi"
 DRY_RUN=0
 
 trim_whitespace() {
@@ -45,8 +45,9 @@ Options:
   -h, --help      Show this help.
 
 Env:
-  SKILLS_AGENTS   Optional comma-separated target filter. Per-entry agents are
-                  intersected with this filter; otherwise the CLI detects agents.
+  SKILLS_AGENTS   Comma-separated target filter, defaulting to
+                  claude-code,codex,pi,grok. Per-entry agents are intersected
+                  with this filter.
 EOF
 }
 
@@ -164,6 +165,7 @@ verify_installed_blob() {
 			claude-code) candidates+=("$HOME/.claude/skills/$name/$base") ;;
 			pi) candidates+=("$HOME/.pi/agent/skills/$name/$base") ;;
 			codex) candidates+=("$HOME/.codex/skills/$name/$base") ;;
+			grok) candidates+=("$HOME/.grok/skills/$name/$base") ;;
 			esac
 		done
 	fi
