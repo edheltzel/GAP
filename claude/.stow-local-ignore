@@ -1,4 +1,4 @@
-# Stow defaults (REQUIRED — this file replaces built-in defaults)
+# Stow defaults (REQUIRED - this file replaces built-in defaults)
 \.git
 \.gitignore
 \.gitmodules
@@ -10,7 +10,7 @@
 \.DS_Store
 
 # Dependencies
-node_modules/
+(^|.*/)node_modules($|/.*)
 scripts/
 
 # Templates (not needed at runtime)
@@ -28,11 +28,12 @@ scripts/
 \.claude/PAI/MEMORY/KNOWLEDGE/_embeddings
 \.claude/PAI/MEMORY/KNOWLEDGE/_harvest-queue
 
-# Recall runtime state — owned by Recall, never linked from atlas-config
+# Recall runtime state and source-owned skill pointers - never linked from atlas-config
 \.claude/MEMORY
 \.claude/memory\.db.*
+\.claude/skills/recall-(add|dump|recent|scout|search)
 
-# auth.json equivalents — Atlas/PAI internal secrets
+# auth.json equivalents - Atlas/PAI internal secrets
 \.claude/.*\.env
 \.claude/.*auth\.json
 \.claude/.*\.sqlite.*

@@ -1,10 +1,8 @@
 set shell := ["bash", "-cu"]
 
 stow_dir := justfile_directory()
-stow_target := env("HOME")
-stow_cmd := "stow -d " + stow_dir + " -t " + stow_target
-pkgs := "claude"
-no_folding_pkgs := "omp pi"
+export ATLAS_STOW_DIR := stow_dir
+no_folding_pkgs := "claude omp pi jcode"
 
 yellow := '\033[33m'
 green := '\033[32m'
@@ -23,17 +21,17 @@ prune-broken *packages:
     #!/usr/bin/env bash
     set -euo pipefail
     packages="{{ packages }}"
-    if [ -z "$packages" ]; then packages="{{ pkgs }} {{ no_folding_pkgs }}"; fi
+    if [ -z "$packages" ]; then packages="{{ no_folding_pkgs }}"; fi
     total=0
     for pkg in $packages; do
         flags=""
         case " {{ no_folding_pkgs }} " in *" $pkg "*) flags="--no-folding";; esac
         # Pruning a broken directory link can expose more beneath it, so repeat
         # until a pass finds nothing.
-        for _ in 1 2 3; do
+        while :; do
             removed=0
             while IFS= read -r rel; do
-                link="{{ stow_target }}/$rel"
+                link="$HOME/$rel"
                 # Only ever remove a link that is BOTH stow-blocking and dangling.
                 # Real files and valid links pointing elsewhere are left for stow
                 # to report as genuine conflicts.
@@ -42,7 +40,7 @@ prune-broken *packages:
                     if command -v trash >/dev/null 2>&1; then trash "$link"; else rm "$link"; fi
                     removed=$((removed + 1))
                 fi
-            done < <({{ stow_cmd }} $flags -n --restow "$pkg" 2>&1 \
+            done < <(stow -d "$ATLAS_STOW_DIR" -t "$HOME" $flags -n --restow "$pkg" 2>&1 \
                 | sed -n 's/^ *\* existing target is not owned by stow: //p')
             total=$((total + removed))
             if [ "$removed" -eq 0 ]; then break; fi
@@ -54,107 +52,240 @@ prune-broken *packages:
         echo -e "{{ green }}Pruned $total broken link(s){{ clr }}"
     fi
 
-# Restow all packages and provision skills plus OMP marketplace plugins
+# Remove dangling links hidden beneath ignored native Claude dependency paths
 [group('stow')]
-update: prune-broken && skills-install omp-plugins-install
+prune-native-dependency-links:
+    @./prune-stale-native-dependency-links.sh
+
+# Fail before mutation when any package has a genuine Stow ownership conflict
+[group('stow')]
+stow-preflight *packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    packages="{{ packages }}"
+    if [ -z "$packages" ]; then packages="{{ no_folding_pkgs }}"; fi
+    failed=0
+    for pkg in $packages; do
+        flags=""
+        case " {{ no_folding_pkgs }} " in *" $pkg "*) flags="--no-folding";; esac
+        if ! output="$(stow -d "$ATLAS_STOW_DIR" -t "$HOME" $flags -n --restow "$pkg" 2>&1)"; then
+            echo -e "{{ red }}Stow preflight failed for $pkg{{ clr }}" >&2
+            printf '%s\n' "$output" >&2
+            failed=1
+        fi
+    done
+    if [ "$failed" -ne 0 ]; then exit 1; fi
+    echo -e "{{ green }}Stow preflight passed: $packages{{ clr }}"
+
+# Restow all packages, then provision native tools, skills, and OMP plugins
+[group('stow')]
+update: jcode-filter prune-broken prune-native-dependency-links stow-preflight
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ pkgs }}; do {{ stow_cmd }} --restow $pkg; done
-    for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --restow $pkg; done
-    echo -e "{{ green }}All packages restowed{{ clr }}"
+    for pkg in {{ no_folding_pkgs }}; do stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow "$pkg"; done
+    ./install-native-skill-tools.sh
+    ./install-skills.sh
+    ./install-omp-plugins.sh
+    echo -e "{{ green }}All packages restowed and manifests provisioned{{ clr }}"
 
 alias up := update
 
-# Restow the claude package only
+# Restow Claude and provision its repository-owned native tool dependencies
 [group('stow')]
-claude: (prune-broken "claude")
+claude: (prune-broken "claude") prune-native-dependency-links (stow-preflight "claude")
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --restow claude
-    echo -e "{{ green }}claude restowed{{ clr }}"
+    stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow claude
+    ./install-native-skill-tools.sh
+    echo -e "{{ green }}claude restowed and native skill tools provisioned{{ clr }}"
 
-# Restow the OMP package and provision its marketplace plugins
+# Restow the OMP package, then provision its marketplace plugins
 [group('stow')]
-omp: (prune-broken "omp") && omp-plugins-install
+omp: (prune-broken "omp") (stow-preflight "omp")
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --no-folding --restow omp
-    echo -e "{{ green }}omp restowed{{ clr }}"
+    stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow omp
+    ./install-omp-plugins.sh
+    echo -e "{{ green }}omp restowed and plugins provisioned{{ clr }}"
 
 # Restow the pi package only (no-folding)
 [group('stow')]
-pi: (prune-broken "pi")
+pi: (prune-broken "pi") (stow-preflight "pi")
     #!/usr/bin/env bash
     set -eu
-    {{ stow_cmd }} --no-folding --restow pi
+    stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow pi
     echo -e "{{ green }}pi restowed{{ clr }}"
 
-# Create symlinks and provision skills plus OMP marketplace plugins
+# Restow the Jcode package only (no-folding)
 [group('stow')]
-link: prune-broken && skills-install omp-plugins-install
+jcode: jcode-filter (prune-broken "jcode") (stow-preflight "jcode")
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ pkgs }}; do {{ stow_cmd }} $pkg; done
-    for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding $pkg; done
-    echo -e "{{ green }}Packages linked: {{ pkgs }} {{ no_folding_pkgs }}{{ clr }}"
+    stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --restow jcode
+    echo -e "{{ green }}jcode restowed{{ clr }}"
+
+# Create package links, then provision native tools, skills, and OMP plugins
+[group('stow')]
+link: jcode-filter prune-broken prune-native-dependency-links stow-preflight
+    #!/usr/bin/env bash
+    set -eu
+    for pkg in {{ no_folding_pkgs }}; do stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding "$pkg"; done
+    ./install-native-skill-tools.sh
+    ./install-skills.sh
+    ./install-omp-plugins.sh
+    echo -e "{{ green }}Packages linked and manifests provisioned: {{ no_folding_pkgs }}{{ clr }}"
 
 # Remove all symlinks
 [group('stow')]
 unlink:
     #!/usr/bin/env bash
     set -eu
-    for pkg in {{ pkgs }}; do {{ stow_cmd }} --delete $pkg; done
-    for pkg in {{ no_folding_pkgs }}; do {{ stow_cmd }} --no-folding --delete $pkg; done
+    for pkg in {{ no_folding_pkgs }}; do stow -d "$ATLAS_STOW_DIR" -t "$HOME" --no-folding --delete "$pkg"; done
     echo -e "{{ white }}All package symlinks removed{{ clr }}"
 
-# Show the state of every managed symlink (ACTIVE / BROKEN / NOT ACTIVE)
+# Summarize managed links and fail on conflicts, inactive links, or broken targets
 [group('stow')]
 status:
     #!/usr/bin/env bash
-    set -eu
-    g='{{ green }}'; r='{{ red }}'; w='{{ white }}'; c='{{ cyan }}'; z='{{ clr }}'
+    set -euo pipefail
+    g='{{ green }}'; r='{{ red }}'; c='{{ cyan }}'; z='{{ clr }}'
+    failed=0
+    git_common_dir="$(git -C "$ATLAS_STOW_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    canonical_root="${git_common_dir%/.git}"
+    worktree_echo_source_is_valid() {
+        local path="$1"
+        local source="$ATLAS_STOW_DIR/omp/.omp/agent/extensions/echo-voice"
+        [ "$path" = '.omp/agent/extensions/echo-voice' ] &&
+            [ "$ATLAS_STOW_DIR" != "$canonical_root" ] &&
+            [ -L "$source" ] &&
+            [ "$(readlink "$source")" = '../../../../../Echo/adapters/omp' ] &&
+            [ -d "$canonical_root/omp/.omp/agent/extensions/echo-voice" ]
+    }
     report() {
         local pkg="$1"; shift
-        local note=""; [ $# -gt 0 ] && note=" (no-folding)"
-        echo -e "${c}Package: $pkg$note${z}"
-        # Enumerate the real link nodes stow manages (LINK: lines from a restow
-        # dry-run), then check each one's actual state on disk.
-        {{ stow_cmd }} "$@" --restow -n -v "$pkg" 2>&1 \
-            | grep '^LINK: ' \
-            | while read -r line; do
-                rest="${line#LINK: }"
-                path="${rest%% => *}"
-                target="$HOME/$path"
-                if [ -L "$target" ]; then
-                    if [ -e "$target" ]; then
-                        printf "  ${g}ACTIVE${z}      %s\n" "$path"
-                    else
-                        printf "  ${r}BROKEN${z}      %s\n" "$path"
-                    fi
-                else
-                    printf "  ${w}NOT ACTIVE${z}  %s\n" "$path"
-                fi
-            done
-        echo ""
+        local note="" output rest path target
+        local active=0 canonical_only=0
+        [ $# -gt 0 ] && note=" (no-folding)"
+        printf "${c}Package: %s%s${z}\n" "$pkg" "$note"
+        if ! output="$(stow -d "$ATLAS_STOW_DIR" -t "$HOME" "$@" --restow -n -v "$pkg" 2>&1)"; then
+            printf "  ${r}CONFLICT${z}    Stow rejected package %s\n" "$pkg" >&2
+            printf '%s\n' "$output" >&2
+            failed=1
+            echo ""
+            return
+        fi
+        while IFS= read -r line; do
+            rest="${line#LINK: }"
+            path="${rest%% => *}"
+            target="$HOME/$path"
+            if [ -L "$target" ] && [ -e "$target" ]; then
+                active=$((active + 1))
+            elif [ -L "$target" ] && worktree_echo_source_is_valid "$path"; then
+                canonical_only=$((canonical_only + 1))
+            elif [ -L "$target" ]; then
+                printf "  ${r}BROKEN${z}      %s\n" "$path"
+                failed=1
+            else
+                printf "  ${r}NOT ACTIVE${z}  %s\n" "$path"
+                failed=1
+            fi
+        done < <(printf '%s\n' "$output" | grep '^LINK: ' || true)
+        printf "  ${g}ACTIVE${z}      %s managed link(s)" "$active"
+        if [ "$canonical_only" -ne 0 ]; then
+            printf "; %s canonical-only Echo link verified from this worktree" "$canonical_only"
+        fi
+        printf '\n\n'
     }
-    for pkg in {{ pkgs }}; do report "$pkg"; done
     for pkg in {{ no_folding_pkgs }}; do report $pkg --no-folding; done
+    if [ "$failed" -ne 0 ]; then exit 1; fi
+
+# Link the globally installed harness modules needed for local type checking
+[group('checks')]
+dev-modules:
+    #!/usr/bin/env bash
+    set -eu
+    ./link-agent-dev-modules.sh
+
+# Install locked dependencies for repository-owned native Claude skill tools
+[group('skills')]
+native-skill-tools:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./install-native-skill-tools.sh
+
+# Validate native Claude skill tool locks and installed declared dependencies
+[group('checks')]
+native-skill-tools-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./install-native-skill-tools.sh --check
+
+# Validate config, manifests, native skills, and status-line behavior
+[group('checks')]
+tooling-preflight: dev-modules native-skill-tools-status
+    #!/usr/bin/env bash
+    set -euo pipefail
+    jq empty pi/.pi/agent/settings.json
+    bun -e 'Bun.YAML.parse(await Bun.file("omp/.omp/agent/config.yml").text())'
+    ./link-agent-dev-modules.sh --check
+    ./node_modules/typescript/bin/tsc -p tsconfig.json
+    ./install-skills.sh --dry-run >/dev/null
+    ./install-omp-plugins.sh --dry-run >/dev/null
+    tests/install-skills.test.sh
+    tests/installed-skills-status.test.sh
+    tests/ownership-status.test.sh
+    tests/native-skill-tools.test.sh
+    tests/claude/external-skills-inventory.test.sh
+    tests/claude/native-skills-snapshot.test.sh
+    tests/claude/native-orchestration-skills.test.sh
+    tests/claude/native-residual-skills.test.sh
+    tests/claude/native-runtime-skills.test.sh
+    tests/claude/native-browser-skills.test.sh
+    tests/claude/native-continuity-skills.test.sh
+    tests/statusline-recovery.test.sh
+    tests/statusline-runtime.test.sh
+    tests/stow-safety.test.sh
+    git diff --check
+
+# Validate installed manifest/native skills and managed skill symlinks
+[group('checks')]
+installed-skills-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./check-installed-skills.sh
+
+# Require the external Firstmate and app-owned tldraw skill stores
+[group('checks')]
+ownership-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./check-owned-skills.sh --strict
+
+# Run Stow, tooling, installed-skill, and external-ownership checks
+[group('checks')]
+preflight: status tooling-preflight installed-skills-status ownership-status
 
 # List declared skills (skills.txt) grouped by repo with install status
 [group('skills')]
 skills:
     #!/usr/bin/env bash
     set -eu
-    manifest="{{ stow_dir }}/skills.txt"
+    manifest="$ATLAS_STOW_DIR/skills.txt"
     store="$HOME/.agents/skills"
     echo -e "{{ cyan }}Global (from skills.txt):{{ clr }}"
     echo ""
     while IFS= read -r line || [ -n "$line" ]; do
-        line="${line%%#*}"
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        if [[ "$line" =~ ^(.*[^[:space:]])[[:space:]]+#.*$ ]]; then line="${BASH_REMATCH[1]}"; fi
         line="$(printf '%s' "$line" | tr -d '[:space:]')"
         [ -z "$line" ] && continue
         source="${line%%=*}"
-        names="${line#*=}"
+        descriptor="${line#*=}"
+        names="${descriptor%%|*}"
+        entry_agents=""
+        IFS='|' read -ra descriptor_parts <<< "$descriptor"
+        last_part="${descriptor_parts[${#descriptor_parts[@]}-1]}"
+        if [[ "$last_part" == agents=* ]]; then entry_agents="${last_part#agents=}"; fi
         echo -e "{{ yellow }}$source{{ clr }}"
         if [ "$names" = "$line" ] || [ -z "$names" ] || [ "$names" = "*" ]; then
             echo "  (all skills)"
@@ -164,10 +295,27 @@ skills:
         IFS=',' read -ra arr <<< "$names"
         for n in "${arr[@]}"; do
             [ -z "$n" ] && continue
-            if [ -e "$store/$n" ]; then
-                echo -e "  {{ green }}✓{{ clr }} $n"
+            installed=1
+            target_note=""
+            if [ -n "$entry_agents" ]; then
+                target_note=" [$entry_agents]"
+                IFS=',' read -ra targets <<< "$entry_agents"
+                for target in "${targets[@]}"; do
+                    case "$target" in
+                        claude-code) path="$HOME/.claude/skills/$n" ;;
+                        pi) path="$HOME/.pi/agent/skills/$n" ;;
+                        codex) path="$HOME/.codex/skills/$n" ;;
+                        *) installed=0; continue ;;
+                    esac
+                    [ -e "$path" ] || installed=0
+                done
             else
-                echo -e "  {{ red }}✗{{ clr }} $n {{ white }}(not installed){{ clr }}"
+                [ -e "$store/$n" ] || installed=0
+            fi
+            if [ "$installed" -eq 1 ]; then
+                echo -e "  {{ green }}✓{{ clr }} $n$target_note"
+            else
+                echo -e "  {{ red }}✗{{ clr }} $n$target_note {{ white }}(not installed){{ clr }}"
             fi
         done
         echo ""
@@ -221,3 +369,13 @@ push:
         git push origin master
         echo -e "{{ green }}Pushed to origin{{ clr }}"
     fi
+
+# Configure repository-local drivers for writable and machine-local config
+[group('stow')]
+jcode-filter:
+    #!/usr/bin/env bash
+    set -eu
+    git config filter.jcode-config.clean "python3 $ATLAS_STOW_DIR/filter-jcode-config.py"
+    git config filter.jcode-config.smudge cat
+    git config filter.jcode-config.required true
+    git config merge.ours.driver true

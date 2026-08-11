@@ -4,7 +4,6 @@ import { VERSION, type ExtensionAPI, type ExtensionContext } from '@earendil-wor
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 
 const SYMBOLS = {
-  atlas: '▲',
   thinking: '⚡︎', // U+FE0E keeps text presentation instead of emoji
   pi: 'π',
   contextCell: '⛁',
@@ -149,15 +148,6 @@ function paletteFor(theme: Theme): StatusPalette {
   return DARK_PALETTE;
 }
 
-function readAtlasVersion(): string {
-  const atlasDir = process.env.ATLAS_DIR || join(process.env.HOME || '', '.claude');
-  try {
-    return sanitizeLabel(readFileSync(join(atlasDir, 'LIFEOS', 'VERSION'), 'utf8')) || '—';
-  } catch {
-    return '—';
-  }
-}
-
 export function formatCurrentDirectory(cwd: string): string {
   const safeCwd = sanitizeLabel(cwd);
   const { root } = parse(safeCwd);
@@ -268,7 +258,6 @@ function buildStatusItems(
   ctx: ExtensionContext,
   palette: StatusPalette,
   branch: string | null,
-  atlasVersion: string,
   terminalWidth: number
 ): string[] {
   const model = ctx.model;
@@ -294,9 +283,8 @@ function buildStatusItems(
   )}`;
 
   const items = [
-    `${color(palette.brand, `${SYMBOLS.atlas} Atlas`)} ${color(palette.text, `v${atlasVersion}`)}`,
-    modelText,
     `${color(palette.pi, SYMBOLS.pi)} ${color(palette.text, VERSION)}`,
+    modelText,
     color(palette.path, cwd),
     `${color(palette.branch, NERD_FONT_ICONS.branch)} ${color(palette.branch, gitBranch)}`,
     contextText,
@@ -315,7 +303,6 @@ function buildStatusItems(
 }
 
 export default function atlasStatusLine(pi: ExtensionAPI) {
-  const atlasVersion = readAtlasVersion();
   let requestRender: (() => void) | undefined;
   const refresh = () => requestRender?.();
 
@@ -353,7 +340,6 @@ export default function atlasStatusLine(pi: ExtensionAPI) {
             ctx,
             palette,
             footerData.getGitBranch(),
-            atlasVersion,
             width
           );
 

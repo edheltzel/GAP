@@ -1,3 +1,5 @@
+// @ts-nocheck
+// This repository executes the contract with Bun and does not install a local TypeScript toolchain.
 import { describe, expect, it } from 'bun:test';
 import {
   VERSION as OMP_VERSION,
@@ -28,7 +30,6 @@ function stripAnsi(text: string): string {
 }
 
 const FOOTER_STATE = {
-  atlasVersion: '7.1.1',
   provider: 'openai',
   model: 'gpt-5.6',
   thinking: 'high',
@@ -172,9 +173,8 @@ describe('Atlas OMP status line', () => {
     );
     const footer = stripAnsi(lines[0]);
 
-    expect(footer).toContain('▲ Atlas v7.1.1');
-    expect(footer).toContain('openai/gpt-5.6  high');
-    expect(footer).toContain('π 17.0.0');
+    expect(footer).not.toContain('▲ Atlas');
+    expect(footer).toContain('π 17.0.0  openai/gpt-5.6  high');
     expect(footer).toContain('…/Atlas/Config');
     expect(footer).toContain(' main');
     expect(footer).toContain('42%');
@@ -184,12 +184,10 @@ describe('Atlas OMP status line', () => {
     expect(visibleWidth(lines[0]) < 240).toBeTrue();
     expect(lines[1]).toContain('\x1b[35mcolored\x1b[39m');
     expect(stripAnsi(lines[1]).trim()).toBe('colored');
-    expect(lines[0]).toContain('\x1b[38;2;164;140;242m▲ Atlas');
     expect(lines[0]).toContain('\x1b[38;2;232;97;32mπ');
     expect(lines[0]).toContain('\x1b[38;2;4;209;249m…/Atlas/Config');
     expect(lines[0]).toContain('\x1b[38;2;242;101;181m');
     expect(lines[0]).toContain('\x1b[2m\x1b[38;2;50;52;73m⛁');
-    expect(lines[0]).toContain('\x1b[38;2;235;250;250mv7.1.1');
     expect(lines[0]).toContain('\x1b[38;2;112;129;208mopenai/');
     expect(lines[0]).toContain('\x1b[38;2;50;52;73m');
   });
@@ -212,11 +210,9 @@ describe('Atlas OMP status line', () => {
   it('uses the canonical Rosé Pine Dawn light palette', () => {
     const footer = renderAtlasFooter({ ...FOOTER_STATE, isLight: true }, 240)[0];
 
-    expect(footer).toContain('\x1b[38;2;144;122;169m▲ Atlas');
     expect(footer).toContain('\x1b[38;2;234;157;52mπ');
     expect(footer).toContain('\x1b[38;2;86;148;159m…/Atlas/Config');
     expect(footer).toContain('\x1b[38;2;215;130;126m');
-    expect(footer).toContain('\x1b[38;2;87;82;121mv7.1.1');
     expect(footer).toContain('\x1b[38;2;121;117;147mopenai/');
     expect(footer).toContain('\x1b[38;2;223;218;217m');
   });
@@ -228,7 +224,6 @@ describe('Atlas OMP status line', () => {
 
     expect(palette.brand).toEqual([1, 2, 3]);
     expect(palette.path).toEqual([13, 14, 15]);
-    expect(footer).toContain('\x1b[38;2;1;2;3m▲ Atlas');
     expect(footer).toContain('\x1b[38;2;13;14;15m…/Atlas/Config');
     expect(footer).toContain('\x1b[38;2;16;17;18m');
     expect(footer).toContain('\x1b[38;2;19;20;21mπ');
@@ -552,12 +547,11 @@ describe('Atlas OMP status line', () => {
     expect(visibleWidth(border?.content ?? '')).toBe(236);
     expect(border?.width).toBe(visibleWidth(border?.content ?? ''));
     // The editor's own border color is left intact so its trailing rule fills
-    // out to the right corner (no suppression) — this is what makes the line span.
+    // out to the right corner (no suppression) - this is what makes the line span.
     expect(editor.borderColor?.('────────────────')).toBe('native:────────────────');
     expect(editor.borderColor?.('─')).toBe('native:─');
-    expect(rendered).toContain('▲ Atlas v');
-    expect(rendered).toContain('openai-codex/gpt-5.6-sol  high');
-    expect(rendered).toContain(`π ${OMP_VERSION}`);
+    expect(rendered).not.toContain('▲ Atlas');
+    expect(rendered).toContain(`π ${OMP_VERSION}  openai-codex/gpt-5.6-sol  high`);
     expect(Array.from(rendered).filter((glyph) => glyph === '⛁')).toHaveLength(24);
     expect(rendered).toContain(sessionTitle);
     expect(renderedLines).toHaveLength(1);
