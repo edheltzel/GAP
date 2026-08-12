@@ -12,8 +12,8 @@ fi
 manifest="${SKILLS_MANIFEST:-$repo_root/skills.txt}"
 native_source="${NATIVE_SKILLS_SOURCE:-$repo_root/claude/.claude/skills}"
 pi_settings="${PI_SETTINGS:-$repo_root/pi/.pi/agent/settings.json}"
-pi_extensions_root="${PI_EXTENSIONS_ROOT:-$(dirname "$canonical_root")/PiExtensions}"
-pi_extensions_registration="${PI_EXTENSIONS_REGISTRATION:-../../Developer/Atlas/PiExtensions}"
+pi_extensions_root="${PI_EXTENSIONS_ROOT:-$HOME/.pi/agent/git/github.com/edheltzel/pi-extensions}"
+pi_extensions_registration="${PI_EXTENSIONS_REGISTRATION:-git:github.com/edheltzel/pi-extensions}"
 pi_command="${PI_COMMAND:-pi}"
 errors=0
 checked=0
@@ -132,7 +132,7 @@ else
 		fail "Pi anti-slop registration: expected exactly one $pi_extensions_registration entry in $pi_settings"
 	fi
 	if [ "$legacy_count" -ne 0 ]; then
-		fail "Pi anti-slop registration: retired local-packages/pi-extensions entry remains in $pi_settings"
+		fail "Pi anti-slop registration: retired local Pi Extensions registration remains in $pi_settings"
 	fi
 fi
 if ! command -v "$pi_command" >/dev/null 2>&1 && [ ! -x "$pi_command" ]; then
@@ -152,7 +152,7 @@ else
 	fi
 fi
 for name in "${pi_anti_slop_skills[@]}"; do
-	check_skill "$pi_extensions_root/packages/pi-anti-slop/skills/$name" "PiExtensions native package"
+	check_skill "$pi_extensions_root/extensions/pi-anti-slop/skills/$name" "Pi Extensions Git package"
 	if [ -e "$HOME/.pi/agent/skills/$name" ] || [ -L "$HOME/.pi/agent/skills/$name" ]; then
 		fail "Pi anti-slop discovery: duplicate physical skill must be removed: $HOME/.pi/agent/skills/$name"
 	fi

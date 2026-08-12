@@ -9,7 +9,7 @@ home="$tmp/home"
 manifest="$tmp/skills.txt"
 native="$tmp/native"
 pi_settings="$tmp/pi-settings.json"
-pi_extensions="$tmp/PiExtensions"
+pi_extensions="$tmp/pi-extensions"
 pi_registration="test-pi-extensions-registration"
 pi_command="$tmp/pi"
 mkdir -p \
@@ -19,8 +19,8 @@ mkdir -p \
 	"$home/.claude/skills/Native" \
 	"$native/Native"
 for skill in anti-slop slop-code slop-review slop-rewrite slop-verify; do
-	mkdir -p "$pi_extensions/packages/pi-anti-slop/skills/$skill"
-	printf '%s\n' "# $skill" >"$pi_extensions/packages/pi-anti-slop/skills/$skill/SKILL.md"
+	mkdir -p "$pi_extensions/extensions/pi-anti-slop/skills/$skill"
+	printf '%s\n' "# $skill" >"$pi_extensions/extensions/pi-anti-slop/skills/$skill/SKILL.md"
 done
 cat >"$pi_settings" <<EOF
 {"packages":["$pi_registration"]}
@@ -70,13 +70,13 @@ fi
 grep -q 'Claude anti-slop support file is missing' "$tmp/support.out"
 printf '%s\n' '# false-positives' >"$home/.claude/skills/anti-slop/references/false-positives.md"
 
-rm "$pi_extensions/packages/pi-anti-slop/skills/slop-verify/SKILL.md"
+rm "$pi_extensions/extensions/pi-anti-slop/skills/slop-verify/SKILL.md"
 if run_check >"$tmp/pi-package.out" 2>&1; then
 	printf 'installed skill checker accepted a missing Pi anti-slop package skill\n' >&2
 	exit 1
 fi
-grep -q 'PiExtensions native package: missing SKILL.md' "$tmp/pi-package.out"
-printf '%s\n' '# slop-verify' >"$pi_extensions/packages/pi-anti-slop/skills/slop-verify/SKILL.md"
+grep -q 'Pi Extensions Git package: missing SKILL.md' "$tmp/pi-package.out"
+printf '%s\n' '# slop-verify' >"$pi_extensions/extensions/pi-anti-slop/skills/slop-verify/SKILL.md"
 
 cat >"$pi_command" <<'EOF'
 #!/usr/bin/env bash
@@ -107,10 +107,10 @@ cat >"$pi_settings" <<EOF
 {"packages":["$pi_registration","local-packages/pi-extensions"]}
 EOF
 if run_check >"$tmp/pi-registration.out" 2>&1; then
-	printf 'installed skill checker accepted retired PiExtensions registration\n' >&2
+	printf 'installed skill checker accepted retired local Pi Extensions registration\n' >&2
 	exit 1
 fi
-grep -q 'retired local-packages/pi-extensions entry remains' "$tmp/pi-registration.out"
+grep -q 'retired local Pi Extensions registration remains' "$tmp/pi-registration.out"
 cat >"$pi_settings" <<EOF
 {"packages":["$pi_registration"]}
 EOF

@@ -18,7 +18,8 @@
     "npm:pi-unified-exec",
     "npm:@ogulcancelik/pi-codex-compaction",
     "git:github.com/earendil-works/pi-review-loop",
-    "../../Developer/Atlas/PiExtensions"
+    "git:github.com/edheltzel/pi-extensions",
+    "npm:pi-atelier"
   ],
   "theme": "eldritch",
   "defaultProvider": "xai",

@@ -28,10 +28,10 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 
 - Compound Engineering is an intentional global package exception, loaded directly from the official `git:github.com/EveryInc/compound-engineering-plugin` Pi package in `settings.json`.
 - Do not restore converter-managed `ce-*` skills or agents under `~/.pi/agent/`; the native package owns skill discovery from its Git checkout.
-- Keep `npm:@tintinweb/pi-subagents` and the local Pi Extensions collection at
-  `local-packages/pi-extensions` installed as workflow companions.
-- `~/Developer/Atlas/PiExtensions/` owns the collection; run `just install-local`
-  there to stow and register its current source.
+- Keep `npm:@tintinweb/pi-subagents`, the Atlas Git collection at
+  `git:github.com/edheltzel/pi-extensions`, and `npm:pi-atelier` installed as workflow companions.
+- `~/Developer/AI/Extensions/pi-extensions/` is the canonical collection checkout. Pi installs
+  the collection from Git so `pi update --extensions` can reconcile it without a local path.
 - The collection provides `pi-better-ask-user`'s full UI, schema, and
   decision-gate skill with Herdr blocked-state and metadata hooks. Do not also
   install standalone `pi-ask-user`, `pi-better-ask-user`, or `pi-ask-herdr`
@@ -40,7 +40,7 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 
 ## CURATED SKILLS
 
-- PiExtensions' registered `pi-anti-slop` package exclusively owns Pi discovery for `anti-slop`, `slop-code`, `slop-review`, `slop-rewrite`, and `slop-verify`. Their `skills.txt` entries target only `claude-code`; never add Pi skills.sh links with those names.
+- The registered Pi Extensions Git package exclusively owns Pi discovery for `anti-slop`, `slop-code`, `slop-review`, `slop-rewrite`, and `slop-verify`. Their `skills.txt` entries target only `claude-code`; never add Pi skills.sh links with those names.
 - `skills/RedTeam/` and `skills/art/` are deliberate Pi-native conversions of their authoritative Claude skills; compare every source file before syncing.
 - Preserve RedTeam concepts and trigger coverage while adapting Claude-only paths, commands, agent syntax, and lifecycle rules to functional Pi equivalents.
 - For PAI-to-Pi conversions, use a lowercase-hyphen directory and matching `name:`; use Pi frontmatter without Claude-only `version` or `effort` fields.

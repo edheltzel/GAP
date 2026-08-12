@@ -1,4 +1,4 @@
-# docs — DOX Instructions
+# docs DOX Instructions
 
 ## Purpose
 
@@ -7,6 +7,8 @@ Durable project documentation for agent operating rules, issue tracking, domain 
 ## Ownership
 
 - `docs/agents/` owns operational guidance for agents working in atlas-config.
+- `docs/adr/` owns accepted architectural decisions.
+- `docs/plans/` owns active implementation plans and handoffs; completed plans move to the existing archive locations.
 - Root AGENTS.md owns project-wide rules; docs files should explain procedures without contradicting it.
 
 ## Local Contracts

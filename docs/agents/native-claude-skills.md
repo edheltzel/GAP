@@ -61,10 +61,10 @@ every recoverable pointer and the Recall runtime skills represented by ignored n
 directories. The former `anti-slop` pointer targeted removed absolute path
 `/Users/ed/Developer/AI/Skills/claude-anti-slop/anti-slop-plugin`; never restore it.
 
-Its replacement is explicit and split by harness. Five pinned `local:../PiExtensions`
-entries install the current anti-slop suite only into Claude Code and verify each Git blob.
-Pi discovers the same names only through PiExtensions' registered `pi-anti-slop` package,
-so skills.sh must not target Pi for those entries.
+Its replacement is explicit and split by harness. Five pinned
+`local:../../AI/Extensions/pi-extensions` entries install the current anti-slop suite only into
+Claude Code and verify each Git blob. Pi discovers the same names only through
+`git:github.com/edheltzel/pi-extensions`, so skills.sh must not target Pi for those entries.
 
 ## Verification
 

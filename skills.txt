@@ -16,9 +16,9 @@ pbakaus/impeccable=impeccable
 stablyai/orca=computer-use,linear-tickets,orca-cli,orca-emulator,orca-emulator-android,orca-linear,orca-per-workspace-env,orchestration
 vercel-labs/agent-browser=agent-browser
 vercel-labs/opensrc=opensrc
-# Claude-only anti-slop skills from the locally committed PiExtensions package.
-local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=anti-slop|packages/pi-anti-slop/skills/anti-slop/SKILL.md|b8401a2c5ac728df72cc47cebbdb435377030015|agents=claude-code
-local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=slop-code|packages/pi-anti-slop/skills/slop-code/SKILL.md|03915f045166d28261f4da58c71f7628edcb25bc|agents=claude-code
-local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=slop-review|packages/pi-anti-slop/skills/slop-review/SKILL.md|2ac3b9ee18da40a333e72832ba47c10893be139a|agents=claude-code
-local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=slop-rewrite|packages/pi-anti-slop/skills/slop-rewrite/SKILL.md|a2d57f5934d0ea783f6db16793232f1f0f30a7ab|agents=claude-code
-local:../PiExtensions#3a9f04d287e492e38ad9ac24c76c9760266225aa=slop-verify|packages/pi-anti-slop/skills/slop-verify/SKILL.md|2c1cc247b2c95f49f191f95af8d147ddd0a299fb|agents=claude-code
+# Claude-only anti-slop skills pinned to the canonical Pi Extensions Git checkout.
+local:../../AI/Extensions/pi-extensions#ade5245f3e9b307a9194b32c661668ba92082add=anti-slop|extensions/pi-anti-slop/skills/anti-slop/SKILL.md|b8401a2c5ac728df72cc47cebbdb435377030015|agents=claude-code
+local:../../AI/Extensions/pi-extensions#ade5245f3e9b307a9194b32c661668ba92082add=slop-code|extensions/pi-anti-slop/skills/slop-code/SKILL.md|03915f045166d28261f4da58c71f7628edcb25bc|agents=claude-code
+local:../../AI/Extensions/pi-extensions#ade5245f3e9b307a9194b32c661668ba92082add=slop-review|extensions/pi-anti-slop/skills/slop-review/SKILL.md|2ac3b9ee18da40a333e72832ba47c10893be139a|agents=claude-code
+local:../../AI/Extensions/pi-extensions#ade5245f3e9b307a9194b32c661668ba92082add=slop-rewrite|extensions/pi-anti-slop/skills/slop-rewrite/SKILL.md|a2d57f5934d0ea783f6db16793232f1f0f30a7ab|agents=claude-code
+local:../../AI/Extensions/pi-extensions#ade5245f3e9b307a9194b32c661668ba92082add=slop-verify|extensions/pi-anti-slop/skills/slop-verify/SKILL.md|2c1cc247b2c95f49f191f95af8d147ddd0a299fb|agents=claude-code
