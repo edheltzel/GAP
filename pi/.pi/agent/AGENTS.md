@@ -28,10 +28,11 @@ When using the `/handoff` skill or creating a session handoff, follow the neares
 
 - Compound Engineering is an intentional global package exception, loaded directly from the official `git:github.com/EveryInc/compound-engineering-plugin` Pi package in `settings.json`.
 - Do not restore converter-managed `ce-*` skills or agents under `~/.pi/agent/`; the native package owns skill discovery from its Git checkout.
-- Keep `npm:@tintinweb/pi-subagents`, the Atlas Git collection at
+- Keep `npm:@tintinweb/pi-subagents`, the Git collection at
   `git:github.com/edheltzel/pi-extensions`, and `npm:pi-atelier` installed as workflow companions.
 - `~/Developer/AI/Extensions/pi-extensions/` is the canonical collection checkout. Pi installs
   the collection from Git so `pi update --extensions` can reconcile it without a local path.
+- Do not also install `npm:@richardgill/*` copies of extensions already loaded by that Git collection.
 - The collection provides `pi-better-ask-user`'s full UI, schema, and
   decision-gate skill with Herdr blocked-state and metadata hooks. Do not also
   install standalone `pi-ask-user`, `pi-better-ask-user`, or `pi-ask-herdr`
