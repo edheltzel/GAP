@@ -9,10 +9,9 @@
 #   - mini   (55-79):    Balanced information density
 #   - normal (80+):      Full display with all info
 #
-# Output order: Header → Usage+Context
+# Output order: Header → Context
 #
-# Rate limits and context data come from Claude Code's native stdin JSON.
-# Extra usage (Max plan overage) fetched from API with 5-minute cache.
+# Context data comes from Claude Code's native stdin JSON.
 #
 # Context percentage scales to compaction threshold if configured in settings.json.
 # When contextDisplay.compactionThreshold is set (e.g., 83), the bar shows 83% as 100%.
@@ -28,10 +27,6 @@ set -o pipefail
 ATLAS_DIR="${ATLAS_DIR:-$HOME/.claude}"
 SETTINGS_FILE="$ATLAS_DIR/settings.json"
 MODEL_CACHE="$ATLAS_DIR/MEMORY/STATE/model-cache.txt"
-EXTRA_USAGE_CACHE="$ATLAS_DIR/MEMORY/STATE/extra-usage-cache.json"
-
-# Extra usage cache TTL - only for Max plan overage (API-only field)
-EXTRA_USAGE_CACHE_TTL=300
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PARSE INPUT (single jq call extracts everything from stdin)
@@ -58,10 +53,6 @@ eval "$(echo "$input" | jq -r '
   "cache_read=" + (.context_window.current_usage.cache_read_input_tokens // 0 | tostring) + "\n" +
   "cache_create=" + (.context_window.current_usage.cache_creation_input_tokens // 0 | tostring) + "\n" +
   "exceeds_200k=" + (.exceeds_200k_tokens // false | tostring) + "\n" +
-  "rl_5h_pct=" + (.rate_limits.five_hour.used_percentage // -1 | tostring) + "\n" +
-  "rl_5h_resets=" + (.rate_limits.five_hour.resets_at // 0 | tostring) + "\n" +
-  "rl_7d_pct=" + (.rate_limits.seven_day.used_percentage // -1 | tostring) + "\n" +
-  "rl_7d_resets=" + (.rate_limits.seven_day.resets_at // 0 | tostring) + "\n" +
   "worktree_name=" + (.worktree.name // "" | @sh) + "\n" +
   "agent_name=" + (.agent.name // "" | @sh) + "\n" +
   "output_style=" + (.output_style.name // "" | @sh)
@@ -72,8 +63,6 @@ context_pct=${context_pct:-0}
 context_max=${context_max:-200000}
 cache_read=${cache_read:-0}
 cache_create=${cache_create:-0}
-rl_5h_pct=${rl_5h_pct:--1}
-rl_7d_pct=${rl_7d_pct:--1}
 
 # Cache model name for other tools
 mkdir -p "$(dirname "$MODEL_CACHE")" 2>/dev/null
@@ -106,71 +95,6 @@ cc_version="${cc_version_json:-}"
 SESSION_LABEL=""
 if [ -n "$session_id" ]; then
   SESSION_LABEL=$(jq -r --arg sid "$session_id" 'select(.sessionId==$sid) | .name // empty' "$ATLAS_DIR"/sessions/*.json 2>/dev/null | head -1)
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# RATE LIMITS (native from Claude Code JSON, no API call needed)
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Convert native used_percentage (0-100 float) to integer
-usage_5h_int=${rl_5h_pct%%.*}
-usage_7d_int=${rl_7d_pct%%.*}
-# -1 means field was absent (not a Claude.ai subscriber or pre-first-response)
-[ "$usage_5h_int" -lt 0 ] 2>/dev/null && usage_5h_int=0
-[ "$usage_7d_int" -lt 0 ] 2>/dev/null && usage_7d_int=0
-has_rate_limits=false
-[ "$rl_5h_pct" != "-1" ] && has_rate_limits=true
-
-# Convert Unix epoch resets_at to local clock time (macOS date -r)
-reset_5h_time=""
-reset_7d_time=""
-if [ "$has_rate_limits" = "true" ]; then
-  [ "${rl_5h_resets:-0}" -gt 0 ] 2>/dev/null && reset_5h_time=$(date -r "$rl_5h_resets" "+%H:%M" 2>/dev/null)
-  [ "${rl_7d_resets:-0}" -gt 0 ] 2>/dev/null && reset_7d_time=$(date -r "$rl_7d_resets" "+%a %H:%M" 2>/dev/null)
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXTRA USAGE (API-only - Max plan overage, fetched with long cache)
-# ─────────────────────────────────────────────────────────────────────────────
-
-extra_display=""
-if [ -f "$EXTRA_USAGE_CACHE" ]; then
-  cache_age=$(($(date +%s) - $(stat -f %m "$EXTRA_USAGE_CACHE" 2>/dev/null || echo 0)))
-  if [ "$cache_age" -gt "$EXTRA_USAGE_CACHE_TTL" ]; then
-    # Refresh in background - non-blocking
-    {
-      keychain_data=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)
-      token=$(echo "$keychain_data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('claudeAiOauth',{}).get('accessToken',''))" 2>/dev/null)
-      if [ -n "$token" ]; then
-        usage_json=$(curl -s --max-time 3 \
-          -H "Authorization: Bearer $token" \
-          -H "Content-Type: application/json" \
-          -H "anthropic-beta: oauth-2025-04-20" \
-          "https://api.anthropic.com/api/oauth/usage" 2>/dev/null)
-        if [ -n "$usage_json" ] && echo "$usage_json" | jq -e '.extra_usage' >/dev/null 2>&1; then
-          echo "$usage_json" | jq '.extra_usage' >"$EXTRA_USAGE_CACHE" 2>/dev/null
-        fi
-      fi
-    } &
-  fi
-
-  # Read cached extra usage
-  eval "$(jq -r '
-    "extra_enabled=" + (.is_enabled // false | tostring) + "\n" +
-    "extra_limit=" + (.monthly_limit // 0 | tostring) + "\n" +
-    "extra_used=" + (.used_credits // 0 | tostring)
-  ' "$EXTRA_USAGE_CACHE" 2>/dev/null)"
-
-  if [ "${extra_enabled:-false}" = "true" ]; then
-    extra_limit_dollars=$((${extra_limit:-0} / 100))
-    extra_used_dollars=$((${extra_used%%.*} / 100))
-    if [ "${extra_limit_dollars:-0}" -ge 1000 ]; then
-      extra_limit_fmt="\$$((extra_limit_dollars / 1000))K"
-    else
-      extra_limit_fmt="\$${extra_limit_dollars:-0}"
-    fi
-    extra_display="\$${extra_used_dollars:-0}/${extra_limit_fmt}"
-  fi
 fi
 
 # Calculate cache hit rate
@@ -238,9 +162,8 @@ fi
 RESET='\033[0m'
 
 # Nerd font icons (theme-independent)
-NF_CACHE=$(printf '\xef\x92\x9b')     # nf-oct-cache           U+F49B
-NF_GAUGE=$(printf '\xf3\xb0\x8a\x9a') # nf-md-gauge            U+F029A
-NF_BRANCH=$(printf '\xef\x90\x98')    # nf-oct-git_branch      U+F418
+NF_CACHE=$(printf '\xef\x92\x9b')  # nf-oct-cache           U+F49B
+NF_BRANCH=$(printf '\xef\x90\x98') # nf-oct-git_branch      U+F418
 
 # Resolve active theme: settings override > theme-switcher state > COLORFGBG > macOS > "dark"
 detect_appearance() {
@@ -337,10 +260,6 @@ if [ "$STATUSLINE_THEME" = "light" ]; then
 
   CTX_BUCKET_EMPTY='\033[38;2;223;218;217m' # highlight med (empty bucket)
 
-  USAGE_PRIMARY='\033[38;2;234;157;52m' # gold (usage icon)
-  USAGE_RESET='\033[38;2;121;117;147m'  # subtle (reset time)
-  USAGE_EXTRA='\033[38;2;215;130;126m'  # rose (overage)
-
   PAI_A='\033[38;2;144;122;169m' # iris (branding)
 
   # Gradient stops for get_bucket_color (pine → gold → rose → love)
@@ -394,10 +313,6 @@ elif [ "$STATUSLINE_THEME" = "catppuccin-light" ]; then
 
   CTX_BUCKET_EMPTY='\033[1;38;2;188;192;204m' # surface1 (empty bucket)
 
-  USAGE_PRIMARY='\033[1;38;2;254;100;11m' # peach (usage icon)
-  USAGE_RESET='\033[1;38;2;140;143;161m'  # overlay1 (reset time)
-  USAGE_EXTRA='\033[1;38;2;234;118;203m'  # pink (overage)
-
   PAI_A='\033[1;38;2;136;57;239m' # mauve (branding)
 
   # Gradient stops for get_bucket_color (green → yellow → peach → red)
@@ -448,10 +363,6 @@ elif [ "$STATUSLINE_THEME" = "catppuccin-dark" ]; then
   WARN_COLOR='\033[38;2;243;139;168m'       # red (warnings)
 
   CTX_BUCKET_EMPTY='\033[38;2;69;71;90m' # surface1 (empty bucket)
-
-  USAGE_PRIMARY='\033[38;2;250;179;135m' # peach (usage icon)
-  USAGE_RESET='\033[38;2;127;132;156m'   # overlay1 (reset time)
-  USAGE_EXTRA='\033[38;2;245;194;231m'   # pink (overage)
 
   PAI_A='\033[38;2;203;166;247m' # mauve (branding)
 
@@ -505,10 +416,6 @@ elif [ "$STATUSLINE_THEME" = "vesper" ]; then
 
   CTX_BUCKET_EMPTY='\033[38;2;40;40;40m' # bgFloat (empty bucket)
 
-  USAGE_PRIMARY='\033[38;2;255;199;153m' # yellowDark (usage icon)
-  USAGE_RESET='\033[38;2;101;115;126m'   # inactive (reset time)
-  USAGE_EXTRA='\033[38;2;255;207;168m'   # orange (overage)
-
   PAI_A='\033[38;2;255;207;168m' # orange (branding)
 
   # Gradient stops for get_bucket_color (green → yellowDark → orange → red)
@@ -560,10 +467,6 @@ else
   WARN_COLOR='\033[38;2;241;108;117m'       # R'lyeh Red for warnings
 
   CTX_BUCKET_EMPTY='\033[38;2;50;52;73m' # Shallow Depths Grey (empty bucket)
-
-  USAGE_PRIMARY='\033[38;2;247;198;127m' # Dreaming Orange icon
-  USAGE_RESET='\033[38;2;112;129;208m'   # The Old One Purple for reset time
-  USAGE_EXTRA='\033[38;2;242;101;181m'   # Pustule Pink for overage
 
   PAI_A='\033[38;2;164;140;242m' # Lovecraft Purple
 
@@ -683,13 +586,13 @@ render_context_bar() {
   echo "$output"
 }
 
-# Render the shared tail of LINE 2: context bar + percentage, then cache hit rate.
+# Render LINE 2: context bar + percentage, then cache hit rate.
 # Identical across every width mode - only the bar width differs.
 # Reads display_pct, ctx_warn, pct_color, cache_total, cache_hit_rate from scope.
 render_ctx_cache_tail() {
   local bar_width=$1 ctx_bar cache_num_color
   ctx_bar=$(render_context_bar "$bar_width" "$display_pct")
-  printf " ${SLATE_600}·${RESET} ${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
+  printf "${ctx_warn}${ctx_bar} ${pct_color}${display_pct}%%${RESET}"
   if [ "$cache_total" -gt 0 ]; then
     cache_num_color=$(get_cache_color "$cache_hit_rate")
     printf " ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%%${RESET}"
@@ -791,7 +694,7 @@ mini)
 esac
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LINE 2: USAGE + CONTEXT + COST
+# LINE 2: CONTEXT
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Context computation (scaled to compaction threshold if configured)
@@ -811,30 +714,20 @@ pct_color=$(get_usage_color "$display_pct")
 ctx_warn=""
 [ "${exceeds_200k:-false}" = "true" ] && ctx_warn="${WARN_COLOR}⚠${RESET} "
 
-# Usage colors
-usage_5h_color=$(get_usage_color "$usage_5h_int")
-usage_7d_color=$(get_usage_color "$usage_7d_int")
-
-# Usage + context bar + cache + cost
+# Context bar + cache
 case "$MODE" in
 nano)
-  [ "$has_rate_limits" = "true" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
   render_ctx_cache_tail 6
   ;;
 micro)
-  [ "$has_rate_limits" = "true" ] && printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${reset_5h_time}${RESET}"
   render_ctx_cache_tail 8
   ;;
 mini)
-  if [ "$has_rate_limits" = "true" ]; then
-    printf "${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
-  fi
   render_ctx_cache_tail 16
   ;;
 normal)
-  # Build the usage row into u_out (deferred), then join it onto the header line
+  # Build the context row into u_out (deferred), then join it onto the header line
   # when both fit the terminal width; otherwise fall back to the two-line layout.
-  # Order: context bar + cache first, then 5H / weekly rate limits at the end.
   # (Inlines render_ctx_cache_tail's body so the context bar can lead without its
   # separator; the shared helper still serves nano/micro/mini modes.)
   ctx_bar=$(render_context_bar 24 "$display_pct")
@@ -843,13 +736,9 @@ normal)
     cache_num_color=$(get_cache_color "$cache_hit_rate")
     u_out="${u_out} ${SLATE_600}·${RESET} ${CACHE_ICON}${NF_CACHE} ${cache_num_color}${cache_hit_rate}%${RESET}"
   fi
-  if [ "$has_rate_limits" = "true" ]; then
-    u_out="${u_out} ${SLATE_600}·${RESET} ${USAGE_PRIMARY}${NF_GAUGE}${RESET} ${USAGE_RESET}5H:${RESET}${usage_5h_color}${usage_5h_int}%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_5h_time}${RESET} ${SLATE_600}·${RESET} ${USAGE_RESET}WK:${RESET}${usage_7d_color}${usage_7d_int}%${RESET} ${USAGE_RESET}↻${SLATE_500}${reset_7d_time}${RESET}"
-    [ -n "$extra_display" ] && u_out="${u_out} ${SLATE_600}·${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
-  fi
 
   # Right-aligned session-title chip (background = theme brand accent). The dash
-  # divider fills the gap between the weekly usage and the chip, replacing the old
+  # divider fills the gap between the context row and the chip, replacing the old
   # header-trailing dashes. Case preserved to match Claude Code's native prompt bar.
   title_chip=""
   title_len=0
