@@ -1,4 +1,16 @@
+```
+ ██████╗ ██████╗ ███╗   ██╗███████╗██╗ ██████╗
+██╔════╝██╔═══██╗████╗  ██║██╔════╝██║██╔════╝
+██║     ██║   ██║██╔██╗ ██║█████╗  ██║██║  ███╗
+██║     ██║   ██║██║╚██╗██║██╔══╝  ██║██║   ██║
+╚██████╗╚██████╔╝██║ ╚████║██║     ██║╚██████╔╝
+ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝ ╚═════╝
+```
+
 # atlas-config
+
+> [!NOTE]
+> EdHeltzel's Agent Config
 
 Minimal config for the agents Ed uses. Harness config is linked with [GNU Stow](https://www.gnu.org/software/stow) and [`just`](https://github.com/casey/just); the repository tracks native Claude skills and stows its repository-owned contents, while external skills and OMP marketplace plugins are provisioned from tracked manifests.
 
