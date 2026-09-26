@@ -1,1 +1,0 @@
-/Users/ed/.agents/Recall/shared/skills/recall-scout/SKILL.md

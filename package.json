@@ -1,0 +1,14 @@
+{
+  "name": "atlas-config",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "sync": "node src/sync.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3"
+  }
+}
