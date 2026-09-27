@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Shared rules for Ed's coding agents. This file is the contract. It is not a Stow package.
+GAP is the global agent policy for coding agents. This file is the contract. It is not a Stow package.
 
 The nearest project `AGENTS.md` wins on that project's local contracts. `~/AGENTS.md` is only a pointer here. Do not paste a second full copy there.
 
@@ -8,10 +8,12 @@ The nearest project `AGENTS.md` wins on that project's local contracts. `~/AGENT
 
 Edit the markdown in this repo, then run `npm run sync` from the repo root. The script writes regular file copies. It does not symlink, and it does not use Stow.
 
-- Claude reads `~/.claude/rules/global-agent-instructions.md`. Do not also point `~/CLAUDE.md` here. An ancestor `CLAUDE.md` suppresses project `AGENTS.md`.
+- Claude reads `~/.claude/rules/global-agent-policy.md`. Do not also point `~/CLAUDE.md` here. An ancestor `CLAUDE.md` suppresses project `AGENTS.md`.
 - Pi reads `~/.pi/agent/APPEND_SYSTEM.md`. Pi does not scan `rules/`. Do not add `SYSTEM.md`.
 - OMP reads `~/.omp/agent/APPEND_SYSTEM.md`. Do not add `SYSTEM.md`.
-- Codex, Cursor, and Grok are not wired. Do not invent wrappers for them.
+- Codex reads `AGENTS.md` in Codex home (`~/.codex`, or `CODEX_HOME`). Do not add `AGENTS.override.md`.
+- Cursor reads `~/.cursor/rules/global-agent-policy.mdc`.
+- Grok loads `~/.claude/rules/*.md` when Claude compatibility is on. Do not add a second copy.
 
 Pi packaging, themes, and footers stay in `~/.pi/agent/AGENTS.md`. Do not paste them here.
 
@@ -36,7 +38,7 @@ Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you t
 - Do not silently pick git versus GitButler. The nearest project contract wins. Otherwise use git and worktrees. If the project requires GitButler, use `but` and do not invent a plain-git workaround. Details: [vcs-project-wins.md](docs/agents/vcs-project-wins.md).
 - Follow the project's handoff location. If it names none, use `docs/plans/handoffs/`. Never write a handoff only to `/tmp` or a harness install directory. Details: [handoffs.md](docs/agents/handoffs.md).
 - Use Recall before inventing a memory store. Details: [recall.md](docs/agents/recall.md).
-- If the ask would delete or replace a tree it did not name, stop and confirm the exact paths. When Ed asks to delete, use `trash`, not `rm`.
+- If the ask would delete or replace a tree it did not name, stop and confirm the exact paths. When asked to delete, use `trash`, not `rm`.
 
 ## Not here
 

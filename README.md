@@ -1,38 +1,79 @@
-# atlas-config
+```
+ ██████╗  █████╗ ██████╗
+██╔════╝ ██╔══██╗██╔══██╗
+██║  ███╗███████║██████╔╝
+██║   ██║██╔══██║██╔═══╝
+╚██████╔╝██║  ██║██║
+ ╚═════╝ ╚═╝  ╚═╝╚═╝
+```
 
-Shared rules for Claude, Pi, and OMP. You edit the markdown here. A Node script copies it into the files those harnesses already read.
+# GAP
+
+GAP is the global agent policy. Edit `global/AGENTS.md`, then publish that file into the paths Claude, Pi, OMP, Codex, and Cursor already read. Grok reads the Claude copy.
+
+Stay in this directory.
 
 ## Prerequisites
 
 - Node 24 or newer
 
-## Publish the rules
+```bash
+node -v
+```
 
-1. Edit `global/AGENTS.md`. Longer notes live in `global/docs/agents/`.
-2. From this directory, run:
+You should see `v24` or newer. If the shell says command not found, install Node 24 and return here.
+
+## Step 1: Edit the policy
+
+Open `global/AGENTS.md`. Change one line you can spot later. Longer notes live in `global/docs/agents/`. Do not add a second policy file for one harness.
+
+Save the file.
+
+## Step 2: Publish
 
 ```bash
 npm run sync
 ```
 
-You should see:
+Sync prints an absolute path for each of these:
 
 ```text
-/Users/ed/.claude/rules/global-agent-instructions.md
-/Users/ed/.pi/agent/APPEND_SYSTEM.md
-/Users/ed/.omp/agent/APPEND_SYSTEM.md
+~/.claude/rules/global-agent-policy.md
+~/.pi/agent/APPEND_SYSTEM.md
+~/.omp/agent/APPEND_SYSTEM.md
+~/.codex/AGENTS.md
+~/.cursor/rules/global-agent-policy.mdc
 ```
 
-Each path is a regular file, not a symlink. A harness keeps the previous copy until you run `npm run sync` again.
+Each path is a regular file, not a symlink.
 
-## Where the rules go
+If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again.
+
+If you see `Refusing to replace foreign file`, run the same command in a terminal and type `y`.
+
+The next sync overwrites those files without asking, once they match this publish.
+
+## Step 3: Check Grok
+
+Grok reads `~/.claude/rules/global-agent-policy.md` when Claude compatibility is on. That is the default. Sync does not write a Grok file. A second file would load the policy twice.
+
+```bash
+grok inspect
+```
+
+You should see `~/.claude/rules/global-agent-policy.md` in the global rules list.
+
+If that line is missing, Claude compatibility is off. Turn it back on. Do not add a Grok destination unless Grok loads some other path.
+
+## Where each file goes
 
 | Harness | File it reads |
 | --- | --- |
-| Claude | `~/.claude/rules/global-agent-instructions.md` |
+| Claude | `~/.claude/rules/global-agent-policy.md` |
 | Pi | `~/.pi/agent/APPEND_SYSTEM.md` |
 | OMP | `~/.omp/agent/APPEND_SYSTEM.md` |
+| Codex | `~/.codex/AGENTS.md` |
+| Cursor | `~/.cursor/rules/global-agent-policy.mdc` |
+| Grok | no extra file; reads the Claude rules file |
 
-Do not point `~/CLAUDE.md` at the shared file. An ancestor `CLAUDE.md` suppresses a project's `AGENTS.md`.
-
-Add a destination in `src/sync.ts` only when that harness actually loads the path.
+Do not point `~/CLAUDE.md` at the shared file. Claude looks through parent folders for `CLAUDE.md`. A file at `~/CLAUDE.md` sits above every project and stops Claude from reading that project's `AGENTS.md`.
