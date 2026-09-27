@@ -1,6 +1,6 @@
 # AGENTS.md
 
-GAP is the global agent policy for Ed's coding agents. This file is the contract. It is not a Stow package.
+GAP is the global agent policy for coding agents. This file is the contract. It is not a Stow package.
 
 The nearest project `AGENTS.md` wins on that project's local contracts. `~/AGENTS.md` is only a pointer here. Do not paste a second full copy there.
 
@@ -27,19 +27,19 @@ Pi packaging, themes, and footers stay in `~/.pi/agent/AGENTS.md`. Do not paste 
 
 ## Before editing
 
-Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you touch. Closer docs win on local detail. No child weakens that. Re-read that chain in the current session. Do not rely on memory. Full habit: [dox.md](docs/agents/dox.md).
+Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you touch. Closer docs win on local detail. No child weakens that. Re-read that chain in the current session. Do not rely on memory. Full habit: [dox.md](global/docs/agents/dox.md).
 
 ## Work
 
-- Reproduce a bug the way an end user hits it before fixing it. A claim is not proof. Details: [verification.md](docs/agents/verification.md).
-- Before a non-trivial edit, use codegraph when the project has an index, and name the blast radius or why you skipped it. Details: [codegraph-blast.md](docs/agents/codegraph-blast.md).
-- Investigation is not permission to change code. Details: [scout.md](docs/agents/scout.md).
-- Do not invent skills, slash commands, or APIs that are not installed. Ask before a large swarm. Details: [skills-honesty.md](docs/agents/skills-honesty.md).
-- Do not silently pick git versus GitButler. The nearest project contract wins. Otherwise use git and worktrees. If the project requires GitButler, use `but` and do not invent a plain-git workaround. Details: [vcs-project-wins.md](docs/agents/vcs-project-wins.md).
-- Follow the project's handoff location. If it names none, use `docs/plans/handoffs/`. Never write a handoff only to `/tmp` or a harness install directory. Details: [handoffs.md](docs/agents/handoffs.md).
-- Use Recall before inventing a memory store. Details: [recall.md](docs/agents/recall.md).
-- If the ask would delete or replace a tree it did not name, stop and confirm the exact paths. When Ed asks to delete, use `trash`, not `rm`.
+- Reproduce a bug the way an end user hits it before fixing it. A claim is not proof. Details: [verification.md](global/docs/agents/verification.md).
+- Before a non-trivial edit, use codegraph when the project has an index, and name the blast radius or why you skipped it. Details: [codegraph-blast.md](global/docs/agents/codegraph-blast.md).
+- Investigation is not permission to change code. Details: [scout.md](global/docs/agents/scout.md).
+- Do not invent skills, slash commands, or APIs that are not installed. Ask before a large swarm. Details: [skills-honesty.md](global/docs/agents/skills-honesty.md).
+- Do not silently pick git versus GitButler. The nearest project contract wins. Otherwise use git and worktrees. If the project requires GitButler, use `but` and do not invent a plain-git workaround. Details: [vcs-project-wins.md](global/docs/agents/vcs-project-wins.md).
+- Follow the project's handoff location. If it names none, use `docs/plans/handoffs/`. Never write a handoff only to `/tmp` or a harness install directory. Details: [handoffs.md](global/docs/agents/handoffs.md).
+- Use Recall before inventing a memory store. Details: [recall.md](global/docs/agents/recall.md).
+- If the ask would delete or replace a tree it did not name, stop and confirm the exact paths. When asked to delete, use `trash`, not `rm`.
 
 ## Not here
 
-Harness packaging, per-repo product contracts, and money or merge moves without an explicit go. Details: [out-of-scope.md](docs/agents/out-of-scope.md).
+Harness packaging, per-repo product contracts, and money or merge moves without an explicit go. Details: [out-of-scope.md](global/docs/agents/out-of-scope.md).

@@ -13,7 +13,7 @@ type Wrap = "none" | "cursor"
 type Decision = "write" | "foreign"
 
 function adapt(source: string, wrap: Wrap): string {
-  const body = source.replaceAll("](docs/agents/", `](${docsDir}/`)
+  const body = source.replaceAll("](global/docs/agents/", `](${docsDir}/`)
   const text = body.endsWith("\n") ? body : `${body}\n`
   if (wrap === "none") return text
   return `---\nalwaysApply: true\n---\n\n${text}`
@@ -25,7 +25,7 @@ function decide(existing: string | undefined, payload: string): Decision {
 }
 
 if (process.argv.includes("--check")) {
-  const source = "See [x](docs/agents/dox.md).\n"
+  const source = "See [x](global/docs/agents/dox.md).\n"
   const payload = adapt(source, "none")
   if (decide(payload, payload) !== "write") throw new Error("matching payload must be ours")
   if (decide(source, payload) !== "foreign") throw new Error("source bytes are not the publish")
