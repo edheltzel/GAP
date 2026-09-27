@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { lstat, mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join, relative, resolve } from "node:path"
@@ -13,29 +14,56 @@ type Wrap = "none" | "cursor"
 type Decision = "write" | "foreign"
 
 function adapt(source: string, wrap: Wrap): string {
-  const body = source.replaceAll("](global/docs/agents/", `](${docsDir}/`)
+  const body = source.replaceAll("](docs/agents/", `](${docsDir}/`)
   const text = body.endsWith("\n") ? body : `${body}\n`
   if (wrap === "none") return text
   return `---\nalwaysApply: true\n---\n\n${text}`
 }
 
-function decide(existing: string | undefined, payload: string): Decision {
+function digest(text: string): string {
+  return createHash("sha256").update(text).digest("hex")
+}
+
+function decide(existing: string | undefined, payload: string, lastDigest?: string): Decision {
   if (existing === undefined || existing === payload) return "write"
+  if (lastDigest !== undefined && digest(existing) === lastDigest) return "write"
   return "foreign"
 }
 
 if (process.argv.includes("--check")) {
-  const source = "See [x](global/docs/agents/dox.md).\n"
+  const source = "See [x](docs/agents/dox.md).\n"
   const payload = adapt(source, "none")
   if (decide(payload, payload) !== "write") throw new Error("matching payload must be ours")
   if (decide(source, payload) !== "foreign") throw new Error("source bytes are not the publish")
   if (decide("other\n", payload) !== "foreign") throw new Error("other text is foreign")
+  if (decide("old publish\n", "new publish\n", digest("old publish\n")) !== "write") {
+    throw new Error("last publish must re-sync")
+  }
+  if (decide("hand edit\n", "new publish\n", digest("old publish\n")) !== "foreign") {
+    throw new Error("hand edit is foreign")
+  }
   if (decide(undefined, payload) !== "write") throw new Error("missing file is a write")
   const wrapped = adapt(source, "cursor")
   if (!wrapped.startsWith("---\nalwaysApply: true\n---\n\n")) throw new Error("cursor wrap missing")
   if (!wrapped.endsWith(payload)) throw new Error("cursor body drifted")
   console.log("ok")
   process.exit(0)
+}
+
+const ledgerPath = join(home, ".gap/published.json")
+
+async function readLedger(): Promise<Record<string, string>> {
+  try {
+    return JSON.parse(await readFile(ledgerPath, "utf8")) as Record<string, string>
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") return {}
+    throw err
+  }
+}
+
+async function writeLedger(ledger: Record<string, string>): Promise<void> {
+  await mkdir(dirname(ledgerPath), { recursive: true })
+  await writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`)
 }
 
 const codexHome = process.env.CODEX_HOME ?? join(home, ".codex")
@@ -81,7 +109,7 @@ async function publish(source: string, dest: string, wrap: Wrap): Promise<void> 
   } catch (err) {
     if (!(err instanceof Error && "code" in err && err.code === "ENOENT")) throw err
   }
-  if (decide(existing, payload) === "foreign") {
+  if (decide(existing, payload, ledger[dest]) === "foreign") {
     const backup = backupPath(dest)
     if (!(await confirmReplace(dest, backup))) return
     await mkdir(dirname(backup), { recursive: true })
@@ -91,10 +119,13 @@ async function publish(source: string, dest: string, wrap: Wrap): Promise<void> 
   }
   await mkdir(dirname(dest), { recursive: true })
   await writeFile(dest, payload)
+  ledger[dest] = digest(payload)
+  await writeLedger(ledger)
   console.log(dest)
 }
 
-const raw = await readFile(join(repoRoot, "global/AGENTS.md"), "utf8")
+const raw = await readFile(process.env.GAP_SOURCE ?? join(repoRoot, "global/AGENTS.md"), "utf8")
+const ledger = await readLedger()
 for (const copy of copies) {
   await publish(raw, copy.dest, copy.wrap)
 }
