@@ -11,7 +11,7 @@ Edit the markdown in this repo, then run `npm run sync` from the repo root. The 
 - Claude reads `~/.claude/rules/global-agent-policy.md`. Do not also point `~/CLAUDE.md` here. An ancestor `CLAUDE.md` suppresses project `AGENTS.md`.
 - Pi reads `~/.pi/agent/APPEND_SYSTEM.md`. Pi does not scan `rules/`. Do not add `SYSTEM.md`.
 - OMP reads `~/.omp/agent/APPEND_SYSTEM.md`. Do not add `SYSTEM.md`.
-- Codex reads `AGENTS.md` in Codex home (`~/.codex`, or `CODEX_HOME`). Do not add `AGENTS.override.md`.
+- Codex reads `AGENTS.md` in Codex home (`~/.codex`, or `CODEX_HOME`). Sync owns only the `<!-- gap:start -->` ... `<!-- gap:end -->` block there. Do not add `AGENTS.override.md`.
 - Cursor reads `~/.cursor/rules/global-agent-policy.mdc`.
 - Grok loads `~/.claude/rules/*.md` when Claude compatibility is on. Do not add a second copy.
 

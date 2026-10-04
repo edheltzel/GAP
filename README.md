@@ -47,11 +47,13 @@ Sync prints an absolute path for each of these:
 
 Each path is a regular file, not a symlink.
 
-If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again.
+If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again. Codex is different: sync owns only the `<!-- gap:start -->` ... `<!-- gap:end -->` block, and a yes replaces that block. soulstack and gitbutler-agent-setup blocks stay.
 
-If you see `Refusing to replace foreign file`, run the same command in a terminal and type `y`.
+If you see `Refusing to replace foreign file`, that file was left in place. The other destinations still publish. Run the same command in a terminal and type `y` to replace the refused file.
 
-The next sync overwrites those files without asking, once they match this publish.
+The next sync overwrites a file without asking once it matches this publish, or the last publish recorded in `~/.gap/published.json`.
+
+Run sync from the primary branch (`origin/HEAD`, `master` here), not from another branch or a worktree. Empty `CODEX_HOME` means `~/.codex`. A relative value is refused.
 
 ## Step 3: Check Grok
 
