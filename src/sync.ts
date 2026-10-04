@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { lstat, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises"
+import { lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { isAbsolute, dirname, join, relative, resolve } from "node:path"
 import { createInterface } from "node:readline/promises"
@@ -49,39 +49,44 @@ function ledgerPrefixEnd(existing: string, lastDigest: string): number | undefin
   return undefined
 }
 
-function spliceCodex(existing: string | undefined, payload: string, lastDigest?: string): string | "foreign" {
+function gapSpan(existing: string): { start: number; end: number } | "absent" | "malformed" {
+  const starts: number[] = []
+  const ends: number[] = []
+  let from = 0
+  while (from < existing.length) {
+    const at = existing.indexOf(GAP_START, from)
+    if (at === -1) break
+    starts.push(at)
+    from = at + GAP_START.length
+  }
+  from = 0
+  while (from < existing.length) {
+    const at = existing.indexOf(GAP_END, from)
+    if (at === -1) break
+    ends.push(at)
+    from = at + GAP_END.length
+  }
+  if (starts.length === 0 && ends.length === 0) return "absent"
+  if (starts.length !== 1 || ends.length !== 1 || ends[0] < starts[0] + GAP_START.length) return "malformed"
+  return { start: starts[0], end: ends[0] }
+}
+
+function spliceCodex(existing: string | undefined, payload: string, lastDigest?: string): string | "foreign" | "malformed" {
   const block = codexBlock(payload)
   if (existing === undefined) return block
-  const start = existing.indexOf(GAP_START)
-  const end = existing.indexOf(GAP_END, start + GAP_START.length)
-  if (start !== -1 && end !== -1) {
-    const inner = existing.slice(start + GAP_START.length, end)
+  const span = gapSpan(existing)
+  if (span === "malformed") return "malformed"
+  if (span !== "absent") {
+    const inner = existing.slice(span.start + GAP_START.length, span.end)
     if (decide(inner, payload, lastDigest) === "foreign") return "foreign"
-    return existing.slice(0, start) + block + existing.slice(end + GAP_END.length)
+    return existing.slice(0, span.start) + block + existing.slice(span.end + GAP_END.length)
   }
   if (decide(existing, payload, lastDigest) === "write") return block
-  if (existing.startsWith(payload)) return block + existing.slice(payload.length)
   if (lastDigest !== undefined) {
     const prefix = ledgerPrefixEnd(existing, lastDigest)
     if (prefix !== undefined) return block + existing.slice(prefix)
   }
-  const markers = ["<!-- soulstack:start -->", "<!-- gitbutler-agent-setup:start -->"]
-  let cut: number | undefined
-  for (const marker of markers) {
-    const at = existing.indexOf(marker)
-    if (at === -1) continue
-    if (existing.indexOf(marker, at + marker.length) !== -1) return "foreign"
-    if (at !== 0 && existing[at - 1] !== "\n") return "foreign"
-    if (cut === undefined || at < cut) cut = at
-  }
-  if (cut !== undefined && cut > 0) return block + existing.slice(cut)
   return "foreign"
-}
-function replaceGap(existing: string, payload: string): string {
-  const start = existing.indexOf(GAP_START)
-  const end = start === -1 ? -1 : existing.indexOf(GAP_END, start + GAP_START.length)
-  if (start === -1 || end === -1) return codexBlock(payload)
-  return existing.slice(0, start) + codexBlock(payload) + existing.slice(end + GAP_END.length)
 }
 
 function resolveCodexHome(envValue: string | undefined, homeDir: string): string {
@@ -141,16 +146,15 @@ if (process.argv.includes("--check")) {
   }
   if (spliceCodex("hand edited policy\n", payload) !== "foreign") throw new Error("unmarked mismatch must be foreign")
   const stale = `stale gap body that is not the payload\n${soul}`
-  const shaped = spliceCodex(stale, payload)
-  if (shaped === "foreign" || !shaped.startsWith(codexBlock(payload)) || !shaped.endsWith(soul)) {
-    throw new Error("tool-block boundary must replace the old unmarked prefix")
+  if (spliceCodex(stale, payload) !== "foreign") throw new Error("unmarked tool prefix must be refused")
+  const suffix = `\n${soul}`
+  const liveShape = `${old}${suffix}`
+  if (spliceCodex(liveShape, payload, digest(old)) !== `${codexBlock(payload)}${suffix}`) {
+    throw new Error("ledger cut must keep the blank line and tool blocks")
   }
-  if (shaped.slice(codexBlock(payload).length) !== soul) throw new Error("tool blocks were not kept byte for byte")
-  if (shaped.indexOf("<!-- gap:start -->") !== shaped.lastIndexOf("<!-- gap:start -->")) {
-    throw new Error("shaped file has two gap blocks")
-  }
-  const ambiguous = stale.replace("<!-- soulstack:start -->", "<!-- soulstack:start -->\n<!-- soulstack:start -->")
-  if (spliceCodex(ambiguous, payload) !== "foreign") throw new Error("duplicate tool marker must refuse")
+  if (spliceCodex(`${GAP_END}x\n${GAP_START}y\n`, payload) !== "malformed") throw new Error("reversed pair must refuse")
+  if (spliceCodex(`${codexBlock("a\n")}${codexBlock("b\n")}`, payload) !== "malformed") throw new Error("duplicate pair must refuse")
+  if (spliceCodex(`${GAP_START}unterminated\n`, payload) !== "malformed") throw new Error("unterminated pair must refuse")
   const owned = spliceCodex(migrated, "next\n", digest(payload))
   if (owned === "foreign" || !owned.includes("keep") || !owned.includes("but\n") || !owned.includes("next\n")) {
     throw new Error("resplice dropped co-writers")
@@ -178,6 +182,45 @@ if (process.argv.includes("--check")) {
   await unlink(foreignFile)
   await unlink(otherFile)
   await unlink(ledgerFile)
+  const custom = `my rules\n${soul}`
+  const customFile = join(probe, "custom.md")
+  await writeFile(customFile, custom)
+  if (await publish(source, customFile, "codex", {}, ledgerFile, true, probe)) {
+    throw new Error("custom prefix must be refused")
+  }
+  if ((await readFile(customFile, "utf8")) !== custom) throw new Error("custom prefix was changed")
+  const reversed = `${GAP_END}tail\n${GAP_START}head\n${soul}`
+  const reversedFile = join(probe, "reversed.md")
+  await writeFile(reversedFile, reversed)
+  if (await publish(source, reversedFile, "codex", {}, ledgerFile, true, probe)) {
+    throw new Error("reversed pair must not write")
+  }
+  if ((await readFile(reversedFile, "utf8")) !== reversed) throw new Error("reversed pair was changed")
+  const marked = `${codexBlock("hand\n")}${soul}`
+  const markedFile = join(probe, "marked.md")
+  await writeFile(markedFile, marked)
+  if (!(await publish(source, markedFile, "codex", {}, ledgerFile, true, probe))) {
+    throw new Error("codex yes did not write")
+  }
+  const written = await readFile(markedFile, "utf8")
+  if (!written.startsWith(codexBlock(payload)) || !written.endsWith(soul)) throw new Error("codex yes dropped tool blocks")
+  const backupRoot = join(probe, ".gap/backups")
+  const stamps = await readdir(backupRoot)
+  const backed = await readFile(join(backupRoot, stamps[0], "marked.md"), "utf8")
+  if (backed !== marked) throw new Error("codex yes did not back up the old file")
+  const livePath = process.env.GAP_CHECK_CODEX
+  if (livePath) {
+    const live = await readFile(livePath, "utf8")
+    const prefix = live.slice(0, 3494)
+    if (!digest(prefix).startsWith("8aafbf61")) throw new Error("live prefix digest drifted")
+    const liveSuffix = live.slice(3494)
+    if (!liveSuffix.startsWith("\n<!-- soulstack:start -->")) throw new Error("blank line before soulstack missing")
+    if (!liveSuffix.includes("<!-- gitbutler-agent-setup:end -->")) throw new Error("gitbutler block missing")
+    const replaced = spliceCodex(live, "new policy\n", digest(prefix))
+    if (typeof replaced !== "string" || !replaced.startsWith(codexBlock("new policy\n")) || !replaced.endsWith(liveSuffix)) {
+      throw new Error("live shape was not a ledger cut")
+    }
+  }
   console.log("ok")
   process.exit(0)
 }
@@ -221,11 +264,11 @@ const copies = [
   { dest: join(home, ".cursor/rules/global-agent-policy.mdc"), wrap: "cursor" as const },
 ]
 
-function backupPath(dest: string): string {
+function backupPath(dest: string, root: string): string {
   const stamp = new Date().toISOString().replaceAll(/[:.]/g, "-")
-  const tail = relative(home, dest)
+  const tail = relative(root, dest)
   const safe = tail.startsWith("..") ? dest.slice(1) : tail
-  return join(home, ".gap/backups", stamp, safe)
+  return join(root, ".gap/backups", stamp, safe)
 }
 
 async function confirmReplace(dest: string, backup: string, codex: boolean): Promise<boolean> {
@@ -248,6 +291,8 @@ async function publish(
   wrap: Wrap,
   ledger: Record<string, string>,
   ledgerFile: string,
+  assumeYes = false,
+  backupRoot = home,
 ): Promise<boolean> {
   const payload = adapt(source, wrap === "cursor" ? "cursor" : "none")
   let existing: string | undefined
@@ -262,18 +307,32 @@ async function publish(
   }
   let text = payload
   if (wrap === "codex" && !symlink) {
+    const span = existing === undefined ? "absent" : gapSpan(existing)
+    if (span === "malformed") {
+      console.error(`Refusing malformed GAP block: ${dest}`)
+      return false
+    }
     const spliced = spliceCodex(existing, payload, ledger[dest])
+    if (spliced === "malformed") {
+      console.error(`Refusing malformed GAP block: ${dest}`)
+      return false
+    }
     if (spliced === "foreign") {
-      if (!existing?.includes(GAP_START) || !existing.includes(GAP_END)) {
+      if (span === "absent") {
         console.error(`Refusing unmarked foreign file: ${dest}`)
         return false
       }
-      if (!(await confirmReplace(dest, backupPath(dest), true))) return false
-      text = replaceGap(existing, payload)
+      const backup = backupPath(dest, backupRoot)
+      if (!assumeYes && !(await confirmReplace(dest, backup, true))) return false
+      await mkdir(dirname(backup), { recursive: true })
+      await rename(dest, backup)
+      console.log(`Backed up to ${backup}`)
+      console.log("Review that backup. Add anything you want to keep into global/AGENTS.md.")
+      text = existing.slice(0, span.start) + codexBlock(payload) + existing.slice(span.end + GAP_END.length)
     } else text = spliced
   } else if (symlink || decide(existing, payload, ledger[dest]) === "foreign") {
-    const backup = backupPath(dest)
-    if (!(await confirmReplace(dest, backup, false))) return false
+    const backup = backupPath(dest, backupRoot)
+    if (!assumeYes && !(await confirmReplace(dest, backup, false))) return false
     await mkdir(dirname(backup), { recursive: true })
     await rename(dest, backup)
     console.log(`Backed up to ${backup}`)

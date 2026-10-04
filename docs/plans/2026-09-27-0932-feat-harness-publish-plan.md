@@ -126,12 +126,13 @@ Goal: GAP owns only the `<!-- gap:start -->` ... `<!-- gap:end -->` block in `~/
 
 Files: `src/sync.ts`, `AGENTS.md`, `global/AGENTS.md`, `README.md`
 
-Approach: Identity and the ledger digest are the block body, not the rest of the file. An unmarked prefix is replaced when its sha256 matches the last publish, or when the cut is the first unique line-start `<!-- soulstack:start -->` or `<!-- gitbutler-agent-setup:start -->`. The suffix stays byte for byte. A duplicate or mid-line marker is ambiguous, so sync refuses and writes nothing. A hand-edited marked block is foreign. A yes replaces that block only and does not move the file.
+Approach: Identity and the ledger digest are the block body, not the rest of the file. An unmarked prefix is replaced only when its sha256 matches the last publish. Otherwise the unmarked file is foreign and is left unchanged. A GAP block must be exactly one ordered `<!-- gap:start -->` / `<!-- gap:end -->` pair. A reversed, unterminated, or duplicate pair is refused, even after a yes. A yes on a valid foreign block backs the whole file up under `~/.gap/backups/` and then replaces that block only.
 
 Test scenarios:
-- An unmarked last-publish prefix followed by soulstack and gitbutler-agent-setup blocks is replaced by one GAP block. The suffix stays. A changed source does not leave a second copy.
-- The live shape, an older unmarked GAP body that matches neither the payload nor the ledger, then those two tool blocks, is replaced the same way. The tool blocks stay byte for byte.
-- A duplicate tool marker is refused and the file is not written.
+- An unmarked last-publish prefix followed by a blank line, then soulstack and gitbutler-agent-setup blocks, is replaced by one GAP block. The blank line and both tool blocks stay byte for byte.
+- An unmarked prefix of custom rules before the soulstack block is refused. The file is unchanged.
+- A reversed or duplicate marker pair is refused. A yes does not write.
+- A yes on a valid foreign GAP block leaves a backup under `~/.gap/backups/`.
 - A hand-edited gap block is skipped when nobody can answer. The other blocks stay.
 
 ### U6. Absolute Codex home
