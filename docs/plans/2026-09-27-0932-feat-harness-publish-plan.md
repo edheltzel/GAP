@@ -126,11 +126,12 @@ Goal: GAP owns only the `<!-- gap:start -->` ... `<!-- gap:end -->` block in `~/
 
 Files: `src/sync.ts`, `AGENTS.md`, `global/AGENTS.md`, `README.md`
 
-Approach: Identity and the ledger digest are the block body, not the rest of the file. An unmarked prefix is replaced only when its sha256 matches the last publish. Otherwise the unmarked file is foreign and is left in place. A hand-edited marked block is foreign. A yes replaces that block only and does not move the file.
+Approach: Identity and the ledger digest are the block body, not the rest of the file. An unmarked prefix is replaced when its sha256 matches the last publish, or when the cut is the first unique line-start `<!-- soulstack:start -->` or `<!-- gitbutler-agent-setup:start -->`. The suffix stays byte for byte. A duplicate or mid-line marker is ambiguous, so sync refuses and writes nothing. A hand-edited marked block is foreign. A yes replaces that block only and does not move the file.
 
 Test scenarios:
 - An unmarked last-publish prefix followed by soulstack and gitbutler-agent-setup blocks is replaced by one GAP block. The suffix stays. A changed source does not leave a second copy.
-- An unmarked file whose prefix does not match the ledger is left in place.
+- The live shape, an older unmarked GAP body that matches neither the payload nor the ledger, then those two tool blocks, is replaced the same way. The tool blocks stay byte for byte.
+- A duplicate tool marker is refused and the file is not written.
 - A hand-edited gap block is skipped when nobody can answer. The other blocks stay.
 
 ### U6. Absolute Codex home
@@ -174,6 +175,11 @@ Approach: Write a temp file in the same directory, then rename it over the ledge
 - Empty `CODEX_HOME` uses `~/.codex`. A relative `CODEX_HOME` writes nothing.
 - A branch other than `origin/HEAD`, or a worktree, writes nothing.
 - The ledger after publish is valid JSON, written by rename.
+
+## Known limits
+
+- Cursor load is not proven. No live Cursor session has confirmed it loads `global-agent-policy.mdc`.
+- D6 stays open. A backup keeps the bytes, not the harness behavior. Once a foreign file moves, that harness stops loading those rules until a person puts the kept text back by hand.
 
 ## Definition of Done
 

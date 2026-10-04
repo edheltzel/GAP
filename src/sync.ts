@@ -65,6 +65,16 @@ function spliceCodex(existing: string | undefined, payload: string, lastDigest?:
     const prefix = ledgerPrefixEnd(existing, lastDigest)
     if (prefix !== undefined) return block + existing.slice(prefix)
   }
+  const markers = ["<!-- soulstack:start -->", "<!-- gitbutler-agent-setup:start -->"]
+  let cut: number | undefined
+  for (const marker of markers) {
+    const at = existing.indexOf(marker)
+    if (at === -1) continue
+    if (existing.indexOf(marker, at + marker.length) !== -1) return "foreign"
+    if (at !== 0 && existing[at - 1] !== "\n") return "foreign"
+    if (cut === undefined || at < cut) cut = at
+  }
+  if (cut !== undefined && cut > 0) return block + existing.slice(cut)
   return "foreign"
 }
 function replaceGap(existing: string, payload: string): string {
@@ -129,8 +139,18 @@ if (process.argv.includes("--check")) {
   if (migrated.indexOf("<!-- gap:start -->") !== migrated.lastIndexOf("<!-- gap:start -->")) {
     throw new Error("duplicate gap block")
   }
-  if (spliceCodex(legacy, payload) !== "foreign") throw new Error("unmarked mismatch must be foreign")
-  if (spliceCodex(soul, payload) !== "foreign") throw new Error("unmarked co-writer file must be foreign")
+  if (spliceCodex("hand edited policy\n", payload) !== "foreign") throw new Error("unmarked mismatch must be foreign")
+  const stale = `stale gap body that is not the payload\n${soul}`
+  const shaped = spliceCodex(stale, payload)
+  if (shaped === "foreign" || !shaped.startsWith(codexBlock(payload)) || !shaped.endsWith(soul)) {
+    throw new Error("tool-block boundary must replace the old unmarked prefix")
+  }
+  if (shaped.slice(codexBlock(payload).length) !== soul) throw new Error("tool blocks were not kept byte for byte")
+  if (shaped.indexOf("<!-- gap:start -->") !== shaped.lastIndexOf("<!-- gap:start -->")) {
+    throw new Error("shaped file has two gap blocks")
+  }
+  const ambiguous = stale.replace("<!-- soulstack:start -->", "<!-- soulstack:start -->\n<!-- soulstack:start -->")
+  if (spliceCodex(ambiguous, payload) !== "foreign") throw new Error("duplicate tool marker must refuse")
   const owned = spliceCodex(migrated, "next\n", digest(payload))
   if (owned === "foreign" || !owned.includes("keep") || !owned.includes("but\n") || !owned.includes("next\n")) {
     throw new Error("resplice dropped co-writers")
