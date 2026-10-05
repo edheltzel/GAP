@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises"
+import { lstat, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { isAbsolute, dirname, join, relative, resolve } from "node:path"
 import { createInterface } from "node:readline/promises"
@@ -10,10 +10,9 @@ import { fileURLToPath } from "node:url"
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const home = homedir()
 const docsDir = join(repoRoot, "global/docs/agents")
-const GAP_START = "<!-- gap:start -->\n"
-const GAP_END = "<!-- gap:end -->\n"
+const HOOK_MARK = "gap/global-agent-policy.md"
 
-type Wrap = "none" | "cursor" | "codex"
+type Wrap = "none" | "cursor"
 type Decision = "write" | "foreign"
 
 function adapt(source: string, wrap: Wrap): string {
@@ -33,8 +32,16 @@ function decide(existing: string | undefined, payload: string, lastDigest?: stri
   return "foreign"
 }
 
-function codexBlock(payload: string): string {
-  return `${GAP_START}${payload}${GAP_END}`
+function resolveCodexHome(envValue: string | undefined, homeDir: string): string {
+  if (envValue === undefined || envValue === "") return join(homeDir, ".codex")
+  if (!isAbsolute(envValue)) throw new Error(`CODEX_HOME must be an absolute path: ${envValue}`)
+  return envValue
+}
+
+function refuseCheckout(branch: string, primary: string, gitDir: string, commonDir: string): string | undefined {
+  if (branch !== primary) return `refusing to publish from ${branch}; checkout ${primary}`
+  if (resolve(repoRoot, gitDir) !== resolve(repoRoot, commonDir)) return "refusing to publish from a worktree"
+  return undefined
 }
 
 function ledgerPrefixEnd(existing: string, lastDigest: string): number | undefined {
@@ -49,58 +56,48 @@ function ledgerPrefixEnd(existing: string, lastDigest: string): number | undefin
   return undefined
 }
 
-function gapSpan(existing: string): { start: number; end: number } | "absent" | "malformed" {
-  const starts: number[] = []
-  const ends: number[] = []
-  let from = 0
-  while (from < existing.length) {
-    const at = existing.indexOf(GAP_START, from)
-    if (at === -1) break
-    starts.push(at)
-    from = at + GAP_START.length
-  }
-  from = 0
-  while (from < existing.length) {
-    const at = existing.indexOf(GAP_END, from)
-    if (at === -1) break
-    ends.push(at)
-    from = at + GAP_END.length
-  }
-  if (starts.length === 0 && ends.length === 0) return "absent"
-  if (starts.length !== 1 || ends.length !== 1 || ends[0] < starts[0] + GAP_START.length) return "malformed"
-  return { start: starts[0], end: ends[0] }
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`
 }
 
-function spliceCodex(existing: string | undefined, payload: string, lastDigest?: string): string | "foreign" | "malformed" {
-  const block = codexBlock(payload)
-  if (existing === undefined) return block
-  const span = gapSpan(existing)
-  if (span === "malformed") return "malformed"
-  if (span !== "absent") {
-    const inner = existing.slice(span.start + GAP_START.length, span.end)
-    if (decide(inner, payload, lastDigest) === "foreign") return "foreign"
-    return existing.slice(0, span.start) + block + existing.slice(span.end + GAP_END.length)
+function hookCommand(policyPath: string): string {
+  return `cat ${shellQuote(policyPath)}`
+}
+
+function insertGapHook(text: string, policyPath: string): string | "present" | "malformed" {
+  if (text.includes(HOOK_MARK)) return "present"
+  const entry = [
+    "",
+    "      {",
+    '        "matcher": "startup|resume|clear|compact",',
+    '        "hooks": [',
+    "          {",
+    '            "type": "command",',
+    `            "command": ${JSON.stringify(hookCommand(policyPath))},`,
+    '            "timeout": 10,',
+    '            "additionalContextLimit": 0',
+    "          }",
+    "        ]",
+    "      }",
+  ].join("\n")
+  const session = '"SessionStart": ['
+  const at = text.indexOf(session)
+  if (at !== -1) {
+    const insertAt = at + session.length
+    const rest = text.slice(insertAt)
+    const comma = /^\s*]/.test(rest) ? "" : ","
+    return text.slice(0, insertAt) + entry + comma + rest
   }
-  if (decide(existing, payload, lastDigest) === "write") return block
-  if (lastDigest !== undefined) {
-    const prefix = ledgerPrefixEnd(existing, lastDigest)
-    if (prefix !== undefined) return block + existing.slice(prefix)
-  }
-  return "foreign"
+  const hooksKey = '"hooks": {'
+  const hooksAt = text.indexOf(hooksKey)
+  if (hooksAt === -1) return "malformed"
+  const block = `\n    "SessionStart": [${entry}\n    ],`
+  return text.slice(0, hooksAt + hooksKey.length) + block + text.slice(hooksAt + hooksKey.length)
 }
 
-function resolveCodexHome(envValue: string | undefined, homeDir: string): string {
-  if (envValue === undefined || envValue === "") return join(homeDir, ".codex")
-  if (!isAbsolute(envValue)) throw new Error(`CODEX_HOME must be an absolute path: ${envValue}`)
-  return envValue
+function promptAllowed(allowPrompt: boolean): boolean {
+  return allowPrompt && stdin.isTTY
 }
-
-function refuseCheckout(branch: string, primary: string, gitDir: string, commonDir: string): string | undefined {
-  if (branch !== primary) return `refusing to publish from ${branch}; checkout ${primary}`
-  if (resolve(repoRoot, gitDir) !== resolve(repoRoot, commonDir)) return "refusing to publish from a worktree"
-  return undefined
-}
-
 
 if (process.argv.includes("--check")) {
   const source = "See [x](docs/agents/dox.md).\n"
@@ -118,6 +115,7 @@ if (process.argv.includes("--check")) {
   const wrapped = adapt(source, "cursor")
   if (!wrapped.startsWith("---\nalwaysApply: true\n---\n\n")) throw new Error("cursor wrap missing")
   if (!wrapped.endsWith(payload)) throw new Error("cursor body drifted")
+  if (promptAllowed(false)) throw new Error("check must not prompt")
   if (resolveCodexHome(undefined, "/h") !== "/h/.codex") throw new Error("unset CODEX_HOME")
   if (resolveCodexHome("", "/h") !== "/h/.codex") throw new Error("empty CODEX_HOME")
   if (resolveCodexHome("/abs/codex", "/h") !== "/abs/codex") throw new Error("absolute CODEX_HOME")
@@ -134,39 +132,23 @@ if (process.argv.includes("--check")) {
   if (refuseCheckout("main", "master", ".git", ".git") === undefined) throw new Error("main is not primary here")
   if (refuseCheckout("master", "master", ".git", ".git") !== undefined) throw new Error("primary must publish")
   if (refuseCheckout("master", "master", ".git/worktrees/x", ".git") === undefined) throw new Error("worktree must refuse")
-  const soul = "<!-- soulstack:start -->\nkeep\n<!-- soulstack:end -->\n<!-- gitbutler-agent-setup:start -->\nbut\n<!-- gitbutler-agent-setup:end -->\n"
   const old = "old policy\n"
-  const legacy = `${old}${soul}`
-  const migrated = spliceCodex(legacy, payload, digest(old))
-  if (migrated === "foreign" || !migrated.startsWith(codexBlock(payload)) || !migrated.endsWith(soul)) {
-    throw new Error("ledger prefix must replace the old unmarked body")
-  }
-  if (migrated.indexOf("<!-- gap:start -->") !== migrated.lastIndexOf("<!-- gap:start -->")) {
-    throw new Error("duplicate gap block")
-  }
-  if (spliceCodex("hand edited policy\n", payload) !== "foreign") throw new Error("unmarked mismatch must be foreign")
-  const stale = `stale gap body that is not the payload\n${soul}`
-  if (spliceCodex(stale, payload) !== "foreign") throw new Error("unmarked tool prefix must be refused")
-  const suffix = `\n${soul}`
-  const liveShape = `${old}${suffix}`
-  if (spliceCodex(liveShape, payload, digest(old)) !== `${codexBlock(payload)}${suffix}`) {
-    throw new Error("ledger cut must keep the blank line and tool blocks")
-  }
-  if (spliceCodex(`${GAP_END}x\n${GAP_START}y\n`, payload) !== "malformed") throw new Error("reversed pair must refuse")
-  if (spliceCodex(`${codexBlock("a\n")}${codexBlock("b\n")}`, payload) !== "malformed") throw new Error("duplicate pair must refuse")
-  if (spliceCodex(`${GAP_START}unterminated\n`, payload) !== "malformed") throw new Error("unterminated pair must refuse")
-  const owned = spliceCodex(migrated, "next\n", digest(payload))
-  if (owned === "foreign" || !owned.includes("keep") || !owned.includes("but\n") || !owned.includes("next\n")) {
-    throw new Error("resplice dropped co-writers")
-  }
-  const hand = spliceCodex(codexBlock("hand\n"), payload, digest("old\n"))
-  if (hand !== "foreign") throw new Error("hand-edited gap block must be foreign")
-  const relock = spliceCodex(codexBlock("old\n"), payload, digest("old\n"))
-  if (relock === "foreign" || !relock.includes(payload)) throw new Error("ledger must own the gap block")
+  const suffix = "\n<!-- soulstack:start -->\nkeep\n<!-- soulstack:end -->\n<!-- gitbutler-agent-setup:start -->\nbut\n<!-- gitbutler-agent-setup:end -->\n"
+  const legacy = old + suffix
+  if (ledgerPrefixEnd(legacy, digest(old)) !== old.length) throw new Error("ledger cut missed the prefix")
+  if (legacy.slice(old.length) !== suffix) throw new Error("suffix was not kept")
+  if (ledgerPrefixEnd(legacy, digest("nope\n")) !== undefined) throw new Error("unmatched prefix must refuse")
+  const before = '{\n  "hooks": {\n    "SessionStart": [\n      {"hooks":[{"command":"keep","type":"command"}]}\n    ]\n  }\n}\n'
+  const policyPath = "/h/.codex/gap/global-agent-policy.md"
+  const once = insertGapHook(before, policyPath)
+  if (once === "present" || once === "malformed") throw new Error("hook insert failed")
+  if (!once.includes('{"hooks":[{"command":"keep","type":"command"}]}')) throw new Error("other hook bytes changed")
+  if (!once.includes('"matcher": "startup|resume|clear|compact"')) throw new Error("matcher missing")
+  JSON.parse(once)
+  if (insertGapHook(once, policyPath) !== "present") throw new Error("hook insert was not idempotent")
   const ledgerFile = join(tmpdir(), `gap-check-${process.pid}.json`)
   await writeLedger(ledgerFile, { a: "1" })
-  const rawLedger = await readFile(ledgerFile, "utf8")
-  if (JSON.parse(rawLedger).a !== "1") throw new Error("ledger did not persist")
+  if (JSON.parse(await readFile(ledgerFile, "utf8")).a !== "1") throw new Error("ledger did not persist")
   await unlink(ledgerFile)
   const probe = join(tmpdir(), `gap-probe-${process.pid}`)
   const foreignFile = join(probe, "foreign.md")
@@ -174,53 +156,14 @@ if (process.argv.includes("--check")) {
   await mkdir(probe, { recursive: true })
   await writeFile(foreignFile, "nope\n")
   const box: Record<string, string> = {}
-  const skippedForeign = await publish(source, foreignFile, "none", box, ledgerFile)
-  const wroteOther = await publish(source, otherFile, "none", box, ledgerFile)
+  const skippedForeign = await publish(source, foreignFile, "none", box, ledgerFile, false, probe)
+  const wroteOther = await publish(source, otherFile, "none", box, ledgerFile, false, probe)
   if (skippedForeign || !wroteOther) throw new Error("foreign skip must not block the next write")
   if ((await readFile(foreignFile, "utf8")) !== "nope\n") throw new Error("foreign file was replaced")
   if (!(await readFile(otherFile, "utf8")).includes(docsDir)) throw new Error("other destination was not published")
   await unlink(foreignFile)
   await unlink(otherFile)
   await unlink(ledgerFile)
-  const custom = `my rules\n${soul}`
-  const customFile = join(probe, "custom.md")
-  await writeFile(customFile, custom)
-  if (await publish(source, customFile, "codex", {}, ledgerFile, true, probe)) {
-    throw new Error("custom prefix must be refused")
-  }
-  if ((await readFile(customFile, "utf8")) !== custom) throw new Error("custom prefix was changed")
-  const reversed = `${GAP_END}tail\n${GAP_START}head\n${soul}`
-  const reversedFile = join(probe, "reversed.md")
-  await writeFile(reversedFile, reversed)
-  if (await publish(source, reversedFile, "codex", {}, ledgerFile, true, probe)) {
-    throw new Error("reversed pair must not write")
-  }
-  if ((await readFile(reversedFile, "utf8")) !== reversed) throw new Error("reversed pair was changed")
-  const marked = `${codexBlock("hand\n")}${soul}`
-  const markedFile = join(probe, "marked.md")
-  await writeFile(markedFile, marked)
-  if (!(await publish(source, markedFile, "codex", {}, ledgerFile, true, probe))) {
-    throw new Error("codex yes did not write")
-  }
-  const written = await readFile(markedFile, "utf8")
-  if (!written.startsWith(codexBlock(payload)) || !written.endsWith(soul)) throw new Error("codex yes dropped tool blocks")
-  const backupRoot = join(probe, ".gap/backups")
-  const stamps = await readdir(backupRoot)
-  const backed = await readFile(join(backupRoot, stamps[0], "marked.md"), "utf8")
-  if (backed !== marked) throw new Error("codex yes did not back up the old file")
-  const livePath = process.env.GAP_CHECK_CODEX
-  if (livePath) {
-    const live = await readFile(livePath, "utf8")
-    const prefix = live.slice(0, 3494)
-    if (!digest(prefix).startsWith("8aafbf61")) throw new Error("live prefix digest drifted")
-    const liveSuffix = live.slice(3494)
-    if (!liveSuffix.startsWith("\n<!-- soulstack:start -->")) throw new Error("blank line before soulstack missing")
-    if (!liveSuffix.includes("<!-- gitbutler-agent-setup:end -->")) throw new Error("gitbutler block missing")
-    const replaced = spliceCodex(live, "new policy\n", digest(prefix))
-    if (typeof replaced !== "string" || !replaced.startsWith(codexBlock("new policy\n")) || !replaced.endsWith(liveSuffix)) {
-      throw new Error("live shape was not a ledger cut")
-    }
-  }
   console.log("ok")
   process.exit(0)
 }
@@ -237,11 +180,15 @@ function readCheckout(): { branch: string; primary: string; gitDir: string; comm
   }
 }
 
-async function writeLedger(path: string, ledger: Record<string, string>): Promise<void> {
+async function writeAtomic(path: string, text: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   const tmp = `${path}.${process.pid}.tmp`
-  await writeFile(tmp, `${JSON.stringify(ledger, null, 2)}\n`)
+  await writeFile(tmp, text)
   await rename(tmp, path)
+}
+
+async function writeLedger(path: string, ledger: Record<string, string>): Promise<void> {
+  await writeAtomic(path, `${JSON.stringify(ledger, null, 2)}\n`)
 }
 
 const ledgerPath = join(home, ".gap/published.json")
@@ -256,11 +203,12 @@ async function readLedger(): Promise<Record<string, string>> {
 }
 
 const codexHome = resolveCodexHome(process.env.CODEX_HOME, home)
+const codexPolicy = join(codexHome, "gap/global-agent-policy.md")
 const copies = [
   { dest: join(home, ".claude/rules/global-agent-policy.md"), wrap: "none" as const },
   { dest: join(home, ".pi/agent/APPEND_SYSTEM.md"), wrap: "none" as const },
   { dest: join(home, ".omp/agent/APPEND_SYSTEM.md"), wrap: "none" as const },
-  { dest: join(codexHome, "AGENTS.md"), wrap: "codex" as const },
+  { dest: codexPolicy, wrap: "none" as const },
   { dest: join(home, ".cursor/rules/global-agent-policy.mdc"), wrap: "cursor" as const },
 ]
 
@@ -271,16 +219,15 @@ function backupPath(dest: string, root: string): string {
   return join(root, ".gap/backups", stamp, safe)
 }
 
-async function confirmReplace(dest: string, backup: string, codex: boolean): Promise<boolean> {
-  const ask = codex
-    ? `${dest} has a foreign GAP block. Replace that block only? Other blocks stay. [y/N] `
-    : `${dest} is not the GAP publish. Move it to ${backup} and replace it with GAP? Review the backup and add anything you want to keep into global/AGENTS.md. [y/N] `
-  if (!stdin.isTTY) {
+async function confirmReplace(dest: string, backup: string): Promise<boolean> {
+  if (!promptAllowed(true)) {
     console.error(`Refusing to replace foreign file (no prompt): ${dest}`)
     return false
   }
   const rl = createInterface({ input: stdin, output: stdout })
-  const answer = await rl.question(ask)
+  const answer = await rl.question(
+    `${dest} is not the GAP publish. Move it to ${backup} and replace it with GAP? Review the backup and add anything you want to keep into global/AGENTS.md. [y/N] `,
+  )
   rl.close()
   return answer.trim().toLowerCase() === "y"
 }
@@ -291,10 +238,10 @@ async function publish(
   wrap: Wrap,
   ledger: Record<string, string>,
   ledgerFile: string,
-  assumeYes = false,
+  allowPrompt = true,
   backupRoot = home,
 ): Promise<boolean> {
-  const payload = adapt(source, wrap === "cursor" ? "cursor" : "none")
+  const payload = adapt(source, wrap)
   let existing: string | undefined
   let symlink = false
   try {
@@ -305,44 +252,77 @@ async function publish(
   } catch (err) {
     if (!(err instanceof Error && "code" in err && err.code === "ENOENT")) throw err
   }
-  let text = payload
-  if (wrap === "codex" && !symlink) {
-    const span = existing === undefined ? "absent" : gapSpan(existing)
-    if (span === "malformed") {
-      console.error(`Refusing malformed GAP block: ${dest}`)
-      return false
-    }
-    const spliced = spliceCodex(existing, payload, ledger[dest])
-    if (spliced === "malformed") {
-      console.error(`Refusing malformed GAP block: ${dest}`)
-      return false
-    }
-    if (spliced === "foreign") {
-      if (span === "absent") {
-        console.error(`Refusing unmarked foreign file: ${dest}`)
-        return false
-      }
-      const backup = backupPath(dest, backupRoot)
-      if (!assumeYes && !(await confirmReplace(dest, backup, true))) return false
-      await mkdir(dirname(backup), { recursive: true })
-      await rename(dest, backup)
-      console.log(`Backed up to ${backup}`)
-      console.log("Review that backup. Add anything you want to keep into global/AGENTS.md.")
-      text = existing.slice(0, span.start) + codexBlock(payload) + existing.slice(span.end + GAP_END.length)
-    } else text = spliced
-  } else if (symlink || decide(existing, payload, ledger[dest]) === "foreign") {
+  if (symlink || decide(existing, payload, ledger[dest]) === "foreign") {
     const backup = backupPath(dest, backupRoot)
-    if (!assumeYes && !(await confirmReplace(dest, backup, false))) return false
+    const yes = allowPrompt ? await confirmReplace(dest, backup) : false
+    if (!allowPrompt) console.error(`Refusing to replace foreign file (no prompt): ${dest}`)
+    if (!yes) return false
     await mkdir(dirname(backup), { recursive: true })
     await rename(dest, backup)
     console.log(`Backed up to ${backup}`)
     console.log("Review that backup. Add anything you want to keep into global/AGENTS.md.")
-    text = wrap === "codex" ? codexBlock(payload) : payload
   }
-  await mkdir(dirname(dest), { recursive: true })
-  await writeFile(dest, text)
+  await writeAtomic(dest, payload)
   ledger[dest] = digest(payload)
   await writeLedger(ledgerFile, ledger)
+  console.log(dest)
+  return true
+}
+
+async function ensureGapHook(policyPath: string, backupRoot: string): Promise<void> {
+  const hooksPath = join(codexHome, "hooks.json")
+  let text = '{\n  "hooks": {\n  }\n}\n'
+  let existed = false
+  try {
+    text = await readFile(hooksPath, "utf8")
+    existed = true
+  } catch (err) {
+    if (!(err instanceof Error && "code" in err && err.code === "ENOENT")) throw err
+  }
+  const next = insertGapHook(text, policyPath)
+  if (next === "present") return
+  if (next === "malformed") throw new Error(`${hooksPath} has no hooks object`)
+  if (existed) {
+    const backup = backupPath(hooksPath, backupRoot)
+    await mkdir(dirname(backup), { recursive: true })
+    await rename(hooksPath, backup)
+    console.log(`Backed up to ${backup}`)
+  }
+  await writeAtomic(hooksPath, next.endsWith("\n") ? next : `${next}\n`)
+  console.log(hooksPath)
+}
+
+async function cleanupLegacyCodex(ledger: Record<string, string>, backupRoot: string): Promise<boolean> {
+  const dest = join(codexHome, "AGENTS.md")
+  const last = ledger[dest]
+  if (last === undefined) return true
+  let existing: string
+  try {
+    const current = await lstat(dest)
+    if (!current.isFile() || current.isSymbolicLink()) {
+      console.error(`Refusing to strip unmarked Codex policy; not a regular file: ${dest}`)
+      return false
+    }
+    existing = await readFile(dest, "utf8")
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+      delete ledger[dest]
+      return true
+    }
+    throw err
+  }
+  const cut = ledgerPrefixEnd(existing, last)
+  if (cut === undefined) {
+    console.error(`Refusing to strip unmarked Codex policy; prefix does not match the ledger: ${dest}`)
+    return false
+  }
+  const backup = backupPath(dest, backupRoot)
+  await mkdir(dirname(backup), { recursive: true })
+  await rename(dest, backup)
+  await writeAtomic(dest, existing.slice(cut))
+  delete ledger[dest]
+  await writeLedger(ledgerPath, ledger)
+  console.log(`Backed up to ${backup}`)
   console.log(dest)
   return true
 }
@@ -360,4 +340,6 @@ let skipped = false
 for (const copy of copies) {
   if (!(await publish(raw, copy.dest, copy.wrap, ledger, ledgerPath))) skipped = true
 }
+await ensureGapHook(codexPolicy, home)
+if (!(await cleanupLegacyCodex(ledger, home))) skipped = true
 if (skipped) process.exitCode = 1

@@ -31,9 +31,9 @@ Claude, Pi, and OMP already receive GAP. Codex and Cursor do not. Codex already 
 
 - R1. `global/AGENTS.md` stays the only policy source. Sync may wrap or rewrite that text per harness. It must not add a second policy document.
 - R2. A destination that is missing, or whose current bytes equal the payload about to be written, is overwritten with no prompt and no backup.
-- R3. A destination that exists and does not match that payload is foreign, unless its sha256 equals the last publish recorded in `~/.gap/published.json`. That file is ours and is overwritten with no prompt. Sync tells the user about a foreign file, waits for a yes, moves the file into a backup directory, prints that path, and then writes the payload. The message tells the user to review the backup and add anything they want to keep into the policy by hand. Codex is the exception in U5: identity is the GAP block, and a yes replaces that block only.
+- R3. A destination that exists and does not match that payload is foreign, unless its sha256 equals the last publish recorded in `~/.gap/published.json`. That file is ours and is overwritten with no prompt. Sync tells the user about a foreign file, waits for a yes, moves the file into a backup directory, prints that path, and then writes the payload. The message tells the user to review the backup and add anything they want to keep into the policy by hand.
 - R4. If a foreign file needs a prompt and nobody can answer, sync skips that file, prints the path, and exits non-zero. It still publishes every other destination.
-- R5. Codex's destination is `AGENTS.md` inside Codex home (`CODEX_HOME`, or `~/.codex` when unset). Do not write `AGENTS.override.md`.
+- R5. Codex's policy file is `gap/global-agent-policy.md` inside Codex home (`CODEX_HOME`, or `~/.codex` when unset). A SessionStart hook prints that file. Do not write `AGENTS.override.md`. Sync does not rewrite Codex `AGENTS.md` on a policy edit.
 - R6. Cursor's destination is a new `~/.cursor/rules/global-agent-policy.mdc` with `alwaysApply: true` around the same policy body. Do not modify `~/.cursor/rules/context7.mdc`.
 - R7. Do not add a Grok destination while Grok's Claude rules compatibility is on. Grok already loads `~/.claude/rules/*.md`.
 - R8. Claude, Pi, and OMP stay on their current destinations. A file that already matches the adapted payload is not treated as foreign.
@@ -120,20 +120,19 @@ Files: `AGENTS.md`, `global/AGENTS.md`, `README.md`
 
 Approach: Add the Codex and Cursor paths next to the existing load list. State that Grok already loads Claude's rules file, so sync does not write a Grok copy. Do not paste the policy into those notes.
 
-### U5. Codex owned block
+### U5. Codex SessionStart hook
 
-Goal: GAP owns only the `<!-- gap:start -->` ... `<!-- gap:end -->` block in `~/.codex/AGENTS.md`. soulstack and gitbutler-agent-setup blocks stay untouched.
+Goal: Codex receives the policy through a SessionStart hook. GAP owns `$CODEX_HOME/gap/global-agent-policy.md` alone. Sync does not rewrite `~/.codex/AGENTS.md` on a policy edit.
 
 Files: `src/sync.ts`, `AGENTS.md`, `global/AGENTS.md`, `README.md`
 
-Approach: Identity and the ledger digest are the block body, not the rest of the file. An unmarked prefix is replaced only when its sha256 matches the last publish. Otherwise the unmarked file is foreign and is left unchanged. A GAP block must be exactly one ordered `<!-- gap:start -->` / `<!-- gap:end -->` pair. A reversed, unterminated, or duplicate pair is refused, even after a yes. A yes on a valid foreign block backs the whole file up under `~/.gap/backups/` and then replaces that block only.
+Approach: Write the adapted payload with the normal whole-file rules and a temp-file rename. Add one SessionStart entry, matcher `startup|resume|clear|compact`, only when `gap/global-agent-policy.md` is missing from `hooks.json`. The command prints that file. Other hooks stay byte for byte, and the file is backed up first. One-time cleanup removes an unmarked prefix of Codex `AGENTS.md` only when its sha256 matches the ledger, then keeps the suffix byte for byte. A mismatch is refused and the file is left unchanged. Codex CLI 0.160 and the hooks docs say SessionStart sources are `startup`, `resume`, `clear`, and `compact`, and plain text on stdout is extra developer context.
 
 Test scenarios:
-- An unmarked last-publish prefix followed by a blank line, then soulstack and gitbutler-agent-setup blocks, is replaced by one GAP block. The blank line and both tool blocks stay byte for byte.
-- An unmarked prefix of custom rules before the soulstack block is refused. The file is unchanged.
-- A reversed or duplicate marker pair is refused. A yes does not write.
-- A yes on a valid foreign GAP block leaves a backup under `~/.gap/backups/`.
-- A hand-edited gap block is skipped when nobody can answer. The other blocks stay.
+- A copied live `AGENTS.md` whose prefix matches the ledger loses only that prefix. The blank line and both tool blocks stay byte for byte.
+- An unmatched prefix is left unchanged.
+- A copied live `hooks.json` gains one SessionStart entry. Every other hook stays byte for byte. A second sync does not add another entry.
+- The hook command prints the policy file.
 
 ### U6. Absolute Codex home
 
@@ -172,7 +171,7 @@ Approach: Write a temp file in the same directory, then rename it over the ledge
 - `node src/sync.ts --check` passes.
 - Proof uses a temp `HOME` and a temp clone on `master`. Do not run `npm run sync` and do not use the real home.
 - A non-TTY foreign file stays in place. The other destinations are still written. The process exits non-zero.
-- A Codex file that also has soulstack and gitbutler-agent-setup blocks keeps those blocks.
+- A copied Codex `AGENTS.md` loses only a ledger-matched prefix. The suffix stays byte for byte. `hooks.json` gains one SessionStart entry and keeps every other hook byte for byte.
 - Empty `CODEX_HOME` uses `~/.codex`. A relative `CODEX_HOME` writes nothing.
 - A branch other than `origin/HEAD`, or a worktree, writes nothing.
 - The ledger after publish is valid JSON, written by rename.
@@ -181,6 +180,7 @@ Approach: Write a temp file in the same directory, then rename it over the ledge
 
 - Cursor load is not proven. No live Cursor session has confirmed it loads `global-agent-policy.mdc`.
 - D6 stays open. A backup keeps the bytes, not the harness behavior. Once a foreign file moves, that harness stops loading those rules until a person puts the kept text back by hand.
+- The one-time `hooks.json` insert and the one-time `AGENTS.md` cleanup can race another writer at setup. A later policy edit does not rewrite either file. Add a lock if two syncs overlap during that first setup.
 
 ## Definition of Done
 
@@ -234,7 +234,7 @@ No GitHub issue tracks this plan. It shipped through PRs #55 and #56. The open i
 
 ## Sources
 
-- `src/sync.ts` writes three destinations from `global/AGENTS.md` and rewrites docs links. It does not read destination text.
-- Codex discovery: global scope is `AGENTS.override.md` if present, otherwise `AGENTS.md`, under Codex home. https://learn.chatgpt.com/docs/agent-configuration/agents-md
+- `src/sync.ts` writes five destinations from `global/AGENTS.md`, rewrites docs links, and reads a destination before deciding whether it is ours. Codex policy is `$CODEX_HOME/gap/global-agent-policy.md`.
+- Codex SessionStart hook output is plain text on stdout, added as developer context. Matcher values are `startup`, `resume`, `clear`, and `compact`. https://developers.openai.com/codex/hooks
 - Cursor user rule files: `~/.cursor/rules`. Plain `.md` in `.cursor/rules` is ignored. https://cursor.com/help/customization/rules and https://cursor.com/docs/rules
 - Grok home rules include `~/.claude/rules/` when Claude compatibility is on. `~/.grok/docs/user-guide/12-project-rules.md`

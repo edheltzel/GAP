@@ -41,13 +41,13 @@ Sync prints an absolute path for each of these:
 ~/.claude/rules/global-agent-policy.md
 ~/.pi/agent/APPEND_SYSTEM.md
 ~/.omp/agent/APPEND_SYSTEM.md
-~/.codex/AGENTS.md
+~/.codex/gap/global-agent-policy.md
 ~/.cursor/rules/global-agent-policy.mdc
 ```
 
 Each path is a regular file, not a symlink.
 
-If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again. Codex is different: sync owns only the `<!-- gap:start -->` ... `<!-- gap:end -->` block, and a yes replaces that block. soulstack and gitbutler-agent-setup blocks stay.
+If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again. Codex policy is a file GAP owns alone. A SessionStart hook prints it. Sync does not rewrite `~/.codex/AGENTS.md` on a policy edit.
 
 If you see `Refusing to replace foreign file`, that file was left in place. The other destinations still publish. Run the same command in a terminal and type `y` to replace the refused file.
 
@@ -74,7 +74,7 @@ If that line is missing, Claude compatibility is off. Turn it back on. Do not ad
 | Claude | `~/.claude/rules/global-agent-policy.md` |
 | Pi | `~/.pi/agent/APPEND_SYSTEM.md` |
 | OMP | `~/.omp/agent/APPEND_SYSTEM.md` |
-| Codex | `~/.codex/AGENTS.md` |
+| Codex | `~/.codex/gap/global-agent-policy.md`, printed by a SessionStart hook |
 | Cursor | `~/.cursor/rules/global-agent-policy.mdc` |
 | Grok | no extra file; reads the Claude rules file |
 
