@@ -122,17 +122,17 @@ Approach: Add the Codex and Cursor paths next to the existing load list. State t
 
 ### U5. Codex SessionStart hook
 
-Goal: Codex receives the policy through a SessionStart hook. GAP owns `$CODEX_HOME/gap/global-agent-policy.md` alone. Sync does not rewrite `~/.codex/AGENTS.md` on a policy edit.
+Goal: Codex receives the policy through a SessionStart hook. GAP owns `$CODEX_HOME/gap/global-agent-policy.md` alone. A normal sync never removes the legacy GAP text from `~/.codex/AGENTS.md`.
 
 Files: `src/sync.ts`, `AGENTS.md`, `global/AGENTS.md`, `README.md`
 
-Approach: Write the adapted payload with the normal whole-file rules and a temp-file rename. Add one SessionStart entry, matcher `startup|resume|clear|compact`, only when `gap/global-agent-policy.md` is missing from `hooks.json`. The command prints that file. Other hooks stay byte for byte, and the file is backed up first. One-time cleanup removes an unmarked prefix of Codex `AGENTS.md` only when its sha256 matches the ledger, then keeps the suffix byte for byte. A mismatch is refused and the file is left unchanged. Codex CLI 0.160 and the hooks docs say SessionStart sources are `startup`, `resume`, `clear`, and `compact`, and plain text on stdout is extra developer context.
+Approach: Write the adapted payload with the normal whole-file rules and a temp-file rename. Install the SessionStart hook, appended at the end of `hooks.SessionStart`, only after that policy file was written and still matches the payload. Print the `/hooks` trust instruction and `npm run sync -- --remove-codex-legacy`. Only that flag runs the cleanup, and only when the exact GAP hook entry is present and the prefix matches the ledger. The suffix stays byte for byte. Until that flag runs, Codex may load the policy twice. That is expected and temporary. Empty `CODEX_HOME` is unset. A relative `CODEX_HOME` is refused.
 
 Test scenarios:
-- A copied live `AGENTS.md` whose prefix matches the ledger loses only that prefix. The blank line and both tool blocks stay byte for byte.
-- An unmatched prefix is left unchanged.
-- A copied live `hooks.json` gains one SessionStart entry. Every other hook stays byte for byte. A second sync does not add another entry.
-- The hook command prints the policy file.
+- A default run leaves Codex `AGENTS.md` unchanged.
+- `--remove-codex-legacy` removes only a ledger-matched prefix. The blank line and both tool blocks stay byte for byte.
+- The flag refuses when the exact hook entry is missing.
+- A null `hooks.json` root or a null hooks object is refused and not written.
 
 ### U6. Absolute Codex home
 

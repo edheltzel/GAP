@@ -11,6 +11,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const home = homedir()
 const docsDir = join(repoRoot, "global/docs/agents")
 const HOOK_MARK = "gap/global-agent-policy.md"
+const TRUST_LINE = "Trust the GAP hook in Codex with /hooks, start a Codex session and confirm the policy loads, then run: npm run sync -- --remove-codex-legacy"
 
 type Wrap = "none" | "cursor"
 type Decision = "write" | "foreign"
@@ -64,35 +65,36 @@ function hookCommand(policyPath: string): string {
   return `cat ${shellQuote(policyPath)}`
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 function insertGapHook(text: string, policyPath: string): string | "present" | "malformed" {
-  if (text.includes(HOOK_MARK)) return "present"
-  const entry = [
-    "",
-    "      {",
-    '        "matcher": "startup|resume|clear|compact",',
-    '        "hooks": [',
-    "          {",
-    '            "type": "command",',
-    `            "command": ${JSON.stringify(hookCommand(policyPath))},`,
-    '            "timeout": 10,',
-    '            "additionalContextLimit": 0',
-    "          }",
-    "        ]",
-    "      }",
-  ].join("\n")
-  const session = '"SessionStart": ['
-  const at = text.indexOf(session)
-  if (at !== -1) {
-    const insertAt = at + session.length
-    const rest = text.slice(insertAt)
-    const comma = /^\s*]/.test(rest) ? "" : ","
-    return text.slice(0, insertAt) + entry + comma + rest
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return "malformed"
   }
-  const hooksKey = '"hooks": {'
-  const hooksAt = text.indexOf(hooksKey)
-  if (hooksAt === -1) return "malformed"
-  const block = `\n    "SessionStart": [${entry}\n    ],`
-  return text.slice(0, hooksAt + hooksKey.length) + block + text.slice(hooksAt + hooksKey.length)
+  if (!isRecord(parsed) || !isRecord(parsed.hooks)) return "malformed"
+  const current = parsed.hooks.SessionStart
+  const session = Array.isArray(current) ? [...current] : []
+  if (!Array.isArray(current) && current !== undefined) return "malformed"
+  const command = hookCommand(policyPath)
+  const present = session.some((group) => {
+    if (!isRecord(group) || group.matcher !== "startup|resume|clear|compact") return false
+    const hooks = group.hooks
+    return Array.isArray(hooks) && hooks.some((hook) => {
+      return isRecord(hook) && hook.type === "command" && hook.command === command && hook.additionalContextLimit === 0 && hook.async !== true
+    })
+  })
+  if (present) return "present"
+  session.push({
+    matcher: "startup|resume|clear|compact",
+    hooks: [{ type: "command", command, timeout: 10, additionalContextLimit: 0 }],
+  })
+  parsed.hooks.SessionStart = session
+  return `${JSON.stringify(parsed, null, 2)}\n`
 }
 
 function promptAllowed(allowPrompt: boolean): boolean {
@@ -138,14 +140,24 @@ if (process.argv.includes("--check")) {
   if (ledgerPrefixEnd(legacy, digest(old)) !== old.length) throw new Error("ledger cut missed the prefix")
   if (legacy.slice(old.length) !== suffix) throw new Error("suffix was not kept")
   if (ledgerPrefixEnd(legacy, digest("nope\n")) !== undefined) throw new Error("unmatched prefix must refuse")
-  const before = '{\n  "hooks": {\n    "SessionStart": [\n      {"hooks":[{"command":"keep","type":"command"}]}\n    ]\n  }\n}\n'
   const policyPath = "/h/.codex/gap/global-agent-policy.md"
-  const once = insertGapHook(before, policyPath)
-  if (once === "present" || once === "malformed") throw new Error("hook insert failed")
-  if (!once.includes('{"hooks":[{"command":"keep","type":"command"}]}')) throw new Error("other hook bytes changed")
-  if (!once.includes('"matcher": "startup|resume|clear|compact"')) throw new Error("matcher missing")
-  JSON.parse(once)
-  if (insertGapHook(once, policyPath) !== "present") throw new Error("hook insert was not idempotent")
+  const missing = insertGapHook('{\n  "hooks": {}\n}\n', policyPath)
+  if (missing === "present" || missing === "malformed") throw new Error("missing hooks file failed")
+  JSON.parse(missing)
+  if (!missing.includes("startup|resume|clear|compact")) throw new Error("matcher missing")
+  const compactIn = '{"hooks":{"Stop":[]}}'
+  const compact = insertGapHook(compactIn, policyPath)
+  if (compact === "present" || compact === "malformed") throw new Error("compact hooks failed")
+  const compactParsed = JSON.parse(compact) as { hooks: { Stop: unknown[] } }
+  if (JSON.stringify(compactParsed.hooks.Stop) !== "[]") throw new Error("compact Stop entry changed")
+  const liveShape = '{"hooks":{"SessionStart":[{"hooks":[{"command":"keep","timeout":10,"type":"command"}],"matcher":""}],"Stop":[{"hooks":[{"command":"stop","type":"command"}]}]}}'
+  const liveOnce = insertGapHook(liveShape, policyPath)
+  if (liveOnce === "present" || liveOnce === "malformed") throw new Error("live-shaped hooks failed")
+  const liveParsed = JSON.parse(liveOnce) as { hooks: { SessionStart: Array<{ hooks: Array<{ command: string }> }>; Stop: unknown } }
+  if (liveParsed.hooks.SessionStart[0]?.hooks[0]?.command !== "keep") throw new Error("live-shaped hook value changed")
+  if (JSON.stringify(liveParsed.hooks.Stop) !== JSON.stringify(JSON.parse(liveShape).hooks.Stop)) throw new Error("live-shaped Stop changed")
+  if (insertGapHook(liveOnce, policyPath) !== "present") throw new Error("hook insert was not idempotent")
+  if (insertGapHook("{", policyPath) !== "malformed") throw new Error("bad JSON must refuse")
   const ledgerFile = join(tmpdir(), `gap-check-${process.pid}.json`)
   await writeLedger(ledgerFile, { a: "1" })
   if (JSON.parse(await readFile(ledgerFile, "utf8")).a !== "1") throw new Error("ledger did not persist")
@@ -164,7 +176,45 @@ if (process.argv.includes("--check")) {
   await unlink(foreignFile)
   await unlink(otherFile)
   await unlink(ledgerFile)
-  console.log("ok")
+  const codexDir = join(probe, "codex")
+  const policy = join(codexDir, "gap/global-agent-policy.md")
+  const agents = join(codexDir, "AGENTS.md")
+  const hooks = join(codexDir, "hooks.json")
+  await mkdir(dirname(policy), { recursive: true })
+  await writeFile(policy, "foreign policy\n")
+  await writeFile(agents, "keep agents\n")
+  await writeFile(hooks, '{"hooks":{"Stop":[]}}\n')
+  const wrotePolicy = await publish(source, policy, "none", {}, ledgerFile, false, probe)
+  if (wrotePolicy) throw new Error("foreign policy must be refused")
+  if (!(await afterCodexPublish(wrotePolicy, policy, payload, codexDir, probe))) {
+    throw new Error("refused policy must not fail the hook gate")
+  }
+  if ((await readFile(agents, "utf8")) !== "keep agents\n") throw new Error("AGENTS.md changed")
+  if ((await readFile(hooks, "utf8")) !== '{"hooks":{"Stop":[]}}\n') throw new Error("hooks.json changed")
+  if (insertGapHook("null", policy) !== "malformed") throw new Error("null hooks root must refuse")
+  if (insertGapHook('{"hooks":null}', policy) !== "malformed") throw new Error("null hooks object must refuse")
+  const legacyFile = "old policy\n\n<!-- soulstack:start -->\nkeep\n<!-- soulstack:end -->\n<!-- gitbutler-agent-setup:start -->\nbut\n<!-- gitbutler-agent-setup:end -->\n"
+  await writeFile(policy, payload)
+  await writeFile(agents, legacyFile)
+  await writeFile(hooks, '{"hooks":{}}\n')
+  const noHook = { [agents]: digest("old policy\n") }
+  if (await cleanupLegacyCodex(codexDir, policy, payload, noHook, probe, ledgerFile)) {
+    throw new Error("flag must refuse when the hook is missing")
+  }
+  if ((await readFile(agents, "utf8")) !== legacyFile) throw new Error("missing hook changed AGENTS.md")
+  if (!(await afterCodexPublish(true, policy, payload, codexDir, probe))) throw new Error("default publish failed")
+  if ((await readFile(agents, "utf8")) !== legacyFile) throw new Error("default run changed AGENTS.md")
+  await writeFile(policy, "foreign policy\n")
+  if (await cleanupLegacyCodex(codexDir, policy, payload, noHook, probe, ledgerFile)) {
+    throw new Error("flag must refuse when the policy file is foreign")
+  }
+  if ((await readFile(agents, "utf8")) !== legacyFile) throw new Error("foreign policy changed AGENTS.md")
+  await writeFile(policy, payload)
+  if (!(await cleanupLegacyCodex(codexDir, policy, payload, noHook, probe, ledgerFile))) throw new Error("flag cleanup failed")
+  const cleaned = await readFile(agents, "utf8")
+  if (cleaned.includes("old policy") || !cleaned.startsWith("\n<!-- soulstack:start -->") || !cleaned.endsWith("<!-- gitbutler-agent-setup:end -->\n")) {
+    throw new Error("flag cleanup did not keep the tool blocks")
+  }
   process.exit(0)
 }
 
@@ -269,9 +319,9 @@ async function publish(
   return true
 }
 
-async function ensureGapHook(policyPath: string, backupRoot: string): Promise<void> {
-  const hooksPath = join(codexHome, "hooks.json")
-  let text = '{\n  "hooks": {\n  }\n}\n'
+async function ensureGapHook(codexDir: string, policyPath: string, backupRoot: string): Promise<boolean> {
+  const hooksPath = join(codexDir, "hooks.json")
+  let text = '{\n  "hooks": {}\n}\n'
   let existed = false
   try {
     text = await readFile(hooksPath, "utf8")
@@ -280,22 +330,53 @@ async function ensureGapHook(policyPath: string, backupRoot: string): Promise<vo
     if (!(err instanceof Error && "code" in err && err.code === "ENOENT")) throw err
   }
   const next = insertGapHook(text, policyPath)
-  if (next === "present") return
-  if (next === "malformed") throw new Error(`${hooksPath} has no hooks object`)
+  if (next === "present") return true
+  if (next === "malformed") {
+    console.error(`Refusing to edit hooks.json; it is not JSON: ${hooksPath}`)
+    return false
+  }
+  JSON.parse(next)
   if (existed) {
     const backup = backupPath(hooksPath, backupRoot)
     await mkdir(dirname(backup), { recursive: true })
     await rename(hooksPath, backup)
     console.log(`Backed up to ${backup}`)
   }
-  await writeAtomic(hooksPath, next.endsWith("\n") ? next : `${next}\n`)
+  await writeAtomic(hooksPath, next)
   console.log(hooksPath)
+  return true
 }
 
-async function cleanupLegacyCodex(ledger: Record<string, string>, backupRoot: string): Promise<boolean> {
-  const dest = join(codexHome, "AGENTS.md")
+async function cleanupLegacyCodex(
+  codexDir: string,
+  policyPath: string,
+  payload: string,
+  ledger: Record<string, string>,
+  backupRoot: string,
+  ledgerFile: string,
+): Promise<boolean> {
+  const dest = join(codexDir, "AGENTS.md")
+  let policy: string | undefined
+  try {
+    policy = await readFile(policyPath, "utf8")
+  } catch {}
+  if (policy !== payload) {
+    console.error(`Refusing to strip unmarked Codex policy; the GAP policy file is missing or not this publish: ${policyPath}`)
+    return false
+  }
+  const hooksPath = join(codexDir, "hooks.json")
+  let hooksText = ""
+  try {
+    hooksText = await readFile(hooksPath, "utf8")
+  } catch {
+    console.error(`Refusing to strip unmarked Codex policy; the GAP hook is not installed: ${hooksPath}`)
+    return false
+  }
+  if (insertGapHook(hooksText, policyPath) !== "present") {
+    console.error(`Refusing to strip unmarked Codex policy; the GAP hook is not installed: ${hooksPath}`)
+    return false
+  }
   const last = ledger[dest]
-  if (last === undefined) return true
   let existing: string
   try {
     const current = await lstat(dest)
@@ -307,6 +388,7 @@ async function cleanupLegacyCodex(ledger: Record<string, string>, backupRoot: st
   } catch (err) {
     if (err instanceof Error && "code" in err && err.code === "ENOENT") {
       delete ledger[dest]
+      await writeLedger(ledgerFile, ledger)
       return true
     }
     throw err
@@ -321,9 +403,33 @@ async function cleanupLegacyCodex(ledger: Record<string, string>, backupRoot: st
   await rename(dest, backup)
   await writeAtomic(dest, existing.slice(cut))
   delete ledger[dest]
-  await writeLedger(ledgerPath, ledger)
+  await writeLedger(ledgerFile, ledger)
   console.log(`Backed up to ${backup}`)
   console.log(dest)
+  return true
+}
+
+async function afterCodexPublish(
+  wrote: boolean,
+  policyPath: string,
+  payload: string,
+  codexDir: string,
+  backupRoot: string,
+): Promise<boolean> {
+  if (!wrote) return true
+  let onDisk: string
+  try {
+    onDisk = await readFile(policyPath, "utf8")
+  } catch {
+    console.error(`Refusing to install the Codex hook; policy file could not be reread: ${policyPath}`)
+    return false
+  }
+  if (onDisk !== payload) {
+    console.error(`Refusing to install the Codex hook; policy file does not match the payload: ${policyPath}`)
+    return false
+  }
+  if (!(await ensureGapHook(codexDir, policyPath, backupRoot))) return false
+  console.log(TRUST_LINE)
   return true
 }
 
@@ -337,9 +443,14 @@ if (refused) {
 const raw = await readFile(process.env.GAP_SOURCE ?? join(repoRoot, "global/AGENTS.md"), "utf8")
 const ledger = await readLedger()
 let skipped = false
+let codexWrote = false
 for (const copy of copies) {
-  if (!(await publish(raw, copy.dest, copy.wrap, ledger, ledgerPath))) skipped = true
+  const wrote = await publish(raw, copy.dest, copy.wrap, ledger, ledgerPath)
+  if (!wrote) skipped = true
+  if (copy.dest === codexPolicy && wrote) codexWrote = true
 }
-await ensureGapHook(codexPolicy, home)
-if (!(await cleanupLegacyCodex(ledger, home))) skipped = true
+if (!(await afterCodexPublish(codexWrote, codexPolicy, adapt(raw, "none"), codexHome, home))) skipped = true
+if (process.argv.includes("--remove-codex-legacy")) {
+  if (!(await cleanupLegacyCodex(codexHome, codexPolicy, adapt(raw, "none"), ledger, home, ledgerPath))) skipped = true
+}
 if (skipped) process.exitCode = 1

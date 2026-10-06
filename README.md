@@ -47,7 +47,7 @@ Sync prints an absolute path for each of these:
 
 Each path is a regular file, not a symlink.
 
-If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again. Codex policy is a file GAP owns alone. A SessionStart hook prints it. Sync does not rewrite `~/.codex/AGENTS.md` on a policy edit.
+If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again. Codex policy is a file GAP owns alone. A SessionStart hook prints it. A normal sync does not remove the old policy text from `~/.codex/AGENTS.md`. Until you trust the hook with `/hooks` and run `npm run sync -- --remove-codex-legacy`, Codex may load the policy twice. That is expected and temporary. Empty `CODEX_HOME` means `~/.codex`. A relative value is refused.
 
 If you see `Refusing to replace foreign file`, that file was left in place. The other destinations still publish. Run the same command in a terminal and type `y` to replace the refused file.
 

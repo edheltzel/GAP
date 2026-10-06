@@ -11,7 +11,7 @@ Edit the markdown in this repo, then run `npm run sync` from the repo root. The 
 - Claude reads `~/.claude/rules/global-agent-policy.md`. Do not also point `~/CLAUDE.md` here. An ancestor `CLAUDE.md` suppresses project `AGENTS.md`.
 - Pi reads `~/.pi/agent/APPEND_SYSTEM.md`. Pi does not scan `rules/`. Do not add `SYSTEM.md`.
 - OMP reads `~/.omp/agent/APPEND_SYSTEM.md`. Do not add `SYSTEM.md`.
-- Codex gets the policy from a SessionStart hook that prints `gap/global-agent-policy.md` in Codex home (`~/.codex`, or `CODEX_HOME`). Sync does not rewrite `AGENTS.md` there on a policy edit. Do not add `AGENTS.override.md`.
+- Codex gets the policy from a SessionStart hook that prints `gap/global-agent-policy.md` in Codex home (`~/.codex`, or `CODEX_HOME`). A normal sync does not remove old policy text from that `AGENTS.md`. Until `npm run sync -- --remove-codex-legacy`, Codex may load the policy twice. That is expected and temporary. Do not add `AGENTS.override.md`.
 - Cursor reads `~/.cursor/rules/global-agent-policy.mdc`.
 - Grok loads `~/.claude/rules/*.md` when Claude compatibility is on. Do not add a second copy.
 
