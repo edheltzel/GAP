@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { lstat, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises"
+import { copyFile, lstat, mkdir, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { isAbsolute, dirname, join, relative, resolve } from "node:path"
 import { createInterface } from "node:readline/promises"
@@ -215,6 +215,14 @@ if (process.argv.includes("--check")) {
   if (cleaned.includes("old policy") || !cleaned.startsWith("\n<!-- soulstack:start -->") || !cleaned.endsWith("<!-- gitbutler-agent-setup:end -->\n")) {
     throw new Error("flag cleanup did not keep the tool blocks")
   }
+  const realHooks = join(probe, "real-hooks.json")
+  await writeFile(realHooks, '{"hooks":{}}\n')
+  await unlink(hooks)
+  await symlink(realHooks, hooks)
+  if (await afterCodexPublish(true, policy, payload, codexDir, probe)) throw new Error("symlinked hooks.json must refuse")
+  if (!(await lstat(hooks)).isSymbolicLink() || (await readFile(realHooks, "utf8")) !== '{"hooks":{}}\n') {
+    throw new Error("symlinked hooks.json changed")
+  }
   process.exit(0)
 }
 
@@ -308,7 +316,8 @@ async function publish(
     if (!allowPrompt) console.error(`Refusing to replace foreign file (no prompt): ${dest}`)
     if (!yes) return false
     await mkdir(dirname(backup), { recursive: true })
-    await rename(dest, backup)
+    if (symlink) await rename(dest, backup)
+    else await copyFile(dest, backup)
     console.log(`Backed up to ${backup}`)
     console.log("Review that backup. Add anything you want to keep into global/AGENTS.md.")
   }
@@ -324,6 +333,10 @@ async function ensureGapHook(codexDir: string, policyPath: string, backupRoot: s
   let text = '{\n  "hooks": {}\n}\n'
   let existed = false
   try {
+    if ((await lstat(hooksPath)).isSymbolicLink()) {
+      console.error(`Refusing to edit hooks.json; it is a symlink: ${hooksPath}`)
+      return false
+    }
     text = await readFile(hooksPath, "utf8")
     existed = true
   } catch (err) {
@@ -339,7 +352,7 @@ async function ensureGapHook(codexDir: string, policyPath: string, backupRoot: s
   if (existed) {
     const backup = backupPath(hooksPath, backupRoot)
     await mkdir(dirname(backup), { recursive: true })
-    await rename(hooksPath, backup)
+    await copyFile(hooksPath, backup)
     console.log(`Backed up to ${backup}`)
   }
   await writeAtomic(hooksPath, next)
@@ -400,7 +413,7 @@ async function cleanupLegacyCodex(
   }
   const backup = backupPath(dest, backupRoot)
   await mkdir(dirname(backup), { recursive: true })
-  await rename(dest, backup)
+  await copyFile(dest, backup)
   await writeAtomic(dest, existing.slice(cut))
   delete ledger[dest]
   await writeLedger(ledgerFile, ledger)
