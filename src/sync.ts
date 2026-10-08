@@ -451,7 +451,10 @@ for (const copy of copies) {
 }
 // Cleanup runs before this run's hook install, so a hook added just now (not yet trusted in /hooks) never counts.
 if (process.argv.includes("--remove-codex-legacy")) {
-  if (!(await cleanupLegacyCodex(codexHome, codexPolicy, adapt(raw, "none"), ledger, home, ledgerPath))) skipped = true
+  if (!codexWrote) {
+    console.error(`Refusing to strip unmarked Codex policy; this run did not publish the GAP policy file: ${codexPolicy}`)
+    skipped = true
+  } else if (!(await cleanupLegacyCodex(codexHome, codexPolicy, adapt(raw, "none"), ledger, home, ledgerPath))) skipped = true
 }
 if (!(await afterCodexPublish(codexWrote, codexPolicy, adapt(raw, "none"), codexHome, home))) skipped = true
 if (skipped) process.exitCode = 1
