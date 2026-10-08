@@ -41,17 +41,19 @@ Sync prints an absolute path for each of these:
 ~/.claude/rules/global-agent-policy.md
 ~/.pi/agent/APPEND_SYSTEM.md
 ~/.omp/agent/APPEND_SYSTEM.md
-~/.codex/AGENTS.md
+~/.codex/gap/global-agent-policy.md
 ~/.cursor/rules/global-agent-policy.mdc
 ```
 
 Each path is a regular file, not a symlink.
 
-If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again.
+If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again. Codex policy is a file GAP owns alone. A SessionStart hook prints it. Trust the hook with `/hooks`. Sync leaves the old policy text in `~/.codex/AGENTS.md`, so Codex loads the policy twice. That is expected. Do not run `npm run sync -- --remove-codex-legacy` yet: SessionStart does not reach Codex subagents, which still need that text. The flag also refuses in the run that first installs the hook. Empty `CODEX_HOME` means `~/.codex`. A relative value is refused.
 
-If you see `Refusing to replace foreign file`, run the same command in a terminal and type `y`.
+If you see `Refusing to replace foreign file`, that file was left in place. The other destinations still publish. Run the same command in a terminal and type `y` to replace the refused file.
 
-The next sync overwrites those files without asking, once they match this publish.
+The next sync overwrites a file without asking once it matches this publish, or the last publish recorded in `~/.gap/published.json`.
+
+Run sync from the primary branch (`origin/HEAD`, `master` here), not from another branch or a worktree. Empty `CODEX_HOME` means `~/.codex`. A relative value is refused.
 
 ## Step 3: Check Grok
 
@@ -72,7 +74,7 @@ If that line is missing, Claude compatibility is off. Turn it back on. Do not ad
 | Claude | `~/.claude/rules/global-agent-policy.md` |
 | Pi | `~/.pi/agent/APPEND_SYSTEM.md` |
 | OMP | `~/.omp/agent/APPEND_SYSTEM.md` |
-| Codex | `~/.codex/AGENTS.md` |
+| Codex | `~/.codex/gap/global-agent-policy.md`, printed by a SessionStart hook |
 | Cursor | `~/.cursor/rules/global-agent-policy.mdc` |
 | Grok | no extra file; reads the Claude rules file |
 
