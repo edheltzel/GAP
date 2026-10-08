@@ -126,7 +126,7 @@ Goal: Codex receives the policy through a SessionStart hook. GAP owns `$CODEX_HO
 
 Files: `src/sync.ts`, `AGENTS.md`, `global/AGENTS.md`, `README.md`
 
-Approach: Write the adapted payload with the normal whole-file rules and a temp-file rename. Install the SessionStart hook, appended at the end of `hooks.SessionStart`, only after that policy file was written and still matches the payload. Print the `/hooks` trust instruction. Only `npm run sync -- --remove-codex-legacy` runs the cleanup, and only when the policy file matches the payload, the exact GAP hook entry was already in `hooks.json` before this run, and the prefix matches the ledger. The suffix stays byte for byte. Hold the flag: SessionStart does not fire for Codex subagents, so the legacy text is their only copy of GAP. Until that changes, Codex loads the policy twice. Empty `CODEX_HOME` is unset. A relative `CODEX_HOME` is refused.
+Approach: Write the adapted payload with the normal whole-file rules and a temp-file rename. Install the GAP hook for SessionStart and SubagentStart, each appended at the end of its event list, only after that policy file was written and still matches the payload. SessionStart does not fire for subagents, so SubagentStart carries the policy to them. Print the `/hooks` trust instruction. Only `npm run sync -- --remove-codex-legacy` runs the cleanup, and only when this run published the policy file, `hooks.json` is a regular file that already held both GAP entries before this run, and the prefix matches the ledger. The suffix stays byte for byte. A second flag run with no ledger entry reports nothing to strip. Empty `CODEX_HOME` is unset. A relative `CODEX_HOME` is refused.
 
 Test scenarios:
 - A default run leaves Codex `AGENTS.md` unchanged.
@@ -235,6 +235,6 @@ No GitHub issue tracks this plan. It shipped through PRs #55 and #56. The open i
 ## Sources
 
 - `src/sync.ts` writes five destinations from `global/AGENTS.md`, rewrites docs links, and reads a destination before deciding whether it is ours. Codex policy is `$CODEX_HOME/gap/global-agent-policy.md`.
-- Codex SessionStart hook output is plain text on stdout, added as developer context. Matcher values are `startup`, `resume`, `clear`, and `compact`. https://developers.openai.com/codex/hooks
+- Codex SessionStart and SubagentStart hook output is plain text on stdout, added as developer context (for the subagent, in SubagentStart's case). SessionStart matcher values are `startup`, `resume`, `clear`, and `compact`; SubagentStart matches `agent_type`. https://developers.openai.com/codex/hooks
 - Cursor user rule files: `~/.cursor/rules`. Plain `.md` in `.cursor/rules` is ignored. https://cursor.com/help/customization/rules and https://cursor.com/docs/rules
 - Grok home rules include `~/.claude/rules/` when Claude compatibility is on. `~/.grok/docs/user-guide/12-project-rules.md`
