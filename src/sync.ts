@@ -394,6 +394,10 @@ async function cleanupLegacyCodex(
   const hooksPath = join(codexDir, "hooks.json")
   let hooksText = ""
   try {
+    if ((await lstat(hooksPath)).isSymbolicLink()) {
+      console.error(`Refusing to strip unmarked Codex policy; hooks.json is a symlink: ${hooksPath}`)
+      return false
+    }
     hooksText = await readFile(hooksPath, "utf8")
   } catch {
     console.error(`Refusing to strip unmarked Codex policy; the GAP hook is not installed: ${hooksPath}`)
