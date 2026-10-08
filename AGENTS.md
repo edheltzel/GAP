@@ -17,7 +17,7 @@ This file only covers how to change the repo. Shared behavior rules are in `glob
 The script writes regular files. Do not symlink those paths. Do not add Stow. Publish only from the primary branch (`origin/HEAD`, `master` here), not from another branch or a worktree. A destination that is not the current publish is moved to `~/.gap/backups/` after a yes. No prompt means that file is left alone and the other destinations still publish. Empty `CODEX_HOME` means unset. A relative `CODEX_HOME` is refused. Grok already loads `~/.claude/rules/global-agent-policy.md` when Claude compatibility is on. Confirm with `grok inspect` before adding a Grok destination. A second copy loads the policy twice. The human note is in `README.md`.
 Do not point `~/CLAUDE.md` at the shared file. An ancestor `CLAUDE.md` suppresses that project's `AGENTS.md`.
 
-After editing shared markdown, run `npm run sync`. A copy is stale until that command runs.
+After a shared markdown change is merged and pulled, run `npm run sync`. Sync refuses while `global/` differs from `origin/HEAD`. A copy is stale until that command runs.
 
 ## Edit
 

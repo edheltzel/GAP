@@ -39,9 +39,10 @@ function resolveCodexHome(envValue: string | undefined, homeDir: string): string
   return envValue
 }
 
-function refuseCheckout(branch: string, primary: string, gitDir: string, commonDir: string): string | undefined {
+function refuseCheckout(branch: string, primary: string, gitDir: string, commonDir: string, unmerged = false): string | undefined {
   if (branch !== primary) return `refusing to publish from ${branch}; checkout ${primary}`
   if (resolve(repoRoot, gitDir) !== resolve(repoRoot, commonDir)) return "refusing to publish from a worktree"
+  if (unmerged) return `refusing to publish: global/ differs from origin/${primary}; commit, merge and pull first`
   return undefined
 }
 
@@ -134,6 +135,7 @@ if (process.argv.includes("--check")) {
   if (refuseCheckout("main", "master", ".git", ".git") === undefined) throw new Error("main is not primary here")
   if (refuseCheckout("master", "master", ".git", ".git") !== undefined) throw new Error("primary must publish")
   if (refuseCheckout("master", "master", ".git/worktrees/x", ".git") === undefined) throw new Error("worktree must refuse")
+  if (refuseCheckout("master", "master", ".git", ".git", true) === undefined) throw new Error("unmerged policy must refuse")
   const old = "old policy\n"
   const suffix = "\n<!-- soulstack:start -->\nkeep\n<!-- soulstack:end -->\n<!-- gitbutler-agent-setup:start -->\nbut\n<!-- gitbutler-agent-setup:end -->\n"
   const legacy = old + suffix
@@ -226,15 +228,27 @@ if (process.argv.includes("--check")) {
   process.exit(0)
 }
 
-function readCheckout(): { branch: string; primary: string; gitDir: string; commonDir: string } {
-  const run = (args: string[]) => execFileSync("git", args, { cwd: repoRoot, encoding: "utf8" }).trim()
-  const originHead = run(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+function readCheckout(): { branch: string; primary: string; gitDir: string; commonDir: string; unmerged: boolean } | string {
+  const run = (args: string[]) => execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
+  let originHead: string
+  try {
+    originHead = run(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+  } catch {
+    return "refusing to publish: origin/HEAD is not set; run git remote set-head origin --auto"
+  }
   const primary = originHead.startsWith("origin/") ? originHead.slice("origin/".length) : originHead
+  let unmerged = false
+  try {
+    run(["diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/"])
+  } catch {
+    unmerged = true
+  }
   return {
     branch: run(["rev-parse", "--abbrev-ref", "HEAD"]),
     primary,
     gitDir: run(["rev-parse", "--git-dir"]),
     commonDir: run(["rev-parse", "--git-common-dir"]),
+    unmerged,
   }
 }
 
@@ -447,7 +461,9 @@ async function afterCodexPublish(
 }
 
 const checkout = readCheckout()
-const refused = refuseCheckout(checkout.branch, checkout.primary, checkout.gitDir, checkout.commonDir)
+const refused = typeof checkout === "string"
+  ? checkout
+  : refuseCheckout(checkout.branch, checkout.primary, checkout.gitDir, checkout.commonDir, checkout.unmerged)
 if (refused) {
   console.error(refused)
   process.exit(1)
