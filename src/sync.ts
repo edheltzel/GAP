@@ -11,7 +11,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const home = homedir()
 const docsDir = join(repoRoot, "global/docs/agents")
 const HOOK_MARK = "gap/global-agent-policy.md"
-const TRUST_LINE = "Trust the GAP hook in Codex with /hooks. Keep the legacy GAP text in Codex AGENTS.md: SessionStart does not reach Codex subagents, so do not run --remove-codex-legacy yet."
+const TRUST_LINE = "Trust both GAP hooks (SessionStart and SubagentStart) in Codex with /hooks, confirm a session and a subagent both get the policy, then run: npm run sync -- --remove-codex-legacy"
 
 type Wrap = "none" | "cursor"
 type Decision = "write" | "foreign"
@@ -70,6 +70,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+// SessionStart covers root sessions; SubagentStart is the only event Codex runs for subagents.
+const GAP_EVENTS: Array<[event: string, matcher: string | undefined]> = [
+  ["SessionStart", "startup|resume|clear|compact"],
+  ["SubagentStart", undefined],
+]
+
 function insertGapHook(text: string, policyPath: string): string | "present" | "malformed" {
   let parsed: unknown
   try {
@@ -78,24 +84,25 @@ function insertGapHook(text: string, policyPath: string): string | "present" | "
     return "malformed"
   }
   if (!isRecord(parsed) || !isRecord(parsed.hooks)) return "malformed"
-  const current = parsed.hooks.SessionStart
-  const session = Array.isArray(current) ? [...current] : []
-  if (!Array.isArray(current) && current !== undefined) return "malformed"
   const command = hookCommand(policyPath)
-  const present = session.some((group) => {
-    if (!isRecord(group) || group.matcher !== "startup|resume|clear|compact") return false
-    const hooks = group.hooks
-    return Array.isArray(hooks) && hooks.some((hook) => {
-      return isRecord(hook) && hook.type === "command" && hook.command === command && hook.additionalContextLimit === 0 && hook.async !== true
+  let changed = false
+  for (const [event, matcher] of GAP_EVENTS) {
+    const current = parsed.hooks[event]
+    if (!Array.isArray(current) && current !== undefined) return "malformed"
+    const groups = Array.isArray(current) ? [...current] : []
+    const present = groups.some((group) => {
+      if (!isRecord(group) || group.matcher !== matcher) return false
+      const hooks = group.hooks
+      return Array.isArray(hooks) && hooks.some((hook) => {
+        return isRecord(hook) && hook.type === "command" && hook.command === command && hook.additionalContextLimit === 0 && hook.async !== true
+      })
     })
-  })
-  if (present) return "present"
-  session.push({
-    matcher: "startup|resume|clear|compact",
-    hooks: [{ type: "command", command, timeout: 10, additionalContextLimit: 0 }],
-  })
-  parsed.hooks.SessionStart = session
-  return `${JSON.stringify(parsed, null, 2)}\n`
+    if (present) continue
+    groups.push({ ...(matcher === undefined ? {} : { matcher }), hooks: [{ type: "command", command, timeout: 10, additionalContextLimit: 0 }] })
+    parsed.hooks[event] = groups
+    changed = true
+  }
+  return changed ? `${JSON.stringify(parsed, null, 2)}\n` : "present"
 }
 
 function promptAllowed(allowPrompt: boolean): boolean {
@@ -159,6 +166,15 @@ if (process.argv.includes("--check")) {
   if (liveParsed.hooks.SessionStart[0]?.hooks[0]?.command !== "keep") throw new Error("live-shaped hook value changed")
   if (JSON.stringify(liveParsed.hooks.Stop) !== JSON.stringify(JSON.parse(liveShape).hooks.Stop)) throw new Error("live-shaped Stop changed")
   if (insertGapHook(liveOnce, policyPath) !== "present") throw new Error("hook insert was not idempotent")
+  const sessionOnly = '{"hooks":{"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"cat \'/h/.codex/gap/global-agent-policy.md\'","timeout":10,"additionalContextLimit":0}]}],"SubagentStart":[{"hooks":[{"command":"keep","type":"command"}]}]}}'
+  const upgraded = insertGapHook(sessionOnly, policyPath)
+  if (upgraded === "present" || upgraded === "malformed") throw new Error("SessionStart-only install must gain SubagentStart")
+  const upgradedParsed = JSON.parse(upgraded) as { hooks: { SessionStart: unknown[]; SubagentStart: Array<{ matcher?: string; hooks: Array<{ command: string }> }> } }
+  if (JSON.stringify(upgradedParsed.hooks.SessionStart) !== JSON.stringify(JSON.parse(sessionOnly).hooks.SessionStart)) throw new Error("upgrade changed SessionStart")
+  if (upgradedParsed.hooks.SubagentStart[0]?.hooks[0]?.command !== "keep") throw new Error("upgrade shifted SubagentStart entries")
+  if (upgradedParsed.hooks.SubagentStart[1]?.hooks[0]?.command !== hookCommand(policyPath) || "matcher" in upgradedParsed.hooks.SubagentStart[1]!) {
+    throw new Error("SubagentStart GAP entry missing or scoped")
+  }
   if (insertGapHook("{", policyPath) !== "malformed") throw new Error("bad JSON must refuse")
   const ledgerFile = join(tmpdir(), `gap-check-${process.pid}.json`)
   await writeLedger(ledgerFile, { a: "1" })
@@ -371,6 +387,7 @@ async function ensureGapHook(codexDir: string, policyPath: string, backupRoot: s
   }
   await writeAtomic(hooksPath, next)
   console.log(hooksPath)
+  console.log(TRUST_LINE)
   return true
 }
 
@@ -408,6 +425,10 @@ async function cleanupLegacyCodex(
     return false
   }
   const last = ledger[dest]
+  if (last === undefined) {
+    console.log(`No legacy GAP text recorded for ${dest}; nothing to strip`)
+    return true
+  }
   let existing: string
   try {
     const current = await lstat(dest)
@@ -459,9 +480,7 @@ async function afterCodexPublish(
     console.error(`Refusing to install the Codex hook; policy file does not match the payload: ${policyPath}`)
     return false
   }
-  if (!(await ensureGapHook(codexDir, policyPath, backupRoot))) return false
-  console.log(TRUST_LINE)
-  return true
+  return await ensureGapHook(codexDir, policyPath, backupRoot)
 }
 
 const checkout = readCheckout()
