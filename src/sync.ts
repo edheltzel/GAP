@@ -11,7 +11,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const home = homedir()
 const docsDir = join(repoRoot, "global/docs/agents")
 const HOOK_MARK = "gap/global-agent-policy.md"
-const TRUST_LINE = "Trust the GAP hook in Codex with /hooks, start a Codex session and confirm the policy loads, then run: npm run sync -- --remove-codex-legacy"
+const TRUST_LINE = "Trust the GAP hook in Codex with /hooks. Keep the legacy GAP text in Codex AGENTS.md: SessionStart does not reach Codex subagents, so do not run --remove-codex-legacy yet."
 
 type Wrap = "none" | "cursor"
 type Decision = "write" | "foreign"
@@ -449,8 +449,9 @@ for (const copy of copies) {
   if (!wrote) skipped = true
   if (copy.dest === codexPolicy && wrote) codexWrote = true
 }
-if (!(await afterCodexPublish(codexWrote, codexPolicy, adapt(raw, "none"), codexHome, home))) skipped = true
+// Cleanup runs before this run's hook install, so a hook added just now (not yet trusted in /hooks) never counts.
 if (process.argv.includes("--remove-codex-legacy")) {
   if (!(await cleanupLegacyCodex(codexHome, codexPolicy, adapt(raw, "none"), ledger, home, ledgerPath))) skipped = true
 }
+if (!(await afterCodexPublish(codexWrote, codexPolicy, adapt(raw, "none"), codexHome, home))) skipped = true
 if (skipped) process.exitCode = 1

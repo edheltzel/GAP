@@ -11,7 +11,7 @@ This file only covers how to change the repo. Shared behavior rules are in `glob
 - `~/.claude/rules/global-agent-policy.md`
 - `~/.pi/agent/APPEND_SYSTEM.md`
 - `~/.omp/agent/APPEND_SYSTEM.md`
-- `~/.codex/gap/global-agent-policy.md` (`CODEX_HOME` when set). A SessionStart hook prints that file. A normal sync does not remove old policy text from `~/.codex/AGENTS.md`. Until `npm run sync -- --remove-codex-legacy`, Codex may load the policy twice. That is expected and temporary. Empty `CODEX_HOME` means unset. A relative `CODEX_HOME` is refused.
+- `~/.codex/gap/global-agent-policy.md` (`CODEX_HOME` when set). A SessionStart hook prints that file. Sync leaves old policy text in `~/.codex/AGENTS.md`, so Codex loads the policy twice. That is expected. Do not run `npm run sync -- --remove-codex-legacy` yet: SessionStart does not reach Codex subagents, which still need that text. The flag also refuses in the run that first installs the hook. Empty `CODEX_HOME` means unset. A relative `CODEX_HOME` is refused.
 - `~/.cursor/rules/global-agent-policy.mdc`
 
 The script writes regular files. Do not symlink those paths. Do not add Stow. Publish only from the primary branch (`origin/HEAD`, `master` here), not from another branch or a worktree. A destination that is not the current publish is moved to `~/.gap/backups/` after a yes. No prompt means that file is left alone and the other destinations still publish. Empty `CODEX_HOME` means unset. A relative `CODEX_HOME` is refused. Grok already loads `~/.claude/rules/global-agent-policy.md` when Claude compatibility is on. Confirm with `grok inspect` before adding a Grok destination. A second copy loads the policy twice. The human note is in `README.md`.

@@ -126,12 +126,12 @@ Goal: Codex receives the policy through a SessionStart hook. GAP owns `$CODEX_HO
 
 Files: `src/sync.ts`, `AGENTS.md`, `global/AGENTS.md`, `README.md`
 
-Approach: Write the adapted payload with the normal whole-file rules and a temp-file rename. Install the SessionStart hook, appended at the end of `hooks.SessionStart`, only after that policy file was written and still matches the payload. Print the `/hooks` trust instruction and `npm run sync -- --remove-codex-legacy`. Only that flag runs the cleanup, and only when the exact GAP hook entry is present and the prefix matches the ledger. The suffix stays byte for byte. Until that flag runs, Codex may load the policy twice. That is expected and temporary. Empty `CODEX_HOME` is unset. A relative `CODEX_HOME` is refused.
+Approach: Write the adapted payload with the normal whole-file rules and a temp-file rename. Install the SessionStart hook, appended at the end of `hooks.SessionStart`, only after that policy file was written and still matches the payload. Print the `/hooks` trust instruction. Only `npm run sync -- --remove-codex-legacy` runs the cleanup, and only when the policy file matches the payload, the exact GAP hook entry was already in `hooks.json` before this run, and the prefix matches the ledger. The suffix stays byte for byte. Hold the flag: SessionStart does not fire for Codex subagents, so the legacy text is their only copy of GAP. Until that changes, Codex loads the policy twice. Empty `CODEX_HOME` is unset. A relative `CODEX_HOME` is refused.
 
 Test scenarios:
 - A default run leaves Codex `AGENTS.md` unchanged.
 - `--remove-codex-legacy` removes only a ledger-matched prefix. The blank line and both tool blocks stay byte for byte.
-- The flag refuses when the exact hook entry is missing.
+- The flag refuses when the exact hook entry is missing, including the run that first installs it.
 - A null `hooks.json` root or a null hooks object is refused and not written.
 
 ### U6. Absolute Codex home
