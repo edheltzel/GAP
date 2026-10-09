@@ -126,12 +126,13 @@ Goal: Codex receives the policy through a SessionStart hook. GAP owns `$CODEX_HO
 
 Files: `src/sync.ts`, `AGENTS.md`, `global/AGENTS.md`, `README.md`
 
-Approach: Write the adapted payload with the normal whole-file rules and a temp-file rename. Install the GAP hook for SessionStart and SubagentStart, each appended at the end of its event list, only after that policy file was written and still matches the payload. SessionStart does not fire for subagents, so SubagentStart carries the policy to them. Print the `/hooks` trust instruction. Only `npm run sync -- --remove-codex-legacy` runs the cleanup, and only when this run published the policy file, `hooks.json` is a regular file that already held both GAP entries before this run, and the prefix matches the ledger. The suffix stays byte for byte. A second flag run with no ledger entry reports nothing to strip. Empty `CODEX_HOME` is unset. A relative `CODEX_HOME` is refused.
+Approach: Write the adapted payload with the normal whole-file rules and a temp-file rename. Install the GAP hook for SessionStart and SubagentStart, each appended at the end of its event list, only after that policy file was written and still matches the payload. SessionStart does not fire for subagents, so SubagentStart carries the policy to them. Print the `/hooks` trust instruction. Only `npm run sync -- --remove-codex-legacy` runs the cleanup, and only when this run published the policy file, `hooks.json` is a regular file that already held both GAP entries before this run, and the prefix matches the ledger. The suffix stays byte for byte. A successful cleanup records `cleaned` in the ledger for Codex `AGENTS.md`, so a second flag run reports nothing to strip. A missing ledger entry is refused, not treated as cleaned. Empty `CODEX_HOME` is unset. A relative `CODEX_HOME` is refused.
 
 Test scenarios:
 - A default run leaves Codex `AGENTS.md` unchanged.
 - `--remove-codex-legacy` removes only a ledger-matched prefix. The blank line and both tool blocks stay byte for byte.
 - The flag refuses when the exact hook entry is missing, including the run that first installs it.
+- The flag refuses old GAP text with no ledger entry. A second run after a cleanup exits 0 and leaves the file alone.
 - A null `hooks.json` root or a null hooks object is refused and not written.
 
 ### U6. Absolute Codex home
