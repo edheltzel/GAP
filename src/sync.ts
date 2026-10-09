@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { copyFile, lstat, mkdir, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises"
+import { copyFile, lstat, mkdir, readFile, rename, rm, symlink, unlink, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { isAbsolute, dirname, join, relative, resolve } from "node:path"
 import { createInterface } from "node:readline/promises"
@@ -248,6 +248,43 @@ if (process.argv.includes("--check")) {
   if (!(await lstat(hooks)).isSymbolicLink() || (await readFile(realHooks, "utf8")) !== '{"hooks":{}}\n') {
     throw new Error("symlinked hooks.json changed")
   }
+  // End-to-end: run the real CLI from a throwaway clone on its primary branch against a temp HOME.
+  const e2e = join(probe, "e2e")
+  const clone = join(e2e, "repo")
+  const e2eHome = join(e2e, "home")
+  const git = (args: string[]) => execFileSync("git", args, { cwd: clone, stdio: "ignore" })
+  execFileSync("git", ["clone", "-q", repoRoot, clone], { stdio: "ignore" })
+  git(["checkout", "-q", "-B", "master", "HEAD"])
+  git(["update-ref", "refs/remotes/origin/master", "HEAD"])
+  git(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master"])
+  await copyFile(fileURLToPath(import.meta.url), join(clone, "src/sync.ts"))
+  const e2eCodex = join(e2eHome, ".codex")
+  await mkdir(e2eCodex, { recursive: true })
+  const userHooks = '{"hooks":{"SubagentStart":[{"hooks":[{"type":"command","command":"keep"}]}]}}\n'
+  await writeFile(join(e2eCodex, "hooks.json"), userHooks)
+  await writeFile(join(e2eCodex, "AGENTS.md"), legacyFile)
+  const cli = (args: string[]) => {
+    try {
+      execFileSync(process.execPath, [join(clone, "src/sync.ts"), ...args], { env: { ...process.env, HOME: e2eHome, CODEX_HOME: "" }, stdio: "ignore" })
+      return 0
+    } catch (err) {
+      return isRecord(err) && typeof err.status === "number" ? err.status : 1
+    }
+  }
+  if (cli([]) !== 0) throw new Error("e2e publish failed")
+  for (const dest of [".claude/rules/global-agent-policy.md", ".pi/agent/APPEND_SYSTEM.md", ".omp/agent/APPEND_SYSTEM.md", ".codex/gap/global-agent-policy.md", ".cursor/rules/global-agent-policy.mdc"]) {
+    await lstat(join(e2eHome, dest))
+  }
+  const e2eHooks = JSON.parse(await readFile(join(e2eCodex, "hooks.json"), "utf8")) as { hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>> }
+  if (e2eHooks.hooks.SubagentStart?.[0]?.hooks[0]?.command !== "keep" || e2eHooks.hooks.SubagentStart.length !== 2 || e2eHooks.hooks.SessionStart?.length !== 1) {
+    throw new Error("e2e hooks.json not appended as expected")
+  }
+  if ((await readFile(join(e2eCodex, "AGENTS.md"), "utf8")) !== legacyFile) throw new Error("e2e default run changed AGENTS.md")
+  if (cli(["--remove-codex-legacy"]) !== 1) throw new Error("e2e flag must refuse old text with no ledger entry")
+  if ((await readFile(join(e2eCodex, "AGENTS.md"), "utf8")) !== legacyFile) throw new Error("e2e refused flag changed AGENTS.md")
+  await writeFile(join(clone, "global/AGENTS.md"), "unmerged\n")
+  if (cli([]) !== 1) throw new Error("e2e unmerged global/ must refuse")
+  await rm(probe, { recursive: true, force: true })
   process.exit(0)
 }
 
