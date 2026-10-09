@@ -12,6 +12,8 @@ const home = homedir()
 const docsDir = join(repoRoot, "global/docs/agents")
 const HOOK_MARK = "gap/global-agent-policy.md"
 const TRUST_LINE = "Trust both GAP hooks (SessionStart and SubagentStart) in Codex with /hooks, confirm a session and a subagent both get the policy, then run: npm run sync -- --remove-codex-legacy"
+// Ledger value for Codex AGENTS.md once its legacy GAP prefix is stripped; never a sha256 digest.
+const CLEANED = "cleaned"
 
 type Wrap = "none" | "cursor"
 type Decision = "write" | "foreign"
@@ -233,6 +235,11 @@ if (process.argv.includes("--check")) {
   if (cleaned.includes("old policy") || !cleaned.startsWith("\n<!-- soulstack:start -->") || !cleaned.endsWith("<!-- gitbutler-agent-setup:end -->\n")) {
     throw new Error("flag cleanup did not keep the tool blocks")
   }
+  if (!(await cleanupLegacyCodex(codexDir, policy, payload, noHook, probe, ledgerFile))) throw new Error("second cleanup must report nothing to strip")
+  if ((await readFile(agents, "utf8")) !== cleaned) throw new Error("second cleanup changed AGENTS.md")
+  await writeFile(agents, legacyFile)
+  if (await cleanupLegacyCodex(codexDir, policy, payload, {}, probe, ledgerFile)) throw new Error("old text with no ledger entry must refuse")
+  if ((await readFile(agents, "utf8")) !== legacyFile) throw new Error("missing ledger entry changed AGENTS.md")
   const realHooks = join(probe, "real-hooks.json")
   await writeFile(realHooks, '{"hooks":{}}\n')
   await unlink(hooks)
@@ -425,8 +432,8 @@ async function cleanupLegacyCodex(
     return false
   }
   const last = ledger[dest]
-  if (last === undefined) {
-    console.log(`No legacy GAP text recorded for ${dest}; nothing to strip`)
+  if (last === CLEANED) {
+    console.log(`Legacy GAP text already stripped from ${dest}; nothing to strip`)
     return true
   }
   let existing: string
@@ -447,14 +454,15 @@ async function cleanupLegacyCodex(
   }
   const cut = ledgerPrefixEnd(existing, last)
   if (cut === undefined) {
-    console.error(`Refusing to strip unmarked Codex policy; prefix does not match the ledger: ${dest}`)
+    const why = last === undefined ? "no ledger entry records the GAP text" : "prefix does not match the ledger"
+    console.error(`Refusing to strip unmarked Codex policy; ${why}: ${dest}`)
     return false
   }
   const backup = backupPath(dest, backupRoot)
   await mkdir(dirname(backup), { recursive: true })
   await copyFile(dest, backup)
   await writeAtomic(dest, existing.slice(cut))
-  delete ledger[dest]
+  ledger[dest] = CLEANED
   await writeLedger(ledgerFile, ledger)
   console.log(`Backed up to ${backup}`)
   console.log(dest)
