@@ -1,0 +1,1 @@
+2026-10-12 Commit + merge GAP todo rule, then npm run sync +config
