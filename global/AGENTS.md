@@ -35,9 +35,10 @@ Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you t
 - Before a non-trivial edit, use codegraph when the project has an index, and name the blast radius or why you skipped it. Details: [codegraph-blast.md](docs/agents/codegraph-blast.md).
 - Investigation is not permission to change code. Details: [scout.md](docs/agents/scout.md).
 - Do not invent skills, slash commands, or APIs that are not installed. Ask before a large swarm. Details: [skills-honesty.md](docs/agents/skills-honesty.md).
-- Do not silently pick git versus GitButler. The nearest project contract wins. Otherwise use git and worktrees. If the project requires GitButler, use `but` and do not invent a plain-git workaround. Details: [vcs-project-wins.md](docs/agents/vcs-project-wins.md).
+- Use GitButler (`but`) for branches, commits, and pushes. Never create a native git worktree: no `git worktree add` and no harness option that isolates work in a worktree. A project contract that names plain git wins on commit tooling, never on worktrees. Details: [vcs-project-wins.md](docs/agents/vcs-project-wins.md).
 - Every new repo uses `master` as its default branch, never `main`. This is mandatory for every creation path: local init, `gh repo create`, the GitHub UI, or a template. For a local repo, run `git init -b master`. If GitHub created the repo with `main`, rename it to `master` before any other work. After the first push, confirm the GitHub default branch is `master`.
 - Follow the project's handoff location. If it names none, use `docs/plans/handoffs/`. Never write a handoff only to `/tmp` or a harness install directory. Details: [handoffs.md](docs/agents/handoffs.md).
+- Track follow-up tasks in `~/todo.txt` through the `tuxedo` CLI (`do-todo-txt` skill when installed). Every plan, spec, and handoff carries a todo.txt section, and its tasks go into the list. Details: [todo-txt.md](docs/agents/todo-txt.md).
 - Use Recall before inventing a memory store. Details: [recall.md](docs/agents/recall.md).
 - If the ask would delete or replace a tree it did not name, stop and confirm the exact paths. When asked to delete, use `trash`, not `rm`.
 

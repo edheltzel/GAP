@@ -1,13 +1,13 @@
-# Git vs GitButler (project wins)
+# GitButler, never worktrees
 
 ## Rules
 
-- Default: git + worktrees unless the project says otherwise.
-- RAM and any repo that requires GitButler: use `but` / GitButler only - never invent a plain-git workaround.
-- The nearest project `AGENTS.md` wins over this home file on VCS tooling.
-- Do not put GitButler mandates in harness-only config for unrelated repos.
+- Default: GitButler. Use `but` for branches, commits, pushes, and undo in every repo in GitButler mode. Never invent a plain-git workaround for something `but` does.
+- A repo not in GitButler mode: ask before running `but setup`. Until then, use plain git branches in the one checkout.
+- Never create a native git worktree. No `git worktree add`, and no harness or subagent option that isolates work in a worktree. For parallel work, use GitButler parallel branches in the same workspace.
+- The nearest project `AGENTS.md` wins on commit tooling when it names plain git. It never permits a worktree.
 - No force-push without asking. Do not push directly to a protected branch. Prefer a PR into the integration branch.
 
 ## Done
 
-You used the VCS tool the project named, not the one you prefer globally.
+The work landed through `but` (or the plain git the project named), and no worktree was created.
