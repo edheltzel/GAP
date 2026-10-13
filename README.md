@@ -53,7 +53,7 @@ If you see `Refusing to replace foreign file`, that file was left in place. The 
 
 The next sync overwrites a file without asking once it matches this publish, or the last publish recorded in `~/.gap/published.json`.
 
-Run sync from the primary branch (`origin/HEAD`, `master` here), not from another branch or a worktree. Sync also refuses when `global/` differs from `origin/HEAD`, so commit, merge and pull before you sync. Empty `CODEX_HOME` means `~/.codex`. A relative value is refused.
+Run sync from the primary branch (`origin/HEAD`, `master` here) or from GitButler's `gitbutler/workspace`, not from another branch or a worktree. Sync also refuses when `global/` differs from `origin/HEAD`, so commit, merge and pull before you sync. Empty `CODEX_HOME` means `~/.codex`. A relative value is refused.
 
 ## Step 3: Check Grok
 

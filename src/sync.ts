@@ -42,7 +42,7 @@ function resolveCodexHome(envValue: string | undefined, homeDir: string): string
 }
 
 function refuseCheckout(branch: string, primary: string, gitDir: string, commonDir: string, unmerged = false): string | undefined {
-  if (branch !== primary) return `refusing to publish from ${branch}; checkout ${primary}`
+  if (branch !== primary && branch !== "gitbutler/workspace") return `refusing to publish from ${branch}; checkout ${primary}`
   if (resolve(repoRoot, gitDir) !== resolve(repoRoot, commonDir)) return "refusing to publish from a worktree"
   if (unmerged) return `refusing to publish: global/ differs from origin/${primary}; commit, merge and pull first`
   return undefined
@@ -143,6 +143,8 @@ if (process.argv.includes("--check")) {
   if (refuseCheckout("side", "master", ".git", ".git") === undefined) throw new Error("non-primary must refuse")
   if (refuseCheckout("main", "master", ".git", ".git") === undefined) throw new Error("main is not primary here")
   if (refuseCheckout("master", "master", ".git", ".git") !== undefined) throw new Error("primary must publish")
+  if (refuseCheckout("gitbutler/workspace", "master", ".git", ".git") !== undefined) throw new Error("GitButler workspace must publish")
+  if (refuseCheckout("gitbutler/workspace", "master", ".git", ".git", true) === undefined) throw new Error("unmerged workspace must refuse")
   if (refuseCheckout("master", "master", ".git/worktrees/x", ".git") === undefined) throw new Error("worktree must refuse")
   if (refuseCheckout("master", "master", ".git", ".git", true) === undefined) throw new Error("unmerged policy must refuse")
   const old = "old policy\n"
