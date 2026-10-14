@@ -6,7 +6,7 @@ The nearest project `AGENTS.md` wins on that project's local contracts. `~/AGENT
 
 ## How this file is loaded
 
-Edit the markdown in this repo, then run `go run ./cmd/gap sync` from the repo root. The CLI writes regular file copies. It does not symlink, and it does not use Stow.
+Edit the markdown in this repo, then run `gap sync` (install it once with `go install ./cmd/gap` from the repo root). It writes regular file copies. It does not symlink, and it does not use Stow.
 
 - Claude reads `~/.claude/rules/global-agent-policy.md`. Do not also point `~/CLAUDE.md` here. An ancestor `CLAUDE.md` suppresses project `AGENTS.md`.
 - Pi reads `~/.pi/agent/APPEND_SYSTEM.md`. Pi does not scan `rules/`. Do not add `SYSTEM.md`.

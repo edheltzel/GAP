@@ -304,16 +304,13 @@ func TestCodexCleanupGates(t *testing.T) {
 	}
 }
 
-// TestSyncEndToEnd runs the built CLI from a throwaway clone on its primary branch against a temp HOME.
+// TestSyncEndToEnd builds the CLI inside a throwaway clone on its primary branch, then runs it
+// from outside any repo against a temp HOME. The clone gets this tree's Go files so uncommitted code is tested.
 func TestSyncEndToEnd(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
 	tmp := t.TempDir()
-	bin := filepath.Join(tmp, "gap")
-	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
-		t.Fatalf("build: %v\n%s", err, out)
-	}
 	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
@@ -329,13 +326,24 @@ func TestSyncEndToEnd(t *testing.T) {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
 	}
+	sources, _ := filepath.Glob("*.go")
+	for _, src := range append(sources, "../../go.mod") {
+		rel, _ := filepath.Rel(".", src)
+		write(t, filepath.Join(clone, "cmd", "gap", rel), readString(t, src))
+	}
+	bin := filepath.Join(tmp, "gap")
+	build := exec.Command("go", "build", "-o", bin, "./cmd/gap")
+	build.Dir = clone
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
 	home := filepath.Join(tmp, "home")
 	codex := filepath.Join(home, ".codex")
 	write(t, filepath.Join(codex, "hooks.json"), `{"hooks":{"SubagentStart":[{"hooks":[{"type":"command","command":"keep"}]}]}}`+"\n")
 	write(t, filepath.Join(codex, "AGENTS.md"), legacyFile)
 	cli := func(args ...string) int {
 		cmd := exec.Command(bin, append([]string{"sync"}, args...)...)
-		cmd.Dir = clone
+		cmd.Dir = tmp
 		cmd.Env = append(os.Environ(), "HOME="+home, "CODEX_HOME=", "GAP_SOURCE=")
 		err := cmd.Run()
 		var exit *exec.ExitError

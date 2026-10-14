@@ -15,13 +15,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
 
 const (
 	usage     = "usage: gap sync [--remove-codex-legacy]"
-	trustLine = "Trust both GAP hooks (SessionStart and SubagentStart) in Codex with /hooks, confirm a session and a subagent both get the policy, then run: go run ./cmd/gap sync --remove-codex-legacy"
+	trustLine = "Trust both GAP hooks (SessionStart and SubagentStart) in Codex with /hooks, confirm a session and a subagent both get the policy, then run: gap sync --remove-codex-legacy"
 	// Ledger value for Codex AGENTS.md once its legacy GAP prefix is stripped; never a sha256 digest.
 	cleaned = "cleaned"
 )
@@ -70,12 +71,9 @@ func syncAll(removeLegacy bool) error {
 	if err != nil {
 		return err
 	}
-	repoRoot, err := git(".", "rev-parse", "--show-toplevel")
+	repoRoot, err := sourceRoot()
 	if err != nil {
-		return errors.New("run gap from inside the GAP repo")
-	}
-	if _, err := os.Stat(filepath.Join(repoRoot, "global", "AGENTS.md")); err != nil {
-		return fmt.Errorf("run gap from inside the GAP repo: %s has no global/AGENTS.md", repoRoot)
+		return err
 	}
 	docsDir = filepath.Join(repoRoot, "global", "docs", "agents")
 	co, err := readCheckout(repoRoot)
@@ -145,6 +143,20 @@ func syncAll(removeLegacy bool) error {
 		return errSkipped
 	}
 	return nil
+}
+
+// sourceRoot is the checkout gap was built from, so `gap sync` publishes that checkout from any directory.
+// ponytail: compile-time path; moving the checkout or building with -trimpath needs a fresh `go install ./cmd/gap`.
+func sourceRoot() (string, error) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok || !filepath.IsAbs(file) {
+		return "", errors.New("gap was built without its source path; run go install ./cmd/gap from the GAP checkout")
+	}
+	root := filepath.Dir(filepath.Dir(filepath.Dir(file)))
+	if _, err := os.Stat(filepath.Join(root, "global", "AGENTS.md")); err != nil {
+		return "", fmt.Errorf("gap was built from %s, which has no global/AGENTS.md; run go install ./cmd/gap from the GAP checkout", root)
+	}
+	return root, nil
 }
 
 func git(dir string, args ...string) (string, error) {
