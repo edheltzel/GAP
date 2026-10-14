@@ -9,33 +9,55 @@
 
 # GAP
 
-GAP is the global agent policy. Edit `global/AGENTS.md`, then publish that file into the paths Claude, Pi, OMP, Codex, and Cursor already read. Grok reads the Claude copy.
+GAP is the global agent policy: one set of rules that every coding agent on this machine follows. You write the rules once in `global/AGENTS.md`. One command copies them into the file each agent app already reads.
 
-Stay in this directory.
+![One AGENTS.md file is published by npm run sync into Claude, Pi, OMP, Codex, and Cursor. Grok reads the Claude copy.](docs/images/publish-overview.webp)
 
-## Prerequisites
+This tutorial walks you through one full change, from editing a rule to seeing it in every agent. Run every command from the root of this repo.
 
-- Node 24 or newer
+## Before you start
+
+You need Node 24 or newer. The sync script runs on Node, even if you start it with Bun, pnpm, or Vite+.
 
 ```bash
 node -v
 ```
 
-You should see `v24` or newer. If the shell says command not found, install Node 24 and return here.
+You should see `v24` or higher. You don't need an install step. The script has no runtime dependencies.
+
+Use any of these four runners. They all start the same script. Only npm needs `--` before a flag.
+
+| What you want | npm | pnpm | Bun | Vite+ |
+| --- | --- | --- | --- | --- |
+| Publish the policy | `npm run sync` | `pnpm sync` | `bun run sync` | `vp run sync` |
+| Run the self-test | `npm run sync -- --check` | `pnpm sync --check` | `bun run sync --check` | `vp run sync --check` |
+| Remove old Codex text | `npm run sync -- --remove-codex-legacy` | `pnpm sync --remove-codex-legacy` | `bun run sync --remove-codex-legacy` | `vp run sync --remove-codex-legacy` |
+
+The rest of this guide shows npm. Swap in your runner's command from the table.
 
 ## Step 1: Edit the policy
 
-Open `global/AGENTS.md`. Change one line you can spot later. Longer notes live in `global/docs/agents/`. Do not add a second policy file for one harness.
+Open `global/AGENTS.md` and change one line you'll recognize later. Save the file.
 
-Save the file.
+That file is the whole contract. Longer explanations it links to live in `global/docs/agents/`. Don't make a separate policy file for one agent. Every agent should read the same rules.
 
-## Step 2: Publish
+## Step 2: Merge before you publish
+
+Sync only publishes rules that are already merged. It refuses in three cases:
+
+- You're on a branch other than `master` or GitButler's `gitbutler/workspace`.
+- You're in a git worktree.
+- `global/` differs from `origin/HEAD`.
+
+So commit your edit, merge it, and pull `master` before the next step. This keeps every agent on reviewed rules.
+
+## Step 3: Publish
 
 ```bash
 npm run sync
 ```
 
-Sync prints an absolute path for each of these:
+Sync prints one line for each file it wrote:
 
 ```text
 ~/.claude/rules/global-agent-policy.md
@@ -45,37 +67,74 @@ Sync prints an absolute path for each of these:
 ~/.cursor/rules/global-agent-policy.mdc
 ```
 
-Each path is a regular file, not a symlink.
+Each one is a real file, not a symlink. Start a new session in any agent and your changed line is there.
 
-If sync asks about an existing file, type `y`. Sync moves that file under `~/.gap/backups/` and prints the path. Read the backup. Put anything you still want into `global/AGENTS.md`, then run `npm run sync` again. Codex policy is a file GAP owns alone. Two hooks print it: SessionStart for sessions and SubagentStart for subagents. Sync leaves the old policy text in `~/.codex/AGENTS.md`, so Codex loads the policy twice until you clean it up. Trust both hooks with `/hooks`, confirm a Codex session and a subagent both get the policy, then run `npm run sync -- --remove-codex-legacy`. The flag refuses unless both hooks were already in `hooks.json` before that run. Empty `CODEX_HOME` means `~/.codex`. A relative value is refused.
+## Step 4: Answer if sync asks about a file
 
-If you see `Refusing to replace foreign file`, that file was left in place. The other destinations still publish. Run the same command in a terminal and type `y` to replace the refused file.
+Sync remembers what it wrote last time. It keeps a fingerprint of each file in `~/.gap/published.json`. That lets it tell its own copy apart from one that you or another tool edited.
 
-The next sync overwrites a file without asking once it matches this publish, or the last publish recorded in `~/.gap/published.json`.
+![If the file is missing, unchanged, or matches the last publish, sync overwrites it. If someone edited it, sync asks y/n. Yes backs it up and writes. No answer skips that file.](docs/images/existing-file.webp)
 
-Run sync from the primary branch (`origin/HEAD`, `master` here) or from GitButler's `gitbutler/workspace`, not from another branch or a worktree. Sync also refuses when `global/` differs from `origin/HEAD`, so commit, merge and pull before you sync. Empty `CODEX_HOME` means `~/.codex`. A relative value is refused.
+If sync asks before replacing a file:
 
-## Step 3: Check Grok
+1. Type `y`. Sync copies the old file under `~/.gap/backups/` and prints where it went.
+2. Open that backup. Move anything you still want into `global/AGENTS.md`.
+3. Merge that change and run `npm run sync` again.
 
-Grok reads `~/.claude/rules/global-agent-policy.md` when Claude compatibility is on. That is the default. Sync does not write a Grok file. A second file would load the policy twice.
+If sync can't ask, it prints `Refusing to replace foreign file` and leaves that one file alone. This happens when an agent runs it, not you. The other files still publish, and the command exits with an error. Run it yourself in a terminal to answer the question.
+
+## Step 5: Set up Codex once
+
+Codex doesn't have a rules folder, so GAP gives it the policy through two hooks. Sync adds both to `~/.codex/hooks.json`. Each one prints the policy file when a session or subagent starts.
+
+![Two hooks, SessionStart and SubagentStart, cat ~/.codex/gap/global-agent-policy.md into each Codex session and subagent.](docs/images/codex-hooks.webp)
+
+Codex asks you to trust new hooks before it runs them:
+
+1. Open Codex and run `/hooks`. Trust both GAP hooks.
+2. Start a session and a subagent. Confirm both see the policy.
+
+Older setups also kept the policy text inside `~/.codex/AGENTS.md`, so Codex loads it twice. Once both hooks work, remove that old copy:
+
+```bash
+npm run sync -- --remove-codex-legacy
+```
+
+The flag refuses unless both hooks were already in `hooks.json` before that run. Running it again on a clean machine is safe. It reports that there's nothing to strip.
+
+GAP uses `~/.codex` unless you set `CODEX_HOME`. An empty `CODEX_HOME` counts as unset. A relative path is refused.
+
+## Step 6: Check Grok
+
+Grok has no file of its own. It reads the Claude copy when Claude compatibility is on, which is the default.
 
 ```bash
 grok inspect
 ```
 
-You should see `~/.claude/rules/global-agent-policy.md` in the global rules list.
+Look for `~/.claude/rules/global-agent-policy.md` in the global rules list. If it's missing, turn Claude compatibility back on. Don't add a Grok file. A second copy would load the policy twice.
 
-If that line is missing, Claude compatibility is off. Turn it back on. Do not add a Grok destination unless Grok loads some other path.
+## Reference
 
-## Where each file goes
+### Where each agent reads the policy
 
-| Harness | File it reads |
+| Agent | File it reads |
 | --- | --- |
 | Claude | `~/.claude/rules/global-agent-policy.md` |
 | Pi | `~/.pi/agent/APPEND_SYSTEM.md` |
 | OMP | `~/.omp/agent/APPEND_SYSTEM.md` |
-| Codex | `~/.codex/gap/global-agent-policy.md`, printed by SessionStart and SubagentStart hooks |
+| Codex | `~/.codex/gap/global-agent-policy.md`, printed by the SessionStart and SubagentStart hooks |
 | Cursor | `~/.cursor/rules/global-agent-policy.mdc` |
-| Grok | no extra file; reads the Claude rules file |
+| Grok | No file of its own. It reads the Claude copy. |
 
-Do not point `~/CLAUDE.md` at the shared file. Claude looks through parent folders for `CLAUDE.md`. A file at `~/CLAUDE.md` sits above every project and stops Claude from reading that project's `AGENTS.md`.
+### Don't create `~/CLAUDE.md`
+
+Claude searches parent folders for `CLAUDE.md`. A file at `~/CLAUDE.md` sits above every project, and it stops Claude from reading that project's `AGENTS.md`. The Claude rules file above already covers every project.
+
+### Self-test
+
+```bash
+npm run sync -- --check
+```
+
+This runs sync against throwaway folders in your temp directory and checks its decisions. It never touches your real agent files. It exits `0` when everything passes.

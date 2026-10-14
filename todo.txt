@@ -1,2 +1,3 @@
 x 2026-10-12 2026-10-12 Commit + merge GAP todo rule, then npm run sync +config pr:https://github.com/edheltzel/agent-config/pull/70
-2026-10-13 Ship sync gitbutler/workspace gate change (src/sync.ts, README, AGENTS.md) via but branch + PR +gap
+x 2026-10-14 2026-10-13 Ship sync gitbutler/workspace gate change (src/sync.ts, README, AGENTS.md) via but branch + PR +gap
+2026-10-14 Commit README tutorial rewrite, docs/images, and legacy file removal via but branch + PR +gap
