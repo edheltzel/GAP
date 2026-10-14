@@ -24,4 +24,4 @@ After a shared markdown change is merged and pulled, run `go run ./cmd/gap sync`
 - Change a shared rule in `global/`, then sync. Do not paste the rule into a harness home by hand.
 - Add a harness destination in `cmd/gap/main.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
 - `docs/solutions/` holds documented solutions to past problems, by category, with YAML frontmatter (`module`, `tags`, `problem_type`). `CONCEPTS.md` is the shared domain vocabulary. Relevant when implementing or debugging in a documented area, or when a domain word is unclear.
-- Go 1.26 or newer. Standard library only, plus `golang.org/x/term` for the TTY check. `go test ./...` is the self-test.
+- Go 1.24 or newer. No extra runtime dependencies. `go test ./...` is the self-test.

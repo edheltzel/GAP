@@ -17,8 +17,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"golang.org/x/term"
 )
 
 const (
@@ -442,7 +440,7 @@ func publish(source, dest string, cursor bool, ledger map[string]string, ledgerF
 		return false, err
 	}
 	if symlink || !ours(existing, exists, payload, ledger[dest]) {
-		if !allowPrompt || !term.IsTerminal(int(os.Stdin.Fd())) {
+		if !allowPrompt || !stdinIsTerminal() {
 			return refuse("Refusing to replace foreign file (no prompt): %s", dest)
 		}
 		backup := backupPath(dest, backupRoot)

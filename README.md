@@ -15,7 +15,7 @@ GAP is a Global Agent Policy. It's set of rules that every coding agent on your 
 
 ## Prereq:
 
-You need Go 1.26+ to run the `gap` CLI.
+You need Go 1.24+ to run the `gap` CLI.
 
 ```bash
 go version
