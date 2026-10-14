@@ -1,0 +1,374 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+const (
+	source     = "See [x](docs/agents/dox.md).\n"
+	policyPath = "/h/.codex/gap/global-agent-policy.md"
+	legacyFile = "old policy\n\n<!-- soulstack:start -->\nkeep\n<!-- soulstack:end -->\n<!-- gitbutler-agent-setup:start -->\nbut\n<!-- gitbutler-agent-setup:end -->\n"
+)
+
+func TestMain(m *testing.M) {
+	docsDir = "/repo/global/docs/agents"
+	os.Exit(m.Run())
+}
+
+func TestOurs(t *testing.T) {
+	payload := adapt(source, false)
+	cases := []struct {
+		name          string
+		existing      string
+		exists        bool
+		payload, last string
+		want          bool
+	}{
+		{"missing file", "", false, payload, "", true},
+		{"matching payload", payload, true, payload, "", true},
+		{"source bytes are not the publish", source, true, payload, "", false},
+		{"other text", "other\n", true, payload, "", false},
+		{"last publish re-syncs", "old publish\n", true, "new publish\n", digest("old publish\n"), true},
+		{"hand edit", "hand edit\n", true, "new publish\n", digest("old publish\n"), false},
+	}
+	for _, c := range cases {
+		if got := ours(c.existing, c.exists, c.payload, c.last); got != c.want {
+			t.Errorf("%s: ours = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestAdapt(t *testing.T) {
+	payload := adapt(source, false)
+	if payload != "See [x](/repo/global/docs/agents/dox.md).\n" {
+		t.Fatalf("link not rewritten: %q", payload)
+	}
+	if adapt("no newline", false) != "no newline\n" {
+		t.Fatal("missing trailing newline")
+	}
+	wrapped := adapt(source, true)
+	if wrapped != "---\nalwaysApply: true\n---\n\n"+payload {
+		t.Fatalf("cursor wrap drifted: %q", wrapped)
+	}
+}
+
+func TestResolveCodexHome(t *testing.T) {
+	for env, want := range map[string]string{"": "/h/.codex", "/abs/codex": "/abs/codex"} {
+		if got, err := resolveCodexHome(env, "/h"); err != nil || got != want {
+			t.Errorf("CODEX_HOME=%q: got %q, %v", env, got, err)
+		}
+	}
+	for _, bad := range []string{"codex", "~/.codex", "rel/codex"} {
+		if _, err := resolveCodexHome(bad, "/h"); err == nil {
+			t.Errorf("relative CODEX_HOME must fail: %s", bad)
+		}
+	}
+}
+
+func TestRefuseCheckout(t *testing.T) {
+	cases := []struct {
+		name   string
+		c      checkout
+		refuse bool
+	}{
+		{"non-primary", checkout{"side", "master", ".git", ".git", false}, true},
+		{"main is not primary here", checkout{"main", "master", ".git", ".git", false}, true},
+		{"primary", checkout{"master", "master", ".git", ".git", false}, false},
+		{"GitButler workspace", checkout{"gitbutler/workspace", "master", ".git", ".git", false}, false},
+		{"unmerged workspace", checkout{"gitbutler/workspace", "master", ".git", ".git", true}, true},
+		{"worktree", checkout{"master", "master", ".git/worktrees/x", ".git", false}, true},
+		{"unmerged primary", checkout{"master", "master", ".git", ".git", true}, true},
+	}
+	for _, c := range cases {
+		if got := refuseCheckout("/repo", c.c) != ""; got != c.refuse {
+			t.Errorf("%s: refused = %v, want %v", c.name, got, c.refuse)
+		}
+	}
+}
+
+func TestLedgerPrefixEnd(t *testing.T) {
+	old := "old policy\n"
+	cut, ok := ledgerPrefixEnd(legacyFile, digest(old))
+	if !ok || cut != len(old) || !strings.HasPrefix(legacyFile[cut:], "\n<!-- soulstack:start -->") {
+		t.Fatalf("ledger cut missed the prefix: %d %v", cut, ok)
+	}
+	if _, ok := ledgerPrefixEnd(legacyFile, digest("nope\n")); ok {
+		t.Fatal("unmatched prefix must refuse")
+	}
+}
+
+func decodeHooks(t *testing.T, text string) map[string]any {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(text), &doc); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, text)
+	}
+	return doc["hooks"].(map[string]any)
+}
+
+func TestInsertGapHook(t *testing.T) {
+	t.Run("empty hooks gains both events", func(t *testing.T) {
+		out, res := insertGapHook("{\n  \"hooks\": {}\n}\n", policyPath)
+		if res != hookChanged {
+			t.Fatal("missing hooks file failed")
+		}
+		hooks := decodeHooks(t, out)
+		session := hooks["SessionStart"].([]any)[0].(map[string]any)
+		if session["matcher"] != "startup|resume|clear|compact" {
+			t.Fatalf("matcher missing: %v", session)
+		}
+		if _, has := hooks["SubagentStart"].([]any)[0].(map[string]any)["matcher"]; has {
+			t.Fatal("SubagentStart entry must not be scoped")
+		}
+	})
+
+	t.Run("live shape keeps other entries and is idempotent", func(t *testing.T) {
+		live := `{"hooks":{"SessionStart":[{"hooks":[{"command":"keep","timeout":10,"type":"command"}],"matcher":""}],"Stop":[{"hooks":[{"command":"stop","type":"command"}]}]}}`
+		out, res := insertGapHook(live, policyPath)
+		if res != hookChanged {
+			t.Fatal("live-shaped hooks failed")
+		}
+		before, after := decodeHooks(t, live), decodeHooks(t, out)
+		if !reflect.DeepEqual(after["Stop"], before["Stop"]) {
+			t.Fatal("Stop changed")
+		}
+		sessions := after["SessionStart"].([]any)
+		if !reflect.DeepEqual(sessions[0], before["SessionStart"].([]any)[0]) || len(sessions) != 2 {
+			t.Fatalf("SessionStart not appended: %v", sessions)
+		}
+		if _, res := insertGapHook(out, policyPath); res != hookPresent {
+			t.Fatal("hook insert was not idempotent")
+		}
+	})
+
+	t.Run("SessionStart-only install gains SubagentStart", func(t *testing.T) {
+		sessionOnly := `{"hooks":{"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"cat '/h/.codex/gap/global-agent-policy.md'","timeout":10,"additionalContextLimit":0}]}],"SubagentStart":[{"hooks":[{"command":"keep","type":"command"}]}]}}`
+		out, res := insertGapHook(sessionOnly, policyPath)
+		if res != hookChanged {
+			t.Fatal("upgrade failed")
+		}
+		before, after := decodeHooks(t, sessionOnly), decodeHooks(t, out)
+		if !reflect.DeepEqual(after["SessionStart"], before["SessionStart"]) {
+			t.Fatal("upgrade changed SessionStart")
+		}
+		subs := after["SubagentStart"].([]any)
+		if subs[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)["command"] != "keep" {
+			t.Fatal("upgrade shifted SubagentStart entries")
+		}
+		gap := subs[1].(map[string]any)
+		if _, has := gap["matcher"]; has || gap["hooks"].([]any)[0].(map[string]any)["command"] != hookCommand(policyPath) {
+			t.Fatalf("SubagentStart GAP entry missing or scoped: %v", gap)
+		}
+	})
+
+	t.Run("refuses what it cannot edit", func(t *testing.T) {
+		for _, bad := range []string{"{", "null", `{"hooks":null}`, `{"hooks":{"SessionStart":{}}}`, `{"hooks":{}} {}`} {
+			if _, res := insertGapHook(bad, policyPath); res != hookMalformed {
+				t.Errorf("%q must refuse", bad)
+			}
+		}
+	})
+
+	t.Run("keeps HTML characters and big numbers", func(t *testing.T) {
+		out, _ := insertGapHook(`{"hooks":{},"x":"a<b>&c","n":12345678901234567890}`, policyPath)
+		if !strings.Contains(out, `"a<b>&c"`) || !strings.Contains(out, "12345678901234567890") {
+			t.Fatalf("values rewritten: %s", out)
+		}
+	})
+}
+
+func readString(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func write(t *testing.T, path, text string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestForeignSkipOnlyItself(t *testing.T) {
+	dir := t.TempDir()
+	ledgerFile := filepath.Join(dir, "published.json")
+	foreign, other := filepath.Join(dir, "foreign.md"), filepath.Join(dir, "other.md")
+	write(t, foreign, "nope\n")
+	ledger := map[string]string{}
+	wroteForeign, err := publish(source, foreign, false, ledger, ledgerFile, false, dir)
+	if err != nil || wroteForeign {
+		t.Fatalf("foreign must be refused: %v %v", wroteForeign, err)
+	}
+	wroteOther, err := publish(source, other, false, ledger, ledgerFile, false, dir)
+	if err != nil || !wroteOther {
+		t.Fatalf("foreign skip blocked the next write: %v", err)
+	}
+	if readString(t, foreign) != "nope\n" {
+		t.Fatal("foreign file was replaced")
+	}
+	if readString(t, other) != adapt(source, false) {
+		t.Fatal("other destination was not published")
+	}
+	saved, err := readLedger(ledgerFile)
+	if err != nil || saved[other] != digest(adapt(source, false)) || saved[foreign] != "" {
+		t.Fatalf("ledger wrong: %v %v", saved, err)
+	}
+}
+
+func TestCodexCleanupGates(t *testing.T) {
+	dir := t.TempDir()
+	codex := filepath.Join(dir, "codex")
+	policy := filepath.Join(codex, "gap", "global-agent-policy.md")
+	agents := filepath.Join(codex, "AGENTS.md")
+	hooks := filepath.Join(codex, "hooks.json")
+	ledgerFile := filepath.Join(dir, "published.json")
+	payload := adapt(source, false)
+
+	write(t, policy, "foreign policy\n")
+	write(t, agents, "keep agents\n")
+	write(t, hooks, `{"hooks":{"Stop":[]}}`+"\n")
+	wrote, err := publish(source, policy, false, map[string]string{}, ledgerFile, false, dir)
+	if err != nil || wrote {
+		t.Fatal("foreign policy must be refused")
+	}
+	if ok, err := afterCodexPublish(wrote, policy, payload, codex, dir); err != nil || !ok {
+		t.Fatal("refused policy must not fail the hook gate")
+	}
+	if readString(t, agents) != "keep agents\n" || readString(t, hooks) != `{"hooks":{"Stop":[]}}`+"\n" {
+		t.Fatal("refused policy changed Codex files")
+	}
+
+	write(t, policy, payload)
+	write(t, agents, legacyFile)
+	write(t, hooks, `{"hooks":{}}`+"\n")
+	ledger := map[string]string{agents: digest("old policy\n")}
+	if ok, _ := cleanupLegacyCodex(codex, policy, payload, ledger, dir, ledgerFile); ok {
+		t.Fatal("cleanup must refuse when the hook is missing")
+	}
+	if ok, err := afterCodexPublish(true, policy, payload, codex, dir); err != nil || !ok {
+		t.Fatalf("default publish failed: %v", err)
+	}
+	if readString(t, agents) != legacyFile {
+		t.Fatal("default run changed AGENTS.md")
+	}
+
+	write(t, policy, "foreign policy\n")
+	if ok, _ := cleanupLegacyCodex(codex, policy, payload, ledger, dir, ledgerFile); ok || readString(t, agents) != legacyFile {
+		t.Fatal("cleanup must refuse when the policy file is foreign")
+	}
+
+	write(t, policy, payload)
+	if ok, err := cleanupLegacyCodex(codex, policy, payload, ledger, dir, ledgerFile); err != nil || !ok {
+		t.Fatalf("cleanup failed: %v", err)
+	}
+	stripped := readString(t, agents)
+	if stripped != legacyFile[len("old policy\n"):] {
+		t.Fatalf("cleanup did not keep the tool blocks: %q", stripped)
+	}
+	if ok, _ := cleanupLegacyCodex(codex, policy, payload, ledger, dir, ledgerFile); !ok || readString(t, agents) != stripped {
+		t.Fatal("second cleanup must be a no-op")
+	}
+
+	write(t, agents, legacyFile)
+	if ok, _ := cleanupLegacyCodex(codex, policy, payload, map[string]string{}, dir, ledgerFile); ok || readString(t, agents) != legacyFile {
+		t.Fatal("old text with no ledger entry must refuse")
+	}
+
+	target := filepath.Join(dir, "real-hooks.json")
+	write(t, target, `{"hooks":{}}`+"\n")
+	if err := os.Remove(hooks); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, hooks); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := afterCodexPublish(true, policy, payload, codex, dir); ok {
+		t.Fatal("symlinked hooks.json must refuse")
+	}
+	if info, err := os.Lstat(hooks); err != nil || !isSymlink(info) || readString(t, target) != `{"hooks":{}}`+"\n" {
+		t.Fatal("symlinked hooks.json changed")
+	}
+}
+
+// TestSyncEndToEnd runs the built CLI from a throwaway clone on its primary branch against a temp HOME.
+func TestSyncEndToEnd(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	tmp := t.TempDir()
+	bin := filepath.Join(tmp, "gap")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clone := filepath.Join(tmp, "repo")
+	for _, args := range [][]string{
+		{"clone", "-q", root, clone},
+		{"-C", clone, "checkout", "-q", "-B", "master", "HEAD"},
+		{"-C", clone, "update-ref", "refs/remotes/origin/master", "HEAD"},
+		{"-C", clone, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	home := filepath.Join(tmp, "home")
+	codex := filepath.Join(home, ".codex")
+	write(t, filepath.Join(codex, "hooks.json"), `{"hooks":{"SubagentStart":[{"hooks":[{"type":"command","command":"keep"}]}]}}`+"\n")
+	write(t, filepath.Join(codex, "AGENTS.md"), legacyFile)
+	cli := func(args ...string) int {
+		cmd := exec.Command(bin, append([]string{"sync"}, args...)...)
+		cmd.Dir = clone
+		cmd.Env = append(os.Environ(), "HOME="+home, "CODEX_HOME=", "GAP_SOURCE=")
+		err := cmd.Run()
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			return exit.ExitCode()
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		return 0
+	}
+
+	if code := cli(); code != 0 {
+		t.Fatalf("publish exited %d", code)
+	}
+	for _, dest := range []string{".claude/rules/global-agent-policy.md", ".pi/agent/APPEND_SYSTEM.md", ".omp/agent/APPEND_SYSTEM.md", ".codex/gap/global-agent-policy.md", ".cursor/rules/global-agent-policy.mdc"} {
+		if _, err := os.Lstat(filepath.Join(home, dest)); err != nil {
+			t.Errorf("not published: %s", dest)
+		}
+	}
+	hooks := decodeHooks(t, readString(t, filepath.Join(codex, "hooks.json")))
+	subs, sessions := hooks["SubagentStart"].([]any), hooks["SessionStart"].([]any)
+	if len(subs) != 2 || len(sessions) != 1 || subs[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)["command"] != "keep" {
+		t.Fatalf("hooks.json not appended as expected: %v", hooks)
+	}
+	if readString(t, filepath.Join(codex, "AGENTS.md")) != legacyFile {
+		t.Fatal("default run changed AGENTS.md")
+	}
+	if code := cli("--remove-codex-legacy"); code != 1 || readString(t, filepath.Join(codex, "AGENTS.md")) != legacyFile {
+		t.Fatal("flag must refuse old text with no ledger entry")
+	}
+	write(t, filepath.Join(clone, "global", "AGENTS.md"), "unmerged\n")
+	if code := cli(); code != 1 {
+		t.Fatal("unmerged global/ must refuse")
+	}
+}

@@ -11,25 +11,25 @@
 
 GAP is a Global Agent Policy. It's set of rules that every coding agent on your machine follows. You or Agents write the rules once in `global/AGENTS.md` and then a sinlge command copies them into your harness.
 
-![One AGENTS.md file to rule them all. run npm run sync into Claude, Pi, OMP, Codex, and Cursor. Grok reads the Claude copy.](docs/images/publish-overview.webp)
+![One AGENTS.md file to rule them all. run sync into Claude, Pi, OMP, Codex, and Cursor. Grok reads the Claude copy.](docs/images/publish-overview.webp)
 
 ## Prereq:
 
-You need Node 24+,  to run the sync script. 
+You need Go 1.26+ to run the `gap` CLI.
 
 ```bash
-node -v
+go version
 ```
 
 ## TL;DR:
 
-| What you want | npm | pnpm | Bun | Vite+ |
-| --- | --- | --- | --- | --- |
-| Publish the policy | `npm run sync` | `pnpm sync` | `bun run sync` | `vp run sync` |
-| Run the self-test | `npm run sync -- --check` | `pnpm sync --check` | `bun run sync --check` | `vp run sync --check` |
-| Remove old Codex text | `npm run sync -- --remove-codex-legacy` | `pnpm sync --remove-codex-legacy` | `bun run sync --remove-codex-legacy` | `vp run sync --remove-codex-legacy` |
+| What you want | Command |
+| --- | --- |
+| Publish the policy | `go run ./cmd/gap sync` |
+| Run the self-test | `go test ./...` |
+| Remove old Codex text | `go run ./cmd/gap sync --remove-codex-legacy` |
 
-*Any runner will work, just note npm needs `--` before a flag.*
+*`go install ./cmd/gap` puts `gap` on your PATH. Run `gap sync` from inside this repo.*
 
 ## TL;DR;
 
@@ -52,7 +52,7 @@ So commit your edit, merge it, and pull `master` before the next step. This keep
 ### Step 3: Publish
 
 ```bash
-npm run sync
+go run ./cmd/gap sync
 ```
 
 
@@ -77,7 +77,7 @@ If sync asks before replacing a file:
 
 1. Type `y`. Sync copies the old file under `~/.gap/backups/` and prints where it went.
 2. Open that backup. Move anything you still want into `global/AGENTS.md`.
-3. Merge that change and run `npm run sync` again.
+3. Merge that change and run `go run ./cmd/gap sync` again.
 
 If sync can't ask, it prints `Refusing to replace foreign file` and leaves that one file alone. This happens when an agent runs it, not you. The other files still publish, and the command exits with an error. Run it yourself in a terminal to answer the question.
 
@@ -95,7 +95,7 @@ Codex asks you to trust new hooks before it runs them:
 Older setups also kept the policy text inside `~/.codex/AGENTS.md`, so Codex loads it twice. Once both hooks work, remove that old copy:
 
 ```bash
-npm run sync -- --remove-codex-legacy
+go run ./cmd/gap sync --remove-codex-legacy
 ```
 
 The flag refuses unless both hooks were already in `hooks.json` before that run. Running it again on a clean machine is safe. It reports that there's nothing to strip.
@@ -132,7 +132,7 @@ Claude searches parent folders for `CLAUDE.md`. A file at `~/CLAUDE.md` sits abo
 ### Self-test
 
 ```bash
-npm run sync -- --check
+go test ./...
 ```
 
-This runs sync against throwaway folders in your temp directory and checks its decisions. It never touches your real agent files. It exits `0` when everything passes.
+This builds the CLI and runs it against throwaway folders in your temp directory. It never touches your real agent files. It exits `0` when everything passes.
