@@ -450,8 +450,14 @@ func backupPath(dest, root string) string {
 	return filepath.Join(root, ".gap", "backups", stamp, tail)
 }
 
+const replaceWarning = "This harness will no longer load that file. The backup keeps the bytes only. Add to global/AGENTS.md only rules you want every harness to follow."
+
+func replacePrompt(dest, backup string) string {
+	return fmt.Sprintf("%s is not the GAP publish. Move it to %s and replace it with GAP? %s [y/N] ", dest, backup, replaceWarning)
+}
+
 func confirmReplace(dest, backup string) bool {
-	fmt.Printf("%s is not the GAP publish. Move it to %s and replace it with GAP? Review the backup and add anything you want to keep into global/AGENTS.md. [y/N] ", dest, backup)
+	fmt.Print(replacePrompt(dest, backup))
 	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	return strings.ToLower(strings.TrimSpace(line)) == "y"
 }
@@ -502,7 +508,7 @@ func publish(source, dest string, cursor bool, ledger map[string]string, ledgerF
 			return false, err
 		}
 		fmt.Println("Backed up to " + backup)
-		fmt.Println("Review that backup. Add anything you want to keep into global/AGENTS.md.")
+		fmt.Println(replaceWarning)
 	}
 	if err := writeAtomic(dest, payload); err != nil {
 		return false, err
