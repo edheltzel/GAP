@@ -6,3 +6,11 @@ x 2026-10-14 2026-10-14 Merge README tutorial PR +gap pr:https://github.com/edhe
 2026-10-14 D6: a foreign-file backup keeps bytes, not the harness behavior it gave +gap
 2026-10-14 After #74 merged: go install ./cmd/gap, then gap sync from a terminal +gap
 2026-10-14 Rename edheltzel/agent-config to GAP; archive/rename old edheltzel/GAP Go scaffold repo so go install path resolves +gap
+2026-10-15 Decide GitButler vs No Mistakes publish path, add phase-agent exception, publish docs/no-mistakes-autonomous +gap note:docs/plans/handoffs/2026-10-15-no-mistakes-autonomous-policy.md
+2026-10-15 Decide whether to abort stale no-mistakes run 01M4CAEW62RRW7GN17D3RZ8F8T +gap note:docs/plans/handoffs/2026-10-15-no-mistakes-autonomous-policy.md
+2026-10-15 Restore the lost DoSkills --yes fix (fix/no-mistakes-yes discarded 2026-10-15 04:31) or re-apply after the merge +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-requirements.md
+2026-10-15 Plan gap skills (A+B) with do-plan +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-requirements.md
+2026-10-15 Write requirements for (C) gap installs harnesses +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-requirements.md
+2026-10-15 U2 gitleaks scan of agent-config and DoSkills history +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-plan.md
+2026-10-15 U3-U7 build gap skills (manifest, install, drift, docs) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-plan.md
+2026-10-15 U8 publish: flip agent-config public, rename to GAP, archive DoSkills (needs explicit go) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-plan.md
