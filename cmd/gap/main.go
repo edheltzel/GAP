@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 )
@@ -84,11 +85,7 @@ func syncAll(removeLegacy bool) error {
 		return errors.New(refusal)
 	}
 
-	sourcePath := os.Getenv("GAP_SOURCE")
-	if sourcePath == "" {
-		sourcePath = filepath.Join(repoRoot, "global", "AGENTS.md")
-	}
-	raw, err := os.ReadFile(sourcePath)
+	raw, err := os.ReadFile(filepath.Join(repoRoot, "global", "AGENTS.md"))
 	if err != nil {
 		return err
 	}
@@ -159,8 +156,17 @@ func sourceRoot() (string, error) {
 	return root, nil
 }
 
+// gitLocalEnv is `git rev-parse --local-env-vars`. An inherited GIT_DIR (git hooks, bare-repo dotfiles)
+// would otherwise point every checkout check at a different repo.
+var gitLocalEnv = []string{"GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE", "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE", "GIT_INDEX_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX", "GIT_SHALLOW_FILE", "GIT_COMMON_DIR"}
+
 func git(dir string, args ...string) (string, error) {
-	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		name, _, _ := strings.Cut(kv, "=")
+		return slices.Contains(gitLocalEnv, name)
+	})
+	out, err := cmd.Output()
 	return strings.TrimSpace(string(out)), err
 }
 

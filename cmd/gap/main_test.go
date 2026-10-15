@@ -341,10 +341,11 @@ func TestSyncEndToEnd(t *testing.T) {
 	codex := filepath.Join(home, ".codex")
 	write(t, filepath.Join(codex, "hooks.json"), `{"hooks":{"SubagentStart":[{"hooks":[{"type":"command","command":"keep"}]}]}}`+"\n")
 	write(t, filepath.Join(codex, "AGENTS.md"), legacyFile)
+	var extraEnv []string
 	cli := func(args ...string) int {
 		cmd := exec.Command(bin, append([]string{"sync"}, args...)...)
 		cmd.Dir = tmp
-		cmd.Env = append(os.Environ(), "HOME="+home, "CODEX_HOME=", "GAP_SOURCE=")
+		cmd.Env = append(append(os.Environ(), "HOME="+home, "CODEX_HOME="), extraEnv...)
 		err := cmd.Run()
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
@@ -375,8 +376,35 @@ func TestSyncEndToEnd(t *testing.T) {
 	if code := cli("--remove-codex-legacy"); code != 1 || readString(t, filepath.Join(codex, "AGENTS.md")) != legacyFile {
 		t.Fatal("flag must refuse old text with no ledger entry")
 	}
+	// Only merged global/AGENTS.md is published, never a file named in the environment.
+	evil := filepath.Join(tmp, "evil.md")
+	write(t, evil, "not merged\n")
+	extraEnv = []string{"GAP_SOURCE=" + evil}
+	cli()
+	if strings.Contains(readString(t, filepath.Join(home, ".claude", "rules", "global-agent-policy.md")), "not merged") {
+		t.Error("GAP_SOURCE published a file the merge gate never checked")
+	}
+	extraEnv = nil
+
 	write(t, filepath.Join(clone, "global", "AGENTS.md"), "unmerged\n")
 	if code := cli(); code != 1 {
 		t.Fatal("unmerged global/ must refuse")
+	}
+
+	// A GIT_DIR inherited from a hook or a dotfiles shell must not point the gate at another repo.
+	other := filepath.Join(tmp, "other")
+	for _, args := range [][]string{
+		{"init", "-q", "-b", "main", other},
+		{"-C", other, "-c", "user.name=gap", "-c", "user.email=gap@example.com", "commit", "-q", "--allow-empty", "-m", "base"},
+		{"-C", other, "update-ref", "refs/remotes/origin/main", "HEAD"},
+		{"-C", other, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	extraEnv = []string{"GIT_DIR=" + filepath.Join(other, ".git")}
+	if code := cli(); code != 1 {
+		t.Error("GIT_DIR bypassed the unmerged refusal")
 	}
 }
