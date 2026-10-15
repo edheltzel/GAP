@@ -22,8 +22,16 @@ import (
 )
 
 const (
-	usage     = "usage: gap sync [--remove-codex-legacy]"
 	trustLine = "Trust both GAP hooks (SessionStart and SubagentStart) in Codex with /hooks, confirm a session and a subagent both get the policy, then run: gap sync --remove-codex-legacy"
+	usage     = `gap publishes global/AGENTS.md into the file each coding agent already reads.
+
+Usage:
+  gap sync                         Publish global/AGENTS.md to every agent
+  gap sync --remove-codex-legacy   Publish, then strip the old policy copy from ~/.codex/AGENTS.md
+  gap --help                       Show this help
+
+gap publishes the checkout it was installed from. Reinstall with
+go install ./cmd/gap after cmd/gap changes or the repo moves.`
 	// Ledger value for Codex AGENTS.md once its legacy GAP prefix is stripped; never a sha256 digest.
 	cleaned = "cleaned"
 )

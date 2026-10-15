@@ -30,7 +30,10 @@ Check that your shell finds it:
 
 ```bash
 gap --help
-# usage: gap sync [--remove-codex-legacy]
+# gap publishes global/AGENTS.md into the file each coding agent already reads.
+# Usage:
+#   gap sync                         Publish global/AGENTS.md to every agent
+#   ...
 ```
 
 `gap` publishes the checkout it was installed from, so it runs from any folder. Run `go install ./cmd/gap` again after `cmd/gap` changes or after you move the repo. To skip installing, run `go run ./cmd/gap sync` from the repo root.
