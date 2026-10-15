@@ -1,0 +1,8 @@
+ts	phase	decision	why	evidence	result
+2026-10-06T13:28:56Z	plan	Accepted the last-publish ledger as ours and made a foreign file skip only itself	Red team said an all-or-nothing refuse would freeze every harness when Codex was stale	docs/plans/2026-09-27-0932-feat-harness-publish-plan.md:34	plan text updated
+2026-10-06T13:28:56Z	sync	Treated empty CODEX_HOME as unset and refused a relative path	An empty value was about to overwrite this repo's AGENTS.md	src/sync.ts	check passed
+2026-10-06T13:28:56Z	sync	Refused publish unless HEAD is origin/HEAD, which is master here	A hardcoded main gate would refuse the real primary checkout	src/sync.ts	temp checkout on master published; this checkout refused
+2026-10-06T13:28:56Z	pivot	Replaced the Codex gap block with a SessionStart hook, then put the gap block back	A later instruction overrode the hook design and asked for the block again	src/sync.ts	hook path abandoned in the working tree
+2026-10-06T13:28:56Z	verify	Proved a ledger-matched prefix becomes one gap block and the soulstack suffix stays	Needed to show the live file shape without writing the real home	src/sync.ts	passed in a temp HOME; proof files were not kept
+2026-10-06T13:28:56Z	blocker	Stopped when but commit rejected the five-file commit	The plan and sync.ts hunks depend on two applied branches, and the instruction was not to work around that	but status	uncommitted
+2026-10-06T13:30:04Z	audit	The temp-home proof row points at src/sync.ts, which does not contain the proof output	The SHAPE_OK run was not saved to a file, so that evidence does not show the result	decisions.tsv:6	supersedes the verify row; proof output not kept
