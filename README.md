@@ -9,55 +9,65 @@
 
 # GAP
 
-GAP is a Global Agent Policy. It's set of rules that every coding agent on your machine follows. You or Agents write the rules once in `global/AGENTS.md` and then a sinlge command copies them into your harness.
+GAP is a global agent policy: one set of rules that every coding agent on your machine follows. You, or an agent, write the rules once in `global/AGENTS.md`. The `gap sync` command copies them into the file each agent already reads.
 
-![One AGENTS.md file to rule them all. run sync into Claude, Pi, OMP, Codex, and Cursor. Grok reads the Claude copy.](docs/images/publish-overview.webp)
+![One AGENTS.md file, published by gap sync into Claude, Pi, OMP, Codex, and Cursor. Grok reads the Claude copy.](docs/images/publish-overview.webp)
 
-## Prereq:
+## Before you start
 
-You need Go 1.24+ to run the `gap` CLI.
+- Go 1.24 or newer (`go version`)
+- Go's bin folder on your `PATH`: `$(go env GOPATH)/bin`, or `GOBIN` if you set it
+
+## Install `gap`
+
+Run this once from the repo root:
 
 ```bash
-go version
+go install ./cmd/gap
 ```
 
-## TL;DR:
+Check that your shell finds it:
 
-| What you want | Command |
+```bash
+gap --help
+# usage: gap sync [--remove-codex-legacy]
+```
+
+`gap` publishes the checkout it was installed from, so it runs from any folder. Run `go install ./cmd/gap` again after `cmd/gap` changes or after you move the repo. To skip installing, run `go run ./cmd/gap sync` from the repo root.
+
+## Commands
+
+| Command | What it does |
 | --- | --- |
-| Publish the policy | `go run ./cmd/gap sync` |
-| Run the self-test | `go test ./...` |
-| Remove old Codex text | `go run ./cmd/gap sync --remove-codex-legacy` |
+| `gap sync` | Publish `global/AGENTS.md` to every agent |
+| `gap sync --remove-codex-legacy` | Publish, then strip the old policy copy from `~/.codex/AGENTS.md` |
+| `go test ./...` | Run the self-test against throwaway folders |
 
-*`go install ./cmd/gap` puts `gap` on your PATH. Run `gap sync` from inside this repo.*
+## Change the policy
 
-## TL;DR;
+Do these steps every time you change the rules.
 
-### Step 1: Edit the policy
+### Step 1: Edit `global/AGENTS.md`
 
-Open `global/AGENTS.md` and change one line you'll recognize later. Save the file.
+Make your change in `global/AGENTS.md`. Longer notes it links to live in `global/docs/agents/`. Keep one policy for every agent; don't add a policy file for a single agent.
 
-That file is the whole contract. Longer explanations it links to live in `global/docs/agents/`. Don't make a separate policy file for one agent. Every agent should read the same rules.
+### Step 2: Merge the change
 
-### Step 2: Merge before you publish
+Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merged rules. It refuses when:
 
-Sync only publishes rules that are already merged. It refuses in three cases:
+- you're on a branch other than `master` or GitButler's `gitbutler/workspace`
+- you're in a git worktree
+- `global/` differs from `origin/HEAD`
 
-- You're on a branch other than `master` or GitButler's `gitbutler/workspace`.
-- You're in a git worktree.
-- `global/` differs from `origin/HEAD`.
-
-So commit your edit, merge it, and pull `master` before the next step. This keeps every agent on reviewed rules.
-
-### Step 3: Publish
+### Step 3: Run `gap sync`
 
 ```bash
-go run ./cmd/gap sync
+gap sync
 ```
 
+It prints each file it wrote:
 
-Sync prints one line for each file it wrote:
-```shell 
+```text
 ~/.claude/rules/global-agent-policy.md
 ~/.pi/agent/APPEND_SYSTEM.md
 ~/.omp/agent/APPEND_SYSTEM.md
@@ -65,44 +75,37 @@ Sync prints one line for each file it wrote:
 ~/.cursor/rules/global-agent-policy.mdc
 ```
 
-Each one is a real file, not a symlink. Start a new session in any agent and your changed line is there.
+Each is a regular file, not a symlink. Start a new session in any agent to load the new rules.
 
-### Step 4: Answer if sync asks about a file
+### Step 4: Answer if `gap sync` asks about a file
 
-Sync remembers what it wrote last time. It keeps a fingerprint of each file in `~/.gap/published.json`. That lets it tell its own copy apart from one that you or another tool edited.
+`gap sync` asks before it replaces a file that you or another tool edited.
 
-![If the file is missing, unchanged, or matches the last publish, sync overwrites it. If someone edited it, sync asks y/n. Yes backs it up and writes. No answer skips that file.](docs/images/existing-file.webp)
+1. Type `y`. Sync backs up the old file under `~/.gap/backups/` and prints where it went.
+2. Open the backup and move anything you want to keep into `global/AGENTS.md`.
+3. Merge that change and run `gap sync` again.
 
-If sync asks before replacing a file:
+Any other answer leaves that file alone. With no terminal to ask in, such as an agent's shell, sync prints `Refusing to replace foreign file`, skips that file, publishes the rest, and exits `1`. Run `gap sync` yourself in a terminal to answer.
 
-1. Type `y`. Sync copies the old file under `~/.gap/backups/` and prints where it went.
-2. Open that backup. Move anything you still want into `global/AGENTS.md`.
-3. Merge that change and run `go run ./cmd/gap sync` again.
+## Set up Codex (once per machine)
 
-If sync can't ask, it prints `Refusing to replace foreign file` and leaves that one file alone. This happens when an agent runs it, not you. The other files still publish, and the command exits with an error. Run it yourself in a terminal to answer the question.
-
-### Step 5: Set up Codex once
-
-Codex doesn't have a rules folder, so GAP gives it the policy through two hooks. Sync adds both to `~/.codex/hooks.json`. Each one prints the policy file when a session or subagent starts.
+Codex has no rules folder. The first `gap sync` adds two hooks to `~/.codex/hooks.json`, SessionStart and SubagentStart. They print `~/.codex/gap/global-agent-policy.md` into every Codex session and subagent.
 
 ![Two hooks, SessionStart and SubagentStart, cat ~/.codex/gap/global-agent-policy.md into each Codex session and subagent.](docs/images/codex-hooks.webp)
 
-Codex asks you to trust new hooks before it runs them:
-
 1. Open Codex and run `/hooks`. Trust both GAP hooks.
 2. Start a session and a subagent. Confirm both see the policy.
+3. If `~/.codex/AGENTS.md` still holds an old copy of the policy, remove it:
 
-Older setups also kept the policy text inside `~/.codex/AGENTS.md`, so Codex loads it twice. Once both hooks work, remove that old copy:
+   ```bash
+   gap sync --remove-codex-legacy
+   ```
 
-```bash
-go run ./cmd/gap sync --remove-codex-legacy
-```
-
-The flag refuses unless both hooks were already in `hooks.json` before that run. Running it again on a clean machine is safe. It reports that there's nothing to strip.
+   The flag refuses unless both hooks were already in `hooks.json` before that run. On a clean machine it reports that there's nothing to strip.
 
 GAP uses `~/.codex` unless you set `CODEX_HOME`. An empty `CODEX_HOME` counts as unset. A relative path is refused.
 
-### Step 6: Check Grok
+## Check Grok (once per machine)
 
 Grok has no file of its own. It reads the Claude copy when Claude compatibility is on, which is the default.
 
@@ -125,6 +128,12 @@ Look for `~/.claude/rules/global-agent-policy.md` in the global rules list. If i
 | Cursor | `~/.cursor/rules/global-agent-policy.mdc` |
 | Grok | No file of its own. It reads the Claude copy. |
 
+### How sync tells its own files apart
+
+`~/.gap/published.json` holds a fingerprint of each file sync last wrote. Sync overwrites a file without asking when it is missing, matches the new publish, or matches that fingerprint. Anything else counts as edited, and sync asks first.
+
+![If the file is missing, unchanged, or matches the last publish, sync overwrites it. If someone edited it, sync asks y/n. Yes backs it up and writes. No answer skips that file.](docs/images/existing-file.webp)
+
 ### Don't create `~/CLAUDE.md`
 
 Claude searches parent folders for `CLAUDE.md`. A file at `~/CLAUDE.md` sits above every project, and it stops Claude from reading that project's `AGENTS.md`. The Claude rules file above already covers every project.
@@ -135,4 +144,4 @@ Claude searches parent folders for `CLAUDE.md`. A file at `~/CLAUDE.md` sits abo
 go test ./...
 ```
 
-This builds the CLI and runs it against throwaway folders in your temp directory. It never touches your real agent files. It exits `0` when everything passes.
+The test builds `gap` inside a throwaway clone of this repo and runs it against a temporary home folder. It never touches your real agent files. It exits `0` when every check passes.
