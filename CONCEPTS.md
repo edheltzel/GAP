@@ -28,7 +28,7 @@ Who serves a model, and who holds the account, quota, and auth for that call. On
 ## Policy
 
 ### GAP
-The shared agent policy for coding agents. A nearer project policy wins on that project's local contracts. GAP is edited in one place and published outward. It is not a Stow package, and it is not a second full copy pasted into the home directory.
+Global Agent Policies: the shared agent policy for coding agents. A nearer project policy wins on that project's local contracts. GAP is edited in one place and published outward. It is not a Stow package, and it is not a second full copy pasted into the home directory.
 
 ### Depth note
 A longer explanation linked from the GAP policy. It is not the policy contract.
