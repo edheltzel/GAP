@@ -66,6 +66,6 @@ Keep a baseline of skipped functions per file and fail the build when a file ris
 
 **Prose that contradicts a series.** "Nothing accumulates" next to a monotonically rising line fails immediately. Print the series inline, state whether it is monotonic, and if it is, say so and give the unchanged build's slope as the comparison.
 
-**Overclaiming a leak result.** Flat node and listener counts prove there is no DOM or listener leak. They do not prove there is no retained-object leak; that needs a heap-snapshot diff. Say which one you measured.
+**Overclaiming a leak result.** Flat node and listener counts show no measured growth during the sampled cycles; they do not rule out retention. Compare the before and after slopes without assigning a cause or dismissing growth when a series fluctuates. Distinguishing retained objects from uncollected garbage needs a heap-snapshot diff, which this suite does not take.
 
 **Keeping a change that did not pay.** A bundler chunk-grouping rewrite looked clever, was reasoned about at length, and pushed 379 KB into the boot path. Revert it and say so in the change list. A reverted change with its reason is more useful to the next reader than a silent one.

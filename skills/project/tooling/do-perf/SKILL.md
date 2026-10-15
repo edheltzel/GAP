@@ -267,11 +267,8 @@ re-run.
   move by tens of percent between runs of the same binary; counts do not.
   State the observed spread, and say plainly: where a timing and a count
   disagree, believe the count.
-- **State what the method cannot conclude.** If the heap climbs monotonically,
-  say monotonic growth is what a leak looks like, give the unchanged build's
-  slope for comparison, and say that separating retained objects from
-  uncollected garbage needs a heap-snapshot diff this suite does not take. Do
-  not write "no leak" when what you measured is "no DOM or listener leak".
+- **State what the method cannot conclude.** Follow the leak-result limits in
+  [Reporting traps](reference/traps.md#reporting-traps).
 - **List every change at `file:line` with the evidence that motivated it**,
   including the ones you reverted and why.
 

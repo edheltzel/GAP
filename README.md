@@ -49,7 +49,7 @@ gap --help
 
 ## Manage skills
 
-`global/skills.json` lists every skill `gap` manages and where each one comes from. `"source": "."` means a skill in this repo's `skills/` folder; any other source is a GitHub `owner/repo`.
+`global/skills.json` lists every skill `gap` manages and where each one comes from. `"source": "."` means a skill in this repo's `skills/` folder; any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
 
 ```json
 [
@@ -58,7 +58,7 @@ gap --help
 ]
 ```
 
-`gap sync` installs any listed skill that is missing by running skills.sh (`npx skills add <source> -g -a claude-code -a codex`). It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for this step. Without `npx`, sync still publishes the policy, skips the skills, and exits `1`.
+`gap sync` installs missing listed skills by running skills.sh (`npx -y skills add <source> -g -y -a claude-code -a codex -s <name>`, repeating `-s` for each missing skill). It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for installations. If an installation is needed but `npx` is unavailable, sync still publishes the policy, skips the installation, and exits `1`.
 
 Sync also checks every installed managed skill against its source: this repo's folder, or the hash skills.sh recorded at install. For each skill that drifted, it shows the diff and asks:
 
@@ -68,7 +68,7 @@ Sync also checks every installed managed skill against its source: this repo's f
 
 With no terminal to ask in, sync lists the drifted skills, changes none of them, and exits `1`. Skills the manifest doesn't list are never touched.
 
-To add a skill, add it to `global/skills.json`, then run `gap sync`.
+To add a skill, add it to `global/skills.json`, then follow [the merge and publish steps](#step-2-merge-the-change).
 
 ## Change the policy
 

@@ -165,7 +165,7 @@ When you must use everyday objects to help the visual, use technically-drawn, no
 
 The whole image should look like it was made on a whiteboard by an extremely talented artist with Architect training, using all the styling above. Like Excalidraw, but more Architect / Artistic.
 
-All the art components, labels, and such should mostly look hand-drawn, similar to Excalidraw. But roughly in the style of our fonts. 
+All the art components, labels, and such should mostly look hand-drawn, similar to Excalidraw. But roughly in the style of our fonts.
 
 # Execution
 
@@ -234,7 +234,7 @@ After rendering, ensure that you have executed properly by checking this list of
 - [ ] Pure sepia background #EAE9DF (NO grid or decorations)
 - [ ] Elegant wedge-serif for both headers (Valkyrie-style)
 - [ ] Geometric sans labels (Concourse-style)
-- [ ] A title and subtitle in the top left 
+- [ ] A title and subtitle in the top left
 - [ ] 1-3 Condensed italic insights (Advocate-style)
 - [ ] Strategic color usage (for accents, 70% different shades of grey and black)
 - [ ] Highly technical, stylish, Architect-style look and feel, Excalidraw with style!
@@ -244,4 +244,3 @@ After rendering, ensure that you have executed properly by checking this list of
 - [ ] Generic or ugly fonts
 - [ ] Cartoony or overly casual shapes or styling
 - [ ] Over-coloring (everything purple/teal)
-

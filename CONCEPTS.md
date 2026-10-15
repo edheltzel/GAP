@@ -37,7 +37,7 @@ A longer explanation linked from the GAP policy. It is not the policy contract.
 The step that copies the current GAP policy into the files each harness already reads. A harness that already reads another harness's copy does not get its own.
 *Avoid:* sync
 
-Sync is only the command name for the same step.
+`gap sync` runs this step and manages skills. Publish names only the policy-copying step.
 
 ### Managed skill
 A skill listed in `global/skills.json`. `gap sync` installs it when it's missing and checks it for drift from its source. A skill the manifest doesn't list is unmanaged, and `gap` never touches it.
@@ -52,6 +52,5 @@ Publish replacing a harness file that differs from the current policy, and is no
 
 ## Flagged ambiguities
 
-- "sync" names the command. "publish" names the step. They are the same action.
 - "ADE" has also been expanded as AI/Agent Development Environment. This file uses Agentic Development Environment.
 - A product name is not a harness, a model, and a provider at once. Say which one you mean.
