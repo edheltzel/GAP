@@ -116,11 +116,6 @@ CODEX_IMAGE_FEATURE = "image_generation"
 # Grok backend: `grok -p` is the headless single-turn mode (equivalent of
 # `codex exec`); the agent fires image_gen/image_edit and saves to a path.
 GROK_EXEC_TIMEOUT = 600
-# Grok drops the raw image_gen artifact here before the agent copies it to the
-# requested path: $GROK_HOME/sessions/<url-encoded-cwd>/<session-uuid>/images/.
-# Resolved at run time; GROK_HOME is a path, not a secret, so reading it is allowed.
-GROK_SESSIONS_SUBDIR = "sessions"
-GROK_MTIME_SKEW = 2.0
 # Secret-shaped tokens we strip from any captured subprocess output before it
 # could reach a terminal (redact, never print raw stdout/stderr).
 SECRET_RE = re.compile(r"\b(sk-[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_.-]+)")
@@ -1114,38 +1109,16 @@ def _codex_thread_id(output):
     return None
 
 
-def _freshest_generated_image(since, exclude=None, thread_id=None):
-    """Newest $CODEX_HOME/generated_images/<session-id>/<image> that postdates
-    `since` (a wall-clock float captured just before this exec ran), or None.
-    The recency floor is mandatory: the dir is shared across renders and across
-    concurrent codex sessions, so without it the agent failing to produce a new
-    image (a non-deterministic miss) would silently return a leftover from
-    a previous render or a foreign session — a duplicate in a --count batch, or
-    the wrong illustration tagged success. A small CODEX_MTIME_SKEW slack
-    tolerates mtime granularity / clock skew. Resolves CODEX_HOME (env, default
-    ~/.codex) at run time and NEVER hardcodes ~/.codex — the spike found Orca
-    relocates it. CODEX_HOME is a path, not secret-shaped, so reading it
-    is allowed.
-
-    When `thread_id` came from the exec's validated `thread.started` event,
-    only that exact session directory is searched. Otherwise `exclude` holds
-    the fixed-depth paths that existed before this exec, preserving recovery
-    for older/malformed output while preventing serial --count reuse."""
+def _freshest_generated_image(since, thread_id):
+    if thread_id is None:
+        return None
     home = os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex")
-    gen = pathlib.Path(home) / CODEX_GENERATED_SUBDIR
+    gen = pathlib.Path(home) / CODEX_GENERATED_SUBDIR / thread_id
     if not gen.is_dir():
         return None
     floor = since - CODEX_MTIME_SKEW
-    exclude = exclude or set()
-    # Codex 0.144.3 writes generated_images/<session-id>/<image>.png. Prefer the
-    # invocation's exact session dir when JSONL identified it; otherwise match
-    # the same fixed depth rather than recursively walking unbounded history.
-    candidates = ((gen / thread_id).glob("*") if thread_id is not None
-                  else gen.glob("*/*"))
     recent = []
-    for f in candidates:
-        if f in exclude:
-            continue
+    for f in gen.glob("*"):
         try:
             mtime = f.stat().st_mtime
         except OSError:
@@ -1208,26 +1181,14 @@ def codex_exec_generate(prompt, refs, out_path):
         out.unlink()
     except FileNotFoundError:
         pass
-    # Wall-clock floor for the fetch-fallback: any image this exec produced must
-    # postdate this moment, so a stale prior render or a concurrent session's
-    # file in the shared generated_images dir can't pass as our result.
     started = time.time()
-    # Snapshot pre-existing generated images so a serial --count batch cannot
-    # reuse a prior iteration's artifact through the post-exec fallback. The
-    # exclusion set shadows the same generated_images dir _freshest_generated_image
-    # will traverse, sharing the same CODEX_HOME resolution.
-    _codex_gen = pathlib.Path(
-        os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex")
-    ) / CODEX_GENERATED_SUBDIR
-    pre_existing = set(_codex_gen.glob("*/*")) if _codex_gen.is_dir() else set()
 
     def produced_image(output=None):
         """Return this run's requested/fallback artifact when it is a real image."""
         if _valid_image_file(out):
             return out
         thread_id = _codex_thread_id(output)
-        return _freshest_generated_image(
-            started, exclude=pre_existing, thread_id=thread_id)
+        return _freshest_generated_image(started, thread_id)
 
     try:
         proc = subprocess.run(cmd, input=stdin_prompt, capture_output=True,
@@ -1253,31 +1214,6 @@ def codex_exec_generate(prompt, refs, out_path):
         raise BackendUnavailable(
             f"codex exec exited {proc.returncode}: {combined[:300]}")
     raise BackendUnavailable("codex exec produced no retrievable image.")
-
-
-def _freshest_grok_image(since):
-    """Newest image under $GROK_HOME/sessions/**/images/ that postdates `since`
-    (a wall-clock float captured just before this run), or None. Same rationale as
-    the Codex finder: the cache is shared across renders and sessions, so the
-    recency floor stops a stale or foreign artifact from passing as this run's
-    output. Only the verify-first path (agent saved to --out) normally fires;
-    this is the fallback when the agent produced an image but didn't copy it."""
-    root = grok_home() / GROK_SESSIONS_SUBDIR
-    if not root.is_dir():
-        return None
-    floor = since - GROK_MTIME_SKEW
-    # Match the documented fixed depth (sessions/<enc-cwd>/<uuid>/images/*) with a
-    # bounded glob, not an rglob over all session history — the tree grows without
-    # bound and only files from the last GROK_MTIME_SKEW seconds can ever qualify.
-    recent = []
-    for f in root.glob("*/*/images/*"):
-        if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
-            m = f.stat().st_mtime
-            if m >= floor:
-                recent.append((m, f))
-    if not recent:
-        return None
-    return max(recent, key=lambda mf: mf[0])[1]
 
 
 def grok_exec_generate(prompt, refs, out_path):
@@ -1322,7 +1258,6 @@ def grok_exec_generate(prompt, refs, out_path):
         out.unlink()
     except FileNotFoundError:
         pass
-    started = time.time()
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,
                               timeout=GROK_EXEC_TIMEOUT)
@@ -1333,15 +1268,9 @@ def grok_exec_generate(prompt, refs, out_path):
     if proc.returncode != 0:
         combined = redact((proc.stdout or "") + (proc.stderr or ""))
         raise BackendUnavailable(f"grok exited {proc.returncode}: {combined[:300]}")
-    # Verify-first (the agent saved to --out), else fetch the freshest image the
-    # tool dropped under $GROK_HOME/sessions/**/images/.
-    if out.is_file() and out.stat().st_size > 0:
-        produced = out
-    else:
-        produced = _freshest_grok_image(started)
-        if produced is None:
-            raise BackendUnavailable("grok produced no retrievable image.")
-    return produced, {"model": None, "id": None}
+    if not _valid_image_file(out):
+        raise BackendUnavailable("grok produced no retrievable image.")
+    return out, {"model": None, "id": None}
 
 
 def place_image(img_bytes, out_path, cutout=False, chroma_key=CHROMA_MAGENTA):

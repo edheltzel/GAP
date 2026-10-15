@@ -59,13 +59,11 @@ const worse = PHASES.map((k) => ({ k, p: pct(before.phases[k].taskMs, after.phas
 const heapSeriesA = after.leak.series.map((s) => s.heapMB);
 const nodeSeriesA = after.leak.series.map((s) => s.nodes);
 const heapDriftMB = (after.leak.heapKBPerCycle * after.leak.cycles) / 1024;
+const slope = (value) => value > 0 ? "GROWING" : value < 0 ? "SHRINKING" : "flat";
 const leakVerdict = [
-  `DOM nodes move ${n(after.leak.nodesPerCycle)} per cycle, series ${nodeSeriesA.join(", ")}. Listeners move ${n(after.leak.listenersPerCycle)} per cycle.`,
+  `DOM nodes move ${before.leak.nodesPerCycle} → ${after.leak.nodesPerCycle} per cycle (before → after), after series ${nodeSeriesA.join(", ")}. Listeners move ${before.leak.listenersPerCycle} → ${after.leak.listenersPerCycle} per cycle.`,
   `The heap ${after.leak.heapKBPerCycle > 0 ? "climbs" : "does not climb"} ${n(after.leak.heapKBPerCycle)} KB per cycle, ${heapDriftMB.toFixed(1)} MB over ${after.leak.cycles} cycles, and its series ${monotonic(heapSeriesA) ? "IS monotonic" : "is not monotonic"} (${heapSeriesA.join(", ")} MB).`,
-  monotonic(heapSeriesA)
-    ? `Monotonic growth is what a leak looks like, so it is not dismissed: the unchanged build climbs at ${n(before.leak.heapKBPerCycle)} KB per cycle on the same shape, which places the source in the harness or the collector rather than in anything changed here.`
-    : `A series that rises and falls is collector behaviour, not retention.`,
-  `What can be concluded: ${Math.abs(after.leak.nodesPerCycle) < 1 && Math.abs(after.leak.listenersPerCycle) < 1 ? "no DOM node and no listener is retained across cycles" : "nodes or listeners ARE accumulating and this needs fixing before the heap number means anything"}. What cannot: whether the ${heapDriftMB.toFixed(1)} MB is retained objects or uncollected garbage. Separating those needs a heap-snapshot diff, which this suite does not take.`,
+  `Heap growth changes from ${before.leak.heapKBPerCycle} to ${after.leak.heapKBPerCycle} KB per cycle. These measurements do not establish the cause or rule out retention, even when the series rises and falls. A heap-snapshot diff is needed to distinguish retained objects from uncollected garbage; this suite does not take one.`,
 ].join(" ");
 
 function splitBar(p, scale) {
@@ -233,18 +231,18 @@ ${Object.keys(before).filter((k) => k.startsWith("panel")).map((k) => statRow(la
 </table>
 
 <h2>Does it leak</h2>
-<p>${n(before.leak.cycles)} identical cycles, two forced collections between each, and the app returned to its starting state at the end of every one. A leak shows up as a line that climbs and never comes back down.</p>
+<p>${n(before.leak.cycles)} identical cycles before and ${n(after.leak.cycles)} after, two forced collections between each, and the app returned to its starting state at the end of every one. Growth can indicate retention; fluctuations do not rule it out.</p>
 <div class="sparks">
   <figure style="margin:0">${spark(before.leak.series, "#6a7683")}<figcaption>before · ${n(before.leak.heapKBPerCycle)} KB per cycle</figcaption></figure>
   <figure style="margin:0">${spark(after.leak.series, "#4ad8a0")}<figcaption>after · ${n(after.leak.heapKBPerCycle)} KB per cycle</figcaption></figure>
 </div>
 <table>
-<caption>Growth per cycle, least squares. Zero means nothing is retained.</caption>
+<caption>Measured growth per cycle, least squares. A zero slope alone does not rule out retention.</caption>
 <thead><tr><th scope="col">measure</th><th scope="col">before</th><th scope="col">after</th><th scope="col">change</th></tr></thead>
 <tbody>
 ${statRow("Heap growth per cycle", before.leak.heapKBPerCycle, after.leak.heapKBPerCycle, true, " KB")}
-<tr><th scope="row">Nodes retained per cycle</th><td class="mono">${n(before.leak.nodesPerCycle)}</td><td class="mono ${Math.abs(after.leak.nodesPerCycle) < 1 ? "good" : "bad"}">${n(after.leak.nodesPerCycle)}</td><td class="mono ${Math.abs(after.leak.nodesPerCycle) < 1 ? "good" : "bad"}">${Math.abs(after.leak.nodesPerCycle) < 1 ? "flat" : "ACCUMULATING"}</td></tr>
-<tr><th scope="row">Listeners retained per cycle</th><td class="mono">${n(before.leak.listenersPerCycle)}</td><td class="mono ${Math.abs(after.leak.listenersPerCycle) < 1 ? "good" : "bad"}">${n(after.leak.listenersPerCycle)}</td><td class="mono ${Math.abs(after.leak.listenersPerCycle) < 1 ? "good" : "bad"}">${Math.abs(after.leak.listenersPerCycle) < 1 ? "flat" : "ACCUMULATING"}</td></tr>
+<tr><th scope="row">Node growth per cycle</th><td class="mono">${before.leak.nodesPerCycle}</td><td class="mono ${after.leak.nodesPerCycle > 0 ? "bad" : "flat"}">${after.leak.nodesPerCycle}</td><td class="mono ${after.leak.nodesPerCycle > 0 ? "bad" : "flat"}">${slope(after.leak.nodesPerCycle)}</td></tr>
+<tr><th scope="row">Listener growth per cycle</th><td class="mono">${before.leak.listenersPerCycle}</td><td class="mono ${after.leak.listenersPerCycle > 0 ? "bad" : "flat"}">${after.leak.listenersPerCycle}</td><td class="mono ${after.leak.listenersPerCycle > 0 ? "bad" : "flat"}">${slope(after.leak.listenersPerCycle)}</td></tr>
 ${statRow("Heap after the last cycle", before.leak.finalHeapMB, after.leak.finalHeapMB, true, " MB")}
 </tbody>
 </table>

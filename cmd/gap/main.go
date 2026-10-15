@@ -150,8 +150,8 @@ func syncAll(removeLegacy bool) error {
 	if err != nil {
 		return err
 	}
-	fresh, skillsOK := installSkills(repoRoot, home, entries)
-	driftOK, err := checkDrift(repoRoot, home, entries, fresh, ledger, ledgerPath)
+	skillsOK := installSkills(repoRoot, home, entries)
+	driftOK, err := checkDrift(repoRoot, home, entries)
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func readCheckout(root string) (checkout, error) {
 	}
 	c := checkout{primary: strings.TrimPrefix(originHead, "origin/")}
 	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/", "skills/")
-	untracked, lsErr := git(root, "ls-files", "--others", "--exclude-standard", "--", "global/", "skills/")
+	untracked, lsErr := git(root, "ls-files", "--others", "--", "global/", "skills/")
 	c.unmerged = diffErr != nil || lsErr != nil || untracked != ""
 	if c.branch, err = git(root, "rev-parse", "--abbrev-ref", "HEAD"); err != nil {
 		return c, err

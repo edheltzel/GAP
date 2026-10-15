@@ -62,8 +62,8 @@ gap --help
 
 Sync also checks every installed managed skill against its source: this repo's folder, or the hash skills.sh recorded at install. For each skill that drifted, it shows the diff and asks:
 
-- `k` keeps the installed copy. Sync remembers that and doesn't ask again until it changes.
-- `t` takes the source. Sync backs up the installed copy under `~/.gap/backups/`, then reinstalls.
+- `k` keeps the installed copies for this run. Later runs check them again. An incomplete installation still exits `1`.
+- `t` takes the source. Sync backs up both destinations under `~/.gap/backups/`, then reinstalls. A failed install restores the previous destinations.
 - `s` skips it for now. Sync exits `1`.
 
 With no terminal to ask in, sync lists the drifted skills, changes none of them, and exits `1`. Skills the manifest doesn't list are never touched.
@@ -84,7 +84,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 
 - you're on a branch other than `master` or GitButler's `gitbutler/workspace`
 - you're in a git worktree
-- `global/` or `skills/` differs from `origin/HEAD`, including untracked files under `skills/`
+- `global/` or `skills/` differs from `origin/HEAD`, including untracked and ignored files under either directory
 
 ### Step 3: Run `gap sync`
 

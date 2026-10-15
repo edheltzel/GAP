@@ -1041,15 +1041,58 @@ async function generateOpenRouter(model: ImageModel, prompt: string, args: CLIAr
   return paths;
 }
 
+async function postProcessImage(actualOutput: string, args: CLIArgs): Promise<string> {
+  // Remove background if requested (use actual output path)
+  // May return a renamed path (e.g., .jpg → .png) since rembg returns PNG.
+  if (args.removeBg) {
+    actualOutput = await removeBackground(actualOutput);
+  }
+
+  // Add background color if requested (standalone mode)
+  if (args.addBg && !args.thumbnail) {
+    // For standalone --add-bg, modify the image in place
+    const tempPath = actualOutput.replace(/\.[^.]+$/, "-temp.png");
+    await addBackgroundColor(actualOutput, tempPath, args.addBg);
+    // Replace original with the one with background
+    const { rename } = await import("node:fs/promises");
+    await rename(tempPath, actualOutput);
+  }
+
+  // Optional stamp. ART_SIGNATURE unset means no text. Runs before the thumb
+  // so a requested signature lands on both files. --no-signature skips it.
+  if (args.signature !== false) {
+    const signature = process.env.ART_SIGNATURE?.trim();
+    if (signature) await stampSignature(actualOutput, signature);
+    else if (args.signature === true) {
+      console.error("ART_SIGNATURE is unset; no signature stamped.");
+    }
+  }
+
+  // Generate thumbnail with background color if requested (blog header mode)
+  if (args.thumbnail) {
+    const thumbPath = actualOutput.replace(/\.[^.]+$/, "-thumb.png");
+    const THUMBNAIL_BG_COLOR = "#EAE9DF"; // sepia preview background for social thumbs
+    await addBackgroundColor(actualOutput, thumbPath, THUMBNAIL_BG_COLOR);
+    console.log(`\n📸 Blog header mode: Created both versions`);
+    console.log(`   Transparent: ${actualOutput}`);
+    console.log(`   Thumbnail:   ${thumbPath}`);
+  }
+  return actualOutput;
+}
+
 /** Run one model for n images. OpenRouter, Grok, and gpt-image-2 batch natively; direct Gemini fans out. */
 async function generateImages(model: ImageModel, route: Route, prompt: string, args: CLIArgs, n: number, outputBase: string): Promise<string[]> {
-  if (route === "openrouter") return generateOpenRouter(model, prompt, args, n, outputBase);
-  if (model === "grok" || model === "gpt-image-2") {
-    return generateOpenAICompatible(model, prompt, args, n, outputBase);
+  let paths: string[];
+  if (route === "openrouter") {
+    paths = await generateOpenRouter(model, prompt, args, n, outputBase);
+  } else if (model === "grok" || model === "gpt-image-2") {
+    paths = await generateOpenAICompatible(model, prompt, args, n, outputBase);
+  } else {
+    paths = await Promise.all(
+      Array.from({ length: n }, (_, i) => generateGeminiImage(model, prompt, args, variantPath(outputBase, i + 1, n)))
+    );
   }
-  return Promise.all(
-    Array.from({ length: n }, (_, i) => generateGeminiImage(model, prompt, args, variantPath(outputBase, i + 1, n)))
-  );
+  return Promise.all(paths.map((path) => postProcessImage(path, args)));
 }
 
 // ============================================================================
@@ -1098,10 +1141,7 @@ async function main(): Promise<void> {
       const basePath = args.output.replace(/\.[^.]+$/, "");
       const results = await Promise.all(
         runnable.map(({ model, route }) =>
-          generateImages(model, route, finalPrompt, args, n, `${basePath}-${model}.png`).catch((err) => {
-            console.error(`❌ ${model} failed: ${err instanceof Error ? err.message : err}`);
-            return [] as string[];
-          })
+          generateImages(model, route, finalPrompt, args, n, `${basePath}-${model}.png`)
         )
       );
       console.log(`\n✅ Compare complete`);
@@ -1121,43 +1161,7 @@ async function main(): Promise<void> {
     }
 
     // Single image. The saved path may differ from --output if the format was corrected.
-    let actualOutput = (await generateImages(model, route, finalPrompt, args, 1, args.output))[0]!;
-
-    // Remove background if requested (use actual output path)
-    // May return a renamed path (e.g., .jpg → .png) since rembg returns PNG.
-    if (args.removeBg) {
-      actualOutput = await removeBackground(actualOutput);
-    }
-
-    // Add background color if requested (standalone mode)
-    if (args.addBg && !args.thumbnail) {
-      // For standalone --add-bg, modify the image in place
-      const tempPath = actualOutput.replace(/\.[^.]+$/, "-temp.png");
-      await addBackgroundColor(actualOutput, tempPath, args.addBg);
-      // Replace original with the one with background
-      const { rename } = await import("node:fs/promises");
-      await rename(tempPath, actualOutput);
-    }
-
-    // Optional stamp. ART_SIGNATURE unset means no text. Runs before the thumb
-    // so a requested signature lands on both files. --no-signature skips it.
-    if (args.signature !== false) {
-      const signature = process.env.ART_SIGNATURE?.trim();
-      if (signature) await stampSignature(actualOutput, signature);
-      else if (args.signature === true) {
-        console.error("ART_SIGNATURE is unset; no signature stamped.");
-      }
-    }
-
-    // Generate thumbnail with background color if requested (blog header mode)
-    if (args.thumbnail) {
-      const thumbPath = actualOutput.replace(/\.[^.]+$/, "-thumb.png");
-      const THUMBNAIL_BG_COLOR = "#EAE9DF"; // sepia preview background for social thumbs
-      await addBackgroundColor(actualOutput, thumbPath, THUMBNAIL_BG_COLOR);
-      console.log(`\n📸 Blog header mode: Created both versions`);
-      console.log(`   Transparent: ${actualOutput}`);
-      console.log(`   Thumbnail:   ${thumbPath}`);
-    }
+    await generateImages(model, route, finalPrompt, args, 1, args.output);
   } catch (error) {
     handleError(error);
   }

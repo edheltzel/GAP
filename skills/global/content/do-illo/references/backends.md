@@ -163,7 +163,9 @@ asks the agent to save the result to the run-dir path. As of Codex CLI 0.144
 the stable `image_generation` feature drops the generated artifact under
 `$CODEX_HOME/generated_images/<session-id>/<image>.png` on its own — illo
 verifies the requested path first and otherwise fetches the freshest valid image
-artifact at that fixed depth that postdates the exec. (On Codex 0.141 this
+artifact in the exact thread identified by the exec's `thread.started` event
+that postdates the exec. Without a validated thread ID, cache recovery fails.
+(On Codex 0.141 this
 required an extra `--enable imagegenext` flag, since
 the stable feature did not emit the artifact reliably; the extension was removed
 once the behavior went stable, so illo no longer passes the flag.) Artifact
@@ -183,7 +185,7 @@ the only privileged action is the subprocess call to the user's own CLI
 (the one sanctioned exception to the stdlib-over-subprocess rule — a benign
 call to a known CLI, not a credential read). The adapter verifies the file
 landed, otherwise fetches the
-freshest image the tool dropped under
+freshest image the tool dropped under that exec's validated thread directory,
 `$CODEX_HOME/generated_images/<session-id>/`
 (`$CODEX_HOME` resolved at run time — relocatable, never hardcoded).
 
@@ -308,8 +310,8 @@ character lock, else `image_gen` for a ref-less bootstrap render. It handles
 **no token**: no OAuth, no read of `~/.grok/auth.json`, no endpoint — the only
 privileged action is the subprocess to the user's own CLI (the same sanctioned
 exception to the stdlib-over-subprocess rule as Codex). The adapter verifies the
-file landed, else fetches the freshest image the tool dropped under
-`$GROK_HOME/sessions/**/images/`.
+requested file is a valid image. If it is missing or invalid, the render fails;
+images from other Grok sessions are never used for recovery.
 
 ### Fallback behavior
 

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,17 +29,20 @@ func readManifest(repoRoot string) ([]manifestEntry, error) {
 	return entries, nil
 }
 
-// installSkills installs every manifest skill missing from ~/.agents/skills or from Claude's mirror
-// through skills.sh. Skills the manifest does not list are never touched. It returns the names it installed.
-func installSkills(repoRoot, home string, entries []manifestEntry) (map[string]bool, bool) {
-	fresh := map[string]bool{}
+func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 	var npx string
 	var err error
 	ok := true
 	for _, e := range entries {
 		var missing []string
 		for _, name := range e.Skills {
-			if !installed(home, name) {
+			exists := false
+			for _, dir := range skillDirs(home, name) {
+				if _, err := os.Lstat(dir); !errors.Is(err, os.ErrNotExist) {
+					exists = true
+				}
+			}
+			if !exists {
 				missing = append(missing, name)
 			}
 		}
@@ -50,7 +52,7 @@ func installSkills(repoRoot, home string, entries []manifestEntry) (map[string]b
 		if npx == "" {
 			if npx, err = exec.LookPath("npx"); err != nil {
 				fmt.Fprintln(os.Stderr, "Skipping skills: npx not found; install Node to let gap install skills")
-				return fresh, false
+				return false
 			}
 		}
 		if !skillsAdd(npx, repoRoot, home, e.Source, missing) {
@@ -58,11 +60,10 @@ func installSkills(repoRoot, home string, entries []manifestEntry) (map[string]b
 			continue
 		}
 		for _, name := range missing {
-			fresh[name] = true
 			fmt.Println(filepath.Join(home, ".agents", "skills", name))
 		}
 	}
-	return fresh, ok
+	return ok
 }
 
 func skillsAdd(npx, repoRoot, home, source string, names []string) bool {
@@ -81,7 +82,28 @@ func skillsAdd(npx, repoRoot, home, source string, names []string) bool {
 		fmt.Fprintf(os.Stderr, "Skills install failed for %s (%s): %v\n%s", source, strings.Join(names, ", "), err, out)
 		return false
 	}
-	return true
+	ok := true
+	for _, name := range names {
+		if !installed(home, name) {
+			fmt.Fprintf(os.Stderr, "Skills install incomplete for %s: canonical skill and Claude mirror are required\n", name)
+			ok = false
+			continue
+		}
+		want, _, _, err := skillBaseline(repoRoot, home, source, name)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			ok = false
+			continue
+		}
+		for _, dir := range skillDirs(home, name) {
+			got, err := treeHash(dir)
+			if err != nil || got != want {
+				fmt.Fprintf(os.Stderr, "Skills install does not match its source: %s\n", dir)
+				ok = false
+			}
+		}
+	}
+	return ok
 }
 
 // lockEntry is the part of skills.sh's ~/.agents/.skill-lock.json drift needs.
@@ -91,62 +113,85 @@ type lockEntry struct {
 	SkillFolderHash string `json:"skillFolderHash"`
 }
 
-// checkDrift compares each installed managed skill with its source: this repo's skill folder, or the
-// tree hash skills.sh recorded at install. Each drifted skill shows its diff and asks keep, take
-// source, or skip; with no terminal it is only listed. "Keep" is remembered in the ledger.
-func checkDrift(repoRoot, home string, entries []manifestEntry, fresh map[string]bool, ledger map[string]string, ledgerFile string) (bool, error) {
+func skillBaseline(repoRoot, home, source, name string) (string, string, lockEntry, error) {
+	if source == "." {
+		dir := localSkillDir(repoRoot, name)
+		if dir == "" {
+			return "", "", lockEntry{}, fmt.Errorf("Skill baseline unavailable for %s: expected one local source", name)
+		}
+		hash, err := treeHash(dir)
+		return hash, dir, lockEntry{}, err
+	}
 	var lock struct {
 		Skills map[string]lockEntry `json:"skills"`
 	}
-	if b, err := os.ReadFile(filepath.Join(home, ".agents", ".skill-lock.json")); err == nil {
-		_ = json.Unmarshal(b, &lock)
+	lockPath := filepath.Join(home, ".agents", ".skill-lock.json")
+	if stateHome := os.Getenv("XDG_STATE_HOME"); stateHome != "" {
+		lockPath = filepath.Join(stateHome, "skills", ".skill-lock.json")
 	}
+	b, lockErr := os.ReadFile(lockPath)
+	if lockErr == nil {
+		lockErr = json.Unmarshal(b, &lock)
+	}
+	l, found := lock.Skills[name]
+	if lockErr != nil || !found || l.SkillFolderHash == "" {
+		return "", "", lockEntry{}, fmt.Errorf("Skill baseline unavailable for %s in %s", name, lockPath)
+	}
+	return l.SkillFolderHash, "", l, nil
+}
+
+func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 	tty := stdinIsTerminal()
 	in := bufio.NewReader(os.Stdin)
 	ok := true
 	for _, e := range entries {
 		for _, name := range e.Skills {
-			installedDir := filepath.Join(home, ".agents", "skills", name)
-			if fresh[name] || !installed(home, name) {
+			want, sourceDir, external, err := skillBaseline(repoRoot, home, e.Source, name)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				ok = false
 				continue
 			}
-			got, err := treeHash(installedDir)
-			if err != nil {
-				return false, err
-			}
-			var want, sourceDir string
-			var external lockEntry
-			if e.Source == "." {
-				if sourceDir = localSkillDir(repoRoot, name); sourceDir == "" {
+			dirs := skillDirs(home, name)
+			drifted := !installed(home, name)
+			for _, dir := range dirs {
+				info, err := os.Stat(dir)
+				if errors.Is(err, os.ErrNotExist) {
 					continue
 				}
-				if want, err = treeHash(sourceDir); err != nil {
+				if err != nil {
 					return false, err
 				}
-			} else {
-				l, found := lock.Skills[name]
-				if !found || l.SkillFolderHash == "" {
+				if !info.IsDir() {
+					drifted = true
 					continue
 				}
-				want, external = l.SkillFolderHash, l
+				got, err := treeHash(dir)
+				if err != nil {
+					return false, err
+				}
+				drifted = drifted || got != want
 			}
-			if got == want || ledger["skill:"+name] == got {
+			if !drifted {
 				continue
 			}
-			fmt.Printf("Skill drifted from its source: %s\n", name)
+			fmt.Printf("Skill drifted from its source or is incomplete: %s\n", name)
 			if !tty {
 				ok = false
 				continue
 			}
-			showDiff(sourceDir, external, installedDir)
+			for _, dir := range dirs {
+				if _, err := os.Stat(dir); err == nil {
+					showDiff(sourceDir, external, dir)
+				} else {
+					fmt.Println("Missing skill destination: " + dir)
+				}
+			}
 			fmt.Printf("%s: [k]eep installed, [t]ake source, [s]kip? ", name)
 			line, _ := in.ReadString('\n')
 			switch strings.ToLower(strings.TrimSpace(line)) {
 			case "k":
-				ledger["skill:"+name] = got
-				if err := writeLedger(ledgerFile, ledger); err != nil {
-					return false, err
-				}
+				ok = installed(home, name) && ok
 			case "t":
 				npx, err := exec.LookPath("npx")
 				if err != nil {
@@ -154,24 +199,56 @@ func checkDrift(repoRoot, home string, entries []manifestEntry, fresh map[string
 					ok = false
 					continue
 				}
-				backup := backupPath(installedDir, home)
-				if err := copyDir(installedDir, backup); err != nil {
+				replaced, err := replaceSkill(npx, repoRoot, home, e.Source, name)
+				if err != nil {
 					return false, err
 				}
-				fmt.Println("Backed up to " + backup)
-				if err := os.RemoveAll(installedDir); err != nil {
-					return false, err
-				}
-				delete(ledger, "skill:"+name)
-				if !skillsAdd(npx, repoRoot, home, e.Source, []string{name}) {
-					ok = false
-				}
+				ok = replaced && ok
 			default:
 				ok = false
 			}
 		}
 	}
 	return ok, nil
+}
+
+func replaceSkill(npx, repoRoot, home, source, name string) (bool, error) {
+	dirs := skillDirs(home, name)
+	backups := map[string]string{}
+	restore := func() error {
+		var result error
+		for _, dir := range dirs {
+			if backup, found := backups[dir]; found {
+				result = errors.Join(result, os.RemoveAll(dir))
+				result = errors.Join(result, os.Rename(backup, dir))
+			}
+		}
+		return result
+	}
+	for _, dir := range dirs {
+		if _, err := os.Lstat(dir); errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return false, errors.Join(err, restore())
+		}
+		backup := backupPath(dir, home)
+		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
+			return false, errors.Join(err, restore())
+		}
+		if err := os.Rename(dir, backup); err != nil {
+			return false, errors.Join(err, restore())
+		}
+		backups[dir] = backup
+		fmt.Println("Backed up to " + backup)
+	}
+	if skillsAdd(npx, repoRoot, home, source, []string{name}) {
+		return true, nil
+	}
+	var err error
+	for _, dir := range dirs {
+		err = errors.Join(err, os.RemoveAll(dir))
+	}
+	return false, errors.Join(err, restore())
 }
 
 // localSkillDir finds skills/<scope>/<group>/<name> in this repo.
@@ -204,7 +281,7 @@ func treeHash(dir string) (string, error) {
 		return "", err
 	}
 	env := append(base, "GIT_INDEX_FILE="+filepath.Join(tmp, "index"))
-	if _, err := run(env, "--git-dir="+tmp, "--work-tree="+dir, "add", "-A", "."); err != nil {
+	if _, err := run(env, "--git-dir="+tmp, "--work-tree="+dir, "add", "--force", "-A", "."); err != nil {
 		return "", err
 	}
 	return run(env, "--git-dir="+tmp, "--work-tree="+dir, "write-tree")
@@ -232,32 +309,13 @@ func showDiff(sourceDir string, external lockEntry, installedDir string) {
 	_ = cmd.Run()
 }
 
-func copyDir(src, dst string) error {
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, _ := filepath.Rel(src, path)
-		target := filepath.Join(dst, rel)
-		switch {
-		case d.IsDir():
-			return os.MkdirAll(target, 0o755)
-		case d.Type()&fs.ModeSymlink != 0:
-			link, err := os.Readlink(path)
-			if err != nil {
-				return err
-			}
-			return os.Symlink(link, target)
-		case d.Type().IsRegular():
-			return copyFile(path, target)
-		}
-		return errors.New("unsupported file type: " + path)
-	})
+func skillDirs(home, name string) []string {
+	return []string{filepath.Join(home, ".agents", "skills", name), filepath.Join(home, ".claude", "skills", name)}
 }
 
 func installed(home, name string) bool {
-	for _, dir := range []string{filepath.Join(home, ".agents", "skills", name), filepath.Join(home, ".claude", "skills", name)} {
-		if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil {
+	for _, dir := range skillDirs(home, name) {
+		if info, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			return false
 		}
 	}

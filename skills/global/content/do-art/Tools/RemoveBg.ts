@@ -55,7 +55,7 @@ Remove backgrounds from images using local rembg (no API).
 
 USAGE:
   remove-bg <input> [output]           Single file
-  remove-bg <file1> <file2> ...        Batch process (overwrites originals)
+  remove-bg <file1> <file2> <file3> ... Batch process (three or more files; overwrites originals)
 
 ARGUMENTS:
   input     Path to image file (PNG, JPG, JPEG, WebP)
@@ -169,13 +169,7 @@ async function main(): Promise<void> {
   }
 
   if (args.length === 2) {
-    if (existsSync(args[1]!)) {
-      for (const file of args) {
-        await removeBackground(file);
-      }
-    } else {
-      await removeBackground(args[0]!, args[1]!);
-    }
+    await removeBackground(args[0]!, args[1]!);
     return;
   }
 

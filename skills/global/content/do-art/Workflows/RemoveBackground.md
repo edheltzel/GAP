@@ -46,10 +46,10 @@ Use the native Art `RemoveBg.ts` wrapper, which checks availability, calls local
 # Single file (overwrites; renames .jpg→.png)
 bun <skill-dir>/Tools/RemoveBg.ts input-image.png
 
-# Single file with explicit output path
+# Single file with explicit output path (replaces the output if it exists)
 bun <skill-dir>/Tools/RemoveBg.ts input-image.jpg output-image.png
 
-# Batch (overwrites each in place)
+# Batch of three or more files (overwrites each in place)
 bun <skill-dir>/Tools/RemoveBg.ts img1.png img2.png img3.png
 ```
 
@@ -108,7 +108,9 @@ bun <skill-dir>/Tools/RemoveBg.ts \
 
 ```bash
 cd <preview>
-bun <skill-dir>/Tools/RemoveBg.ts diagram-*.png
+for image in diagram-*.png; do
+  bun <skill-dir>/Tools/RemoveBg.ts "$image"
+done
 ```
 
 ---
