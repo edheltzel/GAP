@@ -59,7 +59,7 @@
     ]
   },
   {
-    "source": "backnotprop/plannotator",
+    "source": "backnotprop/plannotator/apps/skills/extra",
     "skills": [
       "plannotator-compound",
       "plannotator-setup-goal",

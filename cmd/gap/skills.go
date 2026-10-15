@@ -72,7 +72,7 @@ func skillsAdd(npx, repoRoot, home, source string, names []string) bool {
 		src = repoRoot
 	}
 	// skills.sh installs into ~/.agents/skills (read by Codex, Cursor, Pi, OMP) and links Claude Code to it.
-	args := []string{"-y", "skills", "add", src, "-g", "-y", "-a", "claude-code"}
+	args := []string{"-y", "skills", "add", src, "-g", "-y", "-a", "claude-code", "-a", "codex"}
 	for _, name := range names {
 		args = append(args, "-s", name)
 	}

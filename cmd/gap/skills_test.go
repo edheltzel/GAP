@@ -11,11 +11,20 @@ func TestSkillsInstallPostconditions(t *testing.T) {
 	t.Setenv("HOME", home)
 	npx := filepath.Join(t.TempDir(), "npx")
 	write(t, npx, `#!/bin/sh
+canonical=false
+for arg in "$@"; do
+  if [ "$arg" = codex ]; then canonical=true; fi
+done
 while [ $# -gt 0 ]; do
   if [ "$1" = -s ] && [ "$2" != typo ]; then
-    mkdir -p "$HOME/.agents/skills/$2" "$HOME/.claude/skills"
-    echo installed > "$HOME/.agents/skills/$2/SKILL.md"
-	ln -sfn "$HOME/.agents/skills/$2" "$HOME/.claude/skills/$2"
+    if [ "$canonical" = true ]; then
+      mkdir -p "$HOME/.agents/skills/$2" "$HOME/.claude/skills"
+      echo installed > "$HOME/.agents/skills/$2/SKILL.md"
+      ln -sfn "$HOME/.agents/skills/$2" "$HOME/.claude/skills/$2"
+    else
+      mkdir -p "$HOME/.claude/skills/$2"
+      echo installed > "$HOME/.claude/skills/$2/SKILL.md"
+    fi
   fi
   shift
 done

@@ -58,7 +58,7 @@ gap --help
 ]
 ```
 
-`gap sync` installs any listed skill that is missing by running skills.sh (`npx skills add <source> -g -a claude-code`). It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for this step. Without `npx`, sync still publishes the policy, skips the skills, and exits `1`.
+`gap sync` installs any listed skill that is missing by running skills.sh (`npx skills add <source> -g -a claude-code -a codex`). It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for this step. Without `npx`, sync still publishes the policy, skips the skills, and exits `1`.
 
 Sync also checks every installed managed skill against its source: this repo's folder, or the hash skills.sh recorded at install. For each skill that drifted, it shows the diff and asks:
 

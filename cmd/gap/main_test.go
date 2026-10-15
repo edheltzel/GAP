@@ -417,7 +417,7 @@ done
 			t.Errorf("not published: %s", dest)
 		}
 	}
-	if calls := npxCalls(); len(calls) != 2 || !strings.Contains(calls[0], "add_"+clone+"_-g_-y_-a_claude-code_-s_do-a_-s_do-b") || !strings.Contains(calls[1], "add_owner/ext_") {
+	if calls := npxCalls(); len(calls) != 2 || !strings.Contains(calls[0], "add_"+clone+"_-g_-y_-a_claude-code_-a_codex_-s_do-a_-s_do-b") || !strings.Contains(calls[1], "add_owner/ext_") {
 		t.Fatalf("first run must install each source's missing skills once: %q", calls)
 	}
 	if readString(t, unlisted) != "mine\n" {
