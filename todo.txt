@@ -4,3 +4,5 @@ x 2026-10-14 2026-10-13 Ship sync gitbutler/workspace gate change (src/sync.ts, 
 2026-10-14 Red-team 8: rollback after --remove-codex-legacy brings back the replace prompt +gap
 2026-10-14 Confirm in a live Cursor session that ~/.cursor/rules/global-agent-policy.mdc loads +gap
 2026-10-14 D6: a foreign-file backup keeps bytes, not the harness behavior it gave +gap
+2026-10-14 After #74 merged: go install ./cmd/gap, then gap sync from a terminal +gap
+2026-10-14 Rename edheltzel/agent-config to GAP; archive/rename old edheltzel/GAP Go scaffold repo so go install path resolves +gap

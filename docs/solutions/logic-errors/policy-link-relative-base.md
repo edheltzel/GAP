@@ -41,22 +41,22 @@ Keep the source links relative to `global/`. Rewrite only the bytes that get cop
 
 `adapt` substitutes the absolute docs directory into every depth link:
 
-```ts
-const docsDir = join(repoRoot, "global/docs/agents")
+```go
+docsDir = filepath.Join(repoRoot, "global", "docs", "agents")
 
-function adapt(source: string, wrap: Wrap): string {
-  const body = source.replaceAll("](docs/agents/", `](${docsDir}/`)
-  // ...
+func adapt(source string, cursor bool) string {
+	text := strings.ReplaceAll(source, "](docs/agents/", "]("+docsDir+"/")
+	// ...
 }
 ```
 
-That is `src/sync.ts`. The match string is the literal `](docs/agents/`. Every depth link in `global/AGENTS.md` uses that prefix, with no `./` and no leading `global/`. A link written `](./docs/agents/` or `](global/docs/agents/` is not rewritten.
+That is `cmd/gap/main.go`. The match string is the literal `](docs/agents/`. Every depth link in `global/AGENTS.md` uses that prefix, with no `./` and no leading `global/`. A link written `](./docs/agents/` or `](global/docs/agents/` is not rewritten.
 
 Do not put absolute machine paths, or a `global/` prefix, into `global/AGENTS.md` to make the copies work. Those relative links are already correct when the file is read from `global/`.
 
 ## Why This Works
 
-A markdown link resolves from the file that contains it, not from the repo root and not from the directory where `npm run sync` was launched.
+A markdown link resolves from the file that contains it, not from the repo root and not from the directory where `gap sync` was launched.
 
 No relative URL is relative to both `global/` and `~/.claude/rules/`. Publish has to rewrite. Absolute paths in the source would open on this machine and would still be the wrong edit: a machine path does not belong in git.
 
@@ -65,8 +65,8 @@ Grok reads `~/.claude/rules/*.md` when Claude compatibility is on. It does not g
 ## Prevention
 
 - Resolve each source link from `global/`, the directory of `global/AGENTS.md`. The resolved path must be `global/docs/agents/<note>.md` and that file must exist. It must not be `global/global/docs/agents/<note>.md`.
-- Run the same source through `adapt`. Every `](docs/agents/` must be gone. Each replacement must be `](` plus `join(repoRoot, "global/docs/agents")` plus `/`, and that absolute file must exist. Resolving that absolute target from a stand-in harness directory must still land on the repo file.
-- `src/sync.ts --check` proves identity: the payload is not the source, a matching payload is ours, other text is foreign, and the Cursor wrap did not drift. It does not stat either base. A rewrite to a missing path still passes that fixture. The two-base check above is the missing guard.
+- Run the same source through `adapt`. Every `](docs/agents/` must be gone. Each replacement must be `](` plus `filepath.Join(repoRoot, "global", "docs", "agents")` plus `/`, and that absolute file must exist. Resolving that absolute target from a stand-in harness directory must still land on the repo file.
+- `go test ./...` proves identity: the payload is not the source, a matching payload is ours, other text is foreign, and the Cursor wrap did not drift. It does not stat either base. A rewrite to a missing path still passes that fixture. The two-base check above is the missing guard.
 
 ## Related Issues
 
