@@ -1,4 +1,8 @@
 x 2026-10-12 2026-10-12 Commit + merge GAP todo rule, then npm run sync +config pr:https://github.com/edheltzel/agent-config/pull/70
-2026-10-13 Ship sync gitbutler/workspace gate change (src/sync.ts, README, AGENTS.md) via but branch + PR +gap
-2026-10-14 Push feat/go-gap-cli + PR, merge, then go install ./cmd/gap and gap sync +gap
+x 2026-10-14 2026-10-13 Ship sync gitbutler/workspace gate change (src/sync.ts, README, AGENTS.md) via but branch + PR +gap
+2026-10-14 Merge README tutorial PR +gap pr:https://github.com/edheltzel/agent-config/pull/72
+2026-10-14 Red-team 8: rollback after --remove-codex-legacy brings back the replace prompt +gap
+2026-10-14 Confirm in a live Cursor session that ~/.cursor/rules/global-agent-policy.mdc loads +gap
+2026-10-14 D6: a foreign-file backup keeps bytes, not the harness behavior it gave +gap
+2026-10-14 After #74 merged: go install ./cmd/gap, then gap sync from a terminal +gap
 2026-10-14 Rename edheltzel/agent-config to GAP; archive/rename old edheltzel/GAP Go scaffold repo so go install path resolves +gap
