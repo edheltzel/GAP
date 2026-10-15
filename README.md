@@ -30,9 +30,10 @@ Check that your shell finds it:
 
 ```bash
 gap --help
-# gap publishes global/AGENTS.md into the file each coding agent already reads.
+# gap publishes global/AGENTS.md into the file each coding agent already reads,
+# and installs the skills listed in global/skills.json.
 # Usage:
-#   gap sync                         Publish global/AGENTS.md to every agent
+#   gap sync                         Publish the policy, install missing skills, check skills for drift
 #   ...
 ```
 
@@ -42,9 +43,32 @@ gap --help
 
 | Command | What it does |
 | --- | --- |
-| `gap sync` | Publish `global/AGENTS.md` to every agent |
-| `gap sync --remove-codex-legacy` | Publish, then strip the old policy copy from `~/.codex/AGENTS.md` |
+| `gap sync` | Publish `global/AGENTS.md` to every agent, install missing skills, and check skills for drift |
+| `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
 | `go test ./...` | Run the self-test against throwaway folders |
+
+## Manage skills
+
+`global/skills.json` lists every skill `gap` manages and where each one comes from. `"source": "."` means a skill in this repo's `skills/` folder; any other source is a GitHub `owner/repo`.
+
+```json
+[
+  { "source": ".", "skills": ["do-commit", "do-plan"] },
+  { "source": "kunchenguid/gh-axi", "skills": ["gh-axi"] }
+]
+```
+
+`gap sync` installs any listed skill that is missing by running skills.sh (`npx skills add <source> -g -a claude-code`). It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for this step. Without `npx`, sync still publishes the policy, skips the skills, and exits `1`.
+
+Sync also checks every installed managed skill against its source: this repo's folder, or the hash skills.sh recorded at install. For each skill that drifted, it shows the diff and asks:
+
+- `k` keeps the installed copy. Sync remembers that and doesn't ask again until it changes.
+- `t` takes the source. Sync backs up the installed copy under `~/.gap/backups/`, then reinstalls.
+- `s` skips it for now. Sync exits `1`.
+
+With no terminal to ask in, sync lists the drifted skills, changes none of them, and exits `1`. Skills the manifest doesn't list are never touched.
+
+To add a skill, add it to `global/skills.json`, then run `gap sync`.
 
 ## Change the policy
 
@@ -60,7 +84,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 
 - you're on a branch other than `master` or GitButler's `gitbutler/workspace`
 - you're in a git worktree
-- `global/` differs from `origin/HEAD`
+- `global/` or `skills/` differs from `origin/HEAD`, including untracked files under `skills/`
 
 ### Step 3: Run `gap sync`
 
@@ -117,6 +141,41 @@ grok inspect
 ```
 
 Look for `~/.claude/rules/global-agent-policy.md` in the global rules list. If it's missing, turn Claude compatibility back on. Don't add a Grok file. A second copy would load the policy twice.
+
+## Skill catalog
+
+Skills live in `skills/<scope>/<group>/<skill>/`. Regenerate this table with `bash scripts/update-readme.sh`.
+
+<!-- skills-start -->
+
+### [Global](./skills/global/)
+
+Useful in any repo, or none. Install once per machine with `-g`.
+
+| Group | Skills | Coverage |
+|-------|--------|----------|
+| [Core](./skills/global/core/) | 11 | Stack-agnostic foundations - review lenses, reasoning, testing, simplification, agent-legible repos, comments, design patterns, skill authoring, and AI-writing cleanup. |
+| [Workflow](./skills/global/workflow/) | 15 | Change delivery - the brainstorm, plan, work, debug, and ship loop (LFG), commits, docs, GitHub projects and stacks, PR workflow and review triage, worktrees, and technical writing. |
+| [Operations](./skills/global/operations/) | 4 | Operating AI agents - delegation, handoffs, prompt audits, and project status check-ins. |
+| [Content](./skills/global/content/) | 3 | Audience-facing media - illustrations, diagrams, images, and visual explanations. |
+| [Personal](./skills/global/personal/) | 2 | Personal extras you want everywhere - teaching, todo.txt. |
+
+### [Project](./skills/project/)
+
+Pay off only when a project uses that stack or product. Install into the project.
+
+| Group | Skills | Coverage |
+|-------|--------|----------|
+| [TypeScript](./skills/project/typescript/) | 4 | Language-wide TypeScript - standards, refactoring, and type-driven design. Install alongside frontend, backend, or tooling. |
+| [Frontend](./skills/project/frontend/) | 7 | Web frontend - Astro, CSS, React effects, design systems, UX flows, cleanup, and review. |
+| [Backend](./skills/project/backend/) | 1 | Backend engineering - Effect (TypeScript) services and code, and review for Effect, Go, Python, and Rust. |
+| [Tooling](./skills/project/tooling/) | 3 | CLIs and lightweight tools - TypeScript CLI scaffolding, zero-dependency patterns, and performance profiling. |
+| [Swift](./skills/project/swift/) | 3 | Swift and Apple platforms - macOS desktop apps, iOS review, and cleanup. |
+| [Product](./skills/project/product/) | 1 | Product marketing - positioning, SEO and GEO discovery, launches, conversion, and retention. |
+| [Marketing](./skills/project/marketing/) | 9 | SEO marketing on the Ubersuggest MCP - keyword research, site audits, competitors, content briefs, AI visibility, and action plans. |
+| [Personal](./skills/project/personal/) | 1 | Personal extras for specific projects - recipe diagrams. |
+
+<!-- skills-end -->
 
 ## Reference
 

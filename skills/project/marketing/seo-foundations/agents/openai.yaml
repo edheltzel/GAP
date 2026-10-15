@@ -1,0 +1,14 @@
+# Optional metadata read by ChatGPT and Codex (agentskills.io hosts that
+# support it). Ignored by Claude Code and by `npx skills`.
+interface:
+  display_name: "SEO Foundations"
+  short_description: "Core SEO know-how and the map from a goal to the right Ubersuggest tool."
+  brand_color: "#FF5E29"
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "ubersuggest"
+      description: "Ubersuggest SEO MCP server — live keyword, traffic, backlink, audit and AI-visibility data. Signs in with the user's own Ubersuggest account over OAuth on the first call."
+      transport: "streamable_http"
+      url: "https://ubersuggest-mcp.neilpatelapi.com/mcp"

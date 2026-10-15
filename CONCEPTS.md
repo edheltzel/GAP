@@ -39,6 +39,9 @@ The step that copies the current GAP policy into the files each harness already 
 
 Sync is only the command name for the same step.
 
+### Managed skill
+A skill listed in `global/skills.json`. `gap sync` installs it when it's missing and checks it for drift from its source. A skill the manifest doesn't list is unmanaged, and `gap` never touches it.
+
 ## Decisions
 
 ### HIL
