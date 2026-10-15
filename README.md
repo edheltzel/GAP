@@ -7,9 +7,9 @@
  ╚═════╝ ╚═╝  ╚═╝╚═╝
 ```
 
-# GAP
+# Global Agent Policies (GAP)
 
-GAP is a global agent policy: one set of rules that every coding agent on your machine follows. You, or an agent, write the rules once in `global/AGENTS.md`. The `gap sync` command copies them into the file each agent already reads.
+GAP is one set of rules that every coding agent on your machine follows. You, or an agent, write the rules once in `global/AGENTS.md`. The `gap sync` command copies them into the file each agent already reads.
 
 ![One AGENTS.md file, published by gap sync into Claude, Pi, OMP, Codex, and Cursor. Grok reads the Claude copy.](docs/images/publish-overview.webp)
 
