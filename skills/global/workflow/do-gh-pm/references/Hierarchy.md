@@ -1,6 +1,6 @@
 # Hierarchy — Epic → Feature → Task issue model
 
-How to structure work as a three-level GitHub issue hierarchy and create issues correctly on a Projects v2 board. Adapted from the `claude-workflow-template` (`workflow.md` §3, §6); GraphQL plumbing is the high-value part.
+How to structure work as a three-level GitHub issue hierarchy and create issues correctly on a Projects v2 board. GraphQL is only for board-item field values. Sub-issues and dependencies use native `gh` flags (gh ≥ 2.94).
 
 ## The model
 
@@ -45,17 +45,17 @@ gh api graphql -f query='query { repository(owner: "OWNER", name: "REPO") {
 ### When it belongs to a Phase/Epic
 
 5. Set the **Phase** field.
-6. Link it as a sub-issue of the epic (`addSubIssue`).
+6. Link it as a sub-issue of the epic — natively: create it with `gh issue create --parent EPIC#`, or link an existing issue with `gh issue edit EPIC# --add-sub-issue NEW#` (gh ≥ 2.94).
 
-## Full GraphQL recipe
+## Full recipe
 
-Field/option IDs come from `ProjectSetup.md` (captured at board creation). See `Labels.md` for which labels to apply (use the repo's existing taxonomy — do **not** invent `type:`/`priority:` labels).
+Field/option IDs come from the reconcile lockfile written during ProjectSetup apply, or from `gh project field-list`. See `Labels.md` for which labels to apply (the canonical `:`-namespaced taxonomy — `type:*` for work kind; Priority and Phase are board fields, not labels).
 
 ```bash
-# 1. Create issue
+# 1. Create issue (add `--parent EPIC#` to link it as a sub-issue in the same step)
 ISSUE_URL=$(gh issue create --repo OWNER/REPO \
   --title "Feature title" \
-  --label "enhancement" \
+  --label "type:feature" \
   --body "User story + acceptance criteria")
 
 # 2. Resolve its node ID
@@ -76,14 +76,22 @@ gh api graphql -f query='mutation {
     fieldId: "PRIORITY_FIELD_ID", value: { singleSelectOptionId: "PRIORITY_OPTION_ID" } }) { projectV2Item { id } }
 }'
 
-# 5. Link as sub-issue of the Phase Epic (if applicable)
-gh api graphql -f query='mutation {
-  addSubIssue(input: { issueId: "EPIC_NODE_ID", subIssueId: "'"$ISSUE_ID"'" }) {
-    issue { number } subIssue { number } } }'
+# 5. Link as sub-issue of the Phase Epic (if not already created with --parent)
+gh issue edit EPIC_NUM --repo OWNER/REPO --add-sub-issue "$ISSUE_NUM"
+```
+
+## Dependencies (native, gh ≥ 2.94)
+
+Model "blocked by" / "blocking" relationships with native issue dependencies — not a `blocked` label:
+
+```bash
+gh issue edit 123 --repo OWNER/REPO --add-blocked-by 200   # 123 is blocked by 200
+gh issue edit 123 --repo OWNER/REPO --add-blocking 300,301 # 123 blocks 300 and 301
+# remove with --remove-blocked-by / --remove-blocking
 ```
 
 ## Notes
 
-- `addSubIssue` is a GraphQL mutation; there is no `gh issue` flag for it yet.
+- Sub-issues and dependencies are native `gh` flags as of v2.94 — no GraphQL `addSubIssue` workaround. Up to 8 nesting levels, 100 sub-issues per parent.
 - If the repo keeps plan files, link the feature issue to its plan file, not the other way around.
 - Keep the epic body's checklist in sync only if you aren't using sub-issues; with sub-issues the roll-up is automatic.
