@@ -118,7 +118,7 @@ func syncAll(removeLegacy bool) error {
 	}
 	skipped, codexWrote := false, false
 	for _, c := range copies {
-		wrote, err := publish(adapt(string(raw), c.cursor), c.dest, ledger, ledgerPath, true, home)
+		wrote, err := publishPolicy(string(raw), c.dest, c.cursor, ledger, ledgerPath, true, home)
 		if err != nil {
 			return err
 		}
@@ -322,13 +322,19 @@ func resolveCodexHome(env, home string) (string, error) {
 	return env, nil
 }
 
+const (
+	gapBegin    = "<!-- gap:begin -->"
+	gapEnd      = "<!-- gap:end -->"
+	cursorFront = "---\nalwaysApply: true\n---\n\n"
+)
+
 func adapt(source string, cursor bool) string {
 	text := strings.ReplaceAll(source, "](docs/agents/", "]("+docsDir+"/")
 	if !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
 	if cursor {
-		return "---\nalwaysApply: true\n---\n\n" + text
+		return cursorFront + text
 	}
 	return text
 }
@@ -529,10 +535,27 @@ func replacePrompt(dest, backup string) string {
 	return fmt.Sprintf("%s is not the GAP publish. Move it to %s and replace it with GAP? %s [y/N] ", dest, backup, replaceWarning)
 }
 
+// termReady and confirmLine are the terminal boundary. Tests replace them.
+var (
+	termReady   = stdinIsTerminal
+	confirmLine = func() string {
+		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		return line
+	}
+)
+
 func confirmReplace(dest, backup string) bool {
 	fmt.Print(replacePrompt(dest, backup))
-	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	return strings.ToLower(strings.TrimSpace(line)) == "y"
+	return strings.ToLower(strings.TrimSpace(confirmLine())) == "y"
+}
+
+func splicePrompt(dest, backup string) string {
+	return fmt.Sprintf("%s is not the GAP publish. Back it up to %s and append the GAP block? The rest of the file stays. [y/N] ", dest, backup)
+}
+
+func confirmSplice(dest, backup string) bool {
+	fmt.Print(splicePrompt(dest, backup))
+	return strings.ToLower(strings.TrimSpace(confirmLine())) == "y"
 }
 
 func refuse(format string, args ...any) (bool, error) {
@@ -541,6 +564,119 @@ func refuse(format string, args ...any) (bool, error) {
 }
 
 func isSymlink(info fs.FileInfo) bool { return info.Mode()&fs.ModeSymlink != 0 }
+
+func marked(body string) string {
+	if !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
+	return gapBegin + "\n" + body + gapEnd + "\n"
+}
+
+func canonical(body string, cursor bool) string {
+	if cursor {
+		return cursorFront + marked(body)
+	}
+	return marked(body)
+}
+
+func findMarkerLine(text, marker string, from int) (start, end int, ok bool) {
+	for from < len(text) {
+		i := strings.Index(text[from:], marker)
+		if i < 0 {
+			return 0, 0, false
+		}
+		i += from
+		if i > 0 && text[i-1] != '\n' {
+			from = i + 1
+			continue
+		}
+		after := i + len(marker)
+		switch {
+		case after == len(text):
+			return i, after, true
+		case text[after] == '\n':
+			return i, after + 1, true
+		case text[after] == '\r' && after+1 < len(text) && text[after+1] == '\n':
+			return i, after + 2, true
+		default:
+			from = i + 1
+		}
+	}
+	return 0, 0, false
+}
+
+// gapSpan is the last complete marker pair. An appended block stays last, so a stray begin line above it is outside.
+func gapSpan(text string) (start, innerStart, innerEnd, end int, ok bool) {
+	endStart, endLine := -1, -1
+	for from := 0; ; {
+		s, e, found := findMarkerLine(text, gapEnd, from)
+		if !found {
+			break
+		}
+		endStart, endLine = s, e
+		from = e
+	}
+	if endStart < 0 {
+		return 0, 0, 0, 0, false
+	}
+	beginStart, beginEnd := -1, -1
+	for from := 0; ; {
+		s, e, found := findMarkerLine(text, gapBegin, from)
+		if !found || s >= endStart {
+			break
+		}
+		beginStart, beginEnd = s, e
+		from = e
+	}
+	if beginStart < 0 {
+		return 0, 0, 0, 0, false
+	}
+	return beginStart, beginEnd, endStart, endLine, true
+}
+
+func replaceBlock(text, body string) (string, bool) {
+	start, _, _, end, ok := gapSpan(text)
+	if !ok {
+		return "", false
+	}
+	return text[:start] + marked(body) + text[end:], true
+}
+
+func appendBlock(existing, body string) string {
+	block := marked(body)
+	if existing == "" || strings.HasSuffix(existing, "\n") {
+		return existing + block
+	}
+	return existing + "\n" + block
+}
+
+func blockInner(text string) (string, bool) {
+	_, innerStart, innerEnd, _, ok := gapSpan(text)
+	if !ok {
+		return "", false
+	}
+	return text[innerStart:innerEnd], true
+}
+
+func matchesPublish(onDisk, payload string) bool {
+	if onDisk == payload {
+		return true
+	}
+	inner, ok := blockInner(onDisk)
+	return ok && inner == payload
+}
+
+func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile string) (bool, error) {
+	if err := writeAtomic(dest, text); err != nil {
+		return false, err
+	}
+	ledger[dest] = digest(body)
+	if err := writeLedger(ledgerFile, ledger); err != nil {
+		return false, err
+	}
+	fmt.Println(dest)
+	return true, nil
+}
 
 func publish(payload, dest string, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
 	var existing string
@@ -593,6 +729,67 @@ func publish(payload, dest string, ledger map[string]string, ledgerFile string, 
 	return true, nil
 }
 
+func publishPolicy(source, dest string, cursor bool, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
+	body := adapt(source, false)
+	unmarked := adapt(source, cursor)
+	var existing string
+	exists, symlink := false, false
+	info, err := os.Lstat(dest)
+	switch {
+	case err == nil && isSymlink(info):
+		symlink = true
+	case err == nil && info.Mode().IsRegular():
+		b, err := os.ReadFile(dest)
+		if err != nil {
+			return false, err
+		}
+		existing, exists = string(b), true
+	case err == nil:
+		return false, fmt.Errorf("%s is not a file", dest)
+	case !errors.Is(err, fs.ErrNotExist):
+		return false, err
+	}
+	if symlink {
+		if !allowPrompt || !termReady() {
+			return refuse("Refusing to replace foreign file (no prompt): %s", dest)
+		}
+		backup := backupPath(dest, backupRoot)
+		if !confirmReplace(dest, backup) {
+			return false, nil
+		}
+		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
+			return false, err
+		}
+		if err := os.Rename(dest, backup); err != nil {
+			return false, err
+		}
+		fmt.Println("Backed up to " + backup)
+		fmt.Println(replaceWarning)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
+	}
+	if !exists || existing == "" {
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
+	}
+	if next, ok := replaceBlock(existing, body); ok {
+		return commitPublish(dest, next, body, ledger, ledgerFile)
+	}
+	if ours(existing, true, unmarked, ledger[dest]) {
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
+	}
+	if !allowPrompt || !termReady() {
+		return refuse("Refusing to replace foreign file (no prompt): %s", dest)
+	}
+	backup := backupPath(dest, backupRoot)
+	if !confirmSplice(dest, backup) {
+		return false, nil
+	}
+	if err := copyFile(dest, backup); err != nil {
+		return false, err
+	}
+	fmt.Println("Backed up to " + backup)
+	return commitPublish(dest, appendBlock(existing, body), body, ledger, ledgerFile)
+}
+
 func ensureGapHook(codexDir, policyPath, backupRoot string) (bool, error) {
 	hooksPath := filepath.Join(codexDir, "hooks.json")
 	text := "{\n  \"hooks\": {}\n}\n"
@@ -634,7 +831,7 @@ func ensureGapHook(codexDir, policyPath, backupRoot string) (bool, error) {
 
 func cleanupLegacyCodex(codexDir, policyPath, payload string, ledger map[string]string, backupRoot, ledgerFile string) (bool, error) {
 	dest := filepath.Join(codexDir, "AGENTS.md")
-	if policy, err := os.ReadFile(policyPath); err != nil || string(policy) != payload {
+	if policy, err := os.ReadFile(policyPath); err != nil || !matchesPublish(string(policy), payload) {
 		return refuse("Refusing to strip unmarked Codex policy; the GAP policy file is missing or not this publish: %s", policyPath)
 	}
 	hooksPath := filepath.Join(codexDir, "hooks.json")
@@ -705,7 +902,7 @@ func afterCodexPublish(wrote bool, policyPath, payload, codexDir, backupRoot str
 	if err != nil {
 		return refuse("Refusing to install the Codex hook; policy file could not be reread: %s", policyPath)
 	}
-	if string(onDisk) != payload {
+	if !matchesPublish(string(onDisk), payload) {
 		return refuse("Refusing to install the Codex hook; policy file does not match the payload: %s", policyPath)
 	}
 	return ensureGapHook(codexDir, policyPath, backupRoot)

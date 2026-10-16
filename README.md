@@ -112,11 +112,11 @@ Each is a regular file, not a symlink. Start a new session in any agent to load 
 
 ### Step 4: Answer if `gap sync` asks about a file
 
-`gap sync` asks before it replaces a file that you or another tool edited.
+`gap sync` asks before it appends the policy to a file you or another tool edited, when that file has no GAP markers.
 
-1. Type `y`. Sync backs up the old file under `~/.gap/backups/` and prints where it went. That harness stops loading the old file. The backup is only a copy of the bytes.
-2. Open the backup. For policy files, add to `global/AGENTS.md` only rules you want every harness to follow. For command files, keep wanted changes in the matching source under `global/commands/`.
-3. Merge that change and run `gap sync` again.
+1. Type `y`. For a policy file, sync copies it under `~/.gap/backups/` and appends the policy between `<!-- gap:begin -->` and `<!-- gap:end -->`. The rest of the file stays, so the harness keeps loading it. For a command file, or a policy symlink, sync moves the old file aside and replaces it. That harness stops loading the old file. The backup keeps the bytes only.
+2. Later policy syncs replace only that block. They do not ask again, and they do not make another backup. Command files stay whole-file copies of `global/commands/`.
+3. Rules you want every harness to follow still belong in `global/AGENTS.md`. Text outside the policy markers stays in that file. Command edits belong in the matching source under `global/commands/`.
 
 Any other answer leaves that file alone. With no terminal to ask in, such as an agent's shell, sync prints `Refusing to replace foreign file`, skips that file, publishes the rest, and exits `1`. Run `gap sync` yourself in a terminal to answer.
 
@@ -198,9 +198,7 @@ Pay off only when a project uses that stack or product.
 
 ### How sync tells its own files apart
 
-`~/.gap/published.json` holds a fingerprint of each file sync last wrote. Sync overwrites a file without asking when it is missing, matches the new publish, or matches that fingerprint. Anything else counts as edited, and sync asks first.
-
-![If the file is missing, unchanged, or matches the last publish, sync overwrites it. If someone edited it, sync asks y/n. Yes backs it up and writes. No answer skips that file.](docs/images/existing-file.webp)
+`~/.gap/published.json` holds a fingerprint of the GAP block sync last wrote, not of the whole file. Sync updates that block without asking when the file is missing, already has the markers, or is an older whole-file publish matching that fingerprint. A file with no markers and a different fingerprint is foreign, and sync asks first. On the Cursor file, the `alwaysApply: true` frontmatter stays above the markers.
 
 ### Don't create `~/CLAUDE.md`
 

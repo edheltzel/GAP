@@ -220,12 +220,153 @@ func TestForeignSkipOnlyItself(t *testing.T) {
 	if readString(t, foreign) != "nope\n" {
 		t.Fatal("foreign file was replaced")
 	}
-	if readString(t, other) != adapt(source, false) {
+	if readString(t, other) != gapMarked(adapt(source, false)) {
 		t.Fatal("other destination was not published")
 	}
 	saved, err := readLedger(ledgerFile)
 	if err != nil || saved[other] != digest(adapt(source, false)) || saved[foreign] != "" {
 		t.Fatalf("ledger wrong: %v %v", saved, err)
+	}
+}
+
+func gapMarked(body string) string {
+	return "<!-- gap:begin -->\n" + body + "<!-- gap:end -->\n"
+}
+
+func withYes(t *testing.T) {
+	t.Helper()
+	oldTerm, oldLine := termReady, confirmLine
+	termReady = func() bool { return true }
+	confirmLine = func() string { return "y\n" }
+	t.Cleanup(func() { termReady, confirmLine = oldTerm, oldLine })
+}
+
+func TestSpliceKeepsForeignContent(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "policy.md")
+	ledgerFile := filepath.Join(dir, "published.json")
+	head := "user head\n"
+	write(t, dest, head)
+	ledger := map[string]string{}
+	withYes(t)
+	wrote, err := publish(source, dest, false, ledger, ledgerFile, true, dir)
+	if err != nil || !wrote {
+		t.Fatalf("first splice: wrote %v err %v", wrote, err)
+	}
+	body := adapt(source, false)
+	first := readString(t, dest)
+	if first != head+gapMarked(body) {
+		t.Fatalf("first splice did not keep the foreign prefix: %q", first)
+	}
+	tail := "user tail\n"
+	write(t, dest, first+tail)
+	termReady = func() bool { return false }
+	wrote, err = publish(source, dest, false, ledger, ledgerFile, true, dir)
+	if err != nil || !wrote {
+		t.Fatalf("second sync: wrote %v err %v", wrote, err)
+	}
+	if got := readString(t, dest); got != head+gapMarked(body)+tail {
+		t.Fatalf("second sync changed content outside the block: %q", got)
+	}
+	backups, _ := filepath.Glob(filepath.Join(dir, ".gap", "backups", "*", "policy.md"))
+	if len(backups) != 1 || readString(t, backups[0]) != head {
+		t.Fatalf("first splice must back up the foreign file once: %v", backups)
+	}
+}
+
+func TestSpliceUpdatesBlockWhenPolicyChanges(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "policy.md")
+	ledgerFile := filepath.Join(dir, "published.json")
+	head, tail := "keep head\n", "keep tail\n"
+	body := adapt(source, false)
+	write(t, dest, head+gapMarked(body)+tail)
+	ledger := map[string]string{dest: digest(body)}
+	next := "See [y](docs/agents/dox.md).\n"
+	wrote, err := publish(next, dest, false, ledger, ledgerFile, false, dir)
+	if err != nil || !wrote {
+		t.Fatalf("policy change: wrote %v err %v", wrote, err)
+	}
+	want := adapt(next, false)
+	if got := readString(t, dest); got != head+gapMarked(want)+tail {
+		t.Fatalf("block update moved foreign content: %q", got)
+	}
+	if ledger[dest] != digest(want) {
+		t.Fatalf("ledger must track the block, got %s", ledger[dest])
+	}
+	if backups, _ := filepath.Glob(filepath.Join(dir, ".gap", "backups", "*")); len(backups) != 0 {
+		t.Fatal("updating a marked block must not back up")
+	}
+}
+
+func TestSpliceMigratesLegacyPublish(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "policy.md")
+	ledgerFile := filepath.Join(dir, "published.json")
+	old := "old publish\n"
+	write(t, dest, old)
+	ledger := map[string]string{dest: digest(old)}
+	wrote, err := publish(source, dest, false, ledger, ledgerFile, false, dir)
+	if err != nil || !wrote {
+		t.Fatalf("legacy migrate: wrote %v err %v", wrote, err)
+	}
+	body := adapt(source, false)
+	if got := readString(t, dest); got != gapMarked(body) {
+		t.Fatalf("legacy file was not rewritten as markers: %q", got)
+	}
+	if ledger[dest] != digest(body) {
+		t.Fatal("ledger must track the new block")
+	}
+	if backups, _ := filepath.Glob(filepath.Join(dir, ".gap", "backups", "*")); len(backups) != 0 {
+		t.Fatal("migrating our own publish must not back up")
+	}
+}
+
+func TestSpliceRefusesWithoutTerminal(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "foreign.md")
+	ledgerFile := filepath.Join(dir, "published.json")
+	write(t, dest, "mine\n")
+	wrote, err := publish(source, dest, false, map[string]string{}, ledgerFile, true, dir)
+	if err != nil || wrote {
+		t.Fatalf("non-terminal must refuse: wrote %v err %v", wrote, err)
+	}
+	if readString(t, dest) != "mine\n" {
+		t.Fatal("refused splice changed the file")
+	}
+}
+
+func TestSpliceCursorFrontmatterStaysFirst(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "global-agent-policy.mdc")
+	ledgerFile := filepath.Join(dir, "published.json")
+	ledger := map[string]string{}
+	wrote, err := publish(source, dest, true, ledger, ledgerFile, false, dir)
+	if err != nil || !wrote {
+		t.Fatalf("missing mdc: wrote %v err %v", wrote, err)
+	}
+	body := adapt(source, false)
+	front := "---\nalwaysApply: true\n---\n\n"
+	if got := readString(t, dest); got != front+gapMarked(body) {
+		t.Fatalf("new mdc frontmatter is not first: %q", got)
+	}
+
+	old := adapt(source, true)
+	legacy := filepath.Join(dir, "legacy.mdc")
+	write(t, legacy, old)
+	ledger[legacy] = digest(old)
+	wrote, err = publish(source, legacy, true, ledger, ledgerFile, false, dir)
+	if err != nil || !wrote || readString(t, legacy) != front+gapMarked(body) {
+		t.Fatalf("legacy mdc must keep frontmatter first: %q err %v", readString(t, legacy), err)
+	}
+
+	foreign := "---\ndescription: mine\n---\n\nmine\n"
+	other := filepath.Join(dir, "other.mdc")
+	write(t, other, foreign)
+	withYes(t)
+	wrote, err = publish(source, other, true, ledger, ledgerFile, true, dir)
+	if err != nil || !wrote || readString(t, other) != foreign+gapMarked(body) {
+		t.Fatalf("foreign mdc frontmatter moved: %q err %v", readString(t, other), err)
 	}
 }
 
