@@ -1,6 +1,6 @@
 ---
 name: do-regroup
-description: Use when checking project status. Defaults to the current project; covers every active project on request. Surfaces work that is active, blocked, or stalled, grouped by project, then phase, then task, and always writes a dated markdown archive. Triggers include "regroup", "all projects", "just this project", "only this project", "just <project>".
+description: Use when checking project status. Defaults to the current project; covers every active project on request. Surfaces work that is active, blocked, or stalled, grouped by project, then phase, then task, and always writes a dated markdown archive. Triggers include "regroup", "all projects", "just this project", "only this project", "check in", "status report", "status update", "just <project>".
 ---
 
 # Regroup
