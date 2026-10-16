@@ -209,11 +209,11 @@ func TestForeignSkipOnlyItself(t *testing.T) {
 	foreign, other := filepath.Join(dir, "foreign.md"), filepath.Join(dir, "other.md")
 	write(t, foreign, "nope\n")
 	ledger := map[string]string{}
-	wroteForeign, err := publish(adapt(source, false), foreign, ledger, ledgerFile, false, dir)
+	wroteForeign, err := publishPolicy(source, foreign, false, ledger, ledgerFile, false, dir)
 	if err != nil || wroteForeign {
 		t.Fatalf("foreign must be refused: %v %v", wroteForeign, err)
 	}
-	wroteOther, err := publish(adapt(source, false), other, ledger, ledgerFile, false, dir)
+	wroteOther, err := publishPolicy(source, other, false, ledger, ledgerFile, false, dir)
 	if err != nil || !wroteOther {
 		t.Fatalf("foreign skip blocked the next write: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestSpliceKeepsForeignContent(t *testing.T) {
 	write(t, dest, head)
 	ledger := map[string]string{}
 	withYes(t)
-	wrote, err := publish(source, dest, false, ledger, ledgerFile, true, dir)
+	wrote, err := publishPolicy(source, dest, false, ledger, ledgerFile, true, dir)
 	if err != nil || !wrote {
 		t.Fatalf("first splice: wrote %v err %v", wrote, err)
 	}
@@ -261,7 +261,7 @@ func TestSpliceKeepsForeignContent(t *testing.T) {
 	tail := "user tail\n"
 	write(t, dest, first+tail)
 	termReady = func() bool { return false }
-	wrote, err = publish(source, dest, false, ledger, ledgerFile, true, dir)
+	wrote, err = publishPolicy(source, dest, false, ledger, ledgerFile, true, dir)
 	if err != nil || !wrote {
 		t.Fatalf("second sync: wrote %v err %v", wrote, err)
 	}
@@ -283,7 +283,7 @@ func TestSpliceUpdatesBlockWhenPolicyChanges(t *testing.T) {
 	write(t, dest, head+gapMarked(body)+tail)
 	ledger := map[string]string{dest: digest(body)}
 	next := "See [y](docs/agents/dox.md).\n"
-	wrote, err := publish(next, dest, false, ledger, ledgerFile, false, dir)
+	wrote, err := publishPolicy(next, dest, false, ledger, ledgerFile, false, dir)
 	if err != nil || !wrote {
 		t.Fatalf("policy change: wrote %v err %v", wrote, err)
 	}
@@ -306,7 +306,7 @@ func TestSpliceMigratesLegacyPublish(t *testing.T) {
 	old := "old publish\n"
 	write(t, dest, old)
 	ledger := map[string]string{dest: digest(old)}
-	wrote, err := publish(source, dest, false, ledger, ledgerFile, false, dir)
+	wrote, err := publishPolicy(source, dest, false, ledger, ledgerFile, false, dir)
 	if err != nil || !wrote {
 		t.Fatalf("legacy migrate: wrote %v err %v", wrote, err)
 	}
@@ -327,7 +327,7 @@ func TestSpliceRefusesWithoutTerminal(t *testing.T) {
 	dest := filepath.Join(dir, "foreign.md")
 	ledgerFile := filepath.Join(dir, "published.json")
 	write(t, dest, "mine\n")
-	wrote, err := publish(source, dest, false, map[string]string{}, ledgerFile, true, dir)
+	wrote, err := publishPolicy(source, dest, false, map[string]string{}, ledgerFile, true, dir)
 	if err != nil || wrote {
 		t.Fatalf("non-terminal must refuse: wrote %v err %v", wrote, err)
 	}
@@ -341,7 +341,7 @@ func TestSpliceCursorFrontmatterStaysFirst(t *testing.T) {
 	dest := filepath.Join(dir, "global-agent-policy.mdc")
 	ledgerFile := filepath.Join(dir, "published.json")
 	ledger := map[string]string{}
-	wrote, err := publish(source, dest, true, ledger, ledgerFile, false, dir)
+	wrote, err := publishPolicy(source, dest, true, ledger, ledgerFile, false, dir)
 	if err != nil || !wrote {
 		t.Fatalf("missing mdc: wrote %v err %v", wrote, err)
 	}
@@ -355,7 +355,7 @@ func TestSpliceCursorFrontmatterStaysFirst(t *testing.T) {
 	legacy := filepath.Join(dir, "legacy.mdc")
 	write(t, legacy, old)
 	ledger[legacy] = digest(old)
-	wrote, err = publish(source, legacy, true, ledger, ledgerFile, false, dir)
+	wrote, err = publishPolicy(source, legacy, true, ledger, ledgerFile, false, dir)
 	if err != nil || !wrote || readString(t, legacy) != front+gapMarked(body) {
 		t.Fatalf("legacy mdc must keep frontmatter first: %q err %v", readString(t, legacy), err)
 	}
@@ -364,7 +364,7 @@ func TestSpliceCursorFrontmatterStaysFirst(t *testing.T) {
 	other := filepath.Join(dir, "other.mdc")
 	write(t, other, foreign)
 	withYes(t)
-	wrote, err = publish(source, other, true, ledger, ledgerFile, true, dir)
+	wrote, err = publishPolicy(source, other, true, ledger, ledgerFile, true, dir)
 	if err != nil || !wrote || readString(t, other) != foreign+gapMarked(body) {
 		t.Fatalf("foreign mdc frontmatter moved: %q err %v", readString(t, other), err)
 	}

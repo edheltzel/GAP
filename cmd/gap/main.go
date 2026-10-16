@@ -544,12 +544,6 @@ var (
 	}
 )
 
-const replaceWarning = "This harness will no longer load that file. The backup keeps the bytes only. Add to global/AGENTS.md only rules you want every harness to follow."
-
-func replacePrompt(dest, backup string) string {
-	return fmt.Sprintf("%s is not the GAP publish. Move it to %s and replace it with GAP? %s [y/N] ", dest, backup, replaceWarning)
-}
-
 func confirmReplace(dest, backup string) bool {
 	fmt.Print(replacePrompt(dest, backup))
 	return strings.ToLower(strings.TrimSpace(confirmLine())) == "y"

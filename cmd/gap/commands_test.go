@@ -88,10 +88,11 @@ func TestCommandSync(t *testing.T) {
 				t.Fatalf("sync: %v\n%s", err, out)
 			}
 			policy := "See [x](" + filepath.Join(repo, "global", "docs", "agents", "dox.md") + ").\n"
+			marked := "<!-- gap:begin -->\n" + policy + "<!-- gap:end -->\n"
 			for _, dest := range []string{".claude/rules/global-agent-policy.md", ".pi/agent/APPEND_SYSTEM.md", ".omp/agent/APPEND_SYSTEM.md", ".codex/gap/global-agent-policy.md", ".cursor/rules/global-agent-policy.mdc"} {
-				want := policy
+				want := marked
 				if strings.HasPrefix(dest, ".cursor/") {
-					want = "---\nalwaysApply: true\n---\n\n" + policy
+					want = "---\nalwaysApply: true\n---\n\n" + marked
 				}
 				if got := readString(t, filepath.Join(home, dest)); got != want {
 					t.Errorf("policy %s = %q, want %q", dest, got, want)
