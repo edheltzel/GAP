@@ -22,8 +22,18 @@ import (
 )
 
 const (
-	usage     = "usage: gap sync [--remove-codex-legacy]"
 	trustLine = "Trust both GAP hooks (SessionStart and SubagentStart) in Codex with /hooks, confirm a session and a subagent both get the policy, then run: gap sync --remove-codex-legacy"
+	usage     = `gap publishes global/AGENTS.md into the file each coding agent already reads,
+and installs the skills listed in global/skills.json.
+
+Usage:
+  gap sync                         Publish the policy, install missing skills, check skills for drift
+  gap sync --remove-codex-legacy   Same, then strip the old policy copy from ~/.codex/AGENTS.md
+  gap --help                       Show this help
+
+gap publishes the checkout it was installed from. Reinstall with
+go install ./cmd/gap after cmd/gap changes or the repo moves.
+Installing skills needs Node (npx), because gap drives skills.sh.`
 	// Ledger value for Codex AGENTS.md once its legacy GAP prefix is stripped; never a sha256 digest.
 	cleaned = "cleaned"
 )
@@ -136,7 +146,16 @@ func syncAll(removeLegacy bool) error {
 	if err != nil {
 		return err
 	}
-	if !ok || skipped {
+	entries, err := readManifest(repoRoot)
+	if err != nil {
+		return err
+	}
+	skillsOK := installSkills(repoRoot, home, entries)
+	driftOK, err := checkDrift(repoRoot, home, entries)
+	if err != nil {
+		return err
+	}
+	if !ok || skipped || !skillsOK || !driftOK {
 		return errSkipped
 	}
 	return nil
@@ -160,12 +179,17 @@ func sourceRoot() (string, error) {
 // would otherwise point every checkout check at a different repo.
 var gitLocalEnv = []string{"GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE", "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE", "GIT_INDEX_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX", "GIT_SHALLOW_FILE", "GIT_COMMON_DIR"}
 
-func git(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = slices.DeleteFunc(os.Environ(), func(kv string) bool {
+// gitEnv is the environment minus gitLocalEnv, so git acts on the repo gap names, not an inherited one.
+func gitEnv() []string {
+	return slices.DeleteFunc(os.Environ(), func(kv string) bool {
 		name, _, _ := strings.Cut(kv, "=")
 		return slices.Contains(gitLocalEnv, name)
 	})
+}
+
+func git(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	cmd.Env = gitEnv()
 	out, err := cmd.Output()
 	return strings.TrimSpace(string(out)), err
 }
@@ -181,8 +205,9 @@ func readCheckout(root string) (checkout, error) {
 		return checkout{}, errors.New("refusing to publish: origin/HEAD is not set; run git remote set-head origin --auto")
 	}
 	c := checkout{primary: strings.TrimPrefix(originHead, "origin/")}
-	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/")
-	c.unmerged = diffErr != nil
+	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/", "skills/")
+	untracked, lsErr := git(root, "ls-files", "--others", "--", "global/", "skills/")
+	c.unmerged = diffErr != nil || lsErr != nil || untracked != ""
 	if c.branch, err = git(root, "rev-parse", "--abbrev-ref", "HEAD"); err != nil {
 		return c, err
 	}
@@ -202,7 +227,7 @@ func refuseCheckout(root string, c checkout) string {
 		return "refusing to publish from a worktree"
 	}
 	if c.unmerged {
-		return fmt.Sprintf("refusing to publish: global/ differs from origin/%s; commit, merge and pull first", c.primary)
+		return fmt.Sprintf("refusing to publish: global/ or skills/ differs from origin/%s; commit, merge and pull first", c.primary)
 	}
 	return ""
 }

@@ -1,0 +1,140 @@
+[
+  {
+    "source": ".",
+    "skills": [
+      "do-adversarial-review",
+      "do-agent-docs",
+      "do-architecture-md",
+      "do-art",
+      "do-astro",
+      "do-backend",
+      "do-behavioral-testing",
+      "do-bitter-pill",
+      "do-brainstorm",
+      "do-cleanup-swift",
+      "do-cleanup-web",
+      "do-code-comments",
+      "do-commit",
+      "do-create-cli",
+      "do-debug",
+      "do-delegation",
+      "do-design-patterns-gof",
+      "do-design-system",
+      "do-doc-review",
+      "do-docs",
+      "do-first-principles",
+      "do-gh-pm",
+      "do-gh-stack",
+      "do-git-pr-review-triage",
+      "do-git-safe-pr-workflow",
+      "do-git-worktree",
+      "do-handoff",
+      "do-humanize",
+      "do-illo",
+      "do-it",
+      "do-lean-ts-patterns",
+      "do-macos-swift-desktop",
+      "do-marketing",
+      "do-modern-css",
+      "do-no-use-effect",
+      "do-parse-dont-validate",
+      "do-plan",
+      "do-readme-update",
+      "do-recipe-diagrams",
+      "do-redteam",
+      "do-regroup",
+      "do-review-frontend",
+      "do-review-ios",
+      "do-show-me",
+      "do-simplify",
+      "do-skill-craft",
+      "do-teach-me",
+      "do-tech-writing",
+      "do-todo",
+      "do-ts-standards",
+      "do-typescript-refactoring",
+      "do-ux-flow-plan",
+      "do-work",
+      "do-write-typescript"
+    ]
+  },
+  {
+    "source": "backnotprop/plannotator/apps/skills/extra",
+    "skills": [
+      "plannotator-compound",
+      "plannotator-setup-goal",
+      "plannotator-visual-explainer"
+    ]
+  },
+  {
+    "source": "edheltzel/but-axi",
+    "skills": [
+      "but-axi"
+    ]
+  },
+  {
+    "source": "gitbutlerapp/gitbutler",
+    "skills": [
+      "cli-commands",
+      "lite-render-perf",
+      "lite-screenshots",
+      "tui-tests"
+    ]
+  },
+  {
+    "source": "github/gh-stack",
+    "skills": [
+      "gh-stack"
+    ]
+  },
+  {
+    "source": "kunchenguid/chrome-devtools-axi",
+    "skills": [
+      "chrome-devtools-axi"
+    ]
+  },
+  {
+    "source": "kunchenguid/gh-axi",
+    "skills": [
+      "gh-axi"
+    ]
+  },
+  {
+    "source": "nicobailon/visual-explainer",
+    "skills": [
+      "visual-explainer"
+    ]
+  },
+  {
+    "source": "ogulcancelik/herdr",
+    "skills": [
+      "herdr"
+    ]
+  },
+  {
+    "source": "onsager-ai/dev-skills",
+    "skills": [
+      "codegraph"
+    ]
+  },
+  {
+    "source": "pbakaus/agent-reviews",
+    "skills": [
+      "resolve-agent-reviews",
+      "resolve-human-reviews",
+      "resolve-reviews"
+    ]
+  },
+  {
+    "source": "pbakaus/impeccable",
+    "skills": [
+      "impeccable"
+    ]
+  },
+  {
+    "source": "plannotator/guides",
+    "skills": [
+      "plannotator-guide"
+    ]
+  }
+]

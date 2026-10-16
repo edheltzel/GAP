@@ -1,0 +1,6 @@
+# Optional metadata read by ChatGPT and Codex (agentskills.io hosts that
+# support it). Ignored by Claude Code and by `npx skills`.
+interface:
+  display_name: "Content Demand Finder"
+  short_description: "Turn a business description into 50 customer-driven content opportunities."
+  brand_color: "#FF5E29"
