@@ -61,8 +61,9 @@
     },
     {
       "title": "Global: Personal",
-      "description": "Personal extras you want everywhere - teaching, todo.txt.",
+      "description": "Personal extras you want everywhere - teaching, todo.txt, isometric explainer figures.",
       "skills": [
+        "anatomy",
         "do-teach-me",
         "do-todo"
       ]

@@ -2,6 +2,7 @@
   {
     "source": ".",
     "skills": [
+      "anatomy",
       "do-adversarial-review",
       "do-agent-docs",
       "do-architecture-md",

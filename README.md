@@ -158,7 +158,7 @@ Useful in any repo, or none. Install once per machine with `-g`.
 | [Workflow](./skills/global/workflow/) | 15 | Change delivery - the brainstorm, plan, work, debug, and ship loop (LFG), commits, docs, GitHub projects and stacks, PR workflow and review triage, worktrees, and technical writing. |
 | [Operations](./skills/global/operations/) | 4 | Operating AI agents - delegation, handoffs, prompt audits, and project status check-ins. |
 | [Content](./skills/global/content/) | 3 | Audience-facing media - illustrations, diagrams, images, and visual explanations. |
-| [Personal](./skills/global/personal/) | 2 | Personal extras you want everywhere - teaching, todo.txt. |
+| [Personal](./skills/global/personal/) | 4 | Personal extras you want everywhere - teaching, todo.txt, isometric explainer figures. |
 
 ### [Project](./skills/project/)
 
