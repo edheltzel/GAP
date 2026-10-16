@@ -367,7 +367,7 @@ func TestSyncEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"skillFolderHash":"`+extHash+`"}}}`)
+	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/ext","sourceUrl":"https://github.com/owner/ext.git","skillFolderHash":"`+extHash+`"}}}`)
 
 	// Stub npx: logs its argv and installs each -s skill the way skills.sh does (folder + Claude symlink).
 	stub, npxLog := filepath.Join(tmp, "stub"), filepath.Join(tmp, "npx.log")
@@ -597,7 +597,7 @@ func TestCheckDriftWithoutTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"skillFolderHash":"`+extHash+`"}}}`)
+	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/ext","sourceUrl":"https://github.com/owner/ext.git","skillFolderHash":"`+extHash+`"}}}`)
 	entries := []manifestEntry{{Source: ".", Skills: []string{"do-x"}}, {Source: "owner/ext", Skills: []string{"ext"}}}
 	drift := func() bool {
 		t.Helper()

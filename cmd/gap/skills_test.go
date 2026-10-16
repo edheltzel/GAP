@@ -1,8 +1,10 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -39,7 +41,7 @@ done
 	if err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"good":{"skillFolderHash":"`+hash+`"}}}`)
+	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"good":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
 	if !skillsAdd(npx, t.TempDir(), home, "owner/repo", []string{"good"}) {
 		t.Fatal("a complete matching install must succeed")
 	}
@@ -146,7 +148,7 @@ func TestSkillsBaselines(t *testing.T) {
 			case "xdg":
 				stateHome := filepath.Join(home, "state")
 				t.Setenv("XDG_STATE_HOME", stateHome)
-				write(t, filepath.Join(stateHome, "skills", ".skill-lock.json"), `{"skills":{"do-x":{"skillFolderHash":"`+hash+`"}}}`)
+				write(t, filepath.Join(stateHome, "skills", ".skill-lock.json"), `{"skills":{"do-x":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
 			case "local-missing":
 				source = "."
 			}
@@ -155,5 +157,113 @@ func TestSkillsBaselines(t *testing.T) {
 				t.Fatalf("baseline check: ok=%v err=%v", ok, err)
 			}
 		})
+	}
+}
+
+func TestSyncReinstallsMismatchedSource(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", "")
+	for _, tc := range []struct {
+		name, manifest, lockSource string
+	}{
+		{name: "fork", manifest: "kunchenguid/gh-axi", lockSource: "fork/gh-axi"},
+		{name: "doskills", manifest: ".", lockSource: "edheltzel/Do-Skills"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home, repo := t.TempDir(), t.TempDir()
+			t.Setenv("HOME", home)
+			skill := "gh-axi"
+			body := "from-checkout\n"
+			if tc.manifest == "." {
+				skill = "do-x"
+				write(t, filepath.Join(repo, "skills", "global", "core", skill, "SKILL.md"), body)
+			}
+			for _, dir := range skillDirs(home, skill) {
+				write(t, filepath.Join(dir, "SKILL.md"), body)
+			}
+			hash, err := treeHash(skillDirs(home, skill)[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"`+skill+`":{"source":"`+tc.lockSource+`","sourceType":"github","sourceUrl":"https://github.com/`+tc.lockSource+`.git","skillPath":"skills/`+skill+`/SKILL.md","skillFolderHash":"`+hash+`"}}}`)
+			npxDir := t.TempDir()
+			npxLog := filepath.Join(npxDir, "npx.log")
+			write(t, filepath.Join(npxDir, "npx"), "#!/bin/sh\necho \"$*\" >> "+npxLog+"\n"+`prev=""
+src=""
+for arg in "$@"; do
+  if [ "$prev" = add ]; then src="$arg"; fi
+  if [ "$prev" = -s ]; then
+    mkdir -p "$HOME/.agents/skills/$arg" "$HOME/.claude/skills"
+    printf '%s\n' 'from-checkout' > "$HOME/.agents/skills/$arg/SKILL.md"
+    ln -sfn "$HOME/.agents/skills/$arg" "$HOME/.claude/skills/$arg"
+    python3 - "$HOME" "$arg" "$src" <<'PY'
+import json, sys
+home, name, src = sys.argv[1:]
+path = home + "/.agents/.skill-lock.json"
+lock = json.load(open(path))
+entry = lock["skills"][name]
+entry["source"] = src
+entry["sourceType"] = "local" if src.startswith("/") else "github"
+entry["sourceUrl"] = src if src.startswith("/") else "https://github.com/" + src + ".git"
+json.dump(lock, open(path, "w"))
+PY
+  fi
+  prev="$arg"
+done
+`)
+			if err := os.Chmod(filepath.Join(npxDir, "npx"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", npxDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			old := os.Stdout
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			os.Stdout = w
+			ok := installSkills(repo, home, []manifestEntry{{Source: tc.manifest, Skills: []string{skill}}})
+			w.Close()
+			os.Stdout = old
+			out, _ := io.ReadAll(r)
+			if !ok {
+				t.Fatalf("reinstall must succeed\n%s", out)
+			}
+			if _, err := os.Stat(npxLog); err != nil {
+				t.Fatal("matching hash from another source must reinstall, not skip")
+			}
+			if !strings.Contains(string(out), "Migrated "+skill+"\n") && !strings.Contains(string(out), "Migrated "+skill+" ") {
+				t.Fatalf("expected one migration line, got %q", out)
+			}
+			backups, _ := filepath.Glob(filepath.Join(home, ".gap", "backups", "*", ".agents", "skills", skill, "SKILL.md"))
+			if len(backups) != 1 {
+				t.Fatal("reinstall must back up the previous skill")
+			}
+			driftOK, err := checkDrift(repo, home, []manifestEntry{{Source: tc.manifest, Skills: []string{skill}}})
+			if err != nil || !driftOK {
+				t.Fatalf("after reinstall, drift check must pass: ok=%v err=%v", driftOK, err)
+			}
+		})
+	}
+}
+
+func TestSourceIdentity(t *testing.T) {
+	repo := "/tmp/gap-checkout"
+	match := func(manifest string, l lockEntry) bool { return sameSource(repo, manifest, l) }
+	if !match("kunchenguid/gh-axi", lockEntry{Source: "https://github.com/kunchenguid/gh-axi.git", SourceURL: "https://github.com/kunchenguid/gh-axi.git"}) {
+		t.Fatal("a GitHub URL must match owner/repo")
+	}
+	if match("kunchenguid/gh-axi", lockEntry{Source: "fork/gh-axi", SourceURL: "https://github.com/fork/gh-axi.git"}) {
+		t.Fatal("a fork must not match the declared repo")
+	}
+	if !match("backnotprop/plannotator/apps/skills/extra", lockEntry{Source: "backnotprop/plannotator", SourceURL: "https://github.com/backnotprop/plannotator.git", SkillPath: "apps/skills/extra/plannotator-compound/SKILL.md"}) {
+		t.Fatal("a lock skillPath under the manifest subpath must match")
+	}
+	if match("backnotprop/plannotator/apps/skills/extra", lockEntry{Source: "backnotprop/plannotator", SkillPath: "skills/other/SKILL.md"}) {
+		t.Fatal("a different subpath must not match")
+	}
+	if !match(".", lockEntry{Source: repo, SourceType: "local", SourceURL: repo}) {
+		t.Fatal("a local lock path must match the checkout")
+	}
+	if match(".", lockEntry{Source: "edheltzel/Do-Skills", SourceType: "github", SourceURL: "https://github.com/edheltzel/Do-Skills.git"}) {
+		t.Fatal("a GitHub lock must not match the checkout source")
 	}
 }

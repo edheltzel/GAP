@@ -34,7 +34,8 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 	var err error
 	ok := true
 	for _, e := range entries {
-		var missing []string
+		var missing, migrate []string
+		var migrateFrom []lockEntry
 		for _, name := range e.Skills {
 			exists := false
 			for _, dir := range skillDirs(home, name) {
@@ -44,9 +45,14 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 			}
 			if !exists {
 				missing = append(missing, name)
+				continue
+			}
+			if locked, foreign := foreignLock(repoRoot, home, e.Source, name); foreign {
+				migrate = append(migrate, name)
+				migrateFrom = append(migrateFrom, locked)
 			}
 		}
-		if len(missing) == 0 {
+		if len(missing) == 0 && len(migrate) == 0 {
 			continue
 		}
 		if npx == "" {
@@ -55,12 +61,24 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 				return false
 			}
 		}
-		if !skillsAdd(npx, repoRoot, home, e.Source, missing) {
+		if len(missing) > 0 && !skillsAdd(npx, repoRoot, home, e.Source, missing) {
 			ok = false
-			continue
+		} else {
+			for _, name := range missing {
+				fmt.Println(filepath.Join(home, ".agents", "skills", name))
+			}
 		}
-		for _, name := range missing {
-			fmt.Println(filepath.Join(home, ".agents", "skills", name))
+		for i, name := range migrate {
+			replaced, err := replaceSkill(npx, repoRoot, home, e.Source, name)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return false
+			}
+			if !replaced {
+				ok = false
+				continue
+			}
+			fmt.Printf("Migrated %s from %s to %s\n", name, lockLabel(migrateFrom[i]), e.Source)
 		}
 	}
 	return ok
@@ -107,13 +125,146 @@ func skillsAdd(npx, repoRoot, home, source string, names []string) bool {
 }
 
 // lockEntry is the part of skills.sh's ~/.agents/.skill-lock.json drift needs.
+// Source is owner/repo, a GitHub URL, or the absolute path skills.sh records for a local add.
 type lockEntry struct {
+	Source          string `json:"source"`
+	SourceType      string `json:"sourceType"`
 	SourceURL       string `json:"sourceUrl"`
 	SkillPath       string `json:"skillPath"`
 	SkillFolderHash string `json:"skillFolderHash"`
 }
 
+func skillLockPath(home string) string {
+	if stateHome := os.Getenv("XDG_STATE_HOME"); stateHome != "" {
+		return filepath.Join(stateHome, "skills", ".skill-lock.json")
+	}
+	return filepath.Join(home, ".agents", ".skill-lock.json")
+}
+
+func readSkillLock(home string) (map[string]lockEntry, error) {
+	b, err := os.ReadFile(skillLockPath(home))
+	if err != nil {
+		return nil, err
+	}
+	var lock struct {
+		Skills map[string]lockEntry `json:"skills"`
+	}
+	if err := json.Unmarshal(b, &lock); err != nil {
+		return nil, err
+	}
+	return lock.Skills, nil
+}
+
+// foreignLock reports a parsed lock entry whose source is not the manifest source.
+// A missing or unreadable lock is not a mismatch; external baselines still require a hash.
+func foreignLock(repoRoot, home, source, name string) (lockEntry, bool) {
+	skills, err := readSkillLock(home)
+	if err != nil {
+		return lockEntry{}, false
+	}
+	locked, found := skills[name]
+	if !found || sameSource(repoRoot, source, locked) {
+		return lockEntry{}, false
+	}
+	return locked, true
+}
+
+func lockLabel(l lockEntry) string {
+	if l.Source != "" {
+		return l.Source
+	}
+	return l.SourceURL
+}
+
+// sameSource matches a manifest source to a skills.sh lock entry.
+// "." matches the absolute path passed to skills add. owner/repo, a github.com URL, and a subpath are one identity.
+func sameSource(repoRoot, manifest string, l lockEntry) bool {
+	if manifest == "." {
+		p, ok := localLockPath(l)
+		return ok && p == filepath.Clean(repoRoot)
+	}
+	wantRepo, wantSub, ok := githubIdentity(manifest)
+	if !ok {
+		return false
+	}
+	gotRepo, gotSub, ok := lockGitHub(l)
+	if !ok || !strings.EqualFold(gotRepo, wantRepo) {
+		return false
+	}
+	if wantSub == "" {
+		return true
+	}
+	sub := skillSubpath(l.SkillPath)
+	if sub == "" {
+		sub = gotSub
+	}
+	return sub == wantSub || strings.HasPrefix(sub, wantSub+"/")
+}
+
+func localLockPath(l lockEntry) (string, bool) {
+	if l.SourceType != "" && l.SourceType != "local" {
+		return "", false
+	}
+	p := l.Source
+	if !filepath.IsAbs(p) {
+		p = l.SourceURL
+	}
+	if !filepath.IsAbs(p) {
+		return "", false
+	}
+	return filepath.Clean(p), true
+}
+
+func lockGitHub(l lockEntry) (string, string, bool) {
+	repo, sub, ok := githubIdentity(l.Source)
+	uRepo, uSub, uOK := githubIdentity(l.SourceURL)
+	if ok && uOK && !strings.EqualFold(repo, uRepo) {
+		return "", "", false
+	}
+	if !ok && uOK {
+		return uRepo, uSub, true
+	}
+	return repo, sub, ok
+}
+
+func githubIdentity(s string) (repo, sub string, ok bool) {
+	s = strings.TrimSuffix(strings.TrimSpace(s), "/")
+	if s == "" || s == "." || filepath.IsAbs(s) {
+		return "", "", false
+	}
+	switch {
+	case strings.HasPrefix(s, "https://github.com/"):
+		s = strings.TrimPrefix(s, "https://github.com/")
+	case strings.HasPrefix(s, "http://github.com/"):
+		s = strings.TrimPrefix(s, "http://github.com/")
+	case strings.HasPrefix(s, "git@github.com:"):
+		s = strings.TrimPrefix(s, "git@github.com:")
+	case strings.HasPrefix(s, "ssh://git@github.com/"):
+		s = strings.TrimPrefix(s, "ssh://git@github.com/")
+	case strings.Contains(s, "://") || strings.Contains(s, ":"):
+		return "", "", false
+	}
+	s = strings.TrimSuffix(s, ".git")
+	parts := strings.Split(s, "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	rest := parts[2:]
+	if len(rest) >= 2 && rest[0] == "tree" {
+		rest = rest[2:]
+	}
+	return parts[0] + "/" + parts[1], strings.Join(rest, "/"), true
+}
+
+func skillSubpath(skillPath string) string {
+	skillPath = filepath.ToSlash(skillPath)
+	return strings.Trim(strings.TrimSuffix(skillPath, "/SKILL.md"), "/")
+}
+
 func skillBaseline(repoRoot, home, source, name string) (string, string, lockEntry, error) {
+	if locked, foreign := foreignLock(repoRoot, home, source, name); foreign {
+		return "", "", lockEntry{}, fmt.Errorf("Skill %s is locked to %s, not %s", name, lockLabel(locked), source)
+	}
 	if source == "." {
 		dir := localSkillDir(repoRoot, name)
 		if dir == "" {
@@ -122,20 +273,10 @@ func skillBaseline(repoRoot, home, source, name string) (string, string, lockEnt
 		hash, err := treeHash(dir)
 		return hash, dir, lockEntry{}, err
 	}
-	var lock struct {
-		Skills map[string]lockEntry `json:"skills"`
-	}
-	lockPath := filepath.Join(home, ".agents", ".skill-lock.json")
-	if stateHome := os.Getenv("XDG_STATE_HOME"); stateHome != "" {
-		lockPath = filepath.Join(stateHome, "skills", ".skill-lock.json")
-	}
-	b, lockErr := os.ReadFile(lockPath)
-	if lockErr == nil {
-		lockErr = json.Unmarshal(b, &lock)
-	}
-	l, found := lock.Skills[name]
+	skills, lockErr := readSkillLock(home)
+	l, found := skills[name]
 	if lockErr != nil || !found || l.SkillFolderHash == "" {
-		return "", "", lockEntry{}, fmt.Errorf("Skill baseline unavailable for %s in %s", name, lockPath)
+		return "", "", lockEntry{}, fmt.Errorf("Skill baseline unavailable for %s in %s", name, skillLockPath(home))
 	}
 	return l.SkillFolderHash, "", l, nil
 }
