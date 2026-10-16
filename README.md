@@ -30,10 +30,10 @@ Check that your shell finds it:
 
 ```bash
 gap --help
-# gap publishes global/AGENTS.md into the file each coding agent already reads,
-# and installs the skills listed in global/skills.json.
+# gap publishes global/AGENTS.md and each global/commands/*.md into the files
+# those harnesses already read, and installs the skills listed in global/skills.json.
 # Usage:
-#   gap sync                         Publish the policy, install missing skills, check skills for drift
+#   gap sync                         Publish the policy and commands, install missing skills, check skills for drift
 #   ...
 ```
 
@@ -43,7 +43,7 @@ gap --help
 
 | Command | What it does |
 | --- | --- |
-| `gap sync` | Publish `global/AGENTS.md` to every agent, install missing skills, and check skills for drift |
+| `gap sync` | Publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
 | `go test ./...` | Run the self-test against throwaway folders |
 
@@ -100,7 +100,11 @@ It prints each file it wrote:
 ~/.omp/agent/APPEND_SYSTEM.md
 ~/.codex/gap/global-agent-policy.md
 ~/.cursor/rules/global-agent-policy.mdc
+~/.omp/agent/commands/state-docs.md
+~/.claude/commands/state-docs.md
 ```
+
+Policy files are the shared rules. Each `global/commands/*.md` is a slash-command prompt, copied into the command directory each harness already loads. OMP reads `~/.omp/agent/commands/`. Claude Code reads `~/.claude/commands/`. The same replace rules apply: a foreign command file is backed up only after a yes, and a run with no terminal leaves it alone.
 
 Each is a regular file, not a symlink. Start a new session in any agent to load the new rules.
 
