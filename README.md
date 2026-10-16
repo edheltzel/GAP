@@ -60,13 +60,13 @@ gap --help
 
 `gap sync` installs missing listed skills by running skills.sh (`npx -y skills add <source> -g -y -a claude-code -a codex -s <name>`, repeating `-s` for each missing skill). It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for installations. If an installation is needed but `npx` is unavailable, sync still publishes the policy, skips the installation, and exits `1`.
 
-Sync also checks every installed managed skill against its source: this repo's folder, or the hash skills.sh recorded at install. A lock entry whose source is not that manifest source is reinstalled from the manifest after a backup, without asking. For each skill whose content drifted, it shows the diff and asks:
+Sync also checks every installed managed skill against its source: this repo's folder, or the hash skills.sh recorded at install. That hash is a Git tree id or a SHA-256 of the skill files; sync compares the same kind. A lock entry whose source is not that manifest source is reinstalled from the manifest after a backup, without asking, only when both destinations still match the recorded hash. An edited copy, or a hash sync cannot check, is reviewed like other drift, against the manifest source. For each skill whose content drifted, it shows the diff and asks:
 
 - `k` keeps the installed copies for this run. Later runs check them again. An incomplete installation still exits `1`.
 - `t` takes the source. Sync backs up both destinations under `~/.gap/backups/`, then reinstalls. A failed install restores the previous destinations.
 - `s` skips it for now. Sync exits `1`.
 
-With no terminal to ask in, sync lists the drifted skills, changes none of them, and exits `1`. Skills the manifest doesn't list are never touched.
+With no terminal to ask in, sync lists the drifted skills, including a foreign lock that was not migrated, changes none of them, and exits `1`. Skills the manifest doesn't list are never touched.
 
 To add a skill, add it to `global/skills.json`, then follow [the merge and publish steps](#step-2-merge-the-change).
 
