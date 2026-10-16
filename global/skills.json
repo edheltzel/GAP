@@ -2,7 +2,11 @@
   {
     "source": ".",
     "skills": [
+      "ai-visibility",
       "anatomy",
+      "competitor-analysis",
+      "content-brief",
+      "content-demand-finder",
       "do-adversarial-review",
       "do-agent-docs",
       "do-architecture-md",
@@ -23,6 +27,7 @@
       "do-design-system",
       "do-doc-review",
       "do-docs",
+      "do-ducky",
       "do-first-principles",
       "do-gh-pm",
       "do-gh-stack",
@@ -39,6 +44,7 @@
       "do-modern-css",
       "do-no-use-effect",
       "do-parse-dont-validate",
+      "do-perf",
       "do-plan",
       "do-readme-update",
       "do-recipe-diagrams",
@@ -56,7 +62,12 @@
       "do-typescript-refactoring",
       "do-ux-flow-plan",
       "do-work",
-      "do-write-typescript"
+      "do-write-typescript",
+      "keyword-research",
+      "project-setup",
+      "seo-action-plan",
+      "seo-foundations",
+      "site-audit"
     ]
   },
   {
@@ -136,6 +147,12 @@
     "source": "plannotator/guides",
     "skills": [
       "plannotator-guide"
+    ]
+  },
+  {
+    "source": "typesafe-ai/skills",
+    "skills": [
+      "typesafe-ai"
     ]
   }
 ]
