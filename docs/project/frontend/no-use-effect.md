@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-no-use-effect
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/frontend/do-no-use-effect`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-no-use-effect
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/frontend/do-no-use-effect)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-no-use-effect
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/frontend/do-no-use-effect)
 
 ## What it does
 

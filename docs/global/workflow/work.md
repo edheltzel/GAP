@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-work
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/workflow/do-work`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-work
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/global/workflow/do-work)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-work
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/workflow/do-work)
 
 ## What it does
 

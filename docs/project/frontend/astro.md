@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-astro
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/frontend/do-astro`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-astro
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/frontend/do-astro)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-astro
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/frontend/do-astro)
 
 ## What it does
 

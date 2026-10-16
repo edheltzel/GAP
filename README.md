@@ -150,7 +150,7 @@ Skills live in `skills/<scope>/<group>/<skill>/`. Regenerate this table with `ba
 
 ### [Global](./skills/global/)
 
-Useful in any repo, or none. Install once per machine with `-g`.
+Useful in any repo, or none.
 
 | Group | Skills | Coverage |
 |-------|--------|----------|
@@ -162,7 +162,7 @@ Useful in any repo, or none. Install once per machine with `-g`.
 
 ### [Project](./skills/project/)
 
-Pay off only when a project uses that stack or product. Install into the project.
+Pay off only when a project uses that stack or product.
 
 | Group | Skills | Coverage |
 |-------|--------|----------|

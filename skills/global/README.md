@@ -1,11 +1,19 @@
 # Global Skills
 
-Useful in any repo, or none. Install once per machine with `-g`.
+Useful in any repo, or none.
 
 ## Installation
 
+These skills live in this repo (`edheltzel/agent-config`, being renamed GAP). `gap sync` installs every skill listed in `global/skills.json`.
+
 ```bash
-npx skills add https://github.com/edheltzel/Do-Skills/tree/master/skills/global -g
+gap sync
+```
+
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s <skill-name>
 ```
 
 ## Groups

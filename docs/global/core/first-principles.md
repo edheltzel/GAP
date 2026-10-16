@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-first-principles
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/core/do-first-principles`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-first-principles
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/global/core/do-first-principles)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-first-principles
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/core/do-first-principles)
 
 ## What it does
 

@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-docs
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/workflow/do-docs`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-docs
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/global/workflow/do-docs)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-docs
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/workflow/do-docs)
 
 ## What it does
 

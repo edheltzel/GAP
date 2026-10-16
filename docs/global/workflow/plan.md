@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-plan
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/workflow/do-plan`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-plan
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/global/workflow/do-plan)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-plan
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/workflow/do-plan)
 
 ## What it does
 

@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-ux-flow-plan
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/frontend/do-ux-flow-plan`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-ux-flow-plan
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/frontend/do-ux-flow-plan)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-ux-flow-plan
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/frontend/do-ux-flow-plan)
 
 ## What it does
 
