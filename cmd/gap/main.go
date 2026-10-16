@@ -1,4 +1,4 @@
-// Command gap publishes global/AGENTS.md into the files each agent harness already reads.
+// Command gap publishes global/AGENTS.md and global/commands/*.md into the files each agent harness already reads.
 package main
 
 import (
@@ -23,11 +23,11 @@ import (
 
 const (
 	trustLine = "Trust both GAP hooks (SessionStart and SubagentStart) in Codex with /hooks, confirm a session and a subagent both get the policy, then run: gap sync --remove-codex-legacy"
-	usage     = `gap publishes global/AGENTS.md into the file each coding agent already reads,
-and installs the skills listed in global/skills.json.
+	usage     = `gap publishes global/AGENTS.md and each global/commands/*.md into the files
+those harnesses already read, and installs the skills listed in global/skills.json.
 
 Usage:
-  gap sync                         Publish the policy, install missing skills, check skills for drift
+  gap sync                         Publish the policy and commands, install missing skills, check skills for drift
   gap sync --remove-codex-legacy   Same, then strip the old policy copy from ~/.codex/AGENTS.md
   gap --help                       Show this help
 
@@ -130,6 +130,14 @@ func syncAll(removeLegacy bool) error {
 		}
 	}
 
+	commandsOK, err := publishCommands(repoRoot, home, ledger, ledgerPath)
+	if err != nil {
+		return err
+	}
+	if !commandsOK {
+		skipped = true
+	}
+
 	payload := adapt(string(raw), false)
 	// Cleanup runs before this run's hook install, so a hook added just now (not yet trusted in /hooks) never counts.
 	if removeLegacy {
@@ -159,6 +167,33 @@ func syncAll(removeLegacy bool) error {
 		return errSkipped
 	}
 	return nil
+}
+func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath string) (bool, error) {
+	matches, err := filepath.Glob(filepath.Join(repoRoot, "global", "commands", "*.md"))
+	if err != nil {
+		return false, err
+	}
+	ok := true
+	for _, src := range matches {
+		b, err := os.ReadFile(src)
+		if err != nil {
+			return false, err
+		}
+		name := filepath.Base(src)
+		for _, dest := range []string{
+			filepath.Join(home, ".omp", "agent", "commands", name),
+			filepath.Join(home, ".claude", "commands", name),
+		} {
+			wrote, err := publish(string(b), dest, false, ledger, ledgerPath, true, home)
+			if err != nil {
+				return false, err
+			}
+			if !wrote {
+				ok = false
+			}
+		}
+	}
+	return ok, nil
 }
 
 // sourceRoot is the checkout gap was built from, so `gap sync` publishes that checkout from any directory.
