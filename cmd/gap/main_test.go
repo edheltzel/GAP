@@ -518,19 +518,47 @@ done
 	if err := os.Remove(extra); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(clone, "skills", ".gitignore"), "ignored/\n")
-	write(t, filepath.Join(clone, "global", ".gitignore"), "ignored/\nskills.json\n")
+	write(t, filepath.Join(clone, "skills", ".gitignore"), "ignored/\nnode_modules/\n")
+	write(t, filepath.Join(clone, "global", ".gitignore"), "ignored/\nskills.json\n.DS_Store\n")
 	commitMerged("ignore generated files")
-	for _, dir := range []string{"global", "skills"} {
-		ignored := filepath.Join(clone, dir, "ignored", "payload")
-		write(t, ignored, "unmerged ignored content\n")
-		if code := cli(); code != 1 || !strings.Contains(lastOut, "global/ or skills/") {
-			t.Fatalf("ignored files in %s must refuse (exit %d)\n%s", dir, code, lastOut)
-		}
-		if err := os.RemoveAll(filepath.Dir(ignored)); err != nil {
-			t.Fatal(err)
+	write(t, filepath.Join(clone, "skills", "ignored", "payload"), "unmerged ignored content\n")
+	if code := cli(); code != 1 || !strings.Contains(lastOut, "global/ or skills/") {
+		t.Fatalf("an ignored file skills.sh would install must refuse (exit %d)\n%s", code, lastOut)
+	}
+	if err := os.RemoveAll(filepath.Join(clone, "skills", "ignored")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(clone, "global", "ignored", "payload"), "unread\n")
+	write(t, filepath.Join(clone, "global", ".DS_Store"), "store\n")
+	write(t, filepath.Join(clone, "skills", "global", "core", "do-a", "node_modules", "pkg", "index.js"), "dep\n")
+	if code := cli(); code != 0 {
+		t.Fatalf("ignored node_modules and .DS_Store must not block (exit %d)\n%s", code, lastOut)
+	}
+	if err := os.RemoveAll(filepath.Join(clone, "global", "ignored")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(clone, "global", ".DS_Store")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(clone, "skills", "global", "core", "do-a", "node_modules")); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"-C", clone, "rm", "-q", "--cached", "global/skills.json"},
+		{"-C", clone, "-c", "user.name=gap", "-c", "user.email=gap@example.com", "commit", "-q", "-m", "untrack manifest for ignore"},
+		{"-C", clone, "update-ref", "refs/remotes/origin/master", "HEAD"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
 	}
+	if code := cli(); code != 1 || !strings.Contains(lastOut, "global/") {
+		t.Fatalf("an ignored global/skills.json must refuse (exit %d)\n%s", code, lastOut)
+	}
+	if out, err := exec.Command("git", "-C", clone, "add", "--force", "global/skills.json").CombinedOutput(); err != nil {
+		t.Fatalf("restore manifest: %v\n%s", err, out)
+	}
+	commitMerged("restore ignored manifest")
 	if code := cli(); code != 0 {
 		t.Fatalf("merged skills must publish (exit %d)\n%s", code, lastOut)
 	}
