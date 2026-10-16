@@ -1522,8 +1522,9 @@ def cmd_init(args):
         if entered:
             cfg["apiKey"] = entered
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(dump_config_yaml(cfg))
-    os.chmod(p, 0o600)
+    with os.fdopen(os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        os.fchmod(f.fileno(), 0o600)
+        f.write(dump_config_yaml(cfg))
     backend_note = cfg.get("backend") or "auto"
     if cfg.get("apiKey"):
         key_note = "set"
