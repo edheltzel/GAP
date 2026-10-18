@@ -1,0 +1,2 @@
+# GAP has no GitHub Actions. Honored only from the trusted default branch.
+no_ci: true
