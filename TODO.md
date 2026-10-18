@@ -13,9 +13,10 @@ Mirror of `todo.txt` (source of truth, managed with `tuxedo`). Synced 2026-10-17
 - [ ] 2026-10-16 U2: revoke the Eight Sleep APP_CLIENT_SECRET from commit 98ee113c (rotate, no history rewrite) - [note](docs/plans/2026-10-15-secrets-scan.md)
 - [ ] 2026-10-16 End-to-end test from gitbutler/workspace: git push no-mistakes &lt;branch&gt;, then no-mistakes axi run --run &lt;id&gt; --yes (daemon restarted on patched NM 2026-10-17)
 - [ ] 2026-10-17 Confirm the GitButler command that integrates remote fix commits into a stack branch - [note](docs/plans/2026-10-17-nm-gitbutler-safe-requirements.md)
-- [ ] 2026-10-17 U1-U7: build GitButler-safe No Mistakes in ~/Developer/Contributions/NoMistakes and prove it on GAP - [note](docs/plans/2026-10-17-nm-gitbutler-safe-plan.md)
+- [ ] 2026-10-17 **Waiting:** U1-U7: build GitButler-safe No Mistakes in ~/Developer/Contributions/NoMistakes and prove it on GAP handed off to the codex agent working feat/axi-run-selector; U7 install + GAP proof after it finishes - [note](docs/plans/2026-10-17-nm-gitbutler-safe-plan.md)
 - [ ] 2026-10-17 U8: update GAP No Mistakes policy and do-commit for axi run --branch in GitButler repos - [note](docs/plans/2026-10-17-nm-gitbutler-safe-plan.md)
 - [ ] 2026-10-17 U9: offer the NM changes upstream (needs explicit go) - [note](docs/plans/2026-10-17-nm-gitbutler-safe-plan.md)
+- [ ] 2026-10-18 **Waiting:** U7 blocked: restart no-mistakes daemon onto a0f1777e once 5 runs finish (Echo-nm x2, Recall x2, TernGitButler); then run NMEndToEnd steps 2-6 - [note](docs/plans/2026-10-17-nm-gitbutler-safe-plan.md)
 
 ## Done
 

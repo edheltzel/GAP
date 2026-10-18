@@ -22,6 +22,7 @@ x 2026-10-16 2026-10-15 Decide U8 public history (fresh repo / filter-repo / ful
 2026-10-16 U2: revoke the Eight Sleep APP_CLIENT_SECRET from commit 98ee113c (rotate, no history rewrite) +gap note:docs/plans/2026-10-15-secrets-scan.md
 2026-10-16 End-to-end test from gitbutler/workspace: git push no-mistakes <branch>, then no-mistakes axi run --run <id> --yes (daemon restarted on patched NM 2026-10-17) +gap
 2026-10-17 Confirm the GitButler command that integrates remote fix commits into a stack branch +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-requirements.md
-2026-10-17 U1-U7: build GitButler-safe No Mistakes in ~/Developer/Contributions/NoMistakes and prove it on GAP +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-plan.md
+2026-10-17 U1-U7: build GitButler-safe No Mistakes in ~/Developer/Contributions/NoMistakes and prove it on GAP +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-plan.md @waiting handed off to the codex agent working feat/axi-run-selector; U7 install + GAP proof after it finishes
 2026-10-17 U8: update GAP No Mistakes policy and do-commit for axi run --branch in GitButler repos +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-plan.md
 2026-10-17 U9: offer the NM changes upstream (needs explicit go) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-plan.md
+2026-10-18 U7 blocked: restart no-mistakes daemon onto a0f1777e once 5 runs finish (Echo-nm x2, Recall x2, TernGitButler); then run NMEndToEnd steps 2-6 +gap @waiting note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-plan.md
