@@ -66,15 +66,15 @@ Code lives in `/Users/ed/Developer/Contributions/NoMistakes` (NM below), one com
 
 ### U7. Install and prove it end to end on GAP
 - Depends on: U6
-- Files: none in NM; GAP `todo.txt` only
-- Change: `make install` in NM (installs to `~/.go/bin`, first on PATH), then `no-mistakes daemon restart` only when `no-mistakes status` shows no active run. Copy the same binary to `~/.no-mistakes/bin/no-mistakes`. In GAP, from `gitbutler/workspace` with the uncommitted `todo.txt` present, publish one open PR branch with `axi run --branch <name> --intent "..." --yes`.
+- Files: none in NM; GAP's approved versioned requirements and plan documents plus `.no-mistakes.yaml` only. The unrelated uncommitted regroup note stays uncommitted.
+- Change: `make install` in NM (installs to `~/.go/bin`, first on PATH), then `no-mistakes daemon restart` only when `no-mistakes status` shows no active run. Copy the same binary to `~/.no-mistakes/bin/no-mistakes`. In GAP, from `gitbutler/workspace` with the unrelated uncommitted regroup note untouched, publish `docs/nm-gitbutler-plan` with `axi run --branch docs/nm-gitbutler-plan --intent "..." --yes --skip=ci`.
 - Done when: every Success line in the requirements holds on that run.
 - Verify: record before/after `git -C ~/Developer/Atlas/GAP reflog refs/heads/<name>` and `HEAD` (no NM entry), `but status` (no conflicts), the run outcome and PR, and, if fix commits were pushed, the local branch containing them after the GitButler step. Also run one plain-git repo through `axi run` unchanged.
 
 ### U8. GAP policy and skills
 - Depends on: U7
 - Files: GAP `global/AGENTS.md`, `skills/global/workflow/do-commit/references/procedure.md` (and any other GAP skill that tells agents to publish through No Mistakes), `README.md` if it covers publishing
-- Change: the No Mistakes rule says: in a GitButler repo, publish with `no-mistakes axi run --branch <name> --intent "..." --yes`, bring fix commits back with GitButler, never `axi sync`/`--recover`; outer agent only (phase-agent exception carried from the PR #86 review). Remove the side-clone workaround. GitButler branch, commit, PR through `but`.
+- Change: the No Mistakes rule says: in a GitButler repo, publish with `no-mistakes axi run --branch <name> --intent "..." --yes`, bring fix commits back with GitButler, never `axi sync`/`--recover`; outer agent only (phase-agent exception carried from the PR #86 review). Remove the side-clone workaround. GitButler owns branches and commits; NM owns gated publication and PR creation.
 - Done when: guidance matches U7's proven path, and `gap sync` after merge publishes it.
 - Verify: `go test ./...` in GAP; `rg -n "side clone|GAP-skills|git push no-mistakes" global skills` returns no live instruction.
 
