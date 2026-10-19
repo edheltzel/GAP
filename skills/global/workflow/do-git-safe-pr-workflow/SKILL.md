@@ -38,10 +38,13 @@ When GitButler is in use, do not `git merge`, `git rebase`, `git stash`, `git ch
 No Mistakes is in use when `command -v no-mistakes` succeeds **and** `git remote` lists `no-mistakes` (or `no-mistakes axi` shows this repo).
 
 When No Mistakes is in use, the gate owns publication:
-- **Push, open PR, or sync a live PR:** `no-mistakes axi run --yes --intent "<what the user set out to accomplish>"`. Reattach or `axi respond` if a run is already active. Do not `but push`, `but pr new`, `git push origin`, or `gh pr create`.
+- **Push, open PR, or sync a live PR:** `no-mistakes axi run --yes --intent "<what the user set out to accomplish>"`. In a GitButler repo, stay on the workspace and pass `--branch <name>`. Do not check out the branch. Reattach or `axi respond` if a run is already active. Do not `but push`, `but pr new`, `git push origin`, `gh pr create`, `axi sync`, or `--recover`.
 - GitButler still owns the lane, local commit, `but pull` before first publish, conflicts, and unpublished undo.
 - While a run is active: no hand-rebase, no origin push, no self-edit of findings. `ask-user` findings stop for the user.
-- If `no-mistakes axi` reports `current_branch: gitbutler/workspace` or the default branch, stop. Tell the user the gate cannot see a real feature branch.
+- Only the outer publishing agent starts, drives, or responds. A phase agent never does.
+- `--branch` exists only in the local No Mistakes fork until upstream merges it. If the binary rejects it, stop. Do not publish from a second clone, and do not push the branch to the `no-mistakes` remote by hand.
+- When the run reports published commits, run the command it prints (`but branch update <name>`, with the upstream prefix it prints when the branch has none).
+- In a plain git repo, if `no-mistakes axi` reports the default branch, stop.
 
 This forks three defaults:
 - Do not open a PR early. Publish after the gate is green.
@@ -206,7 +209,7 @@ Before pushing:
 - [ ] review `status` and diff
 - [ ] confirm no accidental changes to unrelated files
 - [ ] explain any conflict resolution that changed behavior
-- [ ] if No Mistakes: `no-mistakes axi run --yes --intent "..."` (not `git push` / `but push`)
+- [ ] if No Mistakes: `no-mistakes axi run --yes --intent "..."` (GitButler: `--branch <name>` from the workspace; not `git push` / `but push` / `axi sync`)
 
 Before undoing:
 

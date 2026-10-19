@@ -1,8 +1,19 @@
 x 2026-10-12 2026-10-12 Commit + merge GAP todo rule, then npm run sync +config pr:https://github.com/edheltzel/agent-config/pull/70
 x 2026-10-14 2026-10-13 Ship sync gitbutler/workspace gate change (src/sync.ts, README, AGENTS.md) via but branch + PR +gap
 x 2026-10-14 2026-10-14 Merge README tutorial PR +gap pr:https://github.com/edheltzel/agent-config/pull/72
-2026-10-14 Red-team 8: rollback after --remove-codex-legacy brings back the replace prompt +gap
+x 2026-10-15 2026-10-14 Red-team 8: rollback after --remove-codex-legacy brings back the replace prompt +gap
 2026-10-14 Confirm in a live Cursor session that ~/.cursor/rules/global-agent-policy.mdc loads +gap
-2026-10-14 D6: a foreign-file backup keeps bytes, not the harness behavior it gave +gap
-2026-10-14 After #74 merged: go install ./cmd/gap, then gap sync from a terminal +gap
+2026-10-14 D6: a foreign-file backup keeps bytes, not the harness behavior it gave +gap notice shipped on fix/gap-redteam-8; decide: splice / gap restore / refuse foreign markers
 2026-10-14 Rename edheltzel/agent-config to GAP; archive/rename old edheltzel/GAP Go scaffold repo so go install path resolves +gap
+2026-10-15 Decide GitButler vs No Mistakes publish path, add phase-agent exception, publish docs/no-mistakes-autonomous +gap note:docs/plans/handoffs/2026-10-15-no-mistakes-autonomous-policy.md
+x 2026-10-15 2026-10-15 Decide whether to abort stale no-mistakes run 01M4CAEW62RRW7GN17D3RZ8F8T +gap note:docs/plans/handoffs/2026-10-15-no-mistakes-autonomous-policy.md
+x 2026-10-15 2026-10-15 Restore the lost DoSkills --yes fix (fix/no-mistakes-yes discarded 2026-10-15 04:31) or re-apply after the merge +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-requirements.md
+x 2026-10-15 2026-10-15 Plan gap skills (A+B) with do-plan +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-requirements.md
+2026-10-15 Write requirements for (C) gap installs harnesses +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-requirements.md
+x 2026-10-15 2026-10-15 U2 gitleaks scan of agent-config and DoSkills history +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-plan.md
+x 2026-10-15 2026-10-15 U3-U7 build gap skills (manifest, install, drift, docs) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-plan.md
+2026-10-15 U8 publish: flip agent-config public, rename to GAP, archive DoSkills (needs explicit go) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-15-gap-skills-plan.md
+x 2026-10-15 2026-10-15 Fix untracked global/skills.json merge-gate bypass + regression test, amend into suw +gap note:docs/plans/handoffs/2026-10-15-gap-skills.md
+2026-10-15 Decide U8 public history (fresh repo / filter-repo / full) and give the go +gap note:docs/plans/handoffs/2026-10-15-gap-skills.md
+2026-10-15 U2 sign-off: remove or rotate the real-looking secrets-scan findings before U8 +gap note:docs/plans/2026-10-15-secrets-scan.md
+2026-10-16 After the checkpoint PRs merge: git pull, go install ./cmd/gap, trash the stale ~/.claude/skills/typesafe-ai, then gap sync from a terminal +gap

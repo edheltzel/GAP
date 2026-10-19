@@ -18,9 +18,13 @@ No Mistakes is in use when `command -v no-mistakes` succeeds **and** `git remote
 
 When No Mistakes is in use:
 - GitButler still owns inspect and commit. Raw git still owns `git add` / `git commit` when GitButler is not in use.
+- Only the outer publishing agent runs this section. A phase agent never starts, drives, or responds to a pipeline.
 - After the commit, publish with `no-mistakes axi run --yes --intent "<what the user set out to accomplish>"`. Do not `but push`, `but pr new`, `git push`, or `git push origin`.
+- In a GitButler repo, stay on `gitbutler/workspace` and pass `--branch <feature-branch>`. Do not check out the branch. Do not run `axi sync` or `--recover`.
+- `--branch` exists only in the local No Mistakes fork until upstream merges it. If the installed binary rejects the flag, stop and say so. Do not publish from a second clone, and do not push the branch to the `no-mistakes` remote by hand.
+- When the run reports published commits, run the command it prints: `but branch update <feature-branch>`, prefixed with `git branch --set-upstream-to=origin/<feature-branch> <feature-branch> &&` when the branch has no upstream.
 - The installed `/no-mistakes` skill owns the axi loop. Drive it; do not copy it here.
-- If `no-mistakes axi` reports `current_branch: gitbutler/workspace` or the default branch, stop. Tell the user the gate cannot see a real feature branch. Do not invent a push workaround.
+- In a plain git repo, if `no-mistakes axi` reports the default branch, stop. The gate cannot see a real feature branch.
 
 ## Gates
 
@@ -29,8 +33,8 @@ Complete **in order**. Do not run the next action until the **Pass** condition i
 1. **Diff understood** — **Pass when:** `git status`/`git diff`/`git diff --cached`, **or** `but diff` if GitButler is in use, match your one-sentence description of what changed (or you recorded that there is nothing to commit).
 2. **Commit line chosen** — **Pass when:** You have a draft first line `type(scope): description` (or `type: description` if omitting scope) that matches the change set you intend to commit (on the push path, the set you intend to ship).
 3. **Contents match intent** — **Pass when:** After `git add`, `git diff --cached --stat` shows only the paths you meant; **or** if GitButler, the IDs you will pass to `but commit` (or all uncommitted, if omitting IDs) match that set.
-4. **Push target confirmed** — **Push path only.** **Pass when:** Current feature branch and remote are the ones you intend (`git branch -vv` / `git remote -v`, **or** `but status` if GitButler); then push. **If No Mistakes:** skip origin/push confirmation; pass when you have started `no-mistakes axi run --yes --intent "..."` on a real feature branch (not `gitbutler/workspace` or the default branch).
-5. **Remote caught up** — **Push path only.** **Pass when:** `git status -sb` shows the branch up to date with upstream, **or** `but status` shows the branch pushed, with no unexpected leftover commits for this task. **If No Mistakes:** pass only on axi `outcome: checks-passed` or `outcome: passed`. `passed-with-skips` is not publication proof — report the skip. A `gate:` (including `ask-user`) is blocked/pending, not a pass. Do not treat origin sync as the proof.
+4. **Push target confirmed** — **Push path only.** **Pass when:** Current feature branch and remote are the ones you intend (`git branch -vv` / `git remote -v`, **or** `but status` if GitButler); then push. **If No Mistakes:** skip origin/push confirmation; pass when the outer agent has started `no-mistakes axi run --yes --intent "..."` for a real feature branch. In a GitButler repo that is `--branch <name>` from the workspace, not a checkout. Otherwise the checkout is that branch, not the default branch.
+5. **Remote caught up** — **Push path only.** **Pass when:** `git status -sb` shows the branch up to date with upstream, **or** `but status` shows the branch pushed, with no unexpected leftover commits for this task. **If No Mistakes:** pass only on axi `outcome: checks-passed` or `outcome: passed`. `passed-with-skips` is not publication proof — report the skip. A `gate:` (including `ask-user`) is blocked/pending, not a pass. Do not treat origin sync as the proof. In a GitButler repo, if the run reported published commits, also run the command it printed.
 
 ## Step 1: Gather Context
 
@@ -121,7 +125,7 @@ EOF
 
 Then publish (push path only):
 
-- **No Mistakes:** `no-mistakes axi run --yes --intent "<what the user set out to accomplish>"`. Drive gates with `/no-mistakes`. Do not `but push` or `git push`.
+- **No Mistakes:** `no-mistakes axi run --yes --intent "<what the user set out to accomplish>"`. In a GitButler repo add `--branch <feature-branch>` and stay on the workspace. Drive gates with `/no-mistakes`. Do not `but push` or `git push`. If the run reports published commits, run the command it prints before treating the push as done.
 - **GitButler, no gate:** `but push <feature-branch>`
 - **Otherwise:** `git push`
 
@@ -158,7 +162,7 @@ Optionally append a co-author or footer trailer per project convention (e.g. a `
 
 Push path only. Skip on the commit-only path.
 
-After pushing, satisfy **Gate 5**: `git status` and `git status -sb`, **or** `but status` if GitButler is in use. Confirm a clean tree and upstream sync (or an expected ahead/behind you can explain). **If No Mistakes:** the axi outcome is Gate 5. Do not `git fetch` origin to prove the push.
+After pushing, satisfy **Gate 5**: `git status` and `git status -sb`, **or** `but status` if GitButler is in use. Confirm a clean tree and upstream sync (or an expected ahead/behind you can explain). **If No Mistakes:** the axi outcome is Gate 5. Do not `git fetch` origin to prove the push. In a GitButler repo, if the run reported published commits, run the command it printed before calling the push done.
 
 ## Step 6: PR and Land
 
