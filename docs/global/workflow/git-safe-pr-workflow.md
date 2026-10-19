@@ -47,7 +47,7 @@ you're not a confident git user. It teaches the next decision, not the whole too
   the PR title as the final commit message.
 - **Refuse or warn hard** on committing to `main`, force-pushing protected
   branches, or `reset --hard` / `clean -fd` without a clear destructive request.
-- **No Mistakes owns publication.** If the repo has a `no-mistakes` remote, do not `git push origin`, `but push`, `but pr new`, or `gh pr create`. Drive `no-mistakes axi`. Do not open a PR early; do not merge `origin/main` onto a live gated PR; do not treat the pipeline's guarded force-push as a user force-push. While a run is active, do not hand-rebase or edit findings yourself.
+- **No Mistakes owns publication.** If the repo has a `no-mistakes` remote, do not `git push origin`, `but push`, `but pr new`, or `gh pr create`. Drive `no-mistakes axi run`. In a GitButler repo, stay on the workspace and pass `--branch <name>`. Do not check out the branch, and do not run `axi sync` or `--recover`. Do not open a PR early. Do not merge `origin/main` onto a live gated PR. Do not treat the pipeline's guarded force-push as a user force-push. While a run is active, do not hand-rebase or edit findings yourself.
 
 Deeper playbooks live in the skill's `references/` — `conflict-resolution.md`,
 `recovery.md`, and `repo-settings.md`.
