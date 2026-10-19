@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-behavioral-testing
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/core/do-behavioral-testing`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-behavioral-testing
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/global/core/do-behavioral-testing)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-behavioral-testing
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/core/do-behavioral-testing)
 
 ## What it does
 

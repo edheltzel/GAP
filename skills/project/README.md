@@ -1,13 +1,19 @@
 # Project Skills
 
-Pay off only when a project uses that stack or product. Install into the project.
+Pay off only when a project uses that stack or product.
 
 ## Installation
 
-Install one stack at a time, from inside the project:
+These skills live in this repo (`edheltzel/agent-config`, being renamed GAP). `gap sync` installs every skill listed in `global/skills.json`.
 
 ```bash
-npx skills add https://github.com/edheltzel/Do-Skills/tree/master/skills/project/<group>
+gap sync
+```
+
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s <skill-name>
 ```
 
 ## Groups

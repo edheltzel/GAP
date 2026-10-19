@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-backend
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/backend/do-backend`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-backend
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/backend/do-backend)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-backend
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/backend/do-backend)
 
 ## What it does
 

@@ -1,11 +1,19 @@
 # Global Skills
 
-Useful in any repo, or none. Install once per machine with `-g`.
+Useful in any repo, or none.
 
 ## Installation
 
+These skills live in this repo (`edheltzel/agent-config`, being renamed GAP). `gap sync` installs every skill listed in `global/skills.json`.
+
 ```bash
-npx skills add https://github.com/edheltzel/Do-Skills/tree/master/skills/global -g
+gap sync
+```
+
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s <skill-name>
 ```
 
 ## Groups
@@ -16,7 +24,7 @@ npx skills add https://github.com/edheltzel/Do-Skills/tree/master/skills/global 
 | [Workflow](./workflow/) | 15 | Change delivery - the brainstorm, plan, work, debug, and ship loop (LFG), commits, docs, GitHub projects and stacks, PR workflow and review triage, worktrees, and technical writing. |
 | [Operations](./operations/) | 4 | Operating AI agents - delegation, handoffs, prompt audits, and project status check-ins. |
 | [Content](./content/) | 3 | Audience-facing media - illustrations, diagrams, images, and visual explanations. |
-| [Personal](./personal/) | 2 | Personal extras you want everywhere - teaching, todo.txt. |
+| [Personal](./personal/) | 4 | Personal extras you want everywhere - teaching, todo.txt, isometric explainer figures. |
 
 ## See Also
 

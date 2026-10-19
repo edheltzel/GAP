@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-create-cli
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/tooling/do-create-cli`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-create-cli
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/tooling/do-create-cli)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-create-cli
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/tooling/do-create-cli)
 
 ## What it does
 

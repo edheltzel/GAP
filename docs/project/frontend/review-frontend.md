@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-review-frontend
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/frontend/do-review-frontend`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-review-frontend
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/frontend/do-review-frontend)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-review-frontend
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/frontend/do-review-frontend)
 
 ## What it does
 

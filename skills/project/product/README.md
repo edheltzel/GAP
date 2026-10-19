@@ -4,16 +4,16 @@ Product marketing - positioning, SEO and GEO discovery, launches, conversion, an
 
 ## Installation
 
-Every skill in this group:
+These skills live in this repo (`edheltzel/agent-config`, being renamed GAP). `gap sync` installs every skill listed in `global/skills.json`.
 
 ```bash
-npx skills add https://github.com/edheltzel/Do-Skills/tree/master/skills/project/product
+gap sync
 ```
 
 One skill by exact name:
 
 ```bash
-npx skills add edheltzel/Do-Skills --skill=<skill-name>
+npx skills add edheltzel/agent-config -s <skill-name>
 ```
 
 ## Skills

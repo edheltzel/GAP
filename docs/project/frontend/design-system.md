@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-design-system
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/frontend/do-design-system`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-design-system
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/frontend/do-design-system)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-design-system
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/frontend/do-design-system)
 
 ## What it does
 

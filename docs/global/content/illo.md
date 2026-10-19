@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-illo
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/content/do-illo`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-illo
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/global/content/do-illo)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-illo
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/content/do-illo)
 
 Upstream: [tmchow/illo-skill](https://github.com/tmchow/illo-skill)
 

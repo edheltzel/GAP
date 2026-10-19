@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-macos-swift-desktop
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/swift/do-macos-swift-desktop`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-macos-swift-desktop
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/swift/do-macos-swift-desktop)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-macos-swift-desktop
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/swift/do-macos-swift-desktop)
 
 ## What it does
 

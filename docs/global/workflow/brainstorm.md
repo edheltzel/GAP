@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-brainstorm
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/workflow/do-brainstorm`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-brainstorm
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/global/workflow/do-brainstorm)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-brainstorm
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/workflow/do-brainstorm)
 
 ## What it does
 

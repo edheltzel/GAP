@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Do-Skills catalog generator. Regenerates scope and group READMEs plus the
+# Skill catalog generator. Regenerates scope and group READMEs plus the
 # catalog tables in the root README.md from SKILL.md frontmatters.
 # Skills live under skills/<scope>/<group>/<skill>/SKILL.md, scope = global|project.
 # Bundled copies under references/ are ignored.
@@ -10,7 +10,10 @@ ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 README="$ROOT/README.md"
 SKILLS_DIR="$ROOT/skills"
 GROUPINGS_FILE="$ROOT/skills.sh.json"
-REPO_URL="https://github.com/edheltzel/Do-Skills/tree/master"
+# skills.sh accepts owner/repo and a skills/<scope>/<group> subpath. A walk of
+# skills/project (no SKILL.md at the top) also installs SKILL.md files bundled
+# under references/. Catalogs install with gap sync, or one skill with -s.
+REPO="edheltzel/agent-config"
 
 # Render order. Group blurbs come from skills.sh.json ("<Scope>: <Group>"),
 # their authoritative owner. Unlisted groups on disk are appended.
@@ -30,8 +33,8 @@ scope_title() {
 
 scope_blurb() {
     case "$1" in
-        global)  echo "Useful in any repo, or none. Install once per machine with \`-g\`." ;;
-        project) echo "Pay off only when a project uses that stack or product. Install into the project." ;;
+        global)  echo "Useful in any repo, or none." ;;
+        project) echo "Pay off only when a project uses that stack or product." ;;
     esac
 }
 
@@ -67,6 +70,12 @@ is_promoted() {
     ! echo "$UNPROMOTED" | grep -qw "$1/$2"
 }
 
+write_install() {
+    printf 'These skills live in this repo (`%s`, being renamed GAP). `gap sync` installs every skill listed in `global/skills.json`.\n\n' "$REPO"
+    printf '```bash\ngap sync\n```\n\n'
+    printf 'One skill by exact name:\n\n'
+    printf '```bash\nnpx skills add %s -s <skill-name>\n```\n\n' "$REPO"
+}
 # Ordered groups for a scope: preferred order, then any others on disk.
 ordered_groups() {
     scope="$1"
@@ -164,10 +173,7 @@ write_group_readme() {
         blurb=$(group_blurb "$scope" "$group")
         [ -n "$blurb" ] && printf '%s\n\n' "$blurb"
         printf '## Installation\n\n'
-        printf 'Every skill in this group:\n\n'
-        printf '```bash\nnpx skills add %s/skills/%s/%s%s\n```\n\n' "$REPO_URL" "$scope" "$group" "$([ "$scope" = global ] && echo ' -g')"
-        printf 'One skill by exact name:\n\n'
-        printf '```bash\nnpx skills add edheltzel/Do-Skills --skill=<skill-name>\n```\n\n'
+        write_install
         printf '## Skills\n\n| Skill | Description |\n|-------|-------------|\n'
         while IFS=$'\t' read -r name dir desc; do
             printf '| [`%s`](./%s/) | %s |\n' "$name" "$dir" "$(escape_cell "$desc")"
@@ -197,13 +203,8 @@ for scope in $SCOPE_ORDER; do
     done
     {
         printf '# %s Skills\n\n%s\n\n' "$(scope_title "$scope")" "$(scope_blurb "$scope")"
-        if [ "$scope" = global ]; then
-            printf '## Installation\n\n```bash\nnpx skills add %s/skills/global -g\n```\n\n' "$REPO_URL"
-        else
-            # Not the whole scope: with no skill at the top, the CLI falls back to a
-            # full-depth walk and also picks up SKILL.md files bundled under references/.
-            printf '## Installation\n\nInstall one stack at a time, from inside the project:\n\n```bash\nnpx skills add %s/skills/project/<group>\n```\n\n' "$REPO_URL"
-        fi
+        printf '## Installation\n\n'
+        write_install
         printf '## Groups\n\n| Group | Skills | Coverage |\n|-------|--------|----------|\n'
         cat "$scope_rows"
         printf '\n## See Also\n\n- [Skill catalog](../../README.md)\n'

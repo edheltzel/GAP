@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-ts-standards
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/typescript/do-ts-standards`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-ts-standards
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/typescript/do-ts-standards)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-ts-standards
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/typescript/do-ts-standards)
 
 ## What it does
 

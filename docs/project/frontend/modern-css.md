@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-modern-css
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/frontend/do-modern-css`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-modern-css
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/project/frontend/do-modern-css)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-modern-css
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/frontend/do-modern-css)
 
 ## What it does
 

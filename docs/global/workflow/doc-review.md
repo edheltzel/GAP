@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-doc-review
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/workflow/do-doc-review`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-doc-review
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/global/workflow/do-doc-review)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-doc-review
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/workflow/do-doc-review)
 
 ## What it does
 

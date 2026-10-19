@@ -2,15 +2,19 @@
 
 Quickstart:
 
-```bash
-npx skills add edheltzel/Do-Skills --skill=do-show-me
-```
+This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/content/do-show-me`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
 
 ```bash
-npx skills update do-show-me
+gap sync
 ```
 
-[Source](https://github.com/edheltzel/Do-Skills/tree/master/skills/global/content/do-show-me)
+One skill by exact name:
+
+```bash
+npx skills add edheltzel/agent-config -s do-show-me
+```
+
+[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/content/do-show-me)
 
 Upstream: [humanlayer/skills](https://github.com/humanlayer/skills/tree/main/plugins/show-me) ([post](https://www.humanlayer.com/blog/show-me-skill))
 
