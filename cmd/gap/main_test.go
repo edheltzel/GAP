@@ -972,3 +972,106 @@ func TestCheckDriftWithoutTerminal(t *testing.T) {
 		t.Fatal("ignored installed content must count as drift")
 	}
 }
+
+const empryoFixture = "user intro\n\n<!-- soulstack:start -->\n# Takeaways\nkeep this\n<!-- soulstack:end -->\n\nuser outro\n"
+
+func TestEmpryoDestination(t *testing.T) {
+	want := filepath.Join("/h", ".empryo", "EMPRYO.md")
+	for _, d := range policyDests("/h", policyPath) {
+		if d.dest == want {
+			if d.cursor {
+				t.Fatal("Empryo must not get the Cursor frontmatter")
+			}
+			return
+		}
+	}
+	t.Fatalf("policyDests misses %s", want)
+}
+
+func TestEmpryoSpliceKeepsSoulStack(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+	write(t, dest, empryoFixture)
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	ledger := map[string]string{}
+	withYes(t)
+	wrote, err := publishPolicy(source, dest, false, ledger, ledgerFile, true, home)
+	if err != nil || !wrote {
+		t.Fatalf("splice: wrote %v err %v", wrote, err)
+	}
+	body := adapt(source, false)
+	first := readString(t, dest)
+	if first != empryoFixture+gapMarked(body) {
+		t.Fatalf("splice changed bytes outside the gap block: %q", first)
+	}
+	sum := ledger[dest]
+	termReady = func() bool { return false }
+	wrote, err = publishPolicy(source, dest, false, ledger, ledgerFile, true, home)
+	if err != nil || !wrote {
+		t.Fatalf("re-sync: wrote %v err %v", wrote, err)
+	}
+	if got := readString(t, dest); got != first {
+		t.Fatalf("re-sync changed the file: %q", got)
+	}
+	saved, err := readLedger(ledgerFile)
+	if err != nil || saved[dest] != sum || sum != digest(body) {
+		t.Fatalf("ledger digest not stable: %q %q %v", sum, saved[dest], err)
+	}
+}
+
+func TestEmpryoForeignRefusedWithoutTerminal(t *testing.T) {
+	home := t.TempDir()
+	codex := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	empryo := filepath.Join(home, ".empryo", "EMPRYO.md")
+	write(t, empryo, empryoFixture)
+	old := termReady
+	termReady = func() bool { return false }
+	t.Cleanup(func() { termReady = old })
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	ledger := map[string]string{}
+	for _, d := range policyDests(home, codex) {
+		wrote, err := publishPolicy(source, d.dest, d.cursor, ledger, ledgerFile, true, home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if wrote == (d.dest == empryo) {
+			t.Fatalf("%s: wrote %v", d.dest, wrote)
+		}
+	}
+	if readString(t, empryo) != empryoFixture {
+		t.Fatal("foreign EMPRYO.md was changed without a terminal")
+	}
+}
+
+func TestEmpryoPinAdvice(t *testing.T) {
+	for _, tc := range []struct {
+		name, config string
+		advise       bool
+	}{
+		{"no Empryo", "", false},
+		{"pins match", `{"skills":{"autoLoad":["do-todo","do-commit","but-axi"]}}`, false},
+		{"same pins, other order", `{"skills":{"autoLoad":["but-axi","do-todo","do-commit"]}}`, false},
+		{"a subset", `{"skills":{"autoLoad":["do-todo","do-commit"]}}`, true},
+		{"35 pins", `{"skills":{"autoLoad":["do-commit","do-art","do-todo"]}}`, true},
+		{"no pins", `{"theme":{}}`, true},
+		{"unreadable", `{`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			path := filepath.Join(home, ".empryo", "config.json")
+			if tc.config != "" {
+				write(t, path, tc.config)
+			}
+			got := empryoPinAdvice(home)
+			if (got != "") != tc.advise {
+				t.Fatalf("advice = %q, want %v", got, tc.advise)
+			}
+			if tc.advise && !strings.Contains(got, `value:'["do-todo","do-commit","but-axi"]', scope:"global"`) {
+				t.Fatalf("advice must carry the exact settings call: %q", got)
+			}
+			if tc.config != "" && readString(t, path) != tc.config {
+				t.Fatal("gap must never write Empryo's config")
+			}
+		})
+	}
+}

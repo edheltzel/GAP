@@ -18,40 +18,32 @@ npx skills add edheltzel/agent-config -s do-git-worktree
 
 ## What it does
 
-`git-worktree` creates, removes, lists, and prunes git worktrees so you can check
-out several branches at once without cloning the repo again or stashing your work.
-The defining constraint is location: every worktree lands in a standardized path,
-`~/.git-worktrees/<repo>/<branch>`, never inside a project directory — so your
-working trees stay tidy and a worktree never gets mistaken for repo content.
-If GitButler is in use (`but` on PATH and `but status` succeeds), it does not
-`git worktree add`. It applies a lane in the primary checkout instead.
+The global policy forbids native git worktrees. When you ask for a worktree, a
+separate workspace, or parallel branches, this skill gives you a GitButler lane in
+the primary checkout instead. It never runs `git worktree add`.
 
 ## When to reach for it
 
-Type `/do-git-worktree`, or the agent reaches for it automatically when you ask to
-create, remove, or list a worktree. Given a bare branch name, it defaults to
-**create**.
-
-Reach for it when you want to work a second branch in parallel — a review, a
-hotfix, a long-running feature — without disturbing your current checkout. After
-creating one, it prints the worktree path so you can open a fresh session pointed
-at it.
+Type `/do-git-worktree`, or the agent reaches for it when you ask for a worktree or
+want to work a second branch in parallel: a review, a hotfix, a long-running
+feature.
 
 ## Operations
 
-- **Create** (the default): `git worktree add` into `~/.git-worktrees/<repo>/<branch>`,
-  using `-b` to branch from `HEAD` when the branch doesn't exist yet.
-- **Remove**: deletes the linked worktree; if it has uncommitted changes, you're
-  warned before anything uses `--force`.
-- **List**: shows every worktree and flags which is the main working tree.
-- **Prune**: clears stale references left by a manually deleted directory.
+- **New lane**: `but branch new <branch>`, then `but commit -b <branch>` with the
+  file and hunk IDs from `but diff`.
+- **Open an existing branch**: `but apply <branch>`.
+- **Park a lane**: `but unapply <branch>`. The branch ref stays.
+- **List lanes**: `but status`.
 
-Safety is built in: `--force` never runs without your explicit confirmation, and
-ambiguous intent resolves to the non-destructive create.
+If the repo is not in GitButler mode, the agent asks before `but setup`. If you
+decline, it works one plain branch at a time. It never falls back to a worktree.
+`git worktree list` stays allowed, and an old worktree with uncommitted changes is
+named to you, never removed.
 
 ## Where it fits
 
-A reach-for-it-anytime standalone for managing where your branches live on disk.
+A reach-for-it-anytime standalone for parallel branches.
 It pairs with the other Git workflow skills:
 [git-safe-pr-workflow](./git-safe-pr-workflow.md) governs how a branch syncs
 and merges once you're working in it, and

@@ -29,6 +29,8 @@ Review the change, not the codebase.
 
 This is read-only. Propose fixes; do not apply them, and do not touch code outside the change.
 
+Inside Empryo, run the hunt on Empryo's reviewer when [references/empryo-review.md](references/empryo-review.md) says it applies. Everywhere else, and whenever it falls back, hunt in-skill as below.
+
 ## What to hunt
 
 | Bug class | The tell |

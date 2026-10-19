@@ -13,6 +13,7 @@ This file covers how to change the repo. Shared behavior rules are in `global/AG
 - `~/.omp/agent/APPEND_SYSTEM.md`
 - `~/.codex/gap/global-agent-policy.md` (`CODEX_HOME` when set). SessionStart and SubagentStart hooks print that file. Sync leaves old policy text in `~/.codex/AGENTS.md`, so Codex loads the policy twice until `gap sync --remove-codex-legacy`. Run the flag only after both hooks are trusted in `/hooks`; it refuses unless both were in `hooks.json` before that run. Empty `CODEX_HOME` means unset. A relative `CODEX_HOME` is refused.
 - `~/.cursor/rules/global-agent-policy.mdc`
+- `~/.empryo/EMPRYO.md`. Empryo loads it into every tab. SoulStack keeps its own marked block there, so the first sync is a foreign-file splice and needs a terminal yes.
 - `~/.omp/agent/commands/<name>.md` for each `global/commands/<name>.md`
 - `~/.claude/commands/<name>.md` for the same file. Claude Code loads that directory as user slash commands. `$ARGUMENTS` and `argument-hint` are Claude's own syntax, so the file is copied unchanged.
 

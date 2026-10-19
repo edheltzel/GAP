@@ -13,6 +13,7 @@ Edit the markdown in this repo, then run `gap sync` (install it once with `go in
 - OMP reads `~/.omp/agent/APPEND_SYSTEM.md`. Do not add `SYSTEM.md`.
 - Codex gets the policy from SessionStart and SubagentStart hooks that print `gap/global-agent-policy.md` in Codex home (`~/.codex`, or `CODEX_HOME`). Old policy text may remain in that `AGENTS.md` until cleanup, so Codex can load the policy twice. Do not add `AGENTS.override.md`.
 - Cursor reads `~/.cursor/rules/global-agent-policy.mdc`.
+- Empryo reads `~/.empryo/EMPRYO.md`. Do not add a second copy elsewhere.
 - Grok loads `~/.claude/rules/*.md` when Claude compatibility is on. Do not add a second copy.
 
 Pi packaging, themes, and footers stay in `~/.pi/agent/AGENTS.md`. Do not paste them here.
@@ -41,6 +42,7 @@ Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you t
 - Follow the project's handoff location. If it names none, use `docs/plans/handoffs/`. Never write a handoff only to `/tmp` or a harness install directory. Details: [handoffs.md](docs/agents/handoffs.md).
 - Track tasks with the `tuxedo` CLI (the `do-todo` skill when installed). Each project's tasks live in `<repo root>/todo.txt`. `~/todo.txt` holds personal and cross-project tasks plus one `@route` line per active project that points at its local list. At the end of every turn that adds, finishes, blocks, or changes work, update the right list yourself. Use the CLI, not a TUI or background process. Every plan, spec, and handoff carries a todo.txt section, and its tasks go into the list. Details: [todo-txt.md](docs/agents/todo-txt.md).
 - Use Recall before inventing a memory store. Details: [recall.md](docs/agents/recall.md).
+- A skill that switches to an Empryo-native feature detects Empryo by its tools or process ancestry, never by `~/.empryo` existing. Details: [harness-detection.md](docs/agents/harness-detection.md).
 - If the ask would delete or replace a tree it did not name, stop and confirm the exact paths. When asked to delete, use `trash`, not `rm`.
 
 ## Not here

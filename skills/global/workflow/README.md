@@ -29,7 +29,7 @@ npx skills add edheltzel/agent-config -s <skill-name>
 | [`do-gh-stack`](./do-gh-stack/) | Manages stacked PRs and splits multi-part work into reviewable branches. |
 | [`do-git-pr-review-triage`](./do-git-pr-review-triage/) | Triage pull-request review comments into accepted fixes and drafted replies. |
 | [`do-git-safe-pr-workflow`](./do-git-safe-pr-workflow/) | Safe GitHub pull request workflow for low-experience Git users. |
-| [`do-git-worktree`](./do-git-worktree/) | Create, remove, and list git worktrees in a standardized location |
+| [`do-git-worktree`](./do-git-worktree/) | Isolate parallel work as GitButler lanes in the primary checkout, never as native git worktrees. |
 | [`do-it`](./do-it/) | LFG runner. |
 | [`do-plan`](./do-plan/) | Implementation plan as ordered units, each with a verification check. |
 | [`do-readme-update`](./do-readme-update/) | Bring a repository's README back in line with the code. |

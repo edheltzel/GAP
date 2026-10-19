@@ -106,18 +106,8 @@ func syncAll(removeLegacy bool) error {
 	}
 
 	codexPolicy := filepath.Join(codexHome, "gap", "global-agent-policy.md")
-	copies := []struct {
-		dest   string
-		cursor bool
-	}{
-		{filepath.Join(home, ".claude", "rules", "global-agent-policy.md"), false},
-		{filepath.Join(home, ".pi", "agent", "APPEND_SYSTEM.md"), false},
-		{filepath.Join(home, ".omp", "agent", "APPEND_SYSTEM.md"), false},
-		{codexPolicy, false},
-		{filepath.Join(home, ".cursor", "rules", "global-agent-policy.mdc"), true},
-	}
 	skipped, codexWrote := false, false
-	for _, c := range copies {
+	for _, c := range policyDests(home, codexPolicy) {
 		wrote, err := publishPolicy(string(raw), c.dest, c.cursor, ledger, ledgerPath, true, home)
 		if err != nil {
 			return err
@@ -163,11 +153,52 @@ func syncAll(removeLegacy bool) error {
 	if err != nil {
 		return err
 	}
+	if advice := empryoPinAdvice(home); advice != "" {
+		fmt.Println(advice)
+	}
 	if !ok || skipped || !skillsOK || !driftOK {
 		return errSkipped
 	}
 	return nil
 }
+
+// empryoPins is the skill set GAP recommends for Empryo's skills.autoLoad. Pinned skills load in full into every prompt.
+var empryoPins = []string{"do-todo", "do-commit", "but-axi"}
+
+// empryoPinAdvice reads Empryo's global config and, when skills.autoLoad differs from empryoPins, returns the settings call that fixes it. gap never writes Empryo's config.
+func empryoPinAdvice(home string) string {
+	b, err := os.ReadFile(filepath.Join(home, ".empryo", "config.json"))
+	if err != nil {
+		return ""
+	}
+	var config struct {
+		Skills struct {
+			AutoLoad []string `json:"autoLoad"`
+		} `json:"skills"`
+	}
+	if json.Unmarshal(b, &config) != nil || slices.Equal(slices.Sorted(slices.Values(config.Skills.AutoLoad)), slices.Sorted(slices.Values(empryoPins))) {
+		return ""
+	}
+	want, _ := json.Marshal(empryoPins)
+	return fmt.Sprintf("Empryo pins %d skills in skills.autoLoad; GAP recommends %s. Ask an agent inside Empryo to run:\n  settings(action:\"set\", key:\"skills.autoLoad\", value:'%s', scope:\"global\")", len(config.Skills.AutoLoad), strings.Join(empryoPins, ", "), want)
+}
+
+type policyDest struct {
+	dest   string
+	cursor bool
+}
+
+func policyDests(home, codexPolicy string) []policyDest {
+	return []policyDest{
+		{filepath.Join(home, ".claude", "rules", "global-agent-policy.md"), false},
+		{filepath.Join(home, ".pi", "agent", "APPEND_SYSTEM.md"), false},
+		{filepath.Join(home, ".omp", "agent", "APPEND_SYSTEM.md"), false},
+		{codexPolicy, false},
+		{filepath.Join(home, ".cursor", "rules", "global-agent-policy.mdc"), true},
+		{filepath.Join(home, ".empryo", "EMPRYO.md"), false},
+	}
+}
+
 func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath string) (bool, error) {
 	dir := filepath.Join(repoRoot, "global", "commands")
 	entries, err := os.ReadDir(dir)

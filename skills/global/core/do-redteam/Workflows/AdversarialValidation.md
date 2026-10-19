@@ -21,6 +21,8 @@ The three rounds below are how this runs. These rules win if a round conflicts w
 4. Pick the strongest viable base. Take a piece from another candidate only when the result stays one coherent approach. Keep the rejection reasons.
 5. If fewer than two usable candidates came back, or the critic never finished, return incomplete and label any lean as provisional. If only the user can supply the deciding preference, return that dependency. Do not invent a winner.
 
+In Empryo (detect it per GAP `global/docs/agents/harness-detection.md`), step 2 may use Empryo's `council` to develop the competing candidates.
+
 Return selected, unresolved, or incomplete. Include the brief, the chosen approach if any, why, what was taken from whom, what was rejected, and evidence still missing.
 
 

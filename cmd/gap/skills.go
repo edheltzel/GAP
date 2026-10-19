@@ -292,6 +292,9 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 	ok := true
 	for _, e := range entries {
 		for _, name := range e.Skills {
+			if warning := empryoShadow(home, name); warning != "" {
+				fmt.Fprintln(os.Stderr, warning)
+			}
 			var sourceDir string
 			var external lockEntry
 			drifted := false
@@ -786,6 +789,24 @@ func showDiff(sourceDir string, external lockEntry, installedDir string) {
 
 func skillDirs(home, name string) []string {
 	return []string{filepath.Join(home, ".agents", "skills", name), filepath.Join(home, ".claude", "skills", name)}
+}
+
+// empryoShadow warns when ~/.empryo/skills/<name> differs from the managed copy. Empryo looks there first, so that copy wins. gap never writes it.
+func empryoShadow(home, name string) string {
+	if name == "empryo" {
+		return ""
+	}
+	shadow := filepath.Join(home, ".empryo", "skills", name)
+	if info, err := os.Stat(shadow); err != nil || !info.IsDir() {
+		return ""
+	}
+	managed := skillDirs(home, name)[0]
+	got, err := contentHash(shadow)
+	want, werr := contentHash(managed)
+	if err == nil && werr == nil && got == want {
+		return ""
+	}
+	return fmt.Sprintf("Empryo loads %s before the managed %s, and the copies differ", shadow, managed)
 }
 
 func installed(home, name string) bool {

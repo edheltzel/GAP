@@ -100,6 +100,7 @@ It prints each file it wrote:
 ~/.omp/agent/APPEND_SYSTEM.md
 ~/.codex/gap/global-agent-policy.md
 ~/.cursor/rules/global-agent-policy.mdc
+~/.empryo/EMPRYO.md
 ~/.omp/agent/commands/state-docs.md
 ~/.claude/commands/state-docs.md
 ```
@@ -148,6 +149,14 @@ grok inspect
 
 Look for `~/.claude/rules/global-agent-policy.md` in the global rules list. If it's missing, turn Claude compatibility back on. Don't add a Grok file. A second copy would load the policy twice.
 
+## Set up Empryo (once per machine)
+
+Empryo reads `~/.empryo/EMPRYO.md`, which already holds SoulStack's block. The first `gap sync` asks once to append the GAP block there, so run it from a terminal and type `y`. SoulStack's block and anything else in the file stay as they are.
+
+Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP recommends three: `do-todo` (the policy tracks tasks every turn), `do-commit` and `but-axi` (the GitButler flow). Everything else loads by name when a task needs it. Until your pins match, `gap sync` prints the exact `settings` call. Ask an agent inside Empryo to run it. gap never writes Empryo's config.
+
+`gap sync` also warns when `~/.empryo/skills/<name>` differs from a managed skill. Empryo loads that copy first, so the managed one never runs there.
+
 ## Skill catalog
 
 Skills live in `skills/<scope>/<group>/<skill>/`. Regenerate this table with `bash scripts/update-readme.sh`.
@@ -194,6 +203,7 @@ Pay off only when a project uses that stack or product.
 | OMP | `~/.omp/agent/APPEND_SYSTEM.md` |
 | Codex | `~/.codex/gap/global-agent-policy.md`, printed by the SessionStart and SubagentStart hooks |
 | Cursor | `~/.cursor/rules/global-agent-policy.mdc` |
+| Empryo | `~/.empryo/EMPRYO.md`, beside the SoulStack block. The first sync asks once, so run it from a terminal. |
 | Grok | No file of its own. It reads the Claude copy. |
 
 ### How sync tells its own files apart

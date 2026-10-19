@@ -1,91 +1,35 @@
 ---
 name: do-git-worktree
-description: "Create, remove, and list git worktrees in a standardized location"
+description: "Isolate parallel work as GitButler lanes in the primary checkout, never as native git worktrees. Use when asked for a worktree, a separate workspace, or parallel branches. Lists, opens, and parks lanes with `but`."
 alwaysAllow: ["Bash"]
 ---
 
-# Git Worktree Management
+# Parallel work without worktrees
 
-Manage git worktrees stored in `~/.git-worktrees/<repo>/<branch>`, keeping them out of the user's project directories.
+The global policy forbids native git worktrees: no `git worktree add`, and no harness option that isolates work in a worktree. A project contract that names plain git does not change that. Parallel work is a GitButler lane in the primary checkout.
 
-## GitButler
+## Check GitButler
 
-GitButler is in use when `command -v but` succeeds **and** `but status` exits 0. Do not run `but setup`. If either check fails, use the git worktree commands below.
+GitButler is in use when `command -v but` succeeds **and** `but status` exits 0.
 
-When GitButler is in use, do **not** `git worktree add`. Feature work is an applied lane in the primary checkout:
-
-```bash
-cd <primary-repo>
-but apply <branch>          # existing branch
-# new work: but commit -b <branch> -m "..."
-```
-
-- **Create:** apply or commit onto a lane. Tell the user the work lives in the primary checkout, not `~/.git-worktrees`.
-- **Remove:** `but unapply <branch>` (keeps the branch ref).
-- **List:** `but status`.
-- If the user insists on a second directory, warn that a linked worktree makes that ref the worktree target, so `but apply` of the same branch will fail.
-
-
-## Determining Context
-
-Before any operation, determine the repository name:
-
-```bash
-repo=$(basename "$(git rev-parse --show-toplevel)")
-```
-
-The worktree base directory is always `~/.git-worktrees/$repo/`.
+If it is not, ask the user before `but setup` and hold the branch work until they answer. If they decline, work on one plain branch at a time in the primary checkout. Do not create a worktree as a fallback.
 
 ## Commands
 
-### Create (default)
+Run every command from the primary checkout.
 
-If the user provides just a branch name, treat it as a create operation.
+- **New lane:** `but branch new <branch>`, then commit to it with `but commit -b <branch> -m "<msg>" <ids>`. Take the file and hunk IDs from `but diff`. Pass IDs whenever more than one lane has uncommitted work.
+- **Open an existing branch as a lane:** `but apply <branch>`.
+- **Park a lane:** `but unapply <branch>`. The branch ref stays.
+- **List lanes:** `but status`.
 
-```bash
-repo=$(basename "$(git rev-parse --show-toplevel)")
-branch="<branch>"
-dir="$HOME/.git-worktrees/$repo/$branch"
-mkdir -p "$HOME/.git-worktrees/$repo"
-git worktree add "$dir" "$branch"
-```
+Tell the user the work lives in the primary checkout, in that lane, not in a second directory.
 
-If the branch doesn't exist yet, use `-b` to create it from HEAD:
+## Existing worktrees
 
-```bash
-git worktree add -b "$branch" "$dir" HEAD
-```
+`git worktree list` is read-only and fine. If an old linked worktree holds a branch, `but apply` of that branch fails until the worktree is gone. Do not remove a worktree with uncommitted changes. Name it and ask the user.
 
-After creation, **always prominently display the worktree path** so the user can open a new session pointing to it:
+## Related skills
 
-> Worktree created at: `~/.git-worktrees/<repo>/<branch>`
-
-### Remove
-
-```bash
-repo=$(basename "$(git rev-parse --show-toplevel)")
-git worktree remove "$HOME/.git-worktrees/$repo/<branch>"
-```
-
-If the worktree has uncommitted changes, warn the user before using `--force`.
-
-### List
-
-```bash
-git worktree list
-```
-
-### Prune
-
-Clean up stale worktree references (e.g., after manually deleting a worktree directory):
-
-```bash
-git worktree prune
-```
-
-## Guidelines
-
-- Always default to **create** if the user's intent is ambiguous
-- Never use `--force` without explicit user confirmation
-- After creating a worktree, remind the user they can open a new Craft Agent session with that path as the working directory
-- When listing, note which worktree is the main working tree vs. linked worktrees
+- Dependent PRs as a stack: `do-gh-stack`, if installed.
+- Sync, conflicts, and undo: `do-git-safe-pr-workflow`, if installed.

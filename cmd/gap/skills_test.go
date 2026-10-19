@@ -533,8 +533,8 @@ exit 1
 func assertLockRestored(t *testing.T, path, hash string) {
 	t.Helper()
 	var doc struct {
-		Skills map[string]map[string]any `json:"skills"`
-		Dismissed map[string]bool `json:"dismissed"`
+		Skills    map[string]map[string]any `json:"skills"`
+		Dismissed map[string]bool           `json:"dismissed"`
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -639,5 +639,73 @@ func TestNodeModulesSkillVerifies(t *testing.T) {
 	ok, err = checkDrift(repo, home, entries)
 	if err != nil || ok || readString(t, filepath.Join(dirs[0], "Tools", "README.md")) != "edit\n" {
 		t.Fatal("a copied file edit must still be drift and must be left in place")
+	}
+}
+
+func TestEmpryoShadowWarning(t *testing.T) {
+	put := func(t *testing.T, dir, body string) {
+		t.Helper()
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		name, skill, shadow string
+		warn                bool
+	}{
+		{"no shadow", "do-todo", "", false},
+		{"identical shadow", "do-todo", "same\n", false},
+		{"differing shadow", "do-todo", "edited\n", true},
+		{"empryo is ignored", "empryo", "edited\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			put(t, filepath.Join(home, ".agents", "skills", tc.skill), "same\n")
+			shadow := filepath.Join(home, ".empryo", "skills", tc.skill)
+			if tc.shadow != "" {
+				put(t, shadow, tc.shadow)
+			}
+			got := empryoShadow(home, tc.skill)
+			if (got != "") != tc.warn {
+				t.Fatalf("warning = %q, want warn %v", got, tc.warn)
+			}
+			if tc.warn && (!strings.Contains(got, shadow) || !strings.Contains(got, filepath.Join(home, ".agents", "skills", tc.skill))) {
+				t.Fatalf("warning must name both paths: %q", got)
+			}
+		})
+	}
+}
+
+func TestEmpryoShadowKeepsDriftResult(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	dirs := skillDirs(home, "ext")
+	write(t, filepath.Join(dirs[0], "SKILL.md"), "installed\n")
+	write(t, filepath.Join(dirs[1], "SKILL.md"), "installed\n")
+	hash, err := contentHash(dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
+	write(t, filepath.Join(home, ".empryo", "skills", "ext", "SKILL.md"), "shadow edit\n")
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	ok, err := checkDrift(t.TempDir(), home, []manifestEntry{{Source: "owner/repo", Skills: []string{"ext"}}})
+	os.Stderr = old
+	w.Close()
+	out, _ := io.ReadAll(r)
+	if err != nil || !ok {
+		t.Fatalf("a shadow warning must not change the drift result: ok=%v err=%v", ok, err)
+	}
+	if n := strings.Count(string(out), "Empryo loads "); n != 1 {
+		t.Fatalf("want exactly one shadow warning, got %d: %q", n, out)
 	}
 }
