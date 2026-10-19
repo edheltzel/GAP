@@ -299,6 +299,138 @@ func TestSpliceUpdatesBlockWhenPolicyChanges(t *testing.T) {
 	}
 }
 
+func TestSpliceMarkerBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		name, head, block, tail string
+	}{
+		{"extra closer", "head\n", gapMarked("old policy\n"), "local rules\n<!-- gap:end -->\n"},
+		{"closer at EOF", "head\n", gapMarked("old policy\n"), "local rules\n<!-- gap:end -->"},
+		{"leading closer", "<!-- gap:end -->\nhead\n", gapMarked("old policy\n"), "tail\n"},
+		{"leading opener", "<!-- gap:begin -->\nhead\n", gapMarked("old policy\n"), "tail\n"},
+		{"trailing opener", "head\n", gapMarked("old policy\n"), "tail\n<!-- gap:begin -->\n"},
+		{"multiple blocks", gapMarked("earlier policy\n") + "head\n", gapMarked("old policy\n"), "tail\n<!-- gap:end -->\n"},
+		{"CRLF", "head\r\n", "<!-- gap:begin -->\r\nold policy\r\n<!-- gap:end -->\r\n", "local rules\r\n<!-- gap:end -->\r\n"},
+		{"closing boundary at EOF", "head\n", "<!-- gap:begin -->\nold policy\n<!-- gap:end -->", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			dest := filepath.Join(dir, "policy.md")
+			write(t, dest, tc.head+tc.block+tc.tail)
+			wrote, err := publishPolicy("new policy\n", dest, false, map[string]string{}, filepath.Join(dir, "published.json"), false, dir)
+			if err != nil || !wrote {
+				t.Fatalf("update: wrote %v err %v", wrote, err)
+			}
+			if got, want := readString(t, dest), tc.head+gapMarked("new policy\n")+tc.tail; got != want {
+				t.Fatalf("bytes outside the paired markers changed: got %q, want %q", got, want)
+			}
+			if backups, err := filepath.Glob(filepath.Join(dir, ".gap", "backups", "*")); err != nil || len(backups) != 0 {
+				t.Fatalf("marked update must not create a backup: %v, %v", backups, err)
+			}
+		})
+	}
+}
+
+func TestSplicePreservesPermissions(t *testing.T) {
+	for _, mode := range []os.FileMode{0o600, 0o640} {
+		for _, cursor := range []bool{false, true} {
+			for _, state := range []string{"foreign", "marked", "legacy"} {
+				t.Run(mode.String()+"/"+map[bool]string{false: "plain", true: "cursor"}[cursor]+"/"+state, func(t *testing.T) {
+					dir := t.TempDir()
+					dest := filepath.Join(dir, "policy.md")
+					ledger := map[string]string{}
+					before, want := "private rules\n", "private rules\n"+gapMarked("new policy\n")
+					switch state {
+					case "marked":
+						before += gapMarked("old policy\n")
+					case "legacy":
+						before, want = "old policy\n", gapMarked("new policy\n")
+						if cursor {
+							before = "---\nalwaysApply: true\n---\n\n" + before
+							want = "---\nalwaysApply: true\n---\n\n" + want
+						}
+						ledger[dest] = digest(before)
+					}
+					write(t, dest, before)
+					if err := os.Chmod(dest, mode); err != nil {
+						t.Fatal(err)
+					}
+					withYes(t)
+					wrote, err := publishPolicy("new policy\n", dest, cursor, ledger, filepath.Join(dir, "published.json"), true, dir)
+					if err != nil || !wrote {
+						t.Fatalf("publish: wrote %v err %v", wrote, err)
+					}
+					if got := readString(t, dest); got != want {
+						t.Fatalf("publish = %q, want %q", got, want)
+					}
+					info, err := os.Stat(dest)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if info.Mode().Perm() != mode {
+						t.Fatalf("permissions = %o, want %o", info.Mode().Perm(), mode)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestSpliceEmptyFileOwnership(t *testing.T) {
+	for _, tc := range []struct {
+		name                               string
+		allowPrompt, terminal, owned, want bool
+		answer                             string
+		prompts                            int
+	}{
+		{"prompt disabled", false, true, false, false, "y\n", 0},
+		{"no terminal", true, false, false, false, "y\n", 0},
+		{"declined", true, true, false, false, "n\n", 1},
+		{"confirmed", true, true, false, true, "y\n", 1},
+		{"ledger owned", false, false, true, true, "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			dest, ledgerFile := filepath.Join(dir, "policy.md"), filepath.Join(dir, "published.json")
+			write(t, dest, "")
+			ledger := map[string]string{}
+			if tc.owned {
+				ledger[dest] = digest("")
+			}
+			withYes(t)
+			termReady = func() bool { return tc.terminal }
+			prompts := 0
+			confirmLine = func() string { prompts++; return tc.answer }
+			wrote, err := publishPolicy("policy\n", dest, false, ledger, ledgerFile, tc.allowPrompt, dir)
+			if err != nil || wrote != tc.want || prompts != tc.prompts {
+				t.Fatalf("publish = %v, %v; prompts = %d; want %v, %d", wrote, err, prompts, tc.want, tc.prompts)
+			}
+			want := ""
+			if tc.want {
+				want = gapMarked("policy\n")
+			}
+			if got := readString(t, dest); got != want {
+				t.Fatalf("empty destination = %q, want %q", got, want)
+			}
+			backups, err := filepath.Glob(filepath.Join(dir, ".gap", "backups", "*", "policy.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.want && !tc.owned {
+				if len(backups) != 1 || readString(t, backups[0]) != "" {
+					t.Fatalf("confirmed empty foreign file must be backed up: %v", backups)
+				}
+			} else if len(backups) != 0 {
+				t.Fatalf("unexpected backups: %v", backups)
+			}
+			if !tc.want {
+				if _, err := os.Stat(ledgerFile); !os.IsNotExist(err) || len(ledger) != 0 {
+					t.Fatalf("refused publish changed the ledger: %v, %v", ledger, err)
+				}
+			}
+		})
+	}
+}
+
 func TestSpliceMigratesLegacyPublish(t *testing.T) {
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "policy.md")
@@ -382,7 +514,7 @@ func TestCodexCleanupGates(t *testing.T) {
 	write(t, policy, "foreign policy\n")
 	write(t, agents, "keep agents\n")
 	write(t, hooks, `{"hooks":{"Stop":[]}}`+"\n")
-	wrote, err := publish(payload, policy, map[string]string{}, ledgerFile, false, dir)
+	wrote, err := publishPolicy(source, policy, false, map[string]string{}, ledgerFile, false, dir)
 	if err != nil || wrote {
 		t.Fatal("foreign policy must be refused")
 	}
@@ -393,7 +525,7 @@ func TestCodexCleanupGates(t *testing.T) {
 		t.Fatal("refused policy changed Codex files")
 	}
 
-	write(t, policy, payload)
+	write(t, policy, gapMarked(payload)+"local rules\n<!-- gap:end -->\n")
 	write(t, agents, legacyFile)
 	write(t, hooks, `{"hooks":{}}`+"\n")
 	ledger := map[string]string{agents: digest("old policy\n")}
@@ -413,6 +545,14 @@ func TestCodexCleanupGates(t *testing.T) {
 	}
 
 	write(t, policy, payload)
+	if ok, _ := afterCodexPublish(true, policy, payload, codex, dir); ok {
+		t.Fatal("hook verification must refuse an unmarked payload")
+	}
+	if ok, _ := cleanupLegacyCodex(codex, policy, payload, ledger, dir, ledgerFile); ok || readString(t, agents) != legacyFile {
+		t.Fatal("cleanup must refuse an unmarked payload")
+	}
+
+	write(t, policy, gapMarked(payload)+"local rules\n<!-- gap:end -->\n")
 	if ok, err := cleanupLegacyCodex(codex, policy, payload, ledger, dir, ledgerFile); err != nil || !ok {
 		t.Fatalf("cleanup failed: %v", err)
 	}

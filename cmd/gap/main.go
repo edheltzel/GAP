@@ -469,12 +469,37 @@ func isZero(v any) bool {
 }
 
 func writeAtomic(path, text string) error {
+	info, err := os.Lstat(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	mode := fs.FileMode(0o644)
+	preserveMode := info != nil && info.Mode().IsRegular()
+	if preserveMode {
+		mode = info.Mode().Perm()
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	tmp := fmt.Sprintf("%s.%d.tmp", path, os.Getpid())
-	if err := os.WriteFile(tmp, []byte(text), 0o644); err != nil {
+	file, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
 		return err
+	}
+	defer os.Remove(tmp)
+	if preserveMode {
+		if err := file.Chmod(mode); err != nil {
+			file.Close()
+			return err
+		}
+	}
+	_, writeErr := file.WriteString(text)
+	closeErr := file.Close()
+	if writeErr != nil {
+		return writeErr
+	}
+	if closeErr != nil {
+		return closeErr
 	}
 	return os.Rename(tmp, path)
 }
@@ -607,31 +632,25 @@ func findMarkerLine(text, marker string, from int) (start, end int, ok bool) {
 
 // gapSpan is the last complete marker pair. An appended block stays last, so a stray begin line above it is outside.
 func gapSpan(text string) (start, innerStart, innerEnd, end int, ok bool) {
-	endStart, endLine := -1, -1
 	for from := 0; ; {
-		s, e, found := findMarkerLine(text, gapEnd, from)
+		beginStart, beginEnd, found := findMarkerLine(text, gapBegin, from)
 		if !found {
-			break
+			return
 		}
-		endStart, endLine = s, e
-		from = e
-	}
-	if endStart < 0 {
-		return 0, 0, 0, 0, false
-	}
-	beginStart, beginEnd := -1, -1
-	for from := 0; ; {
-		s, e, found := findMarkerLine(text, gapBegin, from)
-		if !found || s >= endStart {
-			break
+		endStart, endLine, found := findMarkerLine(text, gapEnd, beginEnd)
+		if !found {
+			return
 		}
-		beginStart, beginEnd = s, e
-		from = e
+		for {
+			s, e, found := findMarkerLine(text, gapBegin, beginEnd)
+			if !found || s >= endStart {
+				break
+			}
+			beginStart, beginEnd = s, e
+		}
+		start, innerStart, innerEnd, end, ok = beginStart, beginEnd, endStart, endLine, true
+		from = endLine
 	}
-	if beginStart < 0 {
-		return 0, 0, 0, 0, false
-	}
-	return beginStart, beginEnd, endStart, endLine, true
 }
 
 func replaceBlock(text, body string) (string, bool) {
@@ -659,9 +678,6 @@ func blockInner(text string) (string, bool) {
 }
 
 func matchesPublish(onDisk, payload string) bool {
-	if onDisk == payload {
-		return true
-	}
 	inner, ok := blockInner(onDisk)
 	return ok && inner == payload
 }
@@ -767,7 +783,7 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 		fmt.Println(replaceWarning)
 		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
 	}
-	if !exists || existing == "" {
+	if !exists {
 		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
 	}
 	if next, ok := replaceBlock(existing, body); ok {
