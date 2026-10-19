@@ -1,4 +1,4 @@
-// Command gap publishes global/AGENTS.md into the files each agent harness already reads.
+// Command gap publishes global/AGENTS.md and global/commands/*.md into the files each agent harness already reads.
 package main
 
 import (
@@ -23,11 +23,11 @@ import (
 
 const (
 	trustLine = "Trust both GAP hooks (SessionStart and SubagentStart) in Codex with /hooks, confirm a session and a subagent both get the policy, then run: gap sync --remove-codex-legacy"
-	usage     = `gap publishes global/AGENTS.md into the file each coding agent already reads,
-and installs the skills listed in global/skills.json.
+	usage     = `gap publishes global/AGENTS.md and each global/commands/*.md into the files
+those harnesses already read, and installs the skills listed in global/skills.json.
 
 Usage:
-  gap sync                         Publish the policy, install missing skills, check skills for drift
+  gap sync                         Publish the policy and commands, install missing skills, check skills for drift
   gap sync --remove-codex-legacy   Same, then strip the old policy copy from ~/.codex/AGENTS.md
   gap --help                       Show this help
 
@@ -118,7 +118,7 @@ func syncAll(removeLegacy bool) error {
 	}
 	skipped, codexWrote := false, false
 	for _, c := range copies {
-		wrote, err := publish(string(raw), c.dest, c.cursor, ledger, ledgerPath, true, home)
+		wrote, err := publish(adapt(string(raw), c.cursor), c.dest, ledger, ledgerPath, true, home)
 		if err != nil {
 			return err
 		}
@@ -128,6 +128,14 @@ func syncAll(removeLegacy bool) error {
 		if c.dest == codexPolicy && wrote {
 			codexWrote = true
 		}
+	}
+
+	commandsOK, err := publishCommands(repoRoot, home, ledger, ledgerPath)
+	if err != nil {
+		return err
+	}
+	if !commandsOK {
+		skipped = true
 	}
 
 	payload := adapt(string(raw), false)
@@ -159,6 +167,40 @@ func syncAll(removeLegacy bool) error {
 		return errSkipped
 	}
 	return nil
+}
+func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath string) (bool, error) {
+	dir := filepath.Join(repoRoot, "global", "commands")
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	ok := true
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".md") {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return false, err
+		}
+		for _, dest := range []string{
+			filepath.Join(home, ".omp", "agent", "commands", name),
+			filepath.Join(home, ".claude", "commands", name),
+		} {
+			wrote, err := publish(string(b), dest, ledger, ledgerPath, true, home)
+			if err != nil {
+				return false, err
+			}
+			if !wrote {
+				ok = false
+			}
+		}
+	}
+	return ok, nil
 }
 
 // sourceRoot is the checkout gap was built from, so `gap sync` publishes that checkout from any directory.
@@ -259,6 +301,9 @@ func ignoredPathBlocks(path string) bool {
 	path = filepath.ToSlash(path)
 	switch path {
 	case "global/AGENTS.md", "global/skills.json":
+		return true
+	}
+	if filepath.Dir(path) == "global/commands" && strings.HasSuffix(path, ".md") {
 		return true
 	}
 	if strings.HasPrefix(path, "skills/") {
@@ -497,8 +542,7 @@ func refuse(format string, args ...any) (bool, error) {
 
 func isSymlink(info fs.FileInfo) bool { return info.Mode()&fs.ModeSymlink != 0 }
 
-func publish(source, dest string, cursor bool, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
-	payload := adapt(source, cursor)
+func publish(payload, dest string, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
 	var existing string
 	exists, symlink := false, false
 	info, err := os.Lstat(dest)

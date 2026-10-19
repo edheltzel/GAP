@@ -1,4 +1,5 @@
 x 2026-10-12 2026-10-12 Commit + merge GAP todo rule, then npm run sync +config pr:https://github.com/edheltzel/agent-config/pull/70
+2026-10-16 After feat/gap-commands merges: go install ./cmd/gap, gap sync publishes /state-docs +gap
 x 2026-10-14 2026-10-13 Ship sync gitbutler/workspace gate change (src/sync.ts, README, AGENTS.md) via but branch + PR +gap
 x 2026-10-14 2026-10-14 Merge README tutorial PR +gap pr:https://github.com/edheltzel/agent-config/pull/72
 x 2026-10-15 2026-10-14 Red-team 8: rollback after --remove-codex-legacy brings back the replace prompt +gap

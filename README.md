@@ -30,10 +30,10 @@ Check that your shell finds it:
 
 ```bash
 gap --help
-# gap publishes global/AGENTS.md into the file each coding agent already reads,
-# and installs the skills listed in global/skills.json.
+# gap publishes global/AGENTS.md and each global/commands/*.md into the files
+# those harnesses already read, and installs the skills listed in global/skills.json.
 # Usage:
-#   gap sync                         Publish the policy, install missing skills, check skills for drift
+#   gap sync                         Publish the policy and commands, install missing skills, check skills for drift
 #   ...
 ```
 
@@ -43,7 +43,7 @@ gap --help
 
 | Command | What it does |
 | --- | --- |
-| `gap sync` | Publish `global/AGENTS.md` to every agent, install missing skills, and check skills for drift |
+| `gap sync` | Publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
 | `go test ./...` | Run the self-test against throwaway folders |
 
@@ -84,7 +84,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 
 - you're on a branch other than `master` or GitButler's `gitbutler/workspace`
 - you're in a git worktree
-- `global/` or `skills/` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`). Ignored `node_modules` and `.DS_Store` do not block.
+- `global/` or `skills/` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`, top-level `global/commands/*.md`). Ignored `node_modules` and `.DS_Store` do not block.
 
 ### Step 3: Run `gap sync`
 
@@ -100,7 +100,13 @@ It prints each file it wrote:
 ~/.omp/agent/APPEND_SYSTEM.md
 ~/.codex/gap/global-agent-policy.md
 ~/.cursor/rules/global-agent-policy.mdc
+~/.omp/agent/commands/state-docs.md
+~/.claude/commands/state-docs.md
 ```
+
+Policy files are the shared rules. Each top-level `global/commands/*.md` is a slash-command prompt, copied unchanged as a whole file to OMP and Claude Code. Command files follow [the same replacement rules](#step-4-answer-if-gap-sync-asks-about-a-file).
+
+The bundled [`/state-docs`](global/commands/state-docs.md) prompt writes project maps under `docs/state`. See the prompt for arguments and local Nessa docs requirements.
 
 Each is a regular file, not a symlink. Start a new session in any agent to load the new rules.
 
@@ -109,7 +115,7 @@ Each is a regular file, not a symlink. Start a new session in any agent to load 
 `gap sync` asks before it replaces a file that you or another tool edited.
 
 1. Type `y`. Sync backs up the old file under `~/.gap/backups/` and prints where it went. That harness stops loading the old file. The backup is only a copy of the bytes.
-2. Open the backup. Add to `global/AGENTS.md` only rules you want every harness to follow.
+2. Open the backup. For policy files, add to `global/AGENTS.md` only rules you want every harness to follow. For command files, keep wanted changes in the matching source under `global/commands/`.
 3. Merge that change and run `gap sync` again.
 
 Any other answer leaves that file alone. With no terminal to ask in, such as an agent's shell, sync prints `Refusing to replace foreign file`, skips that file, publishes the rest, and exits `1`. Run `gap sync` yourself in a terminal to answer.

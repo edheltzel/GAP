@@ -209,11 +209,11 @@ func TestForeignSkipOnlyItself(t *testing.T) {
 	foreign, other := filepath.Join(dir, "foreign.md"), filepath.Join(dir, "other.md")
 	write(t, foreign, "nope\n")
 	ledger := map[string]string{}
-	wroteForeign, err := publish(source, foreign, false, ledger, ledgerFile, false, dir)
+	wroteForeign, err := publish(adapt(source, false), foreign, ledger, ledgerFile, false, dir)
 	if err != nil || wroteForeign {
 		t.Fatalf("foreign must be refused: %v %v", wroteForeign, err)
 	}
-	wroteOther, err := publish(source, other, false, ledger, ledgerFile, false, dir)
+	wroteOther, err := publish(adapt(source, false), other, ledger, ledgerFile, false, dir)
 	if err != nil || !wroteOther {
 		t.Fatalf("foreign skip blocked the next write: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestCodexCleanupGates(t *testing.T) {
 	write(t, policy, "foreign policy\n")
 	write(t, agents, "keep agents\n")
 	write(t, hooks, `{"hooks":{"Stop":[]}}`+"\n")
-	wrote, err := publish(source, policy, false, map[string]string{}, ledgerFile, false, dir)
+	wrote, err := publish(payload, policy, map[string]string{}, ledgerFile, false, dir)
 	if err != nil || wrote {
 		t.Fatal("foreign policy must be refused")
 	}
@@ -355,6 +355,8 @@ func TestSyncEndToEnd(t *testing.T) {
 		write(t, filepath.Join(clone, "skills", "global", "core", name, "SKILL.md"), name+"\n")
 	}
 	commitMerged("test manifest")
+	write(t, filepath.Join(clone, "global", "commands", "state-docs.md"), "published command\n")
+	commitMerged("test command")
 	home := filepath.Join(tmp, "home")
 	codex := filepath.Join(home, ".codex")
 	write(t, filepath.Join(codex, "hooks.json"), `{"hooks":{"SubagentStart":[{"hooks":[{"type":"command","command":"keep"}]}]}}`+"\n")
@@ -417,6 +419,13 @@ done
 			t.Errorf("not published: %s", dest)
 		}
 	}
+	ompCmd := filepath.Join(home, ".omp", "agent", "commands", "state-docs.md")
+	claudeCmd := filepath.Join(home, ".claude", "commands", "state-docs.md")
+	for _, dest := range []string{ompCmd, claudeCmd} {
+		if readString(t, dest) != "published command\n" {
+			t.Fatalf("command not published: %s", dest)
+		}
+	}
 	if calls := npxCalls(); len(calls) != 2 || !strings.Contains(calls[0], "add_"+clone+"_-g_-y_-a_claude-code_-a_codex_-s_do-a_-s_do-b") || !strings.Contains(calls[1], "add_owner/ext_") {
 		t.Fatalf("first run must install each source's missing skills once: %q", calls)
 	}
@@ -425,6 +434,19 @@ done
 	}
 	if code := cli(); code != 0 || len(npxCalls()) != 2 {
 		t.Fatalf("second run must not call skills.sh (exit %d, calls %q)\n%s", code, npxCalls(), lastOut)
+	}
+	if readString(t, ompCmd) != "published command\n" || readString(t, claudeCmd) != "published command\n" {
+		t.Fatal("second run changed a published command")
+	}
+	write(t, ompCmd, "foreign command\n")
+	if code := cli(); code != 1 || !strings.Contains(lastOut, "Refusing to replace foreign file") || readString(t, ompCmd) != "foreign command\n" {
+		t.Fatalf("foreign command must be refused (exit %d)\n%s", code, lastOut)
+	}
+	if readString(t, claudeCmd) != "published command\n" {
+		t.Fatal("foreign skip replaced the other command destination")
+	}
+	if err := os.Remove(ompCmd); err != nil {
+		t.Fatal(err)
 	}
 	for _, missing := range skillDirs(home, "do-a") {
 		canonical, mirror := skillDirs(home, "do-a")[0], skillDirs(home, "do-a")[1]
