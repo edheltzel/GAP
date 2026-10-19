@@ -206,8 +206,9 @@ func readCheckout(root string) (checkout, error) {
 	}
 	c := checkout{primary: strings.TrimPrefix(originHead, "origin/")}
 	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/", "skills/")
-	untracked, lsErr := git(root, "ls-files", "--others", "--", "global/", "skills/")
-	c.unmerged = diffErr != nil || lsErr != nil || untracked != ""
+	untracked, untrackedErr := git(root, "ls-files", "--others", "--exclude-standard", "--", "global/", "skills/")
+	ignored, ignoredErr := git(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", "global/", "skills/")
+	c.unmerged = diffErr != nil || untrackedErr != nil || ignoredErr != nil || untracked != "" || ignoredBlocks(ignored)
 	if c.branch, err = git(root, "rev-parse", "--abbrev-ref", "HEAD"); err != nil {
 		return c, err
 	}
@@ -237,6 +238,33 @@ func resolveIn(root, path string) string {
 		return filepath.Clean(path)
 	}
 	return filepath.Join(root, path)
+}
+
+// ignoredBlocks reports whether an ignored path would change what gap publishes or what skills.sh installs.
+// node_modules and .DS_Store do not. An ignored global/skills.json still does.
+func ignoredBlocks(list string) bool {
+	list = strings.TrimRight(list, "\x00")
+	if list == "" {
+		return false
+	}
+	for _, path := range strings.Split(list, "\x00") {
+		if path != "" && ignoredPathBlocks(path) {
+			return true
+		}
+	}
+	return false
+}
+
+func ignoredPathBlocks(path string) bool {
+	path = filepath.ToSlash(path)
+	switch path {
+	case "global/AGENTS.md", "global/skills.json":
+		return true
+	}
+	if strings.HasPrefix(path, "skills/") {
+		return !indexPathExcluded(strings.TrimPrefix(path, "skills/")) && filepath.Base(path) != ".DS_Store"
+	}
+	return false
 }
 
 func resolveCodexHome(env, home string) (string, error) {
