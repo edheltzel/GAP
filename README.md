@@ -104,7 +104,9 @@ It prints each file it wrote:
 ~/.claude/commands/state-docs.md
 ```
 
-Policy files are the shared rules. Each `global/commands/*.md` is a slash-command prompt, copied into the command directory each harness already loads. OMP reads `~/.omp/agent/commands/`. Claude Code reads `~/.claude/commands/`. The same replace rules apply: a foreign command file is backed up only after a yes, and a run with no terminal leaves it alone.
+Policy files are the shared rules. Each top-level `global/commands/*.md` is a slash-command prompt, copied unchanged as a whole file to OMP and Claude Code. Command files follow [the same replacement rules](#step-4-answer-if-gap-sync-asks-about-a-file).
+
+The bundled [`/state-docs`](global/commands/state-docs.md) prompt writes project maps under `docs/state`. See the prompt for arguments and local Nessa docs requirements.
 
 Each is a regular file, not a symlink. Start a new session in any agent to load the new rules.
 
@@ -113,7 +115,7 @@ Each is a regular file, not a symlink. Start a new session in any agent to load 
 `gap sync` asks before it replaces a file that you or another tool edited.
 
 1. Type `y`. Sync backs up the old file under `~/.gap/backups/` and prints where it went. That harness stops loading the old file. The backup is only a copy of the bytes.
-2. Open the backup. Add to `global/AGENTS.md` only rules you want every harness to follow.
+2. Open the backup. For policy files, add to `global/AGENTS.md` only rules you want every harness to follow. For command files, keep wanted changes in the matching source under `global/commands/`.
 3. Merge that change and run `gap sync` again.
 
 Any other answer leaves that file alone. With no terminal to ask in, such as an agent's shell, sync prints `Refusing to replace foreign file`, skips that file, publishes the rest, and exits `1`. Run `gap sync` yourself in a terminal to answer.
