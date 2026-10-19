@@ -47,7 +47,7 @@ A skill listed in `global/skills.json`. `gap sync` installs it when it's missing
 ### HIL
 Human in the loop. A person takes part before an automated step does something consequential. Silence is not agreement. A run with nobody to answer does not proceed as if they had agreed.
 
-Publish replacing a harness file that differs from the current policy, and is not the last published copy, is one such step.
+GAP's [foreign-file confirmation](README.md#step-4-answer-if-gap-sync-asks-about-a-file) is one such step.
 *Avoid:* human-in-the-loop
 
 ## Flagged ambiguities

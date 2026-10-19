@@ -104,7 +104,7 @@ It prints each file it wrote:
 ~/.claude/commands/state-docs.md
 ```
 
-Policy files are the shared rules. Each top-level `global/commands/*.md` is a slash-command prompt, copied unchanged as a whole file to OMP and Claude Code. Command files follow [the same replacement rules](#step-4-answer-if-gap-sync-asks-about-a-file).
+Policy files are the shared rules. Each top-level `global/commands/*.md` is a slash-command prompt, copied unchanged as a whole file to OMP and Claude Code. See [how sync handles existing files](#step-4-answer-if-gap-sync-asks-about-a-file).
 
 The bundled [`/state-docs`](global/commands/state-docs.md) prompt writes project maps under `docs/state`. See the prompt for arguments and local Nessa docs requirements.
 
@@ -112,10 +112,10 @@ Each is a regular file, not a symlink. Start a new session in any agent to load 
 
 ### Step 4: Answer if `gap sync` asks about a file
 
-`gap sync` asks before it appends the policy to a file you or another tool edited, when that file has no GAP markers.
+`gap sync` asks before it appends the policy to a foreign file without a complete GAP marker pair, or replaces a foreign command file or a symlink. An empty file without a matching ledger entry also needs confirmation.
 
-1. Type `y`. For a policy file, sync copies it under `~/.gap/backups/` and appends the policy between `<!-- gap:begin -->` and `<!-- gap:end -->`. The rest of the file stays, so the harness keeps loading it. For a command file, or a policy symlink, sync moves the old file aside and replaces it. That harness stops loading the old file. The backup keeps the bytes only.
-2. Later policy syncs replace only that block. They do not ask again, and they do not make another backup. Command files stay whole-file copies of `global/commands/`.
+1. Type `y`. For a policy file, sync copies it under `~/.gap/backups/` and appends the policy between `<!-- gap:begin -->` and `<!-- gap:end -->`. The rest of the file stays, so the harness keeps loading it. For a command file, sync backs up the old contents and replaces them. For a symlink, sync moves the link into the backup and writes a regular file. In those replacement cases, the harness stops loading the old file. The backup keeps the bytes only.
+2. Later policy syncs replace only that block. They do not ask again, and they do not make another backup. Existing regular files keep their access permissions. Command files stay whole-file copies of `global/commands/`.
 3. Rules you want every harness to follow still belong in `global/AGENTS.md`. Text outside the policy markers stays in that file. Command edits belong in the matching source under `global/commands/`.
 
 Any other answer leaves that file alone. With no terminal to ask in, such as an agent's shell, sync prints `Refusing to replace foreign file`, skips that file, publishes the rest, and exits `1`. Run `gap sync` yourself in a terminal to answer.
@@ -198,7 +198,7 @@ Pay off only when a project uses that stack or product.
 
 ### How sync tells its own files apart
 
-`~/.gap/published.json` holds a fingerprint of the GAP block sync last wrote, not of the whole file. Sync updates that block without asking when the file is missing, already has the markers, or is an older whole-file publish matching that fingerprint. A file with no markers and a different fingerprint is foreign, and sync asks first. On the Cursor file, the `alwaysApply: true` frontmatter stays above the markers.
+The [sync contract](cmd/gap/AGENTS.md#sync-steps) defines ledger fingerprints, legacy-file recognition, and Cursor frontmatter handling.
 
 ### Don't create `~/CLAUDE.md`
 
