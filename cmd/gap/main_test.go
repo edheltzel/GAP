@@ -209,11 +209,11 @@ func TestForeignSkipOnlyItself(t *testing.T) {
 	foreign, other := filepath.Join(dir, "foreign.md"), filepath.Join(dir, "other.md")
 	write(t, foreign, "nope\n")
 	ledger := map[string]string{}
-	wroteForeign, err := publish(source, foreign, false, ledger, ledgerFile, false, dir)
+	wroteForeign, err := publish(adapt(source, false), foreign, ledger, ledgerFile, false, dir)
 	if err != nil || wroteForeign {
 		t.Fatalf("foreign must be refused: %v %v", wroteForeign, err)
 	}
-	wroteOther, err := publish(source, other, false, ledger, ledgerFile, false, dir)
+	wroteOther, err := publish(adapt(source, false), other, ledger, ledgerFile, false, dir)
 	if err != nil || !wroteOther {
 		t.Fatalf("foreign skip blocked the next write: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestCodexCleanupGates(t *testing.T) {
 	write(t, policy, "foreign policy\n")
 	write(t, agents, "keep agents\n")
 	write(t, hooks, `{"hooks":{"Stop":[]}}`+"\n")
-	wrote, err := publish(source, policy, false, map[string]string{}, ledgerFile, false, dir)
+	wrote, err := publish(payload, policy, map[string]string{}, ledgerFile, false, dir)
 	if err != nil || wrote {
 		t.Fatal("foreign policy must be refused")
 	}

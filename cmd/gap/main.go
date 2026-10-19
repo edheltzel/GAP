@@ -118,7 +118,7 @@ func syncAll(removeLegacy bool) error {
 	}
 	skipped, codexWrote := false, false
 	for _, c := range copies {
-		wrote, err := publish(string(raw), c.dest, c.cursor, ledger, ledgerPath, true, home)
+		wrote, err := publish(adapt(string(raw), c.cursor), c.dest, ledger, ledgerPath, true, home)
 		if err != nil {
 			return err
 		}
@@ -169,22 +169,29 @@ func syncAll(removeLegacy bool) error {
 	return nil
 }
 func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath string) (bool, error) {
-	matches, err := filepath.Glob(filepath.Join(repoRoot, "global", "commands", "*.md"))
+	dir := filepath.Join(repoRoot, "global", "commands")
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true, nil
+	}
 	if err != nil {
 		return false, err
 	}
 	ok := true
-	for _, src := range matches {
-		b, err := os.ReadFile(src)
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".md") {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return false, err
 		}
-		name := filepath.Base(src)
 		for _, dest := range []string{
 			filepath.Join(home, ".omp", "agent", "commands", name),
 			filepath.Join(home, ".claude", "commands", name),
 		} {
-			wrote, err := publish(string(b), dest, false, ledger, ledgerPath, true, home)
+			wrote, err := publish(string(b), dest, ledger, ledgerPath, true, home)
 			if err != nil {
 				return false, err
 			}
@@ -294,6 +301,9 @@ func ignoredPathBlocks(path string) bool {
 	path = filepath.ToSlash(path)
 	switch path {
 	case "global/AGENTS.md", "global/skills.json":
+		return true
+	}
+	if filepath.Dir(path) == "global/commands" && strings.HasSuffix(path, ".md") {
 		return true
 	}
 	if strings.HasPrefix(path, "skills/") {
@@ -532,8 +542,7 @@ func refuse(format string, args ...any) (bool, error) {
 
 func isSymlink(info fs.FileInfo) bool { return info.Mode()&fs.ModeSymlink != 0 }
 
-func publish(source, dest string, cursor bool, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
-	payload := adapt(source, cursor)
+func publish(payload, dest string, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
 	var existing string
 	exists, symlink := false, false
 	info, err := os.Lstat(dest)

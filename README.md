@@ -84,7 +84,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 
 - you're on a branch other than `master` or GitButler's `gitbutler/workspace`
 - you're in a git worktree
-- `global/` or `skills/` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`). Ignored `node_modules` and `.DS_Store` do not block.
+- `global/` or `skills/` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`, top-level `global/commands/*.md`). Ignored `node_modules` and `.DS_Store` do not block.
 
 ### Step 3: Run `gap sync`
 
