@@ -108,8 +108,8 @@ Each is a regular file, not a symlink. Start a new session in any agent to load 
 
 `gap sync` asks before it replaces a file that you or another tool edited.
 
-1. Type `y`. Sync backs up the old file under `~/.gap/backups/` and prints where it went.
-2. Open the backup and move anything you want to keep into `global/AGENTS.md`.
+1. Type `y`. Sync backs up the old file under `~/.gap/backups/` and prints where it went. That harness stops loading the old file. The backup is only a copy of the bytes.
+2. Open the backup. Add to `global/AGENTS.md` only rules you want every harness to follow.
 3. Merge that change and run `gap sync` again.
 
 Any other answer leaves that file alone. With no terminal to ask in, such as an agent's shell, sync prints `Refusing to replace foreign file`, skips that file, publishes the rest, and exits `1`. Run `gap sync` yourself in a terminal to answer.
