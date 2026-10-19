@@ -47,7 +47,7 @@ Fix the untracked-manifest gate bypass, with a failing test first, and amend the
 - `docs/plans/2026-10-15-gap-skills-requirements.md`: the interview outcome.
 - `docs/plans/2026-10-15-gap-skills-plan.md`: units U1-U8 and blockers. Its U3 and U8 notes record the build-time changes.
 - `docs/plans/2026-10-15-secrets-scan.md`: U2 findings.
-- `docs/plans/handoffs/2026-10-15-no-mistakes-autonomous-policy.md`: the GitButler/No Mistakes blocker.
+- `docs/plans/handoffs/archive/2026-10-15-no-mistakes-autonomous-policy.md`: the GitButler/No Mistakes blocker.
 - `cmd/gap/skills.go`: install, drift, `treeHash`.
 - `cmd/gap/main.go:202-232`: the merge gate.
 

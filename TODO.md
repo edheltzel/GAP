@@ -6,7 +6,7 @@ Mirror of `todo.txt` (source of truth, managed with `tuxedo`). Synced 2026-10-17
 
 - [ ] 2026-10-16 After feat/gap-commands merges: go install ./cmd/gap, gap sync publishes /state-docs
 - [ ] 2026-10-14 Confirm in a live Cursor session that ~/.cursor/rules/global-agent-policy.mdc loads
-- [ ] 2026-10-15 Decide GitButler vs No Mistakes publish path, add phase-agent exception, publish docs/no-mistakes-autonomous - [note](docs/plans/handoffs/2026-10-15-no-mistakes-autonomous-policy.md)
+- [ ] 2026-10-15 Decide GitButler vs No Mistakes publish path, add phase-agent exception, publish docs/no-mistakes-autonomous - [note](docs/plans/handoffs/archive/2026-10-15-no-mistakes-autonomous-policy.md)
 - [ ] 2026-10-15 U2 sign-off: remove or rotate the real-looking secrets-scan findings before U8 - [note](docs/plans/2026-10-15-secrets-scan.md)
 - [ ] 2026-10-16 After the checkpoint PRs merge: git pull, go install ./cmd/gap, trash the stale ~/.claude/skills/typesafe-ai, then gap sync from a terminal
 - [ ] 2026-10-16 After #79 and #87 merge: add global/commands/*.md to ignoredPathBlocks + regression test, so an ignored command can't bypass the merge gate - [pr](https://github.com/edheltzel/GAP/pull/87)
@@ -26,12 +26,12 @@ Mirror of `todo.txt` (source of truth, managed with `tuxedo`). Synced 2026-10-17
 - [x] 2026-10-15 Red-team 8: rollback after --remove-codex-legacy brings back the replace prompt
 - [x] 2026-10-16 D6: a foreign-file backup keeps bytes, not the harness behavior it gave notice shipped on fix/gap-redteam-8; decide: splice / gap restore / refuse foreign markers - [pr](https://github.com/edheltzel/GAP/pull/88)
 - [x] 2026-10-16 Rename edheltzel/agent-config to GAP; archive/rename old edheltzel/GAP Go scaffold repo so go install path resolves
-- [x] 2026-10-15 Decide whether to abort stale no-mistakes run 01M4CAEW62RRW7GN17D3RZ8F8T - [note](docs/plans/handoffs/2026-10-15-no-mistakes-autonomous-policy.md)
+- [x] 2026-10-15 Decide whether to abort stale no-mistakes run 01M4CAEW62RRW7GN17D3RZ8F8T - [note](docs/plans/handoffs/archive/2026-10-15-no-mistakes-autonomous-policy.md)
 - [x] 2026-10-15 Restore the lost DoSkills --yes fix (fix/no-mistakes-yes discarded 2026-10-15 04:31) or re-apply after the merge - [note](docs/plans/2026-10-15-gap-skills-requirements.md)
 - [x] 2026-10-15 Plan gap skills (A+B) with do-plan - [note](docs/plans/2026-10-15-gap-skills-requirements.md)
 - [x] 2026-10-16 **(C)** rejected: gap does not install harnesses (user decision 2026-10-16)
 - [x] 2026-10-15 U2 gitleaks scan of agent-config and DoSkills history - [note](docs/plans/2026-10-15-gap-skills-plan.md)
 - [x] 2026-10-15 U3-U7 build gap skills (manifest, install, drift, docs) - [note](docs/plans/2026-10-15-gap-skills-plan.md)
 - [x] 2026-10-16 U8 publish: flip agent-config public, rename to GAP, archive DoSkills (needs explicit go) - [note](docs/plans/2026-10-15-gap-skills-plan.md)
-- [x] 2026-10-15 Fix untracked global/skills.json merge-gate bypass + regression test, amend into suw - [note](docs/plans/handoffs/2026-10-15-gap-skills.md)
-- [x] 2026-10-16 Decide U8 public history (fresh repo / filter-repo / full) and give the go - [note](docs/plans/handoffs/2026-10-15-gap-skills.md)
+- [x] 2026-10-15 Fix untracked global/skills.json merge-gate bypass + regression test, amend into suw - [note](docs/plans/handoffs/archive/2026-10-15-gap-skills.md)
+- [x] 2026-10-16 Decide U8 public history (fresh repo / filter-repo / full) and give the go - [note](docs/plans/handoffs/archive/2026-10-15-gap-skills.md)

@@ -78,12 +78,12 @@ Code lives in `/Users/ed/Developer/Contributions/NoMistakes` (NM below), one com
 - Done when: guidance matches U7's proven path, and `gap sync` after merge publishes it.
 - Verify: `go test ./...` in GAP; `rg -n "side clone|GAP-skills|git push no-mistakes" global skills` returns no live instruction.
 
-### U9. Offer upstream
+### U9. Land in the local NM clone
 - Depends on: U7
-- Files: none in NM's tree; an upstream issue and PRs on `kunchenguid/no-mistakes`
-- Change: open an issue describing the GitButler conflicts with the U7 evidence, then one PR per unit (U2+U4 GitButler mode, U3 `--branch`, U5 report), each rebased on `upstream/main`. Needs the user's explicit go before anything is posted.
-- Done when: the issue and PRs exist, or the user declines.
-- Verify: `gh pr list -R kunchenguid/no-mistakes --author @me` lists them.
+- Files: none (history only, `/Users/ed/Developer/Contributions/NoMistakes`)
+- Change: fast-forward the clone's local `main` to `feat/axi-run-selector`, so the version you run is `main`. Nothing goes to `kunchenguid/no-mistakes` (user decision 2026-10-19). Both remotes get push URL `no_push` so a stray push cannot reach upstream. Later upstream syncs rebase local `main` onto `upstream/main`.
+- Done when: local `main` is the GitButler-safe build and neither remote accepts a push.
+- Verify: `git -C ~/Developer/Contributions/NoMistakes log -1 main` shows the U6 docs commit; `git remote -v` shows `no_push` for both push URLs.
 
 ## Out of scope
 
@@ -96,6 +96,6 @@ Code lives in `/Users/ed/Developer/Contributions/NoMistakes` (NM below), one com
 
 - U1-U7: build GitButler-safe No Mistakes in ~/Developer/Contributions/NoMistakes and prove it on GAP
 - U8: update GAP No Mistakes policy and do-commit for axi run --branch in GitButler repos
-- U9: offer the NM changes upstream (needs explicit go)
+- U9: land the NM changes on the local clone's main (no upstream)
 
 Review complete
