@@ -1,0 +1,74 @@
+# Installed by the do-gh-pm feedback-agent overlay (interview Q7).
+#
+# Maintainer slash commands on issue comments, on the free GITHUB_TOKEN
+# (same-repo labels/reactions need no App token). The three workflow-state
+# labels are mutually exclusive; each command swaps to exactly one of them
+# (transitions documented in references/FeedbackAgent.md):
+#   /pm:triage      → needs:triage  (back to intake; removes needs:info, agent:ready)
+#   /pm:needs-info  → needs:info    (waiting on reporter; removes needs:triage, agent:ready)
+#   /pm:ready       → agent:ready   (ready for an AFK agent; removes needs:triage, needs:info)
+# The pm: namespace avoids colliding with other agents' /triage commands.
+name: PM Commands
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+# Serialize concurrent slash commands on the same issue. /pm:ready and
+# /pm:needs-info each remove the other's label; overlapping runs would both
+# strip the label the other just added.
+concurrency:
+  group: pm-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  pm-command:
+    if: >-
+      !github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/pm:')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const COMMANDS = {
+              "/pm:triage":     { add: ["needs:triage"], remove: ["needs:info", "agent:ready"] },
+              "/pm:needs-info": { add: ["needs:info"],   remove: ["needs:triage", "agent:ready"] },
+              "/pm:ready":      { add: ["agent:ready"],  remove: ["needs:triage", "needs:info"] },
+            };
+            const comment = context.payload.comment;
+            // The workflow-level startsWith is case-insensitive; match it here.
+            const command = comment.body.trim().split(/\s+/)[0].toLowerCase();
+            const spec = COMMANDS[command];
+            if (!spec) {
+              core.info(`unknown command ${command} — ignoring`);
+              return;
+            }
+            const { owner, repo } = context.repo;
+            // Real write-check: author_association MEMBER/COLLABORATOR includes
+            // read-only members, who must not flip agent:ready.
+            const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner, repo, username: comment.user.login,
+            });
+            if (!["write", "admin"].includes(perm.permission)) {
+              core.info(`${comment.user.login} lacks write permission — ignoring`);
+              return;
+            }
+            const issue_number = context.issue.number;
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: spec.add });
+            // Remove unconditionally, tolerating 404s: the event payload's
+            // label snapshot can be stale by the time this runs (TOCTOU).
+            for (const name of spec.remove) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+              }
+            }
+            // Ack the command with a reaction instead of a noisy comment.
+            await github.rest.reactions.createForIssueComment({
+              owner, repo, comment_id: comment.id, content: "+1",
+            });
