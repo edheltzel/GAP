@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -1669,5 +1670,87 @@ func TestEmpryoPinAdvice(t *testing.T) {
 				t.Fatal("gap must never write Empryo's config")
 			}
 		})
+	}
+}
+
+func TestReviewCrossDevice(t *testing.T) {
+	home := t.TempDir()
+	shm, err := os.MkdirTemp("/dev/shm", "gaprev")
+	if err != nil {
+		t.Skip(err)
+	}
+	defer os.RemoveAll(shm)
+	dest := filepath.Join(shm, "gap", "global-agent-policy.md")
+	ledger := map[string]string{}
+	lp := filepath.Join(home, ".gap", "published.json")
+	if _, err := publishPolicy("v1\n", dest, false, ledger, lp, false, home); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	wrote, err := publishPolicy("v2\n", dest, false, ledger, lp, false, home)
+	if err != nil || !wrote {
+		t.Fatalf("cross-device update failed: wrote %v err %v", wrote, err)
+	}
+	if readString(t, dest) != gapMarked("v2\n") {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 || readString(t, backups[0]) != gapMarked("v1\n") {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+}
+
+func TestRecoveryFallsBackOnEXDEV(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	write(t, dest, gapMarked("v1\n"))
+	if err := os.Chmod(dest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	oldRename := renamePolicy
+	t.Cleanup(func() { renamePolicy = oldRename })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || !wrote {
+		t.Fatalf("EXDEV update failed: wrote %v err %v", wrote, err)
+	}
+	if readString(t, dest) != gapMarked("v2\n") {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if readString(t, backups[0]) != gapMarked("v1\n") {
+		t.Fatalf("recovery=%q", readString(t, backups[0]))
+	}
+	info, err := os.Stat(backups[0])
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("recovery mode = %v, %v", info, err)
+	}
+	if _, err := os.Lstat(dest); err != nil {
+		t.Fatalf("live dest missing after copy fallback: %v", err)
+	}
+}
+
+func TestRecoveryEXDEVRestoresOnInstallFailure(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	before := gapMarked("v1\n")
+	write(t, dest, before)
+	oldRename, oldLink := renamePolicy, linkPolicy
+	t.Cleanup(func() { renamePolicy, linkPolicy = oldRename, oldLink })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	linkPolicy = func(string, string) error { return os.ErrPermission }
+	wrote, err := publishPolicy("v2\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
+	if wrote || !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	if readString(t, dest) != before {
+		t.Fatalf("dest not restored after EXDEV copy: %q", readString(t, dest))
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -809,10 +810,115 @@ func policyUnchanged(dest, existing, linkTarget string, before fs.FileInfo) erro
 	return nil
 }
 
+func policyContentUnchanged(path, existing, linkTarget string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if isSymlink(info) {
+		got, err := os.Readlink(path)
+		if err != nil {
+			return err
+		}
+		if got != linkTarget {
+			return errPolicyChanged
+		}
+		return nil
+	}
+	if !info.Mode().IsRegular() {
+		return errPolicyChanged
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if string(b) != existing {
+		return errPolicyChanged
+	}
+	return nil
+}
+
 var (
 	renamePolicy = os.Rename
 	linkPolicy   = os.Link
 )
+
+func isCrossDevice(err error) bool {
+	return errors.Is(err, syscall.EXDEV)
+}
+
+func copyPolicy(src, dst string) error {
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	if isSymlink(info) {
+		target, err := os.Readlink(src)
+		if err != nil {
+			return err
+		}
+		if err := os.Symlink(target, dst); err != nil {
+			return err
+		}
+		got, err := os.Readlink(dst)
+		if err != nil || got != target {
+			os.Remove(dst)
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf("recovery symlink mismatch: %s", dst)
+		}
+		return nil
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a file", src)
+	}
+	perm := info.Mode().Perm()
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	if err != nil {
+		return err
+	}
+	cleanup := func() { out.Close(); os.Remove(dst) }
+	if err := out.Chmod(perm); err != nil {
+		cleanup()
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		cleanup()
+		return err
+	}
+	if err := out.Sync(); err != nil {
+		cleanup()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(dst)
+		return err
+	}
+	want, err := os.ReadFile(src)
+	if err != nil {
+		os.Remove(dst)
+		return err
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		os.Remove(dst)
+		return err
+	}
+	if string(got) != string(want) {
+		os.Remove(dst)
+		return fmt.Errorf("recovery copy mismatch: %s", dst)
+	}
+	return nil
+}
 
 func restorePolicy(backup, dest string) error {
 	info, err := os.Lstat(backup)
@@ -826,7 +932,10 @@ func restorePolicy(backup, dest string) error {
 		}
 		return os.Symlink(target, dest)
 	}
-	return os.Link(backup, dest)
+	if err := os.Link(backup, dest); err == nil || !isCrossDevice(err) {
+		return err
+	}
+	return copyPolicy(backup, dest)
 }
 
 func recoveryDiverged(backup, existing, linkTarget string) bool {
@@ -863,13 +972,34 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 					return makeErr
 				}
 			}
+			copied := false
 			if err := renamePolicy(dest, backup); err != nil {
-				os.RemoveAll(filepath.Dir(backup))
-				backup = ""
 				if errors.Is(err, fs.ErrNotExist) {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
 					return errPolicyChanged
 				}
-				return err
+				if !isCrossDevice(err) {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return err
+				}
+				if err := copyPolicy(dest, backup); err != nil {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return err
+				}
+				if err := policyContentUnchanged(backup, existing, linkTarget); err != nil {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return err
+				}
+				if err := os.Remove(dest); err != nil {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return err
+				}
+				copied = true
 			}
 			defer func() {
 				if err != nil {
@@ -878,8 +1008,10 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 					}
 				}
 			}()
-			if err := policyUnchanged(backup, existing, linkTarget, before); err != nil {
-				return err
+			if !copied {
+				if err := policyUnchanged(backup, existing, linkTarget, before); err != nil {
+					return err
+				}
 			}
 		}
 		if err := linkPolicy(tmp, dest); err != nil {
