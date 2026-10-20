@@ -120,6 +120,9 @@ func componentFromTable(name string, spec tomlTable) (component, error) {
 	if c.Repo == "" || c.Ref == "" || c.Commit == "" {
 		return component{}, fmt.Errorf("component %s needs repo, ref, and commit", name)
 	}
+	if err := requirePinCommit(c); err != nil {
+		return component{}, err
+	}
 	if c.Source == "" {
 		c.Source = githubSourceFromURL(c.Repo)
 	}
@@ -243,7 +246,24 @@ func ensureNeeded(repoRoot string, paths skillPaths, entries []manifestEntry) bo
 	return ok
 }
 
+func requirePinCommit(c component) error {
+	if len(c.Commit) != 40 {
+		return fmt.Errorf("component %s commit must be a 40-character lowercase hex SHA", c.Name)
+	}
+	for i := 0; i < 40; i++ {
+		ch := c.Commit[i]
+		if ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'f' {
+			continue
+		}
+		return fmt.Errorf("component %s commit must be a 40-character lowercase hex SHA", c.Name)
+	}
+	return nil
+}
+
 func ensureComponent(repoRoot string, c component) error {
+	if err := requirePinCommit(c); err != nil {
+		return err
+	}
 	dir := componentDir(repoRoot, c.Name)
 	if !isGitRepo(dir) {
 		if err := initComponent(dir, c); err != nil {
@@ -300,6 +320,9 @@ func initComponent(dir string, c component) error {
 }
 
 func checkoutPin(dir string, c component) error {
+	if err := requirePinCommit(c); err != nil {
+		return err
+	}
 	if _, err := gitRun(dir, "fetch", "-q", "origin", c.Commit); err != nil {
 		return fmt.Errorf("pinned component %s: fetch %s: %w", c.Name, c.Commit, err)
 	}

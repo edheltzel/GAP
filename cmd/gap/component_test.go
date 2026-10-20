@@ -154,9 +154,31 @@ func TestCheckDriftReportsDirtyCheckout(t *testing.T) {
 	}
 }
 
+func TestPinCommitMustBeHexSHA(t *testing.T) {
+	repo := t.TempDir()
+	good := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	for _, bad := range []string{"master", "-u", "-fetch", "78E2C15BFBC484D74A2D38EF3FA727A99272BF25", "abc", strings.Repeat("a", 39), strings.Repeat("a", 41), "gggggggggggggggggggggggggggggggggggggggg"} {
+		writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", bad)
+		if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "40-character lowercase hex SHA") {
+			t.Fatalf("load commit %q: %v", bad, err)
+		}
+		err := ensureComponent(repo, component{Name: "do-skills", Repo: repo, Ref: "master", Commit: bad, Source: "edheltzel/Do-Skills"})
+		if err == nil || !strings.Contains(err.Error(), "40-character lowercase hex SHA") {
+			t.Fatalf("ensure commit %q: %v", bad, err)
+		}
+		if _, err := os.Stat(componentDir(repo, "do-skills")); !os.IsNotExist(err) {
+			t.Fatalf("bad commit %q reached a git checkout", bad)
+		}
+	}
+	writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", good)
+	if _, err := loadSkillPaths(repo); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPinnedSourceMatchesVendorPath(t *testing.T) {
 	repo := t.TempDir()
-	writeDoSkillsLock(t, repo, "/tmp/do-skills.git", "abc")
+	writeDoSkillsLock(t, repo, "/tmp/do-skills.git", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	vendor := componentDir(repo, "do-skills")
 	if !sameSource(repo, "edheltzel/Do-Skills", lockEntry{Source: vendor, SourceType: "local", SourceURL: vendor}) {
 		t.Fatal("a local lock path must match the pinned checkout")
