@@ -271,7 +271,26 @@ func resolveInstallSource(repoRoot, source string) (string, error) {
 	if paths.requestedSource(source) {
 		return "", fmt.Errorf("component source %s has no lock entry", source)
 	}
+	if err := paths.componentSubfolder(source); err != nil {
+		return "", err
+	}
 	return source, nil
+}
+
+func (p skillPaths) componentSubfolder(source string) error {
+	repo, sub, ok := githubIdentity(source)
+	if !ok || sub == "" {
+		return nil
+	}
+	c, hit := p.lookup(repo)
+	if !hit && !p.requested[strings.ToLower(repo)] {
+		return nil
+	}
+	name := c.Name
+	if name == "" {
+		name = repo
+	}
+	return fmt.Errorf("component source %s names a subfolder of %s", source, name)
 }
 
 func componentDir(repoRoot, name string) string {

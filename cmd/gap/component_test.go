@@ -587,6 +587,37 @@ commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	}
 }
 
+func TestComponentSubfolderSourceIsRejected(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	npxLog := filepath.Join(t.TempDir(), "npx.log")
+	npx := filepath.Join(t.TempDir(), "npx")
+	write(t, npx, "#!/bin/sh\necho \"$*\" > "+npxLog+"\n")
+	if err := os.Chmod(npx, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, src := range []string{
+		"edheltzel/Do-Skills/skills/global",
+		"https://github.com/edheltzel/Do-Skills/tree/master/skills",
+	} {
+		if _, err := resolveInstallSource(repo, src); err == nil || !strings.Contains(err.Error(), "subfolder") {
+			t.Fatalf("%s: %v", src, err)
+		}
+		if skillsAdd(npx, repo, home, src, []string{"do-x"}) {
+			t.Fatalf("%s must not install", src)
+		}
+	}
+	if _, err := os.Stat(npxLog); !os.IsNotExist(err) {
+		t.Fatalf("npx must not run, log=%q", readString(t, npxLog))
+	}
+	got, err := resolveInstallSource(repo, "backnotprop/plannotator/apps/skills/extra")
+	if err != nil || got != "backnotprop/plannotator/apps/skills/extra" {
+		t.Fatalf("unpinned subpath: %q %v", got, err)
+	}
+}
+
 func TestMissingLockDoesNotFallBackToGitHub(t *testing.T) {
 	repo := t.TempDir()
 	home := t.TempDir()
