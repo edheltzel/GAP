@@ -622,6 +622,19 @@ func makeRecovery(dest, home string) (string, error) {
 
 var pruneRecovery = pruneRecoveryDir
 
+func recoveryHoldsSymlink(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.Type()&fs.ModeSymlink != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func pruneRecoveryDir(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -630,17 +643,22 @@ func pruneRecoveryDir(dir string) error {
 	if err != nil {
 		return err
 	}
-	names := make([]string, 0, len(entries))
+	regular := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if e.IsDir() {
-			names = append(names, e.Name())
+		if !e.IsDir() {
+			continue
 		}
+		name := e.Name()
+		if recoveryHoldsSymlink(filepath.Join(dir, name)) {
+			continue
+		}
+		regular = append(regular, name)
 	}
-	slices.Sort(names)
-	if len(names) <= recoveryKeep {
+	slices.Sort(regular)
+	if len(regular) <= recoveryKeep {
 		return nil
 	}
-	for _, name := range names[:len(names)-recoveryKeep] {
+	for _, name := range regular[:len(regular)-recoveryKeep] {
 		if err := os.RemoveAll(filepath.Join(dir, name)); err != nil {
 			return err
 		}

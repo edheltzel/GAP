@@ -1715,6 +1715,65 @@ func TestChangedPublishNamesRecoveryAndRestore(t *testing.T) {
 	}
 }
 
+func TestConfirmedSymlinkRecoveryNotPruned(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	withYes(t)
+	ledger := map[string]string{}
+	lp := filepath.Join(home, ".gap", "published.json")
+	if wrote, err := publishPolicy("v0\n", dest, false, ledger, lp, true, home); err != nil || !wrote {
+		t.Fatalf("symlink replace: wrote %v err %v", wrote, err)
+	}
+	var linkCopy string
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range backups {
+		if info, err := os.Lstat(p); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			linkCopy = p
+			break
+		}
+	}
+	if linkCopy == "" {
+		t.Fatal("displaced symlink missing from recovery")
+	}
+	if target, err := os.Readlink(linkCopy); err != nil || target != "target.md" {
+		t.Fatalf("displaced link = %q, %v", target, err)
+	}
+	for i := 0; i < recoveryKeep+2; i++ {
+		body := "v" + strings.Repeat("x", i+1) + "\n"
+		if wrote, err := publishPolicy(body, dest, false, ledger, lp, true, home); err != nil || !wrote {
+			t.Fatalf("publish %d: wrote %v err %v", i, wrote, err)
+		}
+	}
+	if target, err := os.Readlink(linkCopy); err != nil || target != "target.md" {
+		t.Fatalf("displaced symlink was pruned: %q, %v", target, err)
+	}
+	regular := 0
+	backups, err = filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range backups {
+		info, err := os.Lstat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		regular++
+	}
+	if regular != recoveryKeep {
+		t.Fatalf("regular recovery copies = %d, want %d", regular, recoveryKeep)
+	}
+}
+
 func TestPruneRecoveryFailureDoesNotAbort(t *testing.T) {
 	home := t.TempDir()
 	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
