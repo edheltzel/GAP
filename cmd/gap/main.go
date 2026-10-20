@@ -635,6 +635,22 @@ func recoveryHoldsSymlink(dir string) bool {
 	return false
 }
 
+func removeLegacyRecovery(dest string) {
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-*"))
+	if err != nil {
+		return
+	}
+	for _, p := range matches {
+		info, err := os.Lstat(p)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		if err := os.RemoveAll(p); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: removing leftover recovery dir %s: %v\n", p, err)
+		}
+	}
+}
+
 func pruneRecoveryDir(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -1131,6 +1147,7 @@ func publish(payload, dest string, ledger map[string]string, ledgerFile string, 
 }
 
 func publishPolicy(source, dest string, cursor bool, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
+	removeLegacyRecovery(dest)
 	body := adapt(source, false)
 	unmarked := adapt(source, cursor)
 	var existing, linkTarget string

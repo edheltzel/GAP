@@ -1715,6 +1715,53 @@ func TestChangedPublishNamesRecoveryAndRestore(t *testing.T) {
 	}
 }
 
+func TestRemoveLegacyGapRecoveryDirs(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, dest, gapMarked("old\n"))
+	legacy := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-abc123")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(legacy, filepath.Base(dest)), "stale policy\n")
+	other := filepath.Join(filepath.Dir(dest), ".other.md.gap-recovery-abc123")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plain := filepath.Join(filepath.Dir(dest), filepath.Base(dest)+".gap-recovery-abc123")
+	if err := os.MkdirAll(plain, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fileMatch := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-file")
+	write(t, fileMatch, "not a dir\n")
+	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || !wrote {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	if _, err := os.Lstat(legacy); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy recovery dir remains: %v", err)
+	}
+	if _, err := os.Lstat(other); err != nil {
+		t.Fatalf("unrelated dir removed: %v", err)
+	}
+	if _, err := os.Lstat(plain); err != nil {
+		t.Fatalf("name without leading dot removed: %v", err)
+	}
+	if readString(t, fileMatch) != "not a dir\n" {
+		t.Fatal("matching regular file was removed")
+	}
+	if leaked, err := filepath.Glob(filepath.Join(filepath.Dir(dest), ".*.gap-recovery-*")); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, p := range leaked {
+			if p == other || p == fileMatch {
+				continue
+			}
+			t.Fatalf("unexpected leftover: %s", p)
+		}
+	}
+}
+
 func TestConfirmedSymlinkRecoveryNotPruned(t *testing.T) {
 	home := t.TempDir()
 	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
