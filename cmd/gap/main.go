@@ -620,7 +620,9 @@ func makeRecovery(dest, home string) (string, error) {
 	return filepath.Join(dir, filepath.Base(dest)), nil
 }
 
-func pruneRecovery(dir string) error {
+var pruneRecovery = pruneRecoveryDir
+
+func pruneRecoveryDir(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
@@ -1040,7 +1042,7 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 		return false, err
 	}
 	if err := pruneRecovery(recoveryDir(dest, backupRoot)); err != nil {
-		return false, err
+		fmt.Fprintf(os.Stderr, "Warning: pruning recovery copies at %s: %v\n", recoveryDir(dest, backupRoot), err)
 	}
 	fmt.Println(dest)
 	return true, nil

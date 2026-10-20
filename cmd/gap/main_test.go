@@ -1673,6 +1673,35 @@ func TestEmpryoPinAdvice(t *testing.T) {
 	}
 }
 
+func TestPruneRecoveryFailureDoesNotAbort(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	ledger := map[string]string{}
+	lp := filepath.Join(home, ".gap", "published.json")
+	if _, err := publishPolicy("a\n", dest, false, ledger, lp, false, home); err != nil {
+		t.Fatal(err)
+	}
+	oldPrune := pruneRecovery
+	t.Cleanup(func() { pruneRecovery = oldPrune })
+	pruneRecovery = func(string) error { return os.ErrPermission }
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("b\n", dest, false, ledger, lp, false, home)
+		if err != nil || !wrote {
+			t.Fatalf("prune failure aborted: wrote %v err %v", wrote, err)
+		}
+	})
+	_ = stdout
+	if !strings.Contains(stderr, "Warning:") || !strings.Contains(stderr, recoveryDir(dest, home)) || !strings.Contains(stderr, os.ErrPermission.Error()) {
+		t.Fatalf("missing prune warning: %q", stderr)
+	}
+	if readString(t, dest) != gapMarked("b\n") {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	if ledger[dest] != digest("b\n") {
+		t.Fatal("ledger not updated after prune warning")
+	}
+}
+
 func TestReviewCrossDevice(t *testing.T) {
 	home := t.TempDir()
 	shm, err := os.MkdirTemp("/dev/shm", "gaprev")
