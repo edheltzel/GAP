@@ -2125,6 +2125,78 @@ func TestCopyFallbackDoesNotRemoveDestEditedDuringCopy(t *testing.T) {
 	}
 }
 
+func TestSyncContinuesAfterPolicyChanged(t *testing.T) {
+	home := t.TempDir()
+	codex := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	dests := policyDests(home, codex)
+	refused := dests[0].dest
+	for _, d := range dests {
+		write(t, d.dest, gapMarked("old\n"))
+	}
+	oldRename, oldCopy := renamePolicy, copyPolicy
+	t.Cleanup(func() { renamePolicy, copyPolicy = oldRename, oldCopy })
+	renamePolicy = func(src, dst string) error {
+		if src == refused {
+			return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+		}
+		return os.Rename(src, dst)
+	}
+	copyPolicy = func(src, dst string) error {
+		if err := copyPolicyFile(src, dst); err != nil {
+			return err
+		}
+		if src == refused {
+			write(t, src, "late edit\n")
+		}
+		return nil
+	}
+	ledger := map[string]string{}
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	skipped := false
+	_, stderr := captureStd(t, func() {
+		for _, c := range dests {
+			wrote, err := publishPolicy("new\n", c.dest, c.cursor, ledger, ledgerFile, false, home)
+			if err != nil {
+				t.Fatalf("policy-changed refuse aborted sync at %s: %v", c.dest, err)
+			}
+			if !wrote {
+				skipped = true
+			}
+		}
+	})
+	if !skipped {
+		t.Fatal("refused destination did not skip")
+	}
+	if readString(t, refused) != "late edit\n" {
+		t.Fatalf("refused dest = %q", readString(t, refused))
+	}
+	if _, inLedger := ledger[refused]; inLedger {
+		t.Fatalf("refused dest entered ledger: %v", ledger)
+	}
+	if !strings.Contains(stderr, "Refusing to publish policy changed during sync: "+refused) {
+		t.Fatalf("missing refuse: %q", stderr)
+	}
+	for _, c := range dests {
+		if c.dest == refused {
+			continue
+		}
+		want := gapMarked(adapt("new\n", false))
+		if readString(t, c.dest) != want {
+			t.Fatalf("%s not published: %q", c.dest, readString(t, c.dest))
+		}
+		if ledger[c.dest] != digest(adapt("new\n", false)) {
+			t.Fatalf("%s missing from ledger: %v", c.dest, ledger)
+		}
+	}
+	var syncErr error
+	if skipped {
+		syncErr = errSkipped
+	}
+	if !errors.Is(syncErr, errSkipped) {
+		t.Fatalf("sync err = %v, want errSkipped", syncErr)
+	}
+}
+
 func TestRecoveryEXDEVRestoresOnInstallFailure(t *testing.T) {
 	home := t.TempDir()
 	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
