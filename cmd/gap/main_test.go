@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -239,6 +241,37 @@ func withYes(t *testing.T) {
 	termReady = func() bool { return true }
 	confirmLine = func() string { return "y\n" }
 	t.Cleanup(func() { termReady, confirmLine = oldTerm, oldLine })
+}
+
+func captureStd(t *testing.T, fn func()) (stdout, stderr string) {
+	t.Helper()
+	oldOut, oldErr := os.Stdout, os.Stderr
+	rout, wout, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rerr, werr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout, os.Stderr = wout, werr
+	var outBuf, errBuf bytes.Buffer
+	outDone, errDone := make(chan struct{}), make(chan struct{})
+	go func() { io.Copy(&outBuf, rout); close(outDone) }()
+	go func() { io.Copy(&errBuf, rerr); close(errDone) }()
+	defer func() {
+		wout.Close()
+		werr.Close()
+		os.Stdout, os.Stderr = oldOut, oldErr
+		<-outDone
+		<-errDone
+		rout.Close()
+		rerr.Close()
+		stdout = outBuf.String()
+		stderr = errBuf.String()
+	}()
+	fn()
+	return
 }
 
 func TestSpliceKeepsForeignContent(t *testing.T) {
@@ -1380,6 +1413,91 @@ func TestRecoveryStaysOutsideRuleDirs(t *testing.T) {
 	}
 	if !strings.HasPrefix(backups[0], filepath.Join(home, ".gap", "recovery")+string(filepath.Separator)) {
 		t.Fatalf("recovery not under ~/.gap/recovery: %s", backups[0])
+	}
+}
+
+func TestPreviousPolicyRetainedMessage(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+	write(t, dest, "user rules\n"+gapMarked("old\n")+"footer\n")
+	ledger := map[string]string{}
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if strings.Contains(stderr, "Warning:") {
+		t.Fatalf("ordinary replace warned: %q", stderr)
+	}
+	if !strings.Contains(stdout, "Previous policy retained at ") {
+		t.Fatalf("missing retained message: %q", stdout)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if !strings.Contains(stdout, backups[0]) {
+		t.Fatalf("retained message missing recovery path %s: %q", backups[0], stdout)
+	}
+}
+
+func TestUnchangedPublishOmitsRetainedMessage(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+	write(t, dest, gapMarked("policy\n"))
+	ledger := map[string]string{dest: digest("policy\n")}
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("policy\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if strings.Contains(stdout, "Previous policy retained") || strings.Contains(stderr, "Warning:") {
+		t.Fatalf("unchanged publish printed recovery text: stdout %q stderr %q", stdout, stderr)
+	}
+}
+
+func TestWarningWhenLiveEditOnlyInRecovery(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+	before := "user rules\n" + gapMarked("old\n") + "footer\n"
+	write(t, dest, before)
+	writer, err := os.OpenFile(dest, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	oldLink := linkPolicy
+	t.Cleanup(func() { linkPolicy = oldLink })
+	linkPolicy = func(src, dst string) error {
+		if err := writer.Truncate(0); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.WriteString("latest user rules\n"); err != nil {
+			t.Fatal(err)
+		}
+		return os.Link(src, dst)
+	}
+	ledger := map[string]string{}
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if strings.Contains(stdout, "Previous policy retained") {
+		t.Fatalf("live-edit-only recovery printed success retained line: %q", stdout)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if !strings.Contains(stderr, "Warning:") || !strings.Contains(stderr, backups[0]) {
+		t.Fatalf("missing live-edit warning with recovery path %s: %q", backups[0], stderr)
+	}
+	if readString(t, backups[0]) != "latest user rules\n" {
+		t.Fatalf("recovery lost the live edit: %q", readString(t, backups[0]))
 	}
 }
 

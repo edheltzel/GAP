@@ -829,7 +829,24 @@ func restorePolicy(backup, dest string) error {
 	return os.Link(backup, dest)
 }
 
+func recoveryDiverged(backup, existing, linkTarget string) bool {
+	info, err := os.Lstat(backup)
+	if err != nil {
+		return false
+	}
+	if isSymlink(info) {
+		got, err := os.Readlink(backup)
+		return err == nil && got != linkTarget
+	}
+	if !info.Mode().IsRegular() {
+		return false
+	}
+	b, err := os.ReadFile(backup)
+	return err == nil && string(b) != existing
+}
+
 func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile, existing, linkTarget, backupRoot string, before fs.FileInfo) (bool, error) {
+	var backup string
 	err := writeStaged(dest, text, func(tmp string) (err error) {
 		if err := policyUnchanged(dest, existing, linkTarget, before); err != nil {
 			return err
@@ -838,18 +855,19 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 			return nil
 		}
 		if before != nil {
-			backup, makeErr := makeRecovery(dest, backupRoot)
+			var makeErr error
+			backup, makeErr = makeRecovery(dest, backupRoot)
 			if makeErr != nil {
 				return makeErr
 			}
 			if err := renamePolicy(dest, backup); err != nil {
 				os.RemoveAll(filepath.Dir(backup))
+				backup = ""
 				if errors.Is(err, fs.ErrNotExist) {
 					return errPolicyChanged
 				}
 				return err
 			}
-			fmt.Println("Previous policy retained at " + backup)
 			defer func() {
 				if err != nil {
 					if restoreErr := restorePolicy(backup, dest); restoreErr != nil && !errors.Is(restoreErr, fs.ErrExist) {
@@ -874,6 +892,13 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 	}
 	if err != nil {
 		return false, err
+	}
+	if backup != "" {
+		if recoveryDiverged(backup, existing, linkTarget) {
+			fmt.Fprintf(os.Stderr, "Warning: live policy edit retained only at %s\n", backup)
+		} else {
+			fmt.Println("Previous policy retained at " + backup)
+		}
 	}
 	ledger[dest] = digest(body)
 	if err := writeLedger(ledgerFile, ledger); err != nil {
