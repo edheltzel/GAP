@@ -220,6 +220,86 @@ func TestSkillsAddPassesPinnedCheckout(t *testing.T) {
 	}
 }
 
+func TestCheckDriftContinuesAfterComponentFailure(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	writeDoSkillsLock(t, repo, "/no/such/do-skills.git", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	write(t, filepath.Join(repo, "skills", "global", "core", "gap-x", "SKILL.md"), "local\n")
+	for _, dir := range skillDirs(home, "gap-x") {
+		write(t, filepath.Join(dir, "SKILL.md"), "local\n")
+	}
+	write(t, filepath.Join(home, ".empryo", "skills", "do-x", "SKILL.md"), "shadow\n")
+	write(t, filepath.Join(home, ".empryo", "skills", "gap-x", "SKILL.md"), "shadow\n")
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	ok, err := checkDrift(repo, home, []manifestEntry{
+		{Source: "edheltzel/Do-Skills", Skills: []string{"do-x"}},
+		{Source: ".", Skills: []string{"gap-x"}},
+	})
+	os.Stderr = old
+	w.Close()
+	out, _ := io.ReadAll(r)
+	if err != nil || ok {
+		t.Fatalf("failed pin must fail drift without aborting: ok=%v err=%v", ok, err)
+	}
+	got := string(out)
+	if !strings.Contains(got, "fetch") && !strings.Contains(got, "not a git checkout") && !strings.Contains(got, "do-skills") {
+		t.Fatalf("want component failure, got %q", got)
+	}
+	if !strings.Contains(got, "Empryo loads") {
+		t.Fatalf("want Empryo shadow warnings after a failed component, got %q", got)
+	}
+	if strings.Contains(got, "gap-x") && strings.Contains(got, "drifted") {
+		t.Fatalf("matching local skill must still be checked, got %q", got)
+	}
+}
+
+func TestInstallSkillsReportsSkippedComponent(t *testing.T) {
+	bare, pin, later := doSkillsBare(t, "from-pin\n", "from-later\n")
+	repo := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeDoSkillsLock(t, repo, bare, pin)
+	c := mustDoSkillsComponent(t, repo)
+	dir := componentDir(repo, c.Name)
+	if err := cloneGit(t, bare, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gitRun(dir, "checkout", "-q", later); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(dir, "skills", "global", "core", "do-x", "SKILL.md"), "dirty\n")
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	ok := installSkills(repo, home, []manifestEntry{{Source: "edheltzel/Do-Skills", Skills: []string{"do-x"}}})
+	os.Stderr = old
+	w.Close()
+	out, _ := io.ReadAll(r)
+	if ok {
+		t.Fatal("dirty off-pin component must skip install")
+	}
+	got := string(out)
+	if !strings.Contains(got, "dirty") {
+		t.Fatalf("want dirty status when skipping install, got %q", got)
+	}
+	if !strings.Contains(got, "not pinned") {
+		t.Fatalf("want off-pin status when skipping install, got %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "do-x")); !os.IsNotExist(err) {
+		t.Fatal("skipped component must not install skills")
+	}
+}
+
 func TestIgnoredPathBlocksGapLock(t *testing.T) {
 	if !ignoredPathBlocks("gap.lock") {
 		t.Fatal("an ignored gap.lock must block; gap reads it")

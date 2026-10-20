@@ -368,3 +368,16 @@ func sourceInstallable(repoRoot, source string, paths skillPaths) bool {
 	st, err := inspectComponent(componentDir(repoRoot, c.Name), c.Commit)
 	return err == nil && !st.Dirty && !st.Off
 }
+
+func reportSkippedComponent(repoRoot, source string, paths skillPaths) {
+	c, ok := paths.bySource[source]
+	if !ok {
+		return
+	}
+	st, err := inspectComponent(componentDir(repoRoot, c.Name), c.Commit)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	reportComponentStatus(st, c.Name)
+}

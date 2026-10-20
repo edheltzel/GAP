@@ -43,6 +43,7 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 	for _, e := range entries {
 		if !sourceInstallable(repoRoot, e.Source, paths) {
 			ok = false
+			reportSkippedComponent(repoRoot, e.Source, paths)
 			continue
 		}
 		var missing, migrate []string
@@ -299,13 +300,20 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if !ensureNeeded(repoRoot, paths, entries) {
-		return false, nil
-	}
 	tty := stdinIsTerminal()
 	in := bufio.NewReader(os.Stdin)
 	ok := true
+	failed := map[string]bool{}
 	for _, c := range paths.needed(entries) {
+		if err := ensureComponent(repoRoot, c); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			ok = false
+			failed[c.Name] = true
+			if st, ierr := inspectComponent(componentDir(repoRoot, c.Name), c.Commit); ierr == nil {
+				reportComponentStatus(st, c.Name)
+			}
+			continue
+		}
 		st, err := inspectComponent(componentDir(repoRoot, c.Name), c.Commit)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -321,6 +329,10 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 		for _, name := range e.Skills {
 			if warning := empryoShadow(home, name); warning != "" {
 				fmt.Fprintln(os.Stderr, warning)
+			}
+			if c, isComp := paths.bySource[e.Source]; isComp && failed[c.Name] {
+				ok = false
+				continue
 			}
 			var sourceDir string
 			var external lockEntry
