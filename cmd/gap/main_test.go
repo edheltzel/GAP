@@ -22,6 +22,15 @@ const (
 )
 
 func TestMain(m *testing.M) {
+	if dir := os.Getenv("GAP_TEST_CONTENT_HASH"); dir != "" {
+		h, err := contentHash(dir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Print(h)
+		os.Exit(0)
+	}
 	docsDir = "/repo/global/docs/agents"
 	os.Exit(m.Run())
 }

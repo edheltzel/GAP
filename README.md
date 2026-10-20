@@ -45,6 +45,9 @@ gap --help
 | --- | --- |
 | `gap sync` | Publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
+| `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on drift or a missing store |
+| `gap restore [id]` | Put component skills back to the commit in `gap.lock`. No network when the store already holds it |
+| `gap pin <id>@<ref>` | Resolve a branch, tag, or commit and write it to `gap.lock`. The only command that moves a pin |
 | `go test ./...` | Run the self-test against throwaway folders |
 
 ## Manage skills
@@ -69,6 +72,21 @@ Sync also checks every installed managed skill against its source: this repo's f
 With no terminal to ask in, sync lists the drifted skills, including a foreign lock that was not migrated, changes none of them, and exits `1`. Skills the manifest doesn't list are never touched.
 
 To add a skill, add it to `global/skills.json`, then follow [the merge and publish steps](#step-2-merge-the-change).
+
+### Components
+
+A component is a repo that ships many skills, pinned to one commit. `gap.toml` names each component and its skills, and `gap.lock` records the exact commit and tree:
+
+```toml
+# gap.toml
+schema = "2"
+[components.do-skills]
+repo  = "github.com/edheltzel/Do-Skills"
+ref   = "master"
+names = ["do-commit", "do-todo"]
+```
+
+`gap pin do-skills@master` writes the pin. `gap sync` fetches that commit into `~/.gap/store/<id>/<commit>/`, checks its tree against the lock, and installs the skills from there through skills.sh, so Node is still needed. Sync never moves a pin. A component missing from `gap.lock` stops the sync and names the `gap pin` command to run. `gap.toml` and `gap.lock` pass the same merge gate as `global/`.
 
 ## Change the policy
 
