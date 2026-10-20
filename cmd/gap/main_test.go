@@ -1808,6 +1808,30 @@ func TestRemoveLegacyGapRecoveryDirs(t *testing.T) {
 	}
 }
 
+func TestMovedLegacyRecoveryDirsAreNotPruned(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, dest, gapMarked("old\n"))
+	var moved []string
+	for _, suffix := range []string{"0", "1", "2", "3"} {
+		legacy := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-"+suffix)
+		if err := os.MkdirAll(legacy, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		write(t, filepath.Join(legacy, filepath.Base(dest)), "stale "+suffix+"\n")
+		moved = append(moved, filepath.Join(recoveryDir(dest, home), filepath.Base(legacy)))
+	}
+	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || !wrote {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	for _, dir := range moved {
+		if _, err := os.Lstat(dir); err != nil {
+			t.Fatalf("moved leftover recovery pruned: %s: %v", dir, err)
+		}
+	}
+}
+
 func TestLegacyRecoveryMoveFailureLeavesSource(t *testing.T) {
 	home := t.TempDir()
 	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")

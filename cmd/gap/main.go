@@ -622,6 +622,10 @@ func makeRecovery(dest, home string) (string, error) {
 
 var pruneRecovery = pruneRecoveryDir
 
+func isMovedLegacyRecovery(name string) bool {
+	return strings.Contains(name, ".gap-recovery-")
+}
+
 func recoveryHoldsSymlink(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -725,7 +729,7 @@ func pruneRecoveryDir(dir string) error {
 			continue
 		}
 		name := e.Name()
-		if recoveryHoldsSymlink(filepath.Join(dir, name)) {
+		if recoveryHoldsSymlink(filepath.Join(dir, name)) || isMovedLegacyRecovery(name) {
 			continue
 		}
 		regular = append(regular, name)
