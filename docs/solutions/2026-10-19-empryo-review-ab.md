@@ -11,7 +11,7 @@ tags:
 
 # Empryo /review against do-adversarial-review
 
-Decision: inside Empryo, `do-adversarial-review` runs its hunt on `empryo --headless --review` (`skills/global/core/do-adversarial-review/references/empryo-review.md`). Outside Empryo nothing changed.
+Decision: inside Empryo, `do-adversarial-review` runs its hunt on `empryo --headless --review` ([empryo-review.md](https://github.com/edheltzel/Do-Skills/blob/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/core/do-adversarial-review/references/empryo-review.md)). Outside Empryo nothing changed.
 
 ## Setup
 
