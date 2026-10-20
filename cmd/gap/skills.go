@@ -33,10 +33,18 @@ func readManifest(repoRoot string) ([]manifestEntry, error) {
 }
 
 func installSkills(repoRoot, home string, entries []manifestEntry) bool {
+	paths, err := loadSkillPaths(repoRoot)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return false
+	}
+	ok := ensureNeeded(repoRoot, paths, entries)
 	var npx string
-	var err error
-	ok := true
 	for _, e := range entries {
+		if !sourceInstallable(repoRoot, e.Source, paths) {
+			ok = false
+			continue
+		}
 		var missing, migrate []string
 		var migrateFrom []lockEntry
 		for _, name := range e.Skills {
@@ -90,8 +98,8 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 
 func skillsAdd(npx, repoRoot, home, source string, names []string) bool {
 	src := source
-	if src == "." {
-		src = repoRoot
+	if root, ok := localSourceRoot(repoRoot, source); ok {
+		src = root
 	}
 	// skills.sh installs into ~/.agents/skills (read by Codex, Cursor, Pi, OMP) and links Claude Code to it.
 	args := []string{"-y", "skills", "add", src, "-g", "-y", "-a", "claude-code", "-a", "codex"}
@@ -183,9 +191,9 @@ func lockLabel(l lockEntry) string {
 // sameSource matches a manifest source to a skills.sh lock entry.
 // "." matches the absolute path passed to skills add. owner/repo, a github.com URL, and a subpath are one identity.
 func sameSource(repoRoot, manifest string, l lockEntry) bool {
-	if manifest == "." {
+	if root, ok := localSourceRoot(repoRoot, manifest); ok {
 		p, ok := localLockPath(l)
-		return ok && p == filepath.Clean(repoRoot)
+		return ok && p == root
 	}
 	wantRepo, wantSub, ok := githubIdentity(manifest)
 	if !ok {
@@ -269,8 +277,8 @@ func skillBaseline(repoRoot, home, source, name string) (string, string, lockEnt
 	if locked, foreign := foreignLock(repoRoot, home, source, name); foreign {
 		return "", "", lockEntry{}, fmt.Errorf("Skill %s is locked to %s, not %s", name, lockLabel(locked), source)
 	}
-	if source == "." {
-		dir := localSkillDir(repoRoot, name)
+	if root, ok := localSourceRoot(repoRoot, source); ok {
+		dir := localSkillDir(root, name)
 		if dir == "" {
 			return "", "", lockEntry{}, fmt.Errorf("Skill baseline unavailable for %s: expected one local source", name)
 		}
@@ -287,9 +295,28 @@ func skillBaseline(repoRoot, home, source, name string) (string, string, lockEnt
 }
 
 func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
+	paths, err := loadSkillPaths(repoRoot)
+	if err != nil {
+		return false, err
+	}
+	if !ensureNeeded(repoRoot, paths, entries) {
+		return false, nil
+	}
 	tty := stdinIsTerminal()
 	in := bufio.NewReader(os.Stdin)
 	ok := true
+	for _, c := range paths.needed(entries) {
+		st, err := inspectComponent(componentDir(repoRoot, c.Name), c.Ref)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			ok = false
+			continue
+		}
+		reportComponentStatus(st, c.Name)
+		if st.Dirty || st.Off {
+			ok = false
+		}
+	}
 	for _, e := range entries {
 		for _, name := range e.Skills {
 			if warning := empryoShadow(home, name); warning != "" {
@@ -303,9 +330,7 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 				foreignReview = true
 				fmt.Fprintf(os.Stderr, "Skill %s is locked to %s, not %s\n", name, lockLabel(locked), e.Source)
 				drifted = true
-				if e.Source == "." {
-					sourceDir = localSkillDir(repoRoot, name)
-				}
+				sourceDir = skillDir(repoRoot, e.Source, name)
 			} else {
 				want, dir, ext, err := skillBaseline(repoRoot, home, e.Source, name)
 				if err != nil {
@@ -343,7 +368,7 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 				ok = false
 				continue
 			}
-			if foreignReview && e.Source != "." {
+			if foreignReview && sourceDir == "" && e.Source != "." {
 				var cleanup func()
 				sourceDir, cleanup = openSourceSkill(e.Source, name)
 				defer cleanup()
@@ -551,9 +576,10 @@ func findSkillDir(root, sub, name string) string {
 	return ""
 }
 
-// localSkillDir finds skills/<scope>/<group>/<name> in this repo.
-func localSkillDir(repoRoot, name string) string {
-	matches, _ := filepath.Glob(filepath.Join(repoRoot, "skills", "*", "*", name, "SKILL.md"))
+// localSkillDir finds skills/<scope>/<group>/<name> under root, which is this
+// checkout or a pinned component checkout.
+func localSkillDir(root, name string) string {
+	matches, _ := filepath.Glob(filepath.Join(root, "skills", "*", "*", name, "SKILL.md"))
 	if len(matches) != 1 {
 		return ""
 	}

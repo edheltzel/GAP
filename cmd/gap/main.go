@@ -331,7 +331,7 @@ func ignoredBlocks(list string) bool {
 func ignoredPathBlocks(path string) bool {
 	path = filepath.ToSlash(path)
 	switch path {
-	case "global/AGENTS.md", "global/skills.json":
+	case "global/AGENTS.md", "global/skills.json", "global/components.lock":
 		return true
 	}
 	if filepath.Dir(path) == "global/commands" && strings.HasSuffix(path, ".md") {

@@ -1,0 +1,10 @@
+{
+  "comment": "Bump do-skills.ref to the Do-Skills squash-merge SHA before this PR merges.",
+  "components": {
+    "do-skills": {
+      "url": "https://github.com/edheltzel/Do-Skills.git",
+      "ref": "78e2c15bfbc484d74a2d38ef3fa727a99272bf25",
+      "source": "edheltzel/Do-Skills"
+    }
+  }
+}
