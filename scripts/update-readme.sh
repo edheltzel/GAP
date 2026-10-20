@@ -1,27 +1,37 @@
 #!/usr/bin/env bash
-# Skill catalog generator. Regenerates scope and group READMEs plus the
-# catalog tables in the root README.md from SKILL.md frontmatters.
-# Skills live under skills/<scope>/<group>/<skill>/SKILL.md, scope = global|project.
-# Bundled copies under references/ are ignored.
+# Skill catalog generator. Regenerates the catalog tables in the root
+# README.md from skills.sh.json and global/components.lock.
+# Do skills live in Do-Skills at the pinned ref; Gap-native skills, if any,
+# still live under skills/<scope>/<group>/<skill>/SKILL.md.
 # Usage: bash scripts/update-readme.sh
 set -euo pipefail
 
 ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 README="$ROOT/README.md"
-SKILLS_DIR="$ROOT/skills"
 GROUPINGS_FILE="$ROOT/skills.sh.json"
-# skills.sh accepts owner/repo and a skills/<scope>/<group> subpath. A walk of
-# skills/project (no SKILL.md at the top) also installs SKILL.md files bundled
-# under references/. Catalogs install with gap sync, or one skill with -s.
-REPO="edheltzel/agent-config"
+LOCK_FILE="$ROOT/global/components.lock"
+SKILLS_DIR="$ROOT/skills"
 
-# Render order. Group blurbs come from skills.sh.json ("<Scope>: <Group>"),
-# their authoritative owner. Unlisted groups on disk are appended.
 SCOPE_ORDER="global project"
 GROUP_ORDER_global="core workflow operations content personal"
 GROUP_ORDER_project="typescript frontend backend tooling swift product marketing personal"
-# Groups without docs pages.
-UNPROMOTED="global/operations global/personal project/personal project/marketing"
+
+lock_field() {
+    node -e '
+const fs = require("fs");
+const lock = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+const c = lock.components["do-skills"];
+if (!c?.ref) process.exit(1);
+process.stdout.write(c[process.argv[2]] ?? "");
+' "$LOCK_FILE" "$1"
+}
+
+PIN="$(lock_field ref)"
+SOURCE="$(lock_field source)"
+if [ -z "$SOURCE" ]; then
+    SOURCE="edheltzel/Do-Skills"
+fi
+TREE_BASE="https://github.com/${SOURCE}/tree/${PIN}/skills"
 
 scope_title() {
     case "$1" in
@@ -56,167 +66,49 @@ group_title() {
     esac
 }
 
-group_blurb() {
+group_meta() {
     node -e '
 const fs = require("fs");
 const [path, title] = process.argv.slice(1);
 const config = JSON.parse(fs.readFileSync(path, "utf8"));
 const group = config.groupings.find((candidate) => candidate.title === title);
-process.stdout.write(group?.description ?? "");
+if (!group) process.exit(0);
+process.stdout.write((group.skills?.length ?? 0) + "\t" + (group.description ?? ""));
 ' "$GROUPINGS_FILE" "$(scope_title "$1"): $(group_title "$2")"
-}
-
-is_promoted() {
-    ! echo "$UNPROMOTED" | grep -qw "$1/$2"
-}
-
-write_install() {
-    printf 'These skills live in this repo (`%s`, being renamed GAP). `gap sync` installs every skill listed in `global/skills.json`.\n\n' "$REPO"
-    printf '```bash\ngap sync\n```\n\n'
-    printf 'One skill by exact name:\n\n'
-    printf '```bash\nnpx skills add %s -s <skill-name>\n```\n\n' "$REPO"
-}
-# Ordered groups for a scope: preferred order, then any others on disk.
-ordered_groups() {
-    scope="$1"
-    found=$(find "$SKILLS_DIR/$scope" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
-    preferred_var="GROUP_ORDER_$scope"
-    preferred="${!preferred_var:-}"
-    for g in $preferred; do
-        echo "$found" | grep -qx "$g" && printf '%s ' "$g"
-    done
-    for g in $found; do
-        echo "$preferred" | grep -qw "$g" || printf '%s ' "$g"
-    done
-}
-
-group_file=$(mktemp)
-root_section=$(mktemp)
-trap 'rm -f "$group_file" "$root_section"' EXIT
-
-# Parse name and description from a SKILL.md file.
-# Handles inline values (quoted or unquoted) and block scalars (> and |).
-# Outputs: <name><TAB><description>
-parse_skill() {
-    awk '
-    BEGIN { cnt=0; name=""; desc=""; in_desc=0 }
-    /^---[[:space:]]*$/ {
-        cnt++
-        if (cnt == 2) exit
-        next
-    }
-    cnt != 1 { next }
-    /^description:[[:space:]]*[>|]/ { in_desc=1; next }
-    /^description:[[:space:]]/ {
-        in_desc=0
-        val=$0; sub(/^description:[[:space:]]*/, "", val)
-        gsub(/^[[:space:]"]+|[[:space:]"]+$/, "", val)
-        desc=val
-        next
-    }
-    /^name:[[:space:]]/ {
-        in_desc=0
-        val=$0; sub(/^name:[[:space:]]*/, "", val)
-        gsub(/^[[:space:]"]+|[[:space:]"]+$/, "", val)
-        name=val
-        next
-    }
-    /^[a-zA-Z]/ { in_desc=0; next }
-    in_desc && /^[[:space:]]/ {
-        line=$0; sub(/^[[:space:]]+/, "", line)
-        desc=(desc=="" ? line : desc " " line)
-        next
-    }
-    END { printf "%s\t%s\n", name, desc }
-    ' "$1"
-}
-
-# Return the first sentence of a string. A sentence ends at a . ! or ? that is
-# followed by whitespace or end of line; a period inside a token (AGENTS.md)
-# is not a boundary.
-first_sentence() {
-    awk '{
-        if (match($0, /[.!?]([[:space:]]|$)/))
-            print substr($0, 1, RSTART)
-        else
-            print $0
-        exit
-    }' <<< "$1"
 }
 
 escape_cell() {
     printf '%s' "$1" | sed 's/|/\\|/g'
 }
 
-# Fill $group_file with name<TAB>dir<TAB>short-desc for SKILL.md files under $1.
-collect_skills() {
-    : > "$group_file"
-    while IFS= read -r skill_file; do
-        [ -n "$skill_file" ] || continue
-        result=$(parse_skill "$skill_file")
-        name=$(printf '%s' "$result" | cut -f1)
-        desc=$(printf '%s' "$result" | cut -f2-)
-        [ -n "$name" ] && [ -n "$desc" ] || continue
-        dir=$(basename "$(dirname "$skill_file")")
-        printf '%s\t%s\t%s\n' "$name" "$dir" "$(first_sentence "$desc")" >> "$group_file"
-    done <<EOF
-$(find "$1" -name SKILL.md ! -path '*/references/*' ! -path '*/node_modules/*' 2>/dev/null | sort)
-EOF
-    [ -s "$group_file" ] || return 1
-    sort -f -o "$group_file" "$group_file"
-}
-
-write_group_readme() {
-    scope="$1"; group="$2"
-    {
-        printf '# %s\n\n' "$(group_title "$group")"
-        blurb=$(group_blurb "$scope" "$group")
-        [ -n "$blurb" ] && printf '%s\n\n' "$blurb"
-        printf '## Installation\n\n'
-        write_install
-        printf '## Skills\n\n| Skill | Description |\n|-------|-------------|\n'
-        while IFS=$'\t' read -r name dir desc; do
-            printf '| [`%s`](./%s/) | %s |\n' "$name" "$dir" "$(escape_cell "$desc")"
-        done < "$group_file"
-        printf '\n## See Also\n\n'
-        printf -- '- [%s skills](../README.md)\n' "$(scope_title "$scope")"
-        printf -- '- [Skill catalog](../../../README.md)\n'
-        if is_promoted "$scope" "$group"; then
-            printf -- '- [Docs](../../../docs/%s/%s/) - human-facing pages for these skills\n' "$scope" "$group"
-        fi
-    } > "$SKILLS_DIR/$scope/$group/README.md"
-}
+root_section=$(mktemp)
+trap 'rm -f "$root_section"' EXIT
+: > "$root_section"
 
 total=0
 group_count=0
-: > "$root_section"
 for scope in $SCOPE_ORDER; do
-    [ -d "$SKILLS_DIR/$scope" ] || continue
-    scope_rows=$(mktemp)
-    for group in $(ordered_groups "$scope"); do
-        collect_skills "$SKILLS_DIR/$scope/$group" || continue
-        count=$(wc -l < "$group_file" | tr -d ' ')
-        total=$((total + count))
-        group_count=$((group_count + 1))
-        write_group_readme "$scope" "$group"
-        printf '| [%s](./%s/) | %s | %s |\n' "$(group_title "$group")" "$group" "$count" "$(escape_cell "$(group_blurb "$scope" "$group")")" >> "$scope_rows"
-    done
     {
-        printf '# %s Skills\n\n%s\n\n' "$(scope_title "$scope")" "$(scope_blurb "$scope")"
-        printf '## Installation\n\n'
-        write_install
-        printf '## Groups\n\n| Group | Skills | Coverage |\n|-------|--------|----------|\n'
-        cat "$scope_rows"
-        printf '\n## See Also\n\n- [Skill catalog](../../README.md)\n'
-    } > "$SKILLS_DIR/$scope/README.md"
-    {
-        printf '### [%s](./skills/%s/)\n\n%s\n\n' "$(scope_title "$scope")" "$scope" "$(scope_blurb "$scope")"
+        printf '### [%s](%s/%s/)\n\n%s\n\n' "$(scope_title "$scope")" "$TREE_BASE" "$scope" "$(scope_blurb "$scope")"
         printf '| Group | Skills | Coverage |\n|-------|--------|----------|\n'
-        sed "s#](\./#](./skills/$scope/#" "$scope_rows"
+        preferred_var="GROUP_ORDER_$scope"
+        for group in ${!preferred_var}; do
+            meta=$(group_meta "$scope" "$group")
+            [ -n "$meta" ] || continue
+            count=$(printf '%s' "$meta" | cut -f1)
+            desc=$(printf '%s' "$meta" | cut -f2-)
+            total=$((total + count))
+            group_count=$((group_count + 1))
+            printf '| [%s](%s/%s/%s/) | %s | %s |\n' "$(group_title "$group")" "$TREE_BASE" "$scope" "$group" "$count" "$(escape_cell "$desc")"
+        done
         printf '\n'
     } >> "$root_section"
-    rm -f "$scope_rows"
 done
+
+native=$(find "$SKILLS_DIR" -name SKILL.md ! -path '*/references/*' ! -path '*/node_modules/*' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$native" != 0 ]; then
+    printf '### Gap-native\n\nThis checkout also has %s skill(s) under `skills/`.\n\n' "$native" >> "$root_section"
+fi
 
 awk -v section="$root_section" '
     /<!-- skills-start -->/ { print; print ""; while ((getline line < section) > 0) print line; skip=1; next }
@@ -224,4 +116,4 @@ awk -v section="$root_section" '
     !skip { print }
 ' "$README" > "$README.tmp" && mv "$README.tmp" "$README"
 
-echo "✓ Updated README.md and $group_count group READMEs ($total skills)"
+echo "✓ Updated README.md catalog ($group_count groups, $total Do skills at $PIN)"

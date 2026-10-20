@@ -49,18 +49,22 @@ gap --help
 
 ## Manage skills
 
-`global/skills.json` lists every skill `gap` manages and where each one comes from. `"source": "."` means a skill in this repo's `skills/` folder; any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
+`global/skills.json` lists every skill `gap` manages and where each one comes from. `"source": "."` means a Gap-native skill in this repo's `skills/` folder. A source listed in `global/components.lock` is that pinned git checkout under `.vendor/<name>` (gitignored). Any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
+
+The 66 Do skills use `"source": "edheltzel/Do-Skills"`. `gap sync` clones [edheltzel/Do-Skills](https://github.com/edheltzel/Do-Skills) at `do-skills.ref` into `.vendor/do-skills` if it is missing, or fetches and checks out that pin if the checkout is clean. It never resets a dirty checkout and never checks out any other commit.
+
+To bump the pin, set `do-skills.ref` in `global/components.lock` to the Do-Skills commit (the squash-merge SHA once that lands on master) and run `gap sync`. The lockfile's `comment` field is the reminder for this PR.
 
 ```json
 [
-  { "source": ".", "skills": ["do-commit", "do-plan"] },
+  { "source": "edheltzel/Do-Skills", "skills": ["do-commit", "do-plan"] },
   { "source": "kunchenguid/gh-axi", "skills": ["gh-axi"] }
 ]
 ```
 
-`gap sync` installs missing listed skills by running skills.sh (`npx -y skills add <source> -g -y -a claude-code -a codex -s <name>`, repeating `-s` for each missing skill). It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for installations. If an installation is needed but `npx` is unavailable, sync still publishes the policy, skips the installation, and exits `1`.
+`gap sync` installs missing listed skills by running skills.sh (`npx -y skills add <source> -g -y -a claude-code -a codex -s <name>`, repeating `-s` for each missing skill). `"."` and a pinned component are passed as those local paths. It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for installations. If an installation is needed but `npx` is unavailable, sync still publishes the policy, skips the installation, and exits `1`.
 
-Sync also checks every installed managed skill against its source: this repo's folder, or the hash skills.sh recorded at install. That hash is a Git tree id or a SHA-256 of the skill files; sync compares the same kind. A lock entry whose source is not that manifest source is reinstalled from the manifest after a backup, without asking, only when both destinations still match the recorded hash. An edited copy, or a hash sync cannot check, is reviewed like other drift, against the manifest source. For each skill whose content drifted, it shows the diff and asks:
+Sync also checks every installed managed skill against its source: this repo's folder, the pinned checkout, or the hash skills.sh recorded at install. That hash is a Git tree id or a SHA-256 of the skill files; sync compares the same kind. A dirty or off-pin component checkout is reported. A lock entry whose source is not that manifest source is reinstalled from the manifest after a backup, without asking, only when both destinations still match the recorded hash. An edited copy, or a hash we cannot check, is reviewed like other drift, against the manifest source. For each skill whose content drifted, it shows the diff and asks:
 
 - `k` keeps the installed copies for this run. Later runs check them again. An incomplete installation still exits `1`.
 - `t` takes the source. Sync backs up both destinations under `~/.gap/backups/`, then reinstalls. A failed install restores the previous destinations.
@@ -84,7 +88,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 
 - you're on a branch other than `master` or GitButler's `gitbutler/workspace`
 - you're in a git worktree
-- `global/` or `skills/` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`, top-level `global/commands/*.md`). Ignored `node_modules` and `.DS_Store` do not block.
+- `global/` or `skills/` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`, `global/components.lock`, top-level `global/commands/*.md`). Ignored `node_modules` and `.DS_Store` do not block.
 
 ### Step 3: Run `gap sync`
 
@@ -159,36 +163,36 @@ Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP r
 
 ## Skill catalog
 
-Skills live in `skills/<scope>/<group>/<skill>/`. Regenerate this table with `bash scripts/update-readme.sh`.
+Do skills come from [edheltzel/Do-Skills](https://github.com/edheltzel/Do-Skills) at the ref in `global/components.lock`. `gap sync` clones that pin and installs the names in `global/skills.json`. Human pages for those skills live in Do-Skills. Regenerate this table with `bash scripts/update-readme.sh`.
 
 <!-- skills-start -->
 
-### [Global](./skills/global/)
+### [Global](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/)
 
 Useful in any repo, or none.
 
 | Group | Skills | Coverage |
 |-------|--------|----------|
-| [Core](./skills/global/core/) | 11 | Stack-agnostic foundations - review lenses, reasoning, testing, simplification, agent-legible repos, comments, design patterns, skill authoring, and AI-writing cleanup. |
-| [Workflow](./skills/global/workflow/) | 15 | Change delivery - the brainstorm, plan, work, debug, and ship loop (LFG), commits, docs, GitHub projects and stacks, PR workflow and review triage, worktrees, and technical writing. |
-| [Operations](./skills/global/operations/) | 4 | Operating AI agents - delegation, handoffs, prompt audits, and project status check-ins. |
-| [Content](./skills/global/content/) | 3 | Audience-facing media - illustrations, diagrams, images, and visual explanations. |
-| [Personal](./skills/global/personal/) | 4 | Personal extras you want everywhere - teaching, todo.txt, isometric explainer figures. |
+| [Core](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/core/) | 11 | Stack-agnostic foundations - review lenses, reasoning, testing, simplification, agent-legible repos, comments, design patterns, skill authoring, and AI-writing cleanup. |
+| [Workflow](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/workflow/) | 15 | Change delivery - the brainstorm, plan, work, debug, and ship loop (LFG), commits, docs, GitHub projects and stacks, PR workflow and review triage, worktrees, and technical writing. |
+| [Operations](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/operations/) | 4 | Operating AI agents - delegation, handoffs, prompt audits, and project status check-ins. |
+| [Content](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/content/) | 3 | Audience-facing media - illustrations, diagrams, images, and visual explanations. |
+| [Personal](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/personal/) | 4 | Personal extras you want everywhere - teaching, todo.txt, isometric explainer figures. |
 
-### [Project](./skills/project/)
+### [Project](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/)
 
 Pay off only when a project uses that stack or product.
 
 | Group | Skills | Coverage |
 |-------|--------|----------|
-| [TypeScript](./skills/project/typescript/) | 4 | Language-wide TypeScript - standards, refactoring, and type-driven design. Install alongside frontend, backend, or tooling. |
-| [Frontend](./skills/project/frontend/) | 7 | Web frontend - Astro, CSS, React effects, design systems, UX flows, cleanup, and review. |
-| [Backend](./skills/project/backend/) | 1 | Backend engineering - Effect (TypeScript) services and code, and review for Effect, Go, Python, and Rust. |
-| [Tooling](./skills/project/tooling/) | 3 | CLIs and lightweight tools - TypeScript CLI scaffolding, zero-dependency patterns, and performance profiling. |
-| [Swift](./skills/project/swift/) | 3 | Swift and Apple platforms - macOS desktop apps, iOS review, and cleanup. |
-| [Product](./skills/project/product/) | 1 | Product marketing - positioning, SEO and GEO discovery, launches, conversion, and retention. |
-| [Marketing](./skills/project/marketing/) | 9 | SEO marketing on the Ubersuggest MCP - keyword research, site audits, competitors, content briefs, AI visibility, and action plans. |
-| [Personal](./skills/project/personal/) | 1 | Personal extras for specific projects - recipe diagrams. |
+| [TypeScript](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/typescript/) | 4 | Language-wide TypeScript - standards, refactoring, and type-driven design. Install alongside frontend, backend, or tooling. |
+| [Frontend](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/frontend/) | 7 | Web frontend - Astro, CSS, React effects, design systems, UX flows, cleanup, and review. |
+| [Backend](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/backend/) | 1 | Backend engineering - Effect (TypeScript) services and code, and review for Effect, Go, Python, and Rust. |
+| [Tooling](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/tooling/) | 3 | CLIs and lightweight tools - TypeScript CLI scaffolding, zero-dependency patterns, and performance profiling. |
+| [Swift](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/swift/) | 3 | Swift and Apple platforms - macOS desktop apps, iOS review, and cleanup. |
+| [Product](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/product/) | 1 | Product marketing - positioning, SEO and GEO discovery, launches, conversion, and retention. |
+| [Marketing](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/marketing/) | 9 | SEO marketing on the Ubersuggest MCP - keyword research, site audits, competitors, content briefs, AI visibility, and action plans. |
+| [Personal](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/personal/) | 1 | Personal extras for specific projects - recipe diagrams. |
 
 <!-- skills-end -->
 

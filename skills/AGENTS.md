@@ -2,25 +2,26 @@
 
 ## Purpose
 
-`skills/` is the source for every skill whose `global/skills.json` entry uses `"source": "."`. Those files were copied from the archived DoSkills. Edit them here.
+`skills/` is the source for Gap-native skills whose `global/skills.json` entry uses `"source": "."`. The 66 Do skills are not copied here. They come from [edheltzel/Do-Skills](https://github.com/edheltzel/Do-Skills) at the ref in `global/components.lock`.
 
 ## Ownership
 
-- One skill is `skills/<scope>/<group>/<skill>/SKILL.md`. Scope is `global` or `project`.
-- `skills/global/` and `skills/project/` are scopes, not separate workflows. Do not add an AGENTS.md per skill.
+- One Gap-native skill is `skills/<scope>/<group>/<skill>/SKILL.md`. Scope is `global` or `project`.
+- Do skills are edited in Do-Skills, not here. Bump `do-skills.ref` in `global/components.lock` after a Do-Skills merge, then `gap sync`.
 - `global/skills.json` lists what `gap sync` installs and checks. `skills.sh.json` owns catalog group blurbs.
-- `scripts/update-readme.sh` owns the generated catalog: scope and group READMEs under `skills/`, and the root `README.md` block between `<!-- skills-start -->` and `<!-- skills-end -->`.
+- `scripts/update-readme.sh` owns the generated catalog in the root `README.md` block between `<!-- skills-start -->` and `<!-- skills-end -->`.
 
 ## Local Contracts
 
-- A name `gap` installs from this repo must match exactly one `skills/*/*/<name>/SKILL.md`.
-- Bundled copies under a skill's `references/` are not separate skills. The catalog generator ignores them.
-- After adding, moving, or renaming a skill, update `global/skills.json` when sync should manage it, then regenerate the catalog. Do not hand-edit the generated READMEs or the marked README block.
-- Human pages linked from promoted group READMEs live in `docs/global/` and `docs/project/`. They are not skill source.
+- A name `gap` installs from this checkout must match exactly one `skills/*/*/<name>/SKILL.md`.
+- A name `gap` installs from Do-Skills must match exactly one skill in that pin's `skills/*/*/<name>/SKILL.md`.
+- Bundled copies under a skill's `references/` are not separate skills.
+- After adding, moving, or renaming a Gap-native skill, update `global/skills.json` when sync should manage it, then regenerate the catalog. After Do-Skills changes, bump the pin and regenerate. Do not hand-edit the marked README block.
 
 ## Work Guidance
 
-- Group blurbs come from `skills.sh.json` (`"<Scope>: <Group>"`). Unlisted groups on disk are appended by the generator.
+- Group blurbs come from `skills.sh.json` (`"<Scope>: <Group>"`).
+- `gap sync` clones the pin into `.vendor/do-skills` (gitignored). Do not commit that checkout.
 
 ## Verification
 
