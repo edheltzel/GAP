@@ -1116,7 +1116,7 @@ func TestPolicyCommitRejectsConcurrentChanges(t *testing.T) {
 			}
 			ledger := map[string]string{dest: "previous ledger"}
 			ledgerFile := filepath.Join(home, "published.json")
-			wrote, err := commitPublish(dest, gapMarked("new policy\n"), "new policy\n", ledger, ledgerFile, before, info)
+			wrote, err := commitPublish(dest, gapMarked("new policy\n"), "new policy\n", ledger, ledgerFile, before, "", info)
 			if err != nil || wrote {
 				t.Fatalf("stale publish must be refused: wrote %v err %v", wrote, err)
 			}
@@ -1137,6 +1137,36 @@ func TestPolicyCommitRejectsConcurrentChanges(t *testing.T) {
 				t.Fatalf("refused publish left temporary files: %v", temps)
 			}
 		})
+	}
+}
+
+func TestPolicyUnchangedDetectsRetargetedSymlink(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, "policy.md")
+	write(t, filepath.Join(home, "a.md"), "a\n")
+	write(t, filepath.Join(home, "b.md"), "b\n")
+	if err := os.Symlink("a.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Lstat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := os.Readlink(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := policyUnchanged(dest, "", target, info); err != nil {
+		t.Fatalf("unchanged symlink: %v", err)
+	}
+	if err := os.Remove(dest); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("b.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	if err := policyUnchanged(dest, "", target, info); !errors.Is(err, errPolicyChanged) {
+		t.Fatalf("retargeted symlink: %v, want errPolicyChanged", err)
 	}
 }
 

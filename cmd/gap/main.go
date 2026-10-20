@@ -719,7 +719,7 @@ func matchesPublish(onDisk, payload string) bool {
 	return ok && inner == payload
 }
 
-func policyUnchanged(dest, existing string, before fs.FileInfo) error {
+func policyUnchanged(dest, existing, linkTarget string, before fs.FileInfo) error {
 	current, err := os.Lstat(dest)
 	if errors.Is(err, fs.ErrNotExist) {
 		if before == nil {
@@ -732,6 +732,16 @@ func policyUnchanged(dest, existing string, before fs.FileInfo) error {
 	}
 	if before == nil || !os.SameFile(before, current) || before.Mode() != current.Mode() {
 		return errPolicyChanged
+	}
+	if isSymlink(current) {
+		got, err := os.Readlink(dest)
+		if err != nil {
+			return err
+		}
+		if got != linkTarget {
+			return errPolicyChanged
+		}
+		return nil
 	}
 	if current.Mode().IsRegular() {
 		b, err := os.ReadFile(dest)
@@ -765,9 +775,9 @@ func restorePolicy(backup, dest string) error {
 	return os.Link(backup, dest)
 }
 
-func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile, existing string, before fs.FileInfo) (bool, error) {
+func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile, existing, linkTarget string, before fs.FileInfo) (bool, error) {
 	err := writeStaged(dest, text, func(tmp string) (err error) {
-		if err := policyUnchanged(dest, existing, before); err != nil {
+		if err := policyUnchanged(dest, existing, linkTarget, before); err != nil {
 			return err
 		}
 		if before != nil {
@@ -791,7 +801,7 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 					}
 				}
 			}()
-			if err := policyUnchanged(backup, existing, before); err != nil {
+			if err := policyUnchanged(backup, existing, linkTarget, before); err != nil {
 				return err
 			}
 		}
@@ -871,12 +881,16 @@ func publish(payload, dest string, ledger map[string]string, ledgerFile string, 
 func publishPolicy(source, dest string, cursor bool, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
 	body := adapt(source, false)
 	unmarked := adapt(source, cursor)
-	var existing string
+	var existing, linkTarget string
 	exists, symlink := false, false
 	info, err := os.Lstat(dest)
 	switch {
 	case err == nil && isSymlink(info):
 		symlink = true
+		linkTarget, err = os.Readlink(dest)
+		if err != nil {
+			return false, err
+		}
 	case err == nil && info.Mode().IsRegular():
 		b, err := os.ReadFile(dest)
 		if err != nil {
@@ -897,16 +911,16 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 			return false, nil
 		}
 		fmt.Println(replaceWarning)
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, info)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, info)
 	}
 	if !exists {
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, info)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, info)
 	}
 	if next, ok := replaceBlock(existing, body); ok {
-		return commitPublish(dest, next, body, ledger, ledgerFile, existing, info)
+		return commitPublish(dest, next, body, ledger, ledgerFile, existing, linkTarget, info)
 	}
 	if ours(existing, true, unmarked, ledger[dest]) {
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, info)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, info)
 	}
 	if !allowPrompt || !termReady() {
 		return refuse("Refusing to replace foreign file (no prompt): %s", dest)
@@ -935,7 +949,7 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 	if !ok {
 		next = appendBlock(existing, body)
 	}
-	return commitPublish(dest, next, body, ledger, ledgerFile, existing, info)
+	return commitPublish(dest, next, body, ledger, ledgerFile, existing, linkTarget, info)
 }
 
 func ensureGapHook(codexDir, policyPath, backupRoot string) (bool, error) {
