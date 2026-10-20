@@ -443,6 +443,19 @@ source = "edheltzel/Do-Skills"
 	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "40-character lowercase hex SHA") {
 		t.Fatalf("bad tree: %v", err)
 	}
+	writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	write(t, filepath.Join(repo, gapLockPath), `schema = "2"
+
+[components.do-skills]
+repo = "https://github.com/edheltzel/Do-Skills.git"
+ref = "master"
+commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+tree = ""
+source = "edheltzel/Do-Skills"
+`)
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "40-character lowercase hex SHA") {
+		t.Fatalf("empty tree: %v", err)
+	}
 	write(t, filepath.Join(repo, gapLockPath), `schema = "2"
 
 [components.do-skills]

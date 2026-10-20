@@ -213,7 +213,7 @@ func componentFromTable(name string, spec tomlTable) (component, error) {
 	if err := requirePinCommit(c); err != nil {
 		return component{}, err
 	}
-	if c.Tree != "" {
+	if _, present := spec["tree"]; present {
 		if err := lowercaseHexSHA(c.Tree, "component "+name+" tree"); err != nil {
 			return component{}, err
 		}
