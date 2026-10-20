@@ -70,3 +70,5 @@ A reach-for-it-anytime standard for authoring and editing: leave the file with
 fewer, better comments than you found. It
 pairs with the stack-specific craft skills in [`project/`](../../project/), which
 lean on clear naming so most comments never need writing.
+[no-comments](./no-comments.md) is the opposite pass: it deletes the comments
+that do not earn a place.

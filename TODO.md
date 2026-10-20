@@ -4,10 +4,8 @@ Mirror of `todo.txt` (source of truth, managed with `tuxedo`). Synced 2026-10-19
 
 ## Open
 
-- [ ] 2026-10-14 Confirm in a live Cursor session that ~/.cursor/rules/global-agent-policy.mdc loads
-- [ ] 2026-10-15 U2: revoke the Eight Sleep APP_CLIENT_SECRET from commit 98ee113c (rotate, no history rewrite) - [note](docs/plans/2026-10-15-secrets-scan.md)
-- [ ] 2026-10-17 U9: offer the NM changes upstream (needs explicit go) - [note](docs/plans/2026-10-17-nm-gitbutler-safe-plan.md)
-- [ ] 2026-10-19 U7: in a new Empryo tab confirm the GAP policy loads once and only do-todo/do-commit/but-axi are pinned, then /soulstack update and recheck rg -c gap:begin ~/.empryo/EMPRYO.md = 1 (PR #91 merged, gap sync clean 2026-10-19) - [note](docs/plans/2026-10-19-gap-empryo-harness-plan.md)
+- [ ] 2026-10-19 Review and merge PR #93 (fix/empryo-review-fixes: recovered review fix plus NM review fix for concurrent policy edits; checks passed, test skipped) - [pr](https://github.com/edheltzel/GAP/pull/93)
+- [ ] 2026-10-20 Commit do-no-comments (vendored pstack no-comments) in GAP and DoSkills, merge, then gap sync to install it
 
 ## Done
 
