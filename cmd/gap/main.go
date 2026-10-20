@@ -1151,6 +1151,9 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 		}
 		return nil
 	})
+	if backup == "" && preparedBackup != "" {
+		os.RemoveAll(filepath.Dir(preparedBackup))
+	}
 	if errors.Is(err, errPolicyChanged) {
 		return refuseChanged(dest, backup, restoreErr)
 	}

@@ -1567,6 +1567,36 @@ func TestSymlinkPromptShowsResolvedRecoveryPath(t *testing.T) {
 	}
 }
 
+func TestUnusedPreparedRecoveryRemoved(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	oldTerm, oldLine := termReady, confirmLine
+	termReady = func() bool { return true }
+	confirmLine = func() string {
+		if err := os.Remove(dest); err != nil {
+			t.Fatal(err)
+		}
+		write(t, dest, "new regular file\n")
+		return "y\n"
+	}
+	t.Cleanup(func() { termReady, confirmLine = oldTerm, oldLine })
+	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), true, home)
+	if err != nil || wrote {
+		t.Fatalf("changed symlink must be refused: wrote %v err %v", wrote, err)
+	}
+	if readString(t, dest) != "new regular file\n" {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	leftover, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*"))
+	if err != nil || len(leftover) != 0 {
+		t.Fatalf("unused prepared recovery left behind: %v, %v", leftover, err)
+	}
+}
+
 func TestDeclinedSymlinkReplaceRemovesPreparedRecovery(t *testing.T) {
 	home := t.TempDir()
 	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
