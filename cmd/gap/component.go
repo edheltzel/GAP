@@ -6,8 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+var componentNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 const (
 	gapLockPath   = "gap.lock"
@@ -66,6 +69,9 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 	}
 	byName := map[string]component{}
 	for name, raw := range comps {
+		if err := validComponentName(name); err != nil {
+			return p, fmt.Errorf("%s: %w", gapLockPath, err)
+		}
 		spec, ok := raw.(tomlTable)
 		if !ok {
 			return p, fmt.Errorf("%s: component %s is not a table", gapLockPath, name)
@@ -77,7 +83,9 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 		if err != nil {
 			return p, fmt.Errorf("%s: %w", gapLockPath, err)
 		}
-		p.indexComponent(c)
+		if err := p.indexComponent(c); err != nil {
+			return p, fmt.Errorf("%s: %w", gapLockPath, err)
+		}
 		byName[name] = c
 	}
 	if errors.Is(tomlErr, os.ErrNotExist) {
@@ -98,6 +106,9 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 		return p, fmt.Errorf("%s: missing [components] tables", gapTOMLPath)
 	}
 	for name, raw := range reqComps {
+		if err := validComponentName(name); err != nil {
+			return p, fmt.Errorf("%s: %w", gapTOMLPath, err)
+		}
 		spec, ok := raw.(tomlTable)
 		if !ok {
 			return p, fmt.Errorf("%s: component %s is not a table", gapTOMLPath, name)
@@ -127,13 +138,24 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 	return p, nil
 }
 
-func (p *skillPaths) indexComponent(c component) {
+func (p *skillPaths) indexComponent(c component) error {
 	if p.bySource == nil {
 		p.bySource = map[string]component{}
 	}
 	for _, key := range componentSourceKeys(c) {
+		if existing, ok := p.bySource[key]; ok && existing.Name != c.Name {
+			return fmt.Errorf("component %s duplicates source %s of %s", c.Name, key, existing.Name)
+		}
 		p.bySource[key] = c
 	}
+	return nil
+}
+
+func validComponentName(name string) error {
+	if !componentNameRe.MatchString(name) {
+		return fmt.Errorf("component name %s must match %s", name, componentNameRe.String())
+	}
+	return nil
 }
 
 func componentSourceKeys(c component) []string {

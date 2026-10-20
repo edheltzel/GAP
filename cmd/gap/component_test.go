@@ -457,6 +457,65 @@ source = "edheltzel/Do-Skills"
 	}
 }
 
+func TestComponentNameAndDuplicateSource(t *testing.T) {
+	repo := t.TempDir()
+	pin := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	url := "https://github.com/edheltzel/Do-Skills.git"
+	writeComponent := func(name, lockExtra, tomlName string) {
+		t.Helper()
+		if tomlName == "" {
+			tomlName = name
+		}
+		write(t, filepath.Join(repo, gapTOMLPath), fmt.Sprintf("[components.%s]\nrepo = %q\nref = \"master\"\n", tomlName, url))
+		write(t, filepath.Join(repo, gapLockPath), fmt.Sprintf("schema = \"2\"\n\n[components.%s]\nrepo = %q\nref = \"master\"\ncommit = %q\n%s", name, url, pin, lockExtra))
+	}
+	writeComponent(`"../../x"`, "", `"../../x"`)
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "must match") {
+		t.Fatalf("path name: %v", err)
+	}
+	writeComponent(`"do/skills"`, "", `"do/skills"`)
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "must match") {
+		t.Fatalf("slash name: %v", err)
+	}
+	writeComponent("Do-Skills", "", "Do-Skills")
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "must match") {
+		t.Fatalf("uppercase name: %v", err)
+	}
+	writeComponent("do_skills", "", "do_skills")
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "must match") {
+		t.Fatalf("underscore name: %v", err)
+	}
+	write(t, filepath.Join(repo, gapTOMLPath), fmt.Sprintf(`[components.do-skills]
+repo = %q
+ref = "master"
+
+[components.also-do]
+repo = %q
+ref = "master"
+`, url, url))
+	write(t, filepath.Join(repo, gapLockPath), fmt.Sprintf(`schema = "2"
+
+[components.do-skills]
+repo = %q
+ref = "master"
+commit = %q
+source = "edheltzel/Do-Skills"
+
+[components.also-do]
+repo = %q
+ref = "master"
+commit = %q
+source = "edheltzel/Do-Skills"
+`, url, pin, url, pin))
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "duplicates source") {
+		t.Fatalf("duplicate source: %v", err)
+	}
+	writeDoSkillsLock(t, repo, url, pin)
+	if _, err := loadSkillPaths(repo); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSourceMatchIgnoresCaseAndGitSuffix(t *testing.T) {
 	repo := t.TempDir()
 	write(t, filepath.Join(repo, gapTOMLPath), `[components.do-skills]
