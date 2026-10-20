@@ -8,7 +8,7 @@
 
 - One Gap-native skill is `skills/<scope>/<group>/<skill>/SKILL.md`. Scope is `global` or `project`.
 - Do skills are edited in Do-Skills, not here. Bump `do-skills.commit` (and `tree`) in `gap.lock` after a Do-Skills merge, then `gap sync`.
-- `global/skills.json` lists what `gap sync` installs and checks. `skills.sh.json` owns catalog group blurbs.
+- `global/skills.json` lists what `gap sync` installs and checks. The pinned Do-Skills `skills.sh.json` owns catalog group blurbs.
 - `scripts/update-readme.sh` owns the generated catalog in the root `README.md` block between `<!-- skills-start -->` and `<!-- skills-end -->`.
 
 ## Local Contracts
@@ -20,7 +20,7 @@
 
 ## Work Guidance
 
-- Group blurbs come from `skills.sh.json` (`"<Scope>: <Group>"`).
+- Group blurbs come from the pin's `skills.sh.json` (`"<Scope>: <Group>"`).
 - `gap sync` clones the pin into `.vendor/do-skills` (gitignored). Do not commit that checkout.
 
 ## Verification

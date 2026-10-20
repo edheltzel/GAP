@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Skill catalog generator. Regenerates the catalog tables in the root
-# README.md from skills.sh.json and gap.lock.
+# README.md from the pinned Do-Skills skills.sh.json and gap.lock.
 # Do skills live in Do-Skills at the pinned commit; Gap-native skills, if any,
 # still live under skills/<scope>/<group>/<skill>/SKILL.md.
 # Usage: bash scripts/update-readme.sh
@@ -8,8 +8,8 @@ set -euo pipefail
 
 ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 README="$ROOT/README.md"
-GROUPINGS_FILE="$ROOT/skills.sh.json"
 LOCK_FILE="$ROOT/gap.lock"
+VENDOR="$ROOT/.vendor/do-skills"
 SKILLS_DIR="$ROOT/skills"
 
 SCOPE_ORDER="global project"
@@ -35,6 +35,20 @@ process.stdout.write(fields[process.argv[2]] ?? "");
 }
 
 PIN="$(lock_field commit)"
+if [ -z "$PIN" ]; then
+    echo "gap.lock is missing do-skills.commit" >&2
+    exit 1
+fi
+if [ ! -d "$VENDOR/.git" ]; then
+    echo "Do-Skills checkout missing at .vendor/do-skills; clone the pin in gap.lock first" >&2
+    exit 1
+fi
+GROUPINGS_FILE=$(mktemp)
+if ! git -C "$VENDOR" show "$PIN:skills.sh.json" > "$GROUPINGS_FILE"; then
+    rm -f "$GROUPINGS_FILE"
+    echo "pinned commit $PIN has no skills.sh.json in $VENDOR" >&2
+    exit 1
+fi
 SOURCE="$(lock_field source)"
 if [ -z "$SOURCE" ]; then
     repo="$(lock_field repo)"
@@ -94,7 +108,7 @@ escape_cell() {
 }
 
 root_section=$(mktemp)
-trap 'rm -f "$root_section"' EXIT
+trap 'rm -f "$GROUPINGS_FILE" "$root_section"' EXIT
 : > "$root_section"
 
 total=0

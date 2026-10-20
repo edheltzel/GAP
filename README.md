@@ -177,7 +177,7 @@ Useful in any repo, or none.
 | [Workflow](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/workflow/) | 15 | Change delivery - the brainstorm, plan, work, debug, and ship loop (LFG), commits, docs, GitHub projects and stacks, PR workflow and review triage, worktrees, and technical writing. |
 | [Operations](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/operations/) | 4 | Operating AI agents - delegation, handoffs, prompt audits, and project status check-ins. |
 | [Content](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/content/) | 3 | Audience-facing media - illustrations, diagrams, images, and visual explanations. |
-| [Personal](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/personal/) | 4 | Personal extras you want everywhere - teaching, todo.txt, isometric explainer figures. |
+| [Personal](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/global/personal/) | 3 | Personal extras you want everywhere - teaching, todo.txt, isometric explainer figures. |
 
 ### [Project](https://github.com/edheltzel/Do-Skills/tree/78e2c15bfbc484d74a2d38ef3fa727a99272bf25/skills/project/)
 
