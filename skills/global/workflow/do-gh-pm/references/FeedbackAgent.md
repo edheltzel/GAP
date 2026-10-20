@@ -29,23 +29,23 @@ Commands are matched case-insensitively and require **write or admin** repo perm
 
 ## GitHub App setup (once per org)
 
-Reuse the existing **gat-atlas-bot** App — **App id `4127929`**, GAT installation `142206211`, installed org-wide. Do **not** register a new App. Per target repo (or once as org secrets):
+Use a GitHub App — **App id `<APP_ID>`**, installation `<INSTALLATION_ID>`. Per target repo (or once as org secrets):
 
 ```bash
 REPO=ORG/REPO   # the repo receiving the scaffold
-gh secret set ATLAS_APP_ID          --repo "$REPO" --body "4127929"
-gh secret set ATLAS_APP_PRIVATE_KEY --repo "$REPO" < ~/.config/atlas-bot/atlas-bot.private-key.pem
+gh secret set ATLAS_APP_ID          --repo "$REPO" --body "<APP_ID>"
+gh secret set ATLAS_APP_PRIVATE_KEY --repo "$REPO" < <KEY_PATH>
 gh secret set ATLAS_KEY_PAT         --repo "$REPO" --body "$ATLAS_KEY_PAT"
 # Optional AI triage (GitHub Models free tier; gpt-4o-mini is low tier: 150 requests/day):
 gh variable set PM_AI_TRIAGE --repo "$REPO" --body "true"
 ```
 
-The App needs `Issues: RW` + org `Projects: RW` (it has them — proven by the §8.7 capstone). The private key's canonical backup is the Bitwarden note "GAT atlas-bot (GitHub App)".
+The App needs `Issues: RW` + org `Projects: RW`. The private key's canonical backup is the secret-store note `<SECRET_STORE_NOTE>`.
 
 ## Install steps
 
 1. Copy each `FEEDBACK_AGENT_SCAFFOLD` entry from `templates/feedback-agent/` to its target path in the repo.
-2. Replace the `ORG/PROJECT_NUMBER` placeholders (both Issue Forms' `projects:` key and the router's `project-url`) with the central board, e.g. `Gentle-Art-Technologies/3`.
+2. Replace the `ORG/PROJECT_NUMBER` placeholders (both Issue Forms' `projects:` key and the router's `project-url`) with the central board, e.g. `OWNER/PROJECT_NUMBER`.
 3. Set the secrets above.
 4. Ensure **every label the workflows can apply** pre-exists in the repo (applying a missing label fails the API call): the forms use `needs:triage`/`type:bug`, the slash commands add `needs:info`/`agent:ready`, and the AI triage allowlist can apply `type:feature`/`type:docs`/`type:chore`. Use the reconcile engine's label sync (`bun Tools/Reconcile.ts --archetype <key> --repo "$REPO"`), or:
 
@@ -63,24 +63,23 @@ gh label create "type:chore"   --repo "$REPO" --color d4c5f9 --description "work
 
 ## E2E verification runbook ($0 proof)
 
-Proves the Phase 5 gate: *an Issue-Form submission lands on the board with an ack comment, at $0.* Needs a test repo in the org (the App is installed org-wide).
+Proves: *an Issue-Form submission lands on the board with an ack comment, at $0.* Needs a test repo the App can write to.
 
-**Runbook prerequisites:**
+**Prerequisites:**
 
-- The **Atlas-Key PAT's repository grant must include the test repo** — a fine-grained PAT scoped to selected repositories does not see a newly created repo until the grant is updated (or is set to "All repositories"). Otherwise the ack step fails with 403 and the run half-passes.
-- Atlas-Key needs read access to the fresh **private** repo (org base role or an invite).
-- Cleanup needs the `delete_repo` scope on the default gh auth: `gh auth refresh -s delete_repo`.
-- Source `~/.env` into the shell before `gh secret set` — an unset `$ATLAS_KEY_PAT` silently stores an **empty** secret.
+- The `ATLAS_KEY_PAT` grant includes the test repo. A fine-grained PAT scoped to selected repositories does not see a newly created repo until the grant is updated (or is set to "All repositories"); otherwise the ack step fails with 403.
+- The ack identity needs read access to a fresh private repo.
+- Cleanup needs `delete_repo` on the default gh auth: `gh auth refresh -s delete_repo`.
+- Confirm `$ATLAS_KEY_PAT` is non-empty before `gh secret set` — an unset value silently stores an empty secret.
 
-**Ordering note:** the scripted probe below creates the issue with labels **atomically**, a *stronger* ordering than a real Issue-Form submission, where the label can arrive as a follow-up `labeled` event after `opened`. The router handles that race (the ack runs on either event, deduped by the `<!-- pm-feedback-ack -->` marker), but the **manual form variant at the end is the true proof of the ack path** — run it at least once.
+**Ordering note:** a scripted probe that creates the issue with labels atomically is stronger than a real Issue-Form submission, where the label can arrive as a follow-up `labeled` event after `opened`. The router handles that race (the ack runs on either event, deduped by the `<!-- pm-feedback-ack -->` marker). Run the manual form variant at least once for the true ack path.
 
 ```zsh
-ORG=Gentle-Art-Technologies
+ORG=OWNER
 REPO=$ORG/pm-feedback-e2e
 BOARD=PROJECT_NUMBER   # the central board's number
+ACK_LOGIN=<ACK_LOGIN>  # GitHub login of the ATLAS_KEY_PAT identity
 
-# 0) Env: make ~/.env vars visible to this shell (empty-var guard)
-set -a; . ~/.env; set +a
 [ -n "$ATLAS_KEY_PAT" ] || { echo "ATLAS_KEY_PAT is empty"; exit 1; }
 
 # 1) Test repo + scaffold
@@ -104,14 +103,13 @@ done
 [ -n "$run_id" ] || { echo "router run never appeared"; exit 1; }
 gh run watch --repo "$REPO" "$run_id" --exit-status
 
-# 4) ASSERT: the issue is on the board (jq -e sets exit status; --limit high
-#    enough that a busy board doesn't truncate the probe out of view)
+# 4) ASSERT: the issue is on the board
 gh project item-list "$BOARD" --owner "$ORG" --format json --limit 500 \
   | jq -e '.items[] | select(.content.title == "[Bug]: e2e probe")'
 
-# 5) ASSERT: ack comment exists, authored by Atlas-Key, carrying the dedupe marker
+# 5) ASSERT: ack comment exists, authored by the PAT identity, carrying the dedupe marker
 gh issue view 1 --repo "$REPO" --json comments \
-  | jq -e '.comments[] | select(.author.login == "Atlas-Key" and (.body | contains("pm-feedback-ack")))'
+  | jq -e --arg login "$ACK_LOGIN" '.comments[] | select(.author.login == $login and (.body | contains("pm-feedback-ack")))'
 
 # 6) Slash command round-trip (as a maintainer; poll instead of a blind sleep)
 gh issue comment 1 --repo "$REPO" --body "/pm:needs-info"
@@ -124,13 +122,10 @@ labels=$(gh issue view 1 --repo "$REPO" --json labels --jq '.labels[].name')
 echo "$labels" | grep -qx "needs:info"    || { echo "needs:info never applied"; exit 1; }
 echo "$labels" | grep -qx "needs:triage"  && { echo "needs:triage not removed"; exit 1; }
 
-# 7) Cost check — honest version. Private-repo Actions bills each job rounded
-#    UP to a whole minute against the 2,000 free min/mo; run conclusions do
-#    not prove $0. Check actual metered usage (needs org admin):
+# 7) Cost check. Private-repo Actions bills each job rounded UP to a whole
+#    minute against the 2,000 free min/mo; run conclusions do not prove $0.
 gh api "orgs/$ORG/settings/billing/actions" \
   --jq '{total_minutes_used, included_minutes}'
-#    Expect total_minutes_used well under included_minutes. (Public repos are
-#    free and unlimited — transferring the target repo public moots this.)
 
 # 8) Cleanup (needs delete_repo scope)
 gh repo delete "$REPO" --yes

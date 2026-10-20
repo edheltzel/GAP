@@ -233,7 +233,7 @@ The `feedback-agent` overlay (interview Q7) adds a "Feedback Intake" board view 
 | `.github/workflows/feedback-router.yml` | Routes intake onto the central board (App token), acks the reporter as Atlas, optional GitHub Models triage |
 | `.github/workflows/pm-commands.yml` | `/pm:triage` `/pm:needs-info` `/pm:ready` maintainer slash commands on the free `GITHUB_TOKEN` |
 
-**GitHub App setup (once):** reuse the existing **gat-atlas-bot** App (id `4127929`, installed org-wide on GAT); do not register a new App. Set `ATLAS_APP_ID` / `ATLAS_APP_PRIVATE_KEY` (App token mints the Projects v2 write — `GITHUB_TOKEN` can't) and `ATLAS_KEY_PAT` (ack-comment author) as repo/org secrets, then replace the `ORG/PROJECT_NUMBER` placeholders in the copied files. Full install steps and the $0 e2e verification runbook: [FeedbackAgent.md](references/FeedbackAgent.md).
+**GitHub App setup (once):** use a GitHub App (`<APP_ID>`, installation `<INSTALLATION_ID>`). Set `ATLAS_APP_ID` / `ATLAS_APP_PRIVATE_KEY` (App token mints the Projects v2 write — `GITHUB_TOKEN` can't) and `ATLAS_KEY_PAT` (ack-comment author) as repo/org secrets, then replace the `ORG/PROJECT_NUMBER` placeholders in the copied files. Full install steps and the $0 e2e verification runbook: [FeedbackAgent.md](references/FeedbackAgent.md).
 
 ## JSON Output & jq Patterns
 
