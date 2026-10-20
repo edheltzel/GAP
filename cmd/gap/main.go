@@ -502,10 +502,10 @@ func isZero(v any) bool {
 }
 
 func writeAtomic(path, text string) error {
-	return writeAtomicChecked(path, text, nil)
+	return writeStaged(path, text, func(tmp string) error { return os.Rename(tmp, path) })
 }
 
-func writeAtomicChecked(path, text string, check func() error) error {
+func writeStaged(path, text string, commit func(string) error) error {
 	info, err := os.Lstat(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -538,12 +538,7 @@ func writeAtomicChecked(path, text string, check func() error) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	if check != nil {
-		if err := check(); err != nil {
-			return err
-		}
-	}
-	return os.Rename(tmp, path)
+	return commit(tmp)
 }
 
 func copyFile(src, dst string) error {
@@ -750,8 +745,64 @@ func policyUnchanged(dest, existing string, before fs.FileInfo) error {
 	return nil
 }
 
+var (
+	renamePolicy = os.Rename
+	linkPolicy   = os.Link
+)
+
+func restorePolicy(backup, dest string) error {
+	info, err := os.Lstat(backup)
+	if err != nil {
+		return err
+	}
+	if isSymlink(info) {
+		target, err := os.Readlink(backup)
+		if err != nil {
+			return err
+		}
+		return os.Symlink(target, dest)
+	}
+	return os.Link(backup, dest)
+}
+
 func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile, existing string, before fs.FileInfo) (bool, error) {
-	err := writeAtomicChecked(dest, text, func() error { return policyUnchanged(dest, existing, before) })
+	err := writeStaged(dest, text, func(tmp string) (err error) {
+		if err := policyUnchanged(dest, existing, before); err != nil {
+			return err
+		}
+		if before != nil {
+			dir, makeErr := os.MkdirTemp(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-")
+			if makeErr != nil {
+				return makeErr
+			}
+			backup := filepath.Join(dir, filepath.Base(dest))
+			if err := renamePolicy(dest, backup); err != nil {
+				os.Remove(dir)
+				if errors.Is(err, fs.ErrNotExist) {
+					return errPolicyChanged
+				}
+				return err
+			}
+			fmt.Println("Previous policy retained at " + backup)
+			defer func() {
+				if err != nil {
+					if restoreErr := restorePolicy(backup, dest); restoreErr != nil && !errors.Is(restoreErr, fs.ErrExist) {
+						err = fmt.Errorf("restore %s from %s: %w (publish failed: %v)", dest, backup, restoreErr, err)
+					}
+				}
+			}()
+			if err := policyUnchanged(backup, existing, before); err != nil {
+				return err
+			}
+		}
+		if err := linkPolicy(tmp, dest); err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				return errPolicyChanged
+			}
+			return err
+		}
+		return nil
+	})
 	if errors.Is(err, errPolicyChanged) {
 		return refuse("Refusing to publish policy changed during sync: %s", dest)
 	}
@@ -841,24 +892,12 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 		if !allowPrompt || !termReady() {
 			return refuse("Refusing to replace foreign file (no prompt): %s", dest)
 		}
-		backup := backupPath(dest, backupRoot)
+		backup := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-*", filepath.Base(dest))
 		if !confirmReplace(dest, backup) {
 			return false, nil
 		}
-		if err := policyUnchanged(dest, existing, info); errors.Is(err, errPolicyChanged) {
-			return refuse("Refusing to replace policy changed during sync: %s", dest)
-		} else if err != nil {
-			return false, err
-		}
-		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
-			return false, err
-		}
-		if err := os.Rename(dest, backup); err != nil {
-			return false, err
-		}
-		fmt.Println("Backed up to " + backup)
 		fmt.Println(replaceWarning)
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, "", nil)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, info)
 	}
 	if !exists {
 		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, info)

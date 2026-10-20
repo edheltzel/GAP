@@ -1140,6 +1140,166 @@ func TestPolicyCommitRejectsConcurrentChanges(t *testing.T) {
 	}
 }
 
+func TestPolicyPublicationRecovery(t *testing.T) {
+	const (
+		oldBlock = "<!-- gap:begin -->\nold policy\n<!-- gap:end -->\n"
+		newBlock = "<!-- gap:begin -->\nnew policy\n<!-- gap:end -->\n"
+		latest   = "latest user rules\n"
+		front    = "---\nalwaysApply: true\n---\n\n"
+	)
+	for _, cursor := range []bool{false, true} {
+		for _, state := range []string{"missing", "marked", "legacy", "foreign", "symlink"} {
+			for _, event := range []string{"ordinary", "before capture", "before install", "open writer", "install failure"} {
+				if event == "before capture" && state == "missing" || event == "open writer" && (state == "missing" || state == "symlink") {
+					continue
+				}
+				name := map[bool]string{false: "plain", true: "cursor"}[cursor] + "/" + state + "/" + event
+				t.Run(name, func(t *testing.T) {
+					home := t.TempDir()
+					dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+					before, want := "", newBlock
+					if cursor {
+						want = front + want
+					}
+					ledger := map[string]string{"unrelated": "keep"}
+					switch state {
+					case "marked":
+						before, want = "user rules\n"+oldBlock+"footer\n", "user rules\n"+newBlock+"footer\n"
+					case "legacy":
+						before = "old policy\n"
+						if cursor {
+							before = front + before
+						}
+						ledger[dest] = digest(before)
+					case "foreign":
+						before, want = "user rules\n", "user rules\n"+newBlock
+					case "symlink":
+						write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target rules\n")
+						if err := os.Symlink("target.md", dest); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if state != "missing" && state != "symlink" {
+						write(t, dest, before)
+						if err := os.Chmod(dest, 0o600); err != nil {
+							t.Fatal(err)
+						}
+					}
+					previousLedger := make(map[string]string)
+					for key, value := range ledger {
+						previousLedger[key] = value
+					}
+					withYes(t)
+					oldRename, oldLink := renamePolicy, linkPolicy
+					t.Cleanup(func() { renamePolicy, linkPolicy = oldRename, oldLink })
+					if event == "before capture" {
+						renamePolicy = func(src, dst string) error {
+							if state == "symlink" {
+								if err := os.Remove(src); err != nil {
+									t.Fatal(err)
+								}
+								if err := os.Symlink("new-target.md", src); err != nil {
+									t.Fatal(err)
+								}
+							} else {
+								write(t, src, latest)
+							}
+							return os.Rename(src, dst)
+						}
+					}
+					if event == "before install" {
+						linkPolicy = func(src, dst string) error {
+							write(t, dst, latest)
+							return os.Link(src, dst)
+						}
+					}
+					if event == "open writer" {
+						writer, err := os.OpenFile(dest, os.O_WRONLY, 0)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer writer.Close()
+						linkPolicy = func(src, dst string) error {
+							if err := writer.Truncate(0); err != nil {
+								t.Fatal(err)
+							}
+							if _, err := writer.WriteString(latest); err != nil {
+								t.Fatal(err)
+							}
+							return os.Link(src, dst)
+						}
+					}
+					if event == "install failure" {
+						linkPolicy = func(string, string) error { return os.ErrPermission }
+					}
+					ledgerFile := filepath.Join(home, "published.json")
+					wrote, err := publishPolicy("new policy\n", dest, cursor, ledger, ledgerFile, true, home)
+					wantWrote := event == "ordinary" || event == "open writer"
+					if wrote != wantWrote || event == "install failure" && !errors.Is(err, os.ErrPermission) || event != "install failure" && err != nil {
+						t.Fatalf("publication = %v, %v; want wrote %v", wrote, err, wantWrote)
+					}
+					if !wantWrote {
+						if !reflect.DeepEqual(ledger, previousLedger) {
+							t.Fatalf("refused publication changed ledger: %v", ledger)
+						}
+						if _, err := os.Stat(ledgerFile); !errors.Is(err, os.ErrNotExist) {
+							t.Fatalf("refused publication wrote ledger: %v", err)
+						}
+						want = before
+						if event == "before install" || event == "before capture" {
+							want = latest
+						}
+					}
+					if state == "missing" && event == "install failure" {
+						if _, err := os.Lstat(dest); !errors.Is(err, os.ErrNotExist) {
+							t.Fatalf("failed creation left a destination: %v", err)
+						}
+					} else if state == "symlink" && (event == "before capture" || event == "install failure") {
+						wantTarget := "target.md"
+						if event == "before capture" {
+							wantTarget = "new-target.md"
+						}
+						if target, err := os.Readlink(dest); err != nil || target != wantTarget {
+							t.Fatalf("symlink not restored: %q, %v", target, err)
+						}
+					} else if got := readString(t, dest); got != want {
+						t.Fatalf("destination = %q, want %q", got, want)
+					}
+					backups, err := filepath.Glob(filepath.Join(filepath.Dir(dest), ".EMPRYO.md.gap-recovery-*", "EMPRYO.md"))
+					if err != nil || len(backups) != map[bool]int{false: 1, true: 0}[state == "missing"] {
+						t.Fatalf("recovery files = %v, %v", backups, err)
+					}
+					if len(backups) == 1 {
+						if state == "symlink" {
+							wantTarget := "target.md"
+							if event == "before capture" {
+								wantTarget = "new-target.md"
+							}
+							if target, err := os.Readlink(backups[0]); err != nil || target != wantTarget {
+								t.Fatalf("displaced link lost: %q, %v", target, err)
+							}
+						} else {
+							wantBackup := before
+							if event == "before capture" || event == "open writer" {
+								wantBackup = latest
+							}
+							if got := readString(t, backups[0]); got != wantBackup {
+								t.Fatalf("displaced contents lost: %q, want %q", got, wantBackup)
+							}
+							if info, err := os.Stat(backups[0]); err != nil || info.Mode().Perm() != 0o600 {
+								t.Fatalf("recovery permissions changed: %v, %v", info, err)
+							}
+						}
+					}
+					if state == "symlink" && readString(t, filepath.Join(filepath.Dir(dest), "target.md")) != "target rules\n" {
+						t.Fatal("publication changed symlink target")
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestSpliceSymlinkChangedDuringConfirmation(t *testing.T) {
 	home := t.TempDir()
 	dest, target := filepath.Join(home, "EMPRYO.md"), filepath.Join(home, "other.md")
