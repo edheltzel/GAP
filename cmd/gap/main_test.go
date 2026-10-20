@@ -910,6 +910,7 @@ done
 func TestCheckDriftWithoutTerminal(t *testing.T) {
 	repo, home := t.TempDir(), t.TempDir()
 	t.Setenv("XDG_STATE_HOME", "")
+	writeEmptyLock(t, repo)
 	src := filepath.Join(repo, "skills", "global", "core", "do-x", "SKILL.md")
 	installedSkill := filepath.Join(home, ".agents", "skills", "do-x", "SKILL.md")
 	extSkill := filepath.Join(home, ".agents", "skills", "ext", "SKILL.md")

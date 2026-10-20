@@ -395,6 +395,79 @@ func TestLoadSkillPathsLockShape(t *testing.T) {
 	}
 }
 
+func TestSourceMatchIgnoresCaseAndGitSuffix(t *testing.T) {
+	repo := t.TempDir()
+	write(t, filepath.Join(repo, gapTOMLPath), `[components.do-skills]
+repo = "https://github.com/edheltzel/do-skills.git"
+ref = "master"
+`)
+	write(t, filepath.Join(repo, gapLockPath), `schema = "2"
+
+[components.do-skills]
+repo = "https://github.com/Edheltzel/Do-Skills.git"
+ref = "master"
+commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+`)
+	c := mustDoSkillsComponent(t, repo)
+	if c.Name != "do-skills" {
+		t.Fatalf("case-insensitive lookup: %+v", c)
+	}
+	src, err := resolveInstallSource(repo, "edheltzel/Do-Skills")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src != componentDir(repo, "do-skills") {
+		t.Fatalf("install source=%s", src)
+	}
+}
+
+func TestMissingLockDoesNotFallBackToGitHub(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	npxLog := filepath.Join(t.TempDir(), "npx.log")
+	npx := filepath.Join(t.TempDir(), "npx")
+	write(t, npx, "#!/bin/sh\necho \"$*\" > "+npxLog+"\n")
+	if err := os.Chmod(npx, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "are missing") {
+		t.Fatalf("missing lock files: %v", err)
+	}
+	if skillsAdd(npx, repo, home, "edheltzel/Do-Skills", []string{"do-x"}) {
+		t.Fatal("missing lock must not install")
+	}
+	if _, err := os.Stat(npxLog); !os.IsNotExist(err) {
+		t.Fatalf("npx must not run, log=%q", readString(t, npxLog))
+	}
+}
+
+func TestComponentSourceWithoutLockEntry(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	write(t, filepath.Join(repo, gapTOMLPath), `[components.do-skills]
+repo = "https://github.com/edheltzel/Do-Skills.git"
+ref = "master"
+`)
+	write(t, filepath.Join(repo, gapLockPath), "schema = \"2\"\n\n[components]\n")
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "not in") {
+		t.Fatalf("toml component without lock entry: %v", err)
+	}
+	npxLog := filepath.Join(t.TempDir(), "npx.log")
+	npx := filepath.Join(t.TempDir(), "npx")
+	write(t, npx, "#!/bin/sh\necho \"$*\" > "+npxLog+"\n")
+	if err := os.Chmod(npx, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if skillsAdd(npx, repo, home, "edheltzel/Do-Skills", []string{"do-x"}) {
+		t.Fatal("component-backed source without a lock entry must not install")
+	}
+	if _, err := os.Stat(npxLog); !os.IsNotExist(err) {
+		t.Fatalf("npx must not run, log=%q", readString(t, npxLog))
+	}
+}
+
 func writeDoSkillsLock(t *testing.T, repo, url, commit string) {
 	t.Helper()
 	write(t, filepath.Join(repo, gapTOMLPath), fmt.Sprintf(`[components.do-skills]
@@ -417,11 +490,17 @@ func mustDoSkillsComponent(t *testing.T, repo string) component {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, ok := paths.bySource["edheltzel/Do-Skills"]
+	c, ok := paths.lookup("edheltzel/Do-Skills")
 	if !ok {
 		t.Fatal("lock missing do-skills")
 	}
 	return c
+}
+
+func writeEmptyLock(t *testing.T, repo string) {
+	t.Helper()
+	write(t, filepath.Join(repo, gapTOMLPath), "[components]\n")
+	write(t, filepath.Join(repo, gapLockPath), "schema = \"2\"\n\n[components]\n")
 }
 
 func doSkillsBare(t *testing.T, pinBody, laterBody string) (bare, pin, later string) {

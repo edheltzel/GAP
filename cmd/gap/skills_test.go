@@ -44,10 +44,12 @@ done
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"good":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
-	if !skillsAdd(npx, t.TempDir(), home, "owner/repo", []string{"good"}) {
+	empty := t.TempDir()
+	writeEmptyLock(t, empty)
+	if !skillsAdd(npx, empty, home, "owner/repo", []string{"good"}) {
 		t.Fatal("a complete matching install must succeed")
 	}
-	if skillsAdd(npx, t.TempDir(), home, "owner/repo", []string{"good", "typo"}) {
+	if skillsAdd(npx, empty, home, "owner/repo", []string{"good", "typo"}) {
 		t.Fatal("a successful subset must not satisfy all requested installations")
 	}
 	if !installed(home, "good") || installed(home, "typo") {
@@ -76,6 +78,7 @@ func TestSkillsReplacement(t *testing.T) {
 				}
 				npx := filepath.Join(t.TempDir(), "npx")
 				repo := t.TempDir()
+				writeEmptyLock(t, repo)
 				write(t, filepath.Join(repo, "skills", "global", "core", "do-x", "SKILL.md"), "replacement\n")
 				body := "#!/bin/sh\nmkdir -p \"$HOME/.agents/skills/do-x\"\necho replacement > \"$HOME/.agents/skills/do-x/SKILL.md\"\n"
 				switch mode {
@@ -126,6 +129,7 @@ func TestSkillsBaselines(t *testing.T) {
 		t.Run(state, func(t *testing.T) {
 			home, repo := t.TempDir(), t.TempDir()
 			t.Setenv("XDG_STATE_HOME", "")
+			writeEmptyLock(t, repo)
 			dirs := skillDirs(home, "do-x")
 			for _, dir := range dirs {
 				write(t, filepath.Join(dir, "SKILL.md"), "same\n")
@@ -173,6 +177,7 @@ func TestSyncReinstallsMismatchedSource(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			home, repo := t.TempDir(), t.TempDir()
 			t.Setenv("HOME", home)
+			writeEmptyLock(t, repo)
 			skill := "gh-axi"
 			body := "from-checkout\n"
 			if tc.manifest == "." {
@@ -315,12 +320,14 @@ func TestSha256LockIsNotPermanentDrift(t *testing.T) {
 	}
 	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
 	entries := []manifestEntry{{Source: "owner/repo", Skills: []string{"ext"}}}
-	ok, err := checkDrift(t.TempDir(), home, entries)
+	hashRepo := t.TempDir()
+	writeEmptyLock(t, hashRepo)
+	ok, err := checkDrift(hashRepo, home, entries)
 	if err != nil || !ok {
 		t.Fatalf("a skills.sh content hash must match the installed copy: ok=%v err=%v", ok, err)
 	}
 	write(t, filepath.Join(dirs[0], "SKILL.md"), "hand edit\n")
-	ok, err = checkDrift(t.TempDir(), home, entries)
+	ok, err = checkDrift(hashRepo, home, entries)
 	if err != nil || ok || readString(t, filepath.Join(dirs[0], "SKILL.md")) != "hand edit\n" {
 		t.Fatal("an edit against a content-hash baseline must be reported and left in place")
 	}
@@ -339,7 +346,9 @@ func TestSha256LockIsNotPermanentDrift(t *testing.T) {
 	fresh := t.TempDir()
 	t.Setenv("HOME", fresh)
 	write(t, filepath.Join(fresh, ".agents", ".skill-lock.json"), `{"skills":{"good":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+sum+`"}}}`)
-	if !skillsAdd(npx, t.TempDir(), fresh, "owner/repo", []string{"good"}) {
+	addRepo := t.TempDir()
+	writeEmptyLock(t, addRepo)
+	if !skillsAdd(npx, addRepo, fresh, "owner/repo", []string{"good"}) {
 		t.Fatal("a content-hash baseline must accept a matching install")
 	}
 }
@@ -358,6 +367,7 @@ func TestForeignLockMigration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			home, repo := t.TempDir(), t.TempDir()
 			t.Setenv("HOME", home)
+			writeEmptyLock(t, repo)
 			skill := "do-x"
 			write(t, filepath.Join(repo, "skills", "global", "core", skill, "SKILL.md"), "from-checkout\n")
 			dirs := skillDirs(home, skill)
@@ -473,6 +483,7 @@ func TestMigrationRollbackRestoresLock(t *testing.T) {
 			} else {
 				t.Setenv("XDG_STATE_HOME", "")
 			}
+			writeEmptyLock(t, repo)
 			skill := "do-x"
 			write(t, filepath.Join(repo, "skills", "global", "core", skill, "SKILL.md"), "from-checkout\n")
 			dirs := skillDirs(home, skill)
@@ -611,6 +622,7 @@ func TestNodeModulesSkillVerifies(t *testing.T) {
 	repo, home := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_STATE_HOME", "")
+	writeEmptyLock(t, repo)
 	src := filepath.Join(repo, "skills", "global", "content", "do-art")
 	write(t, filepath.Join(src, "SKILL.md"), "art\n")
 	write(t, filepath.Join(src, "Tools", "README.md"), "keep\n")
@@ -692,13 +704,15 @@ func TestEmpryoShadowKeepsDriftResult(t *testing.T) {
 	}
 	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
 	write(t, filepath.Join(home, ".empryo", "skills", "ext", "SKILL.md"), "shadow edit\n")
+	repo := t.TempDir()
+	writeEmptyLock(t, repo)
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
 	old := os.Stderr
 	os.Stderr = w
-	ok, err := checkDrift(t.TempDir(), home, []manifestEntry{{Source: "owner/repo", Skills: []string{"ext"}}})
+	ok, err := checkDrift(repo, home, []manifestEntry{{Source: "owner/repo", Skills: []string{"ext"}}})
 	os.Stderr = old
 	w.Close()
 	out, _ := io.ReadAll(r)

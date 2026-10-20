@@ -35,6 +35,7 @@ func TestCommandSync(t *testing.T) {
 			write(t, filepath.Join(repo, "go.mod"), readString(t, "../../go.mod"))
 			write(t, filepath.Join(repo, "global", "AGENTS.md"), source)
 			write(t, filepath.Join(repo, "global", "skills.json"), "[]\n")
+			writeEmptyLock(t, repo)
 			write(t, filepath.Join(repo, ".gitignore"), "*.local.md\n*.local.txt\n")
 			commands := filepath.Join(repo, "global", "commands")
 			write(t, filepath.Join(commands, "state-docs.md"), command)

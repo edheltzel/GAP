@@ -21,8 +21,9 @@ type component struct {
 }
 
 type skillPaths struct {
-	repoRoot string
-	bySource map[string]component
+	repoRoot  string
+	bySource  map[string]component
+	requested map[string]bool
 }
 
 type componentStatus struct {
@@ -34,11 +35,11 @@ type componentStatus struct {
 }
 
 func loadSkillPaths(repoRoot string) (skillPaths, error) {
-	p := skillPaths{repoRoot: repoRoot, bySource: map[string]component{}}
+	p := skillPaths{repoRoot: repoRoot, bySource: map[string]component{}, requested: map[string]bool{}}
 	lockBytes, lockErr := os.ReadFile(filepath.Join(repoRoot, gapLockPath))
 	tomlBytes, tomlErr := os.ReadFile(filepath.Join(repoRoot, gapTOMLPath))
 	if errors.Is(lockErr, os.ErrNotExist) && errors.Is(tomlErr, os.ErrNotExist) {
-		return p, nil
+		return p, fmt.Errorf("%s and %s are missing", gapLockPath, gapTOMLPath)
 	}
 	if errors.Is(lockErr, os.ErrNotExist) {
 		if tomlErr == nil {
@@ -70,7 +71,7 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 		if err != nil {
 			return p, fmt.Errorf("%s: %w", gapLockPath, err)
 		}
-		p.bySource[c.Source] = c
+		p.indexComponent(c)
 		byName[name] = c
 	}
 	if errors.Is(tomlErr, os.ErrNotExist) {
@@ -101,11 +102,66 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 		if repo == "" || ref == "" {
 			return p, fmt.Errorf("%s: component %s needs repo and ref", gapTOMLPath, name)
 		}
-		if repo != got.Repo || ref != got.Ref {
+		if !sameGitURL(repo, got.Repo) || ref != got.Ref {
 			return p, fmt.Errorf("%s: component %s repo/ref does not match %s", gapTOMLPath, name, gapLockPath)
+		}
+		if key := normalizeSource(repo); key != "" {
+			p.requested[key] = true
+		}
+		if key := normalizeSource(got.Source); key != "" {
+			p.requested[key] = true
 		}
 	}
 	return p, nil
+}
+
+func (p *skillPaths) indexComponent(c component) {
+	if p.bySource == nil {
+		p.bySource = map[string]component{}
+	}
+	for _, key := range componentSourceKeys(c) {
+		p.bySource[key] = c
+	}
+}
+
+func componentSourceKeys(c component) []string {
+	seen := map[string]bool{}
+	var keys []string
+	for _, raw := range []string{c.Source, c.Repo} {
+		key := normalizeSource(raw)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func (p skillPaths) lookup(source string) (component, bool) {
+	c, ok := p.bySource[normalizeSource(source)]
+	return c, ok
+}
+
+func (p skillPaths) requestedSource(source string) bool {
+	return p.requested[normalizeSource(source)]
+}
+
+func normalizeSource(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "." || filepath.IsAbs(s) {
+		return ""
+	}
+	repo, sub, ok := githubIdentity(s)
+	if !ok {
+		s = strings.TrimSuffix(strings.TrimSuffix(s, "/"), ".git")
+		return strings.ToLower(s)
+	}
+	repo = strings.ToLower(repo)
+	if sub == "" {
+		return repo
+	}
+	return repo + "/" + sub
 }
 
 func componentFromTable(name string, spec tomlTable) (component, error) {
@@ -141,7 +197,7 @@ func (p skillPaths) sourceRoot(source string) (string, bool) {
 	if source == "." {
 		return filepath.Clean(p.repoRoot), true
 	}
-	c, ok := p.bySource[source]
+	c, ok := p.lookup(source)
 	if !ok {
 		return "", false
 	}
@@ -152,7 +208,7 @@ func (p skillPaths) needed(entries []manifestEntry) []component {
 	var out []component
 	seen := map[string]bool{}
 	for _, e := range entries {
-		c, ok := p.bySource[e.Source]
+		c, ok := p.lookup(e.Source)
 		if !ok || seen[c.Name] {
 			continue
 		}
@@ -160,6 +216,23 @@ func (p skillPaths) needed(entries []manifestEntry) []component {
 		out = append(out, c)
 	}
 	return out
+}
+
+func resolveInstallSource(repoRoot, source string) (string, error) {
+	if source == "." {
+		return filepath.Clean(repoRoot), nil
+	}
+	paths, err := loadSkillPaths(repoRoot)
+	if err != nil {
+		return "", err
+	}
+	if c, ok := paths.lookup(source); ok {
+		return filepath.Clean(componentDir(repoRoot, c.Name)), nil
+	}
+	if paths.requestedSource(source) {
+		return "", fmt.Errorf("component source %s has no lock entry", source)
+	}
+	return source, nil
 }
 
 func componentDir(repoRoot, name string) string {
@@ -347,7 +420,7 @@ func verifyComponentTree(dir string, c component) error {
 }
 
 func sameGitURL(a, b string) bool {
-	return normalizeGitURL(a) == normalizeGitURL(b)
+	return strings.EqualFold(normalizeGitURL(a), normalizeGitURL(b))
 }
 
 func normalizeGitURL(s string) string {
@@ -361,7 +434,7 @@ func normalizeGitURL(s string) string {
 }
 
 func sourceInstallable(repoRoot, source string, paths skillPaths) bool {
-	c, ok := paths.bySource[source]
+	c, ok := paths.lookup(source)
 	if !ok {
 		return true
 	}
@@ -370,7 +443,7 @@ func sourceInstallable(repoRoot, source string, paths skillPaths) bool {
 }
 
 func reportSkippedComponent(repoRoot, source string, paths skillPaths) {
-	c, ok := paths.bySource[source]
+	c, ok := paths.lookup(source)
 	if !ok {
 		return
 	}

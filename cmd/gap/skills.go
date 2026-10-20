@@ -98,9 +98,10 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 }
 
 func skillsAdd(npx, repoRoot, home, source string, names []string) bool {
-	src := source
-	if root, ok := localSourceRoot(repoRoot, source); ok {
-		src = root
+	src, err := resolveInstallSource(repoRoot, source)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return false
 	}
 	// skills.sh installs into ~/.agents/skills (read by Codex, Cursor, Pi, OMP) and links Claude Code to it.
 	args := []string{"-y", "skills", "add", src, "-g", "-y", "-a", "claude-code", "-a", "codex"}
@@ -332,7 +333,7 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 			if warning := empryoShadow(home, name); warning != "" {
 				fmt.Fprintln(os.Stderr, warning)
 			}
-			if c, isComp := paths.bySource[e.Source]; isComp && failed[c.Name] {
+			if c, isComp := paths.lookup(e.Source); isComp && failed[c.Name] {
 				ok = false
 				continue
 			}
