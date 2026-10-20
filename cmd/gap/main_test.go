@@ -1673,6 +1673,48 @@ func TestEmpryoPinAdvice(t *testing.T) {
 	}
 }
 
+func TestChangedPublishNamesRecoveryAndRestore(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+	before := gapMarked("old\n")
+	write(t, dest, before)
+	oldLink := linkPolicy
+	t.Cleanup(func() { linkPolicy = oldLink })
+	linkPolicy = func(src, dst string) error {
+		write(t, dst, "concurrent\n")
+		return os.ErrExist
+	}
+	ledger := map[string]string{}
+	_, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if !strings.Contains(stderr, "Refusing to publish policy changed during sync: "+dest) {
+		t.Fatalf("missing refuse: %q", stderr)
+	}
+	if !strings.Contains(stderr, backups[0]) {
+		t.Fatalf("refuse missing recovery path %s: %q", backups[0], stderr)
+	}
+	if !strings.Contains(stderr, "restore:") {
+		t.Fatalf("refuse swallowed restore error: %q", stderr)
+	}
+	if readString(t, dest) != "concurrent\n" {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	if readString(t, backups[0]) != before {
+		t.Fatalf("recovery=%q", readString(t, backups[0]))
+	}
+	if len(ledger) != 0 {
+		t.Fatalf("refused publish changed ledger: %v", ledger)
+	}
+}
+
 func TestPruneRecoveryFailureDoesNotAbort(t *testing.T) {
 	home := t.TempDir()
 	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")

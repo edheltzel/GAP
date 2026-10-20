@@ -956,8 +956,20 @@ func recoveryDiverged(backup, existing, linkTarget string) bool {
 	return err == nil && string(b) != existing
 }
 
+func refuseChanged(dest, backup string, restoreErr error) (bool, error) {
+	switch {
+	case backup != "" && restoreErr != nil:
+		return refuse("Refusing to publish policy changed during sync: %s (previous policy retained at %s; restore: %v)", dest, backup, restoreErr)
+	case backup != "":
+		return refuse("Refusing to publish policy changed during sync: %s (previous policy retained at %s)", dest, backup)
+	default:
+		return refuse("Refusing to publish policy changed during sync: %s", dest)
+	}
+}
+
 func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile, existing, linkTarget, backupRoot, preparedBackup string, before fs.FileInfo) (bool, error) {
 	var backup string
+	var restoreErr error
 	err := writeStaged(dest, text, func(tmp string) (err error) {
 		if err := policyUnchanged(dest, existing, linkTarget, before); err != nil {
 			return err
@@ -1004,10 +1016,8 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 				copied = true
 			}
 			defer func() {
-				if err != nil {
-					if restoreErr := restorePolicy(backup, dest); restoreErr != nil && !errors.Is(restoreErr, fs.ErrExist) {
-						err = fmt.Errorf("restore %s from %s: %w (publish failed: %v)", dest, backup, restoreErr, err)
-					}
+				if err != nil && backup != "" {
+					restoreErr = restorePolicy(backup, dest)
 				}
 			}()
 			if !copied {
@@ -1025,9 +1035,12 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 		return nil
 	})
 	if errors.Is(err, errPolicyChanged) {
-		return refuse("Refusing to publish policy changed during sync: %s", dest)
+		return refuseChanged(dest, backup, restoreErr)
 	}
 	if err != nil {
+		if restoreErr != nil {
+			return false, fmt.Errorf("restore %s from %s: %w (publish failed: %v)", dest, backup, restoreErr, err)
+		}
 		return false, err
 	}
 	if backup != "" {
