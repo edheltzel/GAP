@@ -278,6 +278,43 @@ func componentDir(repoRoot, name string) string {
 	return filepath.Join(repoRoot, vendorDirName, name)
 }
 
+func (p skillPaths) component(name string) (component, bool) {
+	for _, c := range p.bySource {
+		if c.Name == name {
+			return c, true
+		}
+	}
+	return component{}, false
+}
+
+func lockField(repoRoot, name, field string) (string, error) {
+	if err := validComponentName(name); err != nil {
+		return "", err
+	}
+	paths, err := loadSkillPaths(repoRoot)
+	if err != nil {
+		return "", err
+	}
+	c, ok := paths.component(name)
+	if !ok {
+		return "", fmt.Errorf("component %s is not in %s", name, gapLockPath)
+	}
+	switch field {
+	case "repo":
+		return c.Repo, nil
+	case "ref":
+		return c.Ref, nil
+	case "commit":
+		return c.Commit, nil
+	case "tree":
+		return c.Tree, nil
+	case "source":
+		return c.Source, nil
+	default:
+		return "", fmt.Errorf("unknown lock field %s", field)
+	}
+}
+
 func localSourceRoot(repoRoot, source string) (string, bool) {
 	paths, err := loadSkillPaths(repoRoot)
 	if err != nil {

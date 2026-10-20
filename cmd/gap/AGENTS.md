@@ -13,7 +13,7 @@
 
 `gap` publishes the checkout it was built from. `sourceRoot` is that compile-time path, so `gap sync` uses it from any directory. Reinstall with `go install ./cmd/gap` after `cmd/gap` changes, after the checkout moves, or after a `-trimpath` build. `go run ./cmd/gap sync` from the repo root uses that checkout without installing.
 
-`gap sync` and `gap sync --remove-codex-legacy` publish. `gap -h`, `gap --help`, and `gap help` print usage and exit 0. No command, an unknown command, or extra arguments exit 2. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
+`gap sync` and `gap sync --remove-codex-legacy` publish. `gap lock-field <name> <field>` prints one pin field (`repo`, `ref`, `commit`, `tree`, `source`) from this checkout's `gap.lock` and exits 0. `gap -h`, `gap --help`, and `gap help` print usage and exit 0. No command, an unknown command, or extra arguments exit 2. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
 
 ### Sync steps
 

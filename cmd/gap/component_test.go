@@ -516,6 +516,51 @@ source = "edheltzel/Do-Skills"
 	}
 }
 
+func TestLockField(t *testing.T) {
+	repo := t.TempDir()
+	url := "https://github.com/edheltzel/Do-Skills.git"
+	pin := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	tree := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	writeDoSkillsLock(t, repo, url, pin)
+	write(t, filepath.Join(repo, gapLockPath), fmt.Sprintf(`schema = "2"
+
+[components.do-skills]
+repo = %q
+ref = "master"
+commit = %q
+tree = %q
+`, url, pin, tree))
+	got, err := lockField(repo, "do-skills", "commit")
+	if err != nil || got != pin {
+		t.Fatalf("commit: %q %v", got, err)
+	}
+	got, err = lockField(repo, "do-skills", "tree")
+	if err != nil || got != tree {
+		t.Fatalf("tree: %q %v", got, err)
+	}
+	got, err = lockField(repo, "do-skills", "source")
+	if err != nil || got != "edheltzel/Do-Skills" {
+		t.Fatalf("derived source: %q %v", got, err)
+	}
+	got, err = lockField(repo, "do-skills", "repo")
+	if err != nil || got != url {
+		t.Fatalf("repo: %q %v", got, err)
+	}
+	got, err = lockField(repo, "do-skills", "ref")
+	if err != nil || got != "master" {
+		t.Fatalf("ref: %q %v", got, err)
+	}
+	if _, err := lockField(repo, "do-skills", "nope"); err == nil || !strings.Contains(err.Error(), "unknown lock field") {
+		t.Fatalf("unknown field: %v", err)
+	}
+	if _, err := lockField(repo, "missing", "commit"); err == nil || !strings.Contains(err.Error(), "is not in") {
+		t.Fatalf("missing component: %v", err)
+	}
+	if _, err := lockField(repo, "../x", "commit"); err == nil || !strings.Contains(err.Error(), "must match") {
+		t.Fatalf("bad name: %v", err)
+	}
+}
+
 func TestSourceMatchIgnoresCaseAndGitSuffix(t *testing.T) {
 	repo := t.TempDir()
 	write(t, filepath.Join(repo, gapTOMLPath), `[components.do-skills]

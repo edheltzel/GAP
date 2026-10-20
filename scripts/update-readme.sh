@@ -8,7 +8,6 @@ set -euo pipefail
 
 ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 README="$ROOT/README.md"
-LOCK_FILE="$ROOT/gap.lock"
 VENDOR="$ROOT/.vendor/do-skills"
 SKILLS_DIR="$ROOT/skills"
 
@@ -17,21 +16,7 @@ GROUP_ORDER_global="core workflow operations content personal"
 GROUP_ORDER_project="typescript frontend backend tooling swift product marketing personal"
 
 lock_field() {
-    node -e '
-const fs = require("fs");
-const text = fs.readFileSync(process.argv[1], "utf8");
-const start = text.indexOf("[components.do-skills]");
-if (start < 0) process.exit(1);
-let rest = text.slice(start);
-const next = rest.indexOf("\n[");
-if (next >= 0) rest = rest.slice(0, next);
-const fields = {};
-for (const line of rest.split("\n")) {
-  const m = line.match(/^\s*([A-Za-z0-9_-]+)\s*=\s*"([^"]*)"/);
-  if (m) fields[m[1]] = m[2];
-}
-process.stdout.write(fields[process.argv[2]] ?? "");
-' "$LOCK_FILE" "$1"
+    go run -C "$ROOT" ./cmd/gap lock-field do-skills "$1"
 }
 
 PIN="$(lock_field commit)"
@@ -51,11 +36,8 @@ if ! git -C "$VENDOR" show "$PIN:skills.sh.json" > "$GROUPINGS_FILE"; then
 fi
 SOURCE="$(lock_field source)"
 if [ -z "$SOURCE" ]; then
-    repo="$(lock_field repo)"
-    SOURCE="$(printf '%s' "$repo" | sed -n 's#.*github.com[:/]\([^/]*/[^/.]*\).*#\1#p')"
-fi
-if [ -z "$SOURCE" ]; then
-    SOURCE="edheltzel/Do-Skills"
+    echo "gap.lock is missing do-skills.source" >&2
+    exit 1
 fi
 TREE_BASE="https://github.com/${SOURCE}/tree/${PIN}/skills"
 

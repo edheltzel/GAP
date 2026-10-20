@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1074,5 +1075,33 @@ func TestEmpryoPinAdvice(t *testing.T) {
 				t.Fatal("gap must never write Empryo's config")
 			}
 		})
+	}
+}
+
+func TestLockFieldCommand(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	code := run([]string{"lock-field", "do-skills", "commit"})
+	w.Close()
+	os.Stdout = old
+	out, _ := io.ReadAll(r)
+	if code != 0 {
+		t.Fatalf("lock-field commit exit %d", code)
+	}
+	if got := strings.TrimSpace(string(out)); got != "78e2c15bfbc484d74a2d38ef3fa727a99272bf25" {
+		t.Fatalf("lock-field commit = %q", got)
+	}
+	if code := run([]string{"lock-field"}); code != 2 {
+		t.Fatalf("lock-field arity exit %d", code)
+	}
+	if code := run([]string{"lock-field", "do-skills", "commit", "extra"}); code != 2 {
+		t.Fatalf("lock-field extra args exit %d", code)
+	}
+	if code := run([]string{"not-a-command"}); code != 2 {
+		t.Fatalf("unknown command exit %d", code)
 	}
 }

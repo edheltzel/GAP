@@ -29,6 +29,7 @@ those harnesses already read, and installs the skills listed in global/skills.js
 Usage:
   gap sync                         Publish the policy and commands, install missing skills, check skills for drift
   gap sync --remove-codex-legacy   Same, then strip the old policy copy from ~/.codex/AGENTS.md
+  gap lock-field <name> <field>    Print one pin field from gap.lock (repo, ref, commit, tree, source)
   gap --help                       Show this help
 
 gap publishes the checkout it was installed from. Reinstall with
@@ -51,13 +52,25 @@ func run(args []string) int {
 		fmt.Println(usage)
 		return 0
 	}
-	if len(args) == 0 || args[0] != "sync" {
+	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, usage)
 		return 2
 	}
+	switch args[0] {
+	case "sync":
+		return runSync(args[1:])
+	case "lock-field":
+		return runLockField(args[1:])
+	default:
+		fmt.Fprintln(os.Stderr, usage)
+		return 2
+	}
+}
+
+func runSync(args []string) int {
 	flags := flag.NewFlagSet("sync", flag.ContinueOnError)
 	removeLegacy := flags.Bool("remove-codex-legacy", false, "strip the old GAP text from Codex AGENTS.md once both hooks are trusted")
-	if err := flags.Parse(args[1:]); err != nil {
+	if err := flags.Parse(args); err != nil {
 		return 2
 	}
 	if flags.NArg() > 0 {
@@ -70,6 +83,25 @@ func run(args []string) int {
 		}
 		return 1
 	}
+	return 0
+}
+
+func runLockField(args []string) int {
+	if len(args) != 2 {
+		fmt.Fprintln(os.Stderr, usage)
+		return 2
+	}
+	root, err := sourceRoot()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	val, err := lockField(root, args[0], args[1])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	fmt.Println(val)
 	return 0
 }
 

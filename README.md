@@ -45,6 +45,7 @@ gap --help
 | --- | --- |
 | `gap sync` | Publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
+| `gap lock-field <name> <field>` | Print one pin field from `gap.lock` (`repo`, `ref`, `commit`, `tree`, `source`) |
 | `go test ./...` | Run the self-test against throwaway folders |
 
 ## Manage skills
