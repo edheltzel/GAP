@@ -49,11 +49,11 @@ gap --help
 
 ## Manage skills
 
-`global/skills.json` lists every skill `gap` manages and where each one comes from. `"source": "."` means a Gap-native skill in this repo's `skills/` folder. A source listed in `global/components.lock` is that pinned git checkout under `.vendor/<name>` (gitignored). Any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
+`global/skills.json` lists every skill `gap` manages and where each one comes from. `"source": "."` means a Gap-native skill in this repo's `skills/` folder. A source listed in `gap.lock` is that pinned git checkout under `.vendor/<name>` (gitignored). Any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
 
-The 66 Do skills use `"source": "edheltzel/Do-Skills"`. `gap sync` clones [edheltzel/Do-Skills](https://github.com/edheltzel/Do-Skills) at `do-skills.ref` into `.vendor/do-skills` if it is missing, or fetches and checks out that pin if the checkout is clean. It never resets a dirty checkout and never checks out any other commit.
+The 66 Do skills use `"source": "edheltzel/Do-Skills"`. `gap.toml` records the requested `repo` and `ref`. `gap.lock` records the resolved pin (`ref` plus `commit`, and `tree` when known). `gap sync` clones [edheltzel/Do-Skills](https://github.com/edheltzel/Do-Skills) at that `commit` into `.vendor/do-skills` if it is missing, or fetches and checks out that pin if the checkout is clean. It never resets a dirty checkout and never checks out any other commit.
 
-To bump the pin, set `do-skills.ref` in `global/components.lock` to the Do-Skills commit (the squash-merge SHA once that lands on master) and run `gap sync`. The lockfile's `comment` field is the reminder for this PR.
+To bump the pin, keep `ref` in `gap.toml` as the requested branch, set `commit` (and `tree`) in `gap.lock` to the resolved Do-Skills SHA, and run `gap sync`.
 
 ```json
 [
@@ -88,7 +88,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 
 - you're on a branch other than `master` or GitButler's `gitbutler/workspace`
 - you're in a git worktree
-- `global/` or `skills/` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`, `global/components.lock`, top-level `global/commands/*.md`). Ignored `node_modules` and `.DS_Store` do not block.
+- `global/`, `skills/`, `gap.lock`, or `gap.toml` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`, `gap.lock`, `gap.toml`, top-level `global/commands/*.md`). Ignored `node_modules` and `.DS_Store` do not block.
 
 ### Step 3: Run `gap sync`
 
@@ -163,7 +163,7 @@ Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP r
 
 ## Skill catalog
 
-Do skills come from [edheltzel/Do-Skills](https://github.com/edheltzel/Do-Skills) at the ref in `global/components.lock`. `gap sync` clones that pin and installs the names in `global/skills.json`. Human pages for those skills live in Do-Skills. Regenerate this table with `bash scripts/update-readme.sh`.
+Do skills come from [edheltzel/Do-Skills](https://github.com/edheltzel/Do-Skills) at the commit in `gap.lock`. `gap sync` clones that pin and installs the names in `global/skills.json`. Human pages for those skills live in Do-Skills. Regenerate this table with `bash scripts/update-readme.sh`.
 
 <!-- skills-start -->
 

@@ -306,7 +306,7 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 	in := bufio.NewReader(os.Stdin)
 	ok := true
 	for _, c := range paths.needed(entries) {
-		st, err := inspectComponent(componentDir(repoRoot, c.Name), c.Ref)
+		st, err := inspectComponent(componentDir(repoRoot, c.Name), c.Commit)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			ok = false

@@ -6,7 +6,7 @@ This file covers how to change the repo. Shared behavior rules are in `global/AG
 
 ## Publish
 
-`gap sync` writes `global/AGENTS.md` between `<!-- gap:begin -->` and `<!-- gap:end -->` in the files these harnesses already read, publishes each `global/commands/*.md` unchanged into the command files those harnesses already load, then clones pinned components from `global/components.lock` and installs and checks the skills in `global/skills.json`. Sync steps, the ledger, backups, source-identity migration, and drift choices are in `cmd/gap/AGENTS.md`. Install it once with `go install ./cmd/gap`; it then runs from any directory and always publishes the checkout it was built from. Reinstall after `cmd/gap` changes or the checkout moves. `go run ./cmd/gap sync` from the repo root works without installing.
+`gap sync` writes `global/AGENTS.md` between `<!-- gap:begin -->` and `<!-- gap:end -->` in the files these harnesses already read, publishes each `global/commands/*.md` unchanged into the command files those harnesses already load, then clones pinned components from `gap.lock` and installs and checks the skills in `global/skills.json`. Sync steps, the ledger, backups, source-identity migration, and drift choices are in `cmd/gap/AGENTS.md`. Install it once with `go install ./cmd/gap`; it then runs from any directory and always publishes the checkout it was built from. Reinstall after `cmd/gap` changes or the checkout moves. `go run ./cmd/gap sync` from the repo root works without installing.
 
 - `~/.claude/rules/global-agent-policy.md`
 - `~/.pi/agent/APPEND_SYSTEM.md`
@@ -26,7 +26,7 @@ After a shared markdown change is merged and pulled, run `gap sync`. Sync refuse
 
 - Change a shared rule in `global/`, then sync. Do not paste the rule into a harness home by hand.
 - Add a harness destination in `cmd/gap/main.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
-- Gap-native skills live in `skills/<scope>/<group>/<skill>/`. Do skills come from Do-Skills at the ref in `global/components.lock`; `gap sync` clones that pin into `.vendor/do-skills`. List a skill in `global/skills.json` to have `gap sync` install it and check it for drift. After adding, moving, or renaming a Gap-native skill, or after bumping the Do-Skills pin, run `bash scripts/update-readme.sh` to regenerate the catalog. Layout and catalog ownership are in `skills/AGENTS.md`.
+- Gap-native skills live in `skills/<scope>/<group>/<skill>/`. Do skills come from Do-Skills at the commit in `gap.lock`; `gap sync` clones that pin into `.vendor/do-skills`. List a skill in `global/skills.json` to have `gap sync` install it and check it for drift. After adding, moving, or renaming a Gap-native skill, or after bumping the Do-Skills pin, run `bash scripts/update-readme.sh` to regenerate the catalog. Layout and catalog ownership are in `skills/AGENTS.md`.
 - `docs/solutions/` holds documented solutions to past problems, by category, with YAML frontmatter (`module`, `tags`, `problem_type`). `CONCEPTS.md` is the shared domain vocabulary. Relevant when implementing or debugging in a documented area, or when a domain word is unclear.
 - Go 1.24 or newer, standard library only. The one runtime exception: the skills step runs skills.sh through `npx`, so it needs Node. `go test ./...` is the self-test.
 

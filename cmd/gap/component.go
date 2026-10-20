@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -11,13 +10,14 @@ import (
 )
 
 const (
-	componentsLockPath = "global/components.lock"
-	vendorDirName      = ".vendor"
+	gapLockPath   = "gap.lock"
+	gapTOMLPath   = "gap.toml"
+	vendorDirName = ".vendor"
 )
 
-// component is one pinned git checkout recorded in global/components.lock.
+// component is one pinned git checkout recorded in gap.lock.
 type component struct {
-	Name, URL, Ref, Source string
+	Name, Repo, Ref, Commit, Tree, Source string
 }
 
 type skillPaths struct {
@@ -35,38 +35,98 @@ type componentStatus struct {
 
 func loadSkillPaths(repoRoot string) (skillPaths, error) {
 	p := skillPaths{repoRoot: repoRoot, bySource: map[string]component{}}
-	b, err := os.ReadFile(filepath.Join(repoRoot, componentsLockPath))
-	if errors.Is(err, os.ErrNotExist) {
+	lockBytes, lockErr := os.ReadFile(filepath.Join(repoRoot, gapLockPath))
+	tomlBytes, tomlErr := os.ReadFile(filepath.Join(repoRoot, gapTOMLPath))
+	if errors.Is(lockErr, os.ErrNotExist) && errors.Is(tomlErr, os.ErrNotExist) {
 		return p, nil
 	}
+	if errors.Is(lockErr, os.ErrNotExist) {
+		if tomlErr == nil {
+			return p, fmt.Errorf("%s: missing %s", gapTOMLPath, gapLockPath)
+		}
+		return p, tomlErr
+	}
+	if lockErr != nil {
+		return p, lockErr
+	}
+	lock, err := parseTOML(lockBytes)
 	if err != nil {
-		return p, err
+		return p, fmt.Errorf("%s: %w", gapLockPath, err)
 	}
-	var doc struct {
-		Comment    string `json:"comment"`
-		Components map[string]struct {
-			URL    string `json:"url"`
-			Ref    string `json:"ref"`
-			Source string `json:"source"`
-		} `json:"components"`
+	if tomlString(lock, "schema") != "2" {
+		return p, fmt.Errorf("%s: schema must be \"2\"", gapLockPath)
 	}
-	if err := json.Unmarshal(b, &doc); err != nil {
-		return p, fmt.Errorf("%s: %w", componentsLockPath, err)
+	comps := tomlChild(lock, "components")
+	if comps == nil {
+		return p, fmt.Errorf("%s: missing [components] tables", gapLockPath)
 	}
-	for name, spec := range doc.Components {
-		if spec.URL == "" || spec.Ref == "" {
-			return p, fmt.Errorf("%s: component %s needs url and ref", componentsLockPath, name)
+	byName := map[string]component{}
+	for name, raw := range comps {
+		spec, ok := raw.(tomlTable)
+		if !ok {
+			return p, fmt.Errorf("%s: component %s is not a table", gapLockPath, name)
 		}
-		src := spec.Source
-		if src == "" {
-			src = githubSourceFromURL(spec.URL)
+		c, err := componentFromTable(name, spec)
+		if err != nil {
+			return p, fmt.Errorf("%s: %w", gapLockPath, err)
 		}
-		if src == "" {
-			return p, fmt.Errorf("%s: component %s needs source", componentsLockPath, name)
+		p.bySource[c.Source] = c
+		byName[name] = c
+	}
+	if errors.Is(tomlErr, os.ErrNotExist) {
+		return p, nil
+	}
+	if tomlErr != nil {
+		return p, tomlErr
+	}
+	req, err := parseTOML(tomlBytes)
+	if err != nil {
+		return p, fmt.Errorf("%s: %w", gapTOMLPath, err)
+	}
+	reqComps := tomlChild(req, "components")
+	if reqComps == nil {
+		return p, fmt.Errorf("%s: missing [components] tables", gapTOMLPath)
+	}
+	for name, raw := range reqComps {
+		spec, ok := raw.(tomlTable)
+		if !ok {
+			return p, fmt.Errorf("%s: component %s is not a table", gapTOMLPath, name)
 		}
-		p.bySource[src] = component{Name: name, URL: spec.URL, Ref: spec.Ref, Source: src}
+		got, ok := byName[name]
+		if !ok {
+			return p, fmt.Errorf("%s: component %s is not in %s", gapTOMLPath, name, gapLockPath)
+		}
+		repo := tomlString(spec, "repo")
+		ref := tomlString(spec, "ref")
+		if repo == "" || ref == "" {
+			return p, fmt.Errorf("%s: component %s needs repo and ref", gapTOMLPath, name)
+		}
+		if repo != got.Repo || ref != got.Ref {
+			return p, fmt.Errorf("%s: component %s repo/ref does not match %s", gapTOMLPath, name, gapLockPath)
+		}
 	}
 	return p, nil
+}
+
+func componentFromTable(name string, spec tomlTable) (component, error) {
+	c := component{
+		Name:   name,
+		Repo:   tomlString(spec, "repo"),
+		Ref:    tomlString(spec, "ref"),
+		Commit: tomlString(spec, "commit"),
+		Tree:   tomlString(spec, "tree"),
+		Source: tomlString(spec, "source"),
+	}
+	if c.Repo == "" || c.Ref == "" || c.Commit == "" {
+		return component{}, fmt.Errorf("component %s needs repo, ref, and commit", name)
+	}
+	if c.Source == "" {
+		c.Source = githubSourceFromURL(c.Repo)
+	}
+	if c.Source == "" {
+		return component{}, fmt.Errorf("component %s needs source", name)
+	}
+	return c, nil
 }
 
 func githubSourceFromURL(url string) string {
@@ -144,8 +204,8 @@ func isGitRepo(dir string) bool {
 	return err == nil
 }
 
-func inspectComponent(dir, ref string) (componentStatus, error) {
-	st := componentStatus{Dir: dir}
+func inspectComponent(dir, pin string) (componentStatus, error) {
+	st := componentStatus{Dir: dir, Pin: pin}
 	if !isGitRepo(dir) {
 		return st, fmt.Errorf("pinned component at %s is not a git checkout", dir)
 	}
@@ -153,14 +213,8 @@ func inspectComponent(dir, ref string) (componentStatus, error) {
 	if err != nil {
 		return st, fmt.Errorf("reading HEAD in %s: %w", dir, err)
 	}
-	pin, err := gitRun(dir, "rev-parse", "--verify", ref+"^{commit}")
-	if err != nil {
-		pin = ref
-		st.Off = true
-	} else {
-		st.Off = head != pin
-	}
-	st.Head, st.Pin = head, pin
+	st.Head = head
+	st.Off = head != pin
 	porcelain, err := gitRun(dir, "status", "--porcelain")
 	if err != nil {
 		return st, fmt.Errorf("reading status in %s: %w", dir, err)
@@ -200,28 +254,18 @@ func ensureComponent(repoRoot string, c component) error {
 	if err != nil {
 		return fmt.Errorf("pinned component %s: %w", c.Name, err)
 	}
-	if !sameGitURL(origin, c.URL) {
-		return fmt.Errorf("pinned component %s origin is %s, not %s", c.Name, origin, c.URL)
+	if !sameGitURL(origin, c.Repo) {
+		return fmt.Errorf("pinned component %s origin is %s, not %s", c.Name, origin, c.Repo)
 	}
-	st, err := inspectComponent(dir, c.Ref)
+	st, err := inspectComponent(dir, c.Commit)
 	if err == nil && !st.Dirty && !st.Off {
-		return nil
+		return verifyComponentTree(dir, c)
 	}
 	if err == nil && st.Dirty {
 		// Never reset a dirty checkout onto the pin.
 		return nil
 	}
-	if _, err := gitRun(dir, "fetch", "-q", "origin", c.Ref); err != nil {
-		return fmt.Errorf("pinned component %s: fetch %s: %w", c.Name, c.Ref, err)
-	}
-	pin, err := gitRun(dir, "rev-parse", "--verify", c.Ref+"^{commit}")
-	if err != nil {
-		return fmt.Errorf("pinned component %s: resolve %s: %w", c.Name, c.Ref, err)
-	}
-	if _, err := gitRun(dir, "checkout", "-q", "--detach", pin); err != nil {
-		return fmt.Errorf("pinned component %s: checkout %s: %w", c.Name, pin, err)
-	}
-	return nil
+	return checkoutPin(dir, c)
 }
 
 func initComponent(dir string, c component) error {
@@ -245,20 +289,37 @@ func initComponent(dir string, c component) error {
 	if _, err := gitRun(dir, "init", "-q"); err != nil {
 		return fmt.Errorf("pinned component %s: init: %w", c.Name, err)
 	}
-	if _, err := gitRun(dir, "remote", "add", "origin", c.URL); err != nil {
+	if _, err := gitRun(dir, "remote", "add", "origin", c.Repo); err != nil {
 		return fmt.Errorf("pinned component %s: remote: %w", c.Name, err)
 	}
-	if _, err := gitRun(dir, "fetch", "-q", "origin", c.Ref); err != nil {
-		return fmt.Errorf("pinned component %s: fetch %s: %w", c.Name, c.Ref, err)
+	if err := checkoutPin(dir, c); err != nil {
+		return err
 	}
-	pin, err := gitRun(dir, "rev-parse", "--verify", c.Ref+"^{commit}")
+	fmt.Printf("using %s at %s\n", c.Source, c.Commit)
+	return nil
+}
+
+func checkoutPin(dir string, c component) error {
+	if _, err := gitRun(dir, "fetch", "-q", "origin", c.Commit); err != nil {
+		return fmt.Errorf("pinned component %s: fetch %s: %w", c.Name, c.Commit, err)
+	}
+	if _, err := gitRun(dir, "checkout", "-q", "--detach", c.Commit); err != nil {
+		return fmt.Errorf("pinned component %s: checkout %s: %w", c.Name, c.Commit, err)
+	}
+	return verifyComponentTree(dir, c)
+}
+
+func verifyComponentTree(dir string, c component) error {
+	if c.Tree == "" {
+		return nil
+	}
+	tree, err := gitRun(dir, "rev-parse", "HEAD^{tree}")
 	if err != nil {
-		return fmt.Errorf("pinned component %s: resolve %s: %w", c.Name, c.Ref, err)
+		return fmt.Errorf("pinned component %s: tree: %w", c.Name, err)
 	}
-	if _, err := gitRun(dir, "checkout", "-q", "--detach", pin); err != nil {
-		return fmt.Errorf("pinned component %s: checkout %s: %w", c.Name, pin, err)
+	if tree != c.Tree {
+		return fmt.Errorf("pinned component %s tree is %s, not %s", c.Name, tree, c.Tree)
 	}
-	fmt.Printf("using %s at %s\n", c.Source, pin)
 	return nil
 }
 
@@ -281,6 +342,6 @@ func sourceInstallable(repoRoot, source string, paths skillPaths) bool {
 	if !ok {
 		return true
 	}
-	st, err := inspectComponent(componentDir(repoRoot, c.Name), c.Ref)
+	st, err := inspectComponent(componentDir(repoRoot, c.Name), c.Commit)
 	return err == nil && !st.Dirty && !st.Off
 }

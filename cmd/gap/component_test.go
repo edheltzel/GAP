@@ -198,28 +198,50 @@ func TestSkillsAddPassesPinnedCheckout(t *testing.T) {
 	}
 }
 
-func TestIgnoredPathBlocksComponentLock(t *testing.T) {
-	if !ignoredPathBlocks("global/components.lock") {
-		t.Fatal("an ignored components.lock must block; gap reads it")
+func TestIgnoredPathBlocksGapLock(t *testing.T) {
+	if !ignoredPathBlocks("gap.lock") {
+		t.Fatal("an ignored gap.lock must block; gap reads it")
 	}
-	if ignoredPathBlocks("components.lock") {
-		t.Fatal("only global/components.lock is read")
+	if !ignoredPathBlocks("gap.toml") {
+		t.Fatal("an ignored gap.toml must block; gap reads it")
+	}
+	if ignoredPathBlocks("global/components.lock") {
+		t.Fatal("gap no longer reads global/components.lock")
 	}
 }
 
-func writeDoSkillsLock(t *testing.T, repo, url, ref string) {
-	t.Helper()
-	write(t, filepath.Join(repo, "global", "components.lock"), fmt.Sprintf(`{
-  "comment": "test",
-  "components": {
-    "do-skills": {
-      "url": %q,
-      "ref": %q,
-      "source": "edheltzel/Do-Skills"
-    }
-  }
+func TestLoadSkillPathsLockShape(t *testing.T) {
+	repo := t.TempDir()
+	writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", "78e2c15bfbc484d74a2d38ef3fa727a99272bf25")
+	c := mustDoSkillsComponent(t, repo)
+	if c.Ref != "master" || c.Commit != "78e2c15bfbc484d74a2d38ef3fa727a99272bf25" || c.Repo == "" {
+		t.Fatalf("lock shape: %+v", c)
+	}
+	write(t, filepath.Join(repo, gapLockPath), "schema = \"1\"\n[components.do-skills]\nrepo = \"https://github.com/edheltzel/Do-Skills.git\"\nref = \"master\"\ncommit = \"78e2c15bfbc484d74a2d38ef3fa727a99272bf25\"\n")
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), `schema must be "2"`) {
+		t.Fatalf("schema 1: %v", err)
+	}
+	writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", "78e2c15bfbc484d74a2d38ef3fa727a99272bf25")
+	write(t, filepath.Join(repo, gapTOMLPath), "[components.do-skills]\nrepo = \"https://github.com/edheltzel/Do-Skills.git\"\nref = \"main\"\n")
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "repo/ref") {
+		t.Fatalf("toml mismatch: %v", err)
+	}
 }
-`, url, ref))
+
+func writeDoSkillsLock(t *testing.T, repo, url, commit string) {
+	t.Helper()
+	write(t, filepath.Join(repo, gapTOMLPath), fmt.Sprintf(`[components.do-skills]
+repo = %q
+ref = "master"
+`, url))
+	write(t, filepath.Join(repo, gapLockPath), fmt.Sprintf(`schema = "2"
+
+[components.do-skills]
+repo = %q
+ref = "master"
+commit = %q
+source = "edheltzel/Do-Skills"
+`, url, commit))
 }
 
 func mustDoSkillsComponent(t *testing.T, repo string) component {

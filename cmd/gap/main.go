@@ -278,9 +278,9 @@ func readCheckout(root string) (checkout, error) {
 		return checkout{}, errors.New("refusing to publish: origin/HEAD is not set; run git remote set-head origin --auto")
 	}
 	c := checkout{primary: strings.TrimPrefix(originHead, "origin/")}
-	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/", "skills/")
-	untracked, untrackedErr := git(root, "ls-files", "--others", "--exclude-standard", "--", "global/", "skills/")
-	ignored, ignoredErr := git(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", "global/", "skills/")
+	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/", "skills/", "gap.lock", "gap.toml")
+	untracked, untrackedErr := git(root, "ls-files", "--others", "--exclude-standard", "--", "global/", "skills/", "gap.lock", "gap.toml")
+	ignored, ignoredErr := git(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", "global/", "skills/", "gap.lock", "gap.toml")
 	c.unmerged = diffErr != nil || untrackedErr != nil || ignoredErr != nil || untracked != "" || ignoredBlocks(ignored)
 	if c.branch, err = git(root, "rev-parse", "--abbrev-ref", "HEAD"); err != nil {
 		return c, err
@@ -301,7 +301,7 @@ func refuseCheckout(root string, c checkout) string {
 		return "refusing to publish from a worktree"
 	}
 	if c.unmerged {
-		return fmt.Sprintf("refusing to publish: global/ or skills/ differs from origin/%s; commit, merge and pull first", c.primary)
+		return fmt.Sprintf("refusing to publish: global/, skills/, gap.lock, or gap.toml differs from origin/%s; commit, merge and pull first", c.primary)
 	}
 	return ""
 }
@@ -331,7 +331,7 @@ func ignoredBlocks(list string) bool {
 func ignoredPathBlocks(path string) bool {
 	path = filepath.ToSlash(path)
 	switch path {
-	case "global/AGENTS.md", "global/skills.json", "global/components.lock":
+	case "global/AGENTS.md", "global/skills.json", "gap.lock", "gap.toml":
 		return true
 	}
 	if filepath.Dir(path) == "global/commands" && strings.HasSuffix(path, ".md") {

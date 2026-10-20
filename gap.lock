@@ -1,0 +1,7 @@
+schema = "2"
+
+[components.do-skills]
+repo = "https://github.com/edheltzel/Do-Skills.git"
+ref = "master"
+commit = "78e2c15bfbc484d74a2d38ef3fa727a99272bf25"
+tree = "69d5316f75fc267dc4bf21b526ff333df4388830"

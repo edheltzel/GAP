@@ -76,7 +76,7 @@ func TestCommandSync(t *testing.T) {
 			}
 			out, err := sync()
 			if tc.ignored != "" {
-				if err == nil || !strings.Contains(out, "global/ or skills/ differs") {
+				if err == nil || !strings.Contains(out, "differs from origin/") {
 					t.Fatalf("ignored command must refuse before publishing: %v\n%s", err, out)
 				}
 				if _, err := os.Stat(home); !os.IsNotExist(err) {

@@ -825,7 +825,7 @@ done
 	write(t, filepath.Join(clone, "global", ".gitignore"), "ignored/\nskills.json\n.DS_Store\n")
 	commitMerged("ignore generated files")
 	write(t, filepath.Join(clone, "skills", "ignored", "payload"), "unmerged ignored content\n")
-	if code := cli(); code != 1 || !strings.Contains(lastOut, "global/ or skills/") {
+	if code := cli(); code != 1 || !strings.Contains(lastOut, "differs from origin/") {
 		t.Fatalf("an ignored file skills.sh would install must refuse (exit %d)\n%s", code, lastOut)
 	}
 	if err := os.RemoveAll(filepath.Join(clone, "skills", "ignored")); err != nil {

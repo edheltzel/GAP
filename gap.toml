@@ -1,0 +1,3 @@
+[components.do-skills]
+repo = "https://github.com/edheltzel/Do-Skills.git"
+ref = "master"

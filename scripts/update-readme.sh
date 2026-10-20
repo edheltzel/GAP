@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Skill catalog generator. Regenerates the catalog tables in the root
-# README.md from skills.sh.json and global/components.lock.
-# Do skills live in Do-Skills at the pinned ref; Gap-native skills, if any,
+# README.md from skills.sh.json and gap.lock.
+# Do skills live in Do-Skills at the pinned commit; Gap-native skills, if any,
 # still live under skills/<scope>/<group>/<skill>/SKILL.md.
 # Usage: bash scripts/update-readme.sh
 set -euo pipefail
@@ -9,7 +9,7 @@ set -euo pipefail
 ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 README="$ROOT/README.md"
 GROUPINGS_FILE="$ROOT/skills.sh.json"
-LOCK_FILE="$ROOT/global/components.lock"
+LOCK_FILE="$ROOT/gap.lock"
 SKILLS_DIR="$ROOT/skills"
 
 SCOPE_ORDER="global project"
@@ -19,15 +19,27 @@ GROUP_ORDER_project="typescript frontend backend tooling swift product marketing
 lock_field() {
     node -e '
 const fs = require("fs");
-const lock = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-const c = lock.components["do-skills"];
-if (!c?.ref) process.exit(1);
-process.stdout.write(c[process.argv[2]] ?? "");
+const text = fs.readFileSync(process.argv[1], "utf8");
+const start = text.indexOf("[components.do-skills]");
+if (start < 0) process.exit(1);
+let rest = text.slice(start);
+const next = rest.indexOf("\n[");
+if (next >= 0) rest = rest.slice(0, next);
+const fields = {};
+for (const line of rest.split("\n")) {
+  const m = line.match(/^\s*([A-Za-z0-9_-]+)\s*=\s*"([^"]*)"/);
+  if (m) fields[m[1]] = m[2];
+}
+process.stdout.write(fields[process.argv[2]] ?? "");
 ' "$LOCK_FILE" "$1"
 }
 
-PIN="$(lock_field ref)"
+PIN="$(lock_field commit)"
 SOURCE="$(lock_field source)"
+if [ -z "$SOURCE" ]; then
+    repo="$(lock_field repo)"
+    SOURCE="$(printf '%s' "$repo" | sed -n 's#.*github.com[:/]\([^/]*/[^/.]*\).*#\1#p')"
+fi
 if [ -z "$SOURCE" ]; then
     SOURCE="edheltzel/Do-Skills"
 fi
