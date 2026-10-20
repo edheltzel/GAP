@@ -55,6 +55,8 @@ The 66 Do skills use `"source": "edheltzel/Do-Skills"`. `gap.toml` records the r
 
 To bump the pin, keep `ref` in `gap.toml` as the requested branch, set `commit` (and `tree`) in `gap.lock` to the resolved Do-Skills SHA, and run `gap sync`.
 
+Atlas-specific `do-gh-pm` feedback-agent setup (gat-atlas-bot App and installation ids, key path, Bitwarden note, Atlas-Key PAT, `ATLAS_*` secrets) is in [docs/atlas/feedback-agent-runbook.md](docs/atlas/feedback-agent-runbook.md). Do-Skills keeps placeholders.
+
 ```json
 [
   { "source": "edheltzel/Do-Skills", "skills": ["do-commit", "do-plan"] },

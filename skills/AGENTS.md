@@ -7,7 +7,7 @@
 ## Ownership
 
 - One Gap-native skill is `skills/<scope>/<group>/<skill>/SKILL.md`. Scope is `global` or `project`.
-- Do skills are edited in Do-Skills, not here. Bump `do-skills.commit` (and `tree`) in `gap.lock` after a Do-Skills merge, then `gap sync`.
+- Do skills are edited in Do-Skills, not here. Bump `do-skills.commit` (and `tree`) in `gap.lock` after a Do-Skills merge, then `gap sync`. Atlas-specific `do-gh-pm` feedback-agent values live in [docs/atlas/feedback-agent-runbook.md](../docs/atlas/feedback-agent-runbook.md).
 - `global/skills.json` lists what `gap sync` installs and checks. The pinned Do-Skills `skills.sh.json` owns catalog group blurbs.
 - `scripts/update-readme.sh` owns the generated catalog in the root `README.md` block between `<!-- skills-start -->` and `<!-- skills-end -->`.
 

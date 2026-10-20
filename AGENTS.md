@@ -28,6 +28,7 @@ After a shared markdown change is merged and pulled, run `gap sync`. Sync refuse
 - Add a harness destination in `cmd/gap/main.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
 - Gap-native skills live in `skills/<scope>/<group>/<skill>/`. Do skills come from Do-Skills at the commit in `gap.lock`; `gap sync` clones that pin into `.vendor/do-skills`. List a skill in `global/skills.json` to have `gap sync` install it and check it for drift. After adding, moving, or renaming a Gap-native skill, or after bumping the Do-Skills pin, run `bash scripts/update-readme.sh` to regenerate the catalog. Layout and catalog ownership are in `skills/AGENTS.md`.
 - `docs/solutions/` holds documented solutions to past problems, by category, with YAML frontmatter (`module`, `tags`, `problem_type`). `CONCEPTS.md` is the shared domain vocabulary. Relevant when implementing or debugging in a documented area, or when a domain word is unclear.
+- Atlas-specific `do-gh-pm` feedback-agent setup is in `docs/atlas/feedback-agent-runbook.md`.
 - Go 1.24 or newer, standard library only. The one runtime exception: the skills step runs skills.sh through `npx`, so it needs Node. `go test ./...` is the self-test.
 
 ## Child DOX Index
