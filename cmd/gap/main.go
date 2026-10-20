@@ -1033,7 +1033,7 @@ func copyPolicyFile(src, dst string) error {
 	}
 	if string(got) != string(want) {
 		os.Remove(dst)
-		return errPolicyChanged
+		return fmt.Errorf("%s: %w", dst, errPolicyChanged)
 	}
 	return nil
 }
