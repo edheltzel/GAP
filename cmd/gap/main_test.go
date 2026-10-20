@@ -1116,7 +1116,7 @@ func TestPolicyCommitRejectsConcurrentChanges(t *testing.T) {
 			}
 			ledger := map[string]string{dest: "previous ledger"}
 			ledgerFile := filepath.Join(home, "published.json")
-			wrote, err := commitPublish(dest, gapMarked("new policy\n"), "new policy\n", ledger, ledgerFile, before, "", info)
+			wrote, err := commitPublish(dest, gapMarked("new policy\n"), "new policy\n", ledger, ledgerFile, before, "", home, info)
 			if err != nil || wrote {
 				t.Fatalf("stale publish must be refused: wrote %v err %v", wrote, err)
 			}
@@ -1295,7 +1295,10 @@ func TestPolicyPublicationRecovery(t *testing.T) {
 					} else if got := readString(t, dest); got != want {
 						t.Fatalf("destination = %q, want %q", got, want)
 					}
-					backups, err := filepath.Glob(filepath.Join(filepath.Dir(dest), ".EMPRYO.md.gap-recovery-*", "EMPRYO.md"))
+					if leaked, err := filepath.Glob(filepath.Join(filepath.Dir(dest), ".EMPRYO.md.gap-recovery-*")); err != nil || len(leaked) != 0 {
+						t.Fatalf("recovery leaked into destination dir: %v, %v", leaked, err)
+					}
+					backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", "EMPRYO.md"))
 					if err != nil || len(backups) != map[bool]int{false: 1, true: 0}[state == "missing"] {
 						t.Fatalf("recovery files = %v, %v", backups, err)
 					}
@@ -1327,6 +1330,74 @@ func TestPolicyPublicationRecovery(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func TestRecoverySkippedWhenUnchanged(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	text := gapMarked("policy\n")
+	write(t, dest, text)
+	ledger := map[string]string{dest: digest("policy\n")}
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	wrote, err := publishPolicy("policy\n", dest, false, ledger, ledgerFile, true, home)
+	if err != nil || !wrote {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	if readString(t, dest) != text {
+		t.Fatal("unchanged dest was rewritten")
+	}
+	if leaked, err := filepath.Glob(filepath.Join(filepath.Dir(dest), ".*.gap-recovery-*")); err != nil || len(leaked) != 0 {
+		t.Fatalf("recovery leaked into rules dir: %v, %v", leaked, err)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 0 {
+		t.Fatalf("unchanged dest created recovery copies: %v, %v", backups, err)
+	}
+}
+
+func TestRecoveryStaysOutsideRuleDirs(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, dest, gapMarked("old\n"))
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("new\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+	if err != nil || !wrote {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	entries, err := os.ReadDir(filepath.Join(home, ".claude", "rules"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "gap-recovery") {
+			t.Fatalf("recovery in rules dir: %s", e.Name())
+		}
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if !strings.HasPrefix(backups[0], filepath.Join(home, ".gap", "recovery")+string(filepath.Separator)) {
+		t.Fatalf("recovery not under ~/.gap/recovery: %s", backups[0])
+	}
+}
+
+func TestRecoveryPrunedPerDestination(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".cursor", "rules", "global-agent-policy.mdc")
+	ledger := map[string]string{}
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	for i := 0; i < recoveryKeep+2; i++ {
+		body := "policy " + strings.Repeat("x", i+1) + "\n"
+		wrote, err := publishPolicy(body, dest, true, ledger, ledgerFile, true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publish %d: wrote %v err %v", i, wrote, err)
+		}
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != recoveryKeep {
+		t.Fatalf("kept %d recovery copies, want %d: %v, %v", len(backups), recoveryKeep, backups, err)
 	}
 }
 
