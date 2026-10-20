@@ -883,12 +883,25 @@ func isCrossDevice(err error) bool {
 	return errors.Is(err, syscall.EXDEV)
 }
 
-var copyPolicy = copyPolicyFile
+var (
+	copyPolicy     = copyPolicyFile
+	afterCopyWrite func(src, dst string)
+)
+
+func copyRace(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, errPolicyChanged) {
+		return errPolicyChanged
+	}
+	return err
+}
 
 func copyPolicyFile(src, dst string) error {
 	info, err := os.Lstat(src)
 	if err != nil {
-		return err
+		return copyRace(err)
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
@@ -907,7 +920,7 @@ func copyPolicyFile(src, dst string) error {
 			if err != nil {
 				return err
 			}
-			return fmt.Errorf("recovery symlink mismatch: %s", dst)
+			return errPolicyChanged
 		}
 		return nil
 	}
@@ -917,7 +930,7 @@ func copyPolicyFile(src, dst string) error {
 	perm := info.Mode().Perm()
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		return copyRace(err)
 	}
 	defer in.Close()
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
@@ -941,10 +954,13 @@ func copyPolicyFile(src, dst string) error {
 		os.Remove(dst)
 		return err
 	}
+	if afterCopyWrite != nil {
+		afterCopyWrite(src, dst)
+	}
 	want, err := os.ReadFile(src)
 	if err != nil {
 		os.Remove(dst)
-		return err
+		return copyRace(err)
 	}
 	got, err := os.ReadFile(dst)
 	if err != nil {
@@ -953,7 +969,7 @@ func copyPolicyFile(src, dst string) error {
 	}
 	if string(got) != string(want) {
 		os.Remove(dst)
-		return fmt.Errorf("recovery copy mismatch: %s", dst)
+		return errPolicyChanged
 	}
 	return nil
 }
@@ -1037,7 +1053,7 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 				if err := copyPolicy(dest, backup); err != nil {
 					os.RemoveAll(filepath.Dir(backup))
 					backup = ""
-					return err
+					return copyRace(err)
 				}
 				if err := policyContentUnchanged(backup, existing, linkTarget); err != nil {
 					os.RemoveAll(filepath.Dir(backup))

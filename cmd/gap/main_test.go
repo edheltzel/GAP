@@ -1912,6 +1912,59 @@ func TestRecoveryFallsBackOnEXDEV(t *testing.T) {
 	}
 }
 
+func TestCopyFallbackDisappearIsPolicyChanged(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	write(t, dest, gapMarked("v1\n"))
+	oldRename, oldCopy := renamePolicy, copyPolicy
+	t.Cleanup(func() { renamePolicy, copyPolicy = oldRename, oldCopy })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	copyPolicy = func(src, dst string) error {
+		if err := os.Remove(src); err != nil {
+			t.Fatal(err)
+		}
+		return copyPolicyFile(src, dst)
+	}
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || wrote {
+		t.Fatalf("disappear during copy aborted sync: wrote %v err %v", wrote, err)
+	}
+	if _, err := os.Lstat(dest); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("disappeared dest recreated: %v", err)
+	}
+	if len(ledger) != 0 {
+		t.Fatalf("refused publish changed ledger: %v", ledger)
+	}
+}
+
+func TestCopyFallbackMismatchIsPolicyChanged(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	write(t, dest, gapMarked("v1\n"))
+	oldRename, oldHook := renamePolicy, afterCopyWrite
+	t.Cleanup(func() { renamePolicy, afterCopyWrite = oldRename, oldHook })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	afterCopyWrite = func(src, dst string) {
+		write(t, src, "changed during copy\n")
+	}
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || wrote {
+		t.Fatalf("mismatch during copy aborted sync: wrote %v err %v", wrote, err)
+	}
+	if readString(t, dest) != "changed during copy\n" {
+		t.Fatalf("live dest lost the concurrent edit: %q", readString(t, dest))
+	}
+	if len(ledger) != 0 {
+		t.Fatalf("refused publish changed ledger: %v", ledger)
+	}
+}
+
 func TestCopyFallbackDoesNotRemoveDestEditedDuringCopy(t *testing.T) {
 	home := t.TempDir()
 	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
