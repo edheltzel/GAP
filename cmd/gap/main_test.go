@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -1590,6 +1591,28 @@ func TestUnusedPreparedRecoveryRemoved(t *testing.T) {
 	}
 	if readString(t, dest) != "new regular file\n" {
 		t.Fatalf("live=%q", readString(t, dest))
+	}
+	leftover, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*"))
+	if err != nil || len(leftover) != 0 {
+		t.Fatalf("unused prepared recovery left behind: %v, %v", leftover, err)
+	}
+}
+
+func TestUnusedPreparedRecoveryRemovedOnWriteFailure(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	write(t, fmt.Sprintf("%s.%d.tmp", dest, os.Getpid()), "blocker\n")
+	withYes(t)
+	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), true, home)
+	if wrote || err == nil {
+		t.Fatalf("blocked write must fail: wrote %v err %v", wrote, err)
+	}
+	if target, err := os.Readlink(dest); err != nil || target != "target.md" {
+		t.Fatalf("write failure changed symlink: %q, %v", target, err)
 	}
 	leftover, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*"))
 	if err != nil || len(leftover) != 0 {
