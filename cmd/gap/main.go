@@ -883,7 +883,9 @@ func isCrossDevice(err error) bool {
 	return errors.Is(err, syscall.EXDEV)
 }
 
-func copyPolicy(src, dst string) error {
+var copyPolicy = copyPolicyFile
+
+func copyPolicyFile(src, dst string) error {
 	info, err := os.Lstat(src)
 	if err != nil {
 		return err
@@ -1038,6 +1040,11 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 					return err
 				}
 				if err := policyContentUnchanged(backup, existing, linkTarget); err != nil {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return err
+				}
+				if err := policyUnchanged(dest, existing, linkTarget, before); err != nil {
 					os.RemoveAll(filepath.Dir(backup))
 					backup = ""
 					return err

@@ -1912,6 +1912,35 @@ func TestRecoveryFallsBackOnEXDEV(t *testing.T) {
 	}
 }
 
+func TestCopyFallbackDoesNotRemoveDestEditedDuringCopy(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	write(t, dest, gapMarked("v1\n"))
+	oldRename, oldCopy := renamePolicy, copyPolicy
+	t.Cleanup(func() { renamePolicy, copyPolicy = oldRename, oldCopy })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	copyPolicy = func(src, dst string) error {
+		if err := copyPolicyFile(src, dst); err != nil {
+			return err
+		}
+		write(t, src, "late edit\n")
+		return nil
+	}
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || wrote {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	if readString(t, dest) != "late edit\n" {
+		t.Fatalf("live dest deleted after mid-copy edit: %q", readString(t, dest))
+	}
+	if len(ledger) != 0 {
+		t.Fatalf("refused publish changed ledger: %v", ledger)
+	}
+}
+
 func TestRecoveryEXDEVRestoresOnInstallFailure(t *testing.T) {
 	home := t.TempDir()
 	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
