@@ -147,7 +147,8 @@
   {
     "source": "plannotator/guides",
     "skills": [
-      "plannotator-guide"
+      "guided-plan",
+      "guided-review"
     ]
   },
   {
