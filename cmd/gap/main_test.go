@@ -1724,6 +1724,9 @@ func TestRemoveLegacyGapRecoveryDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(legacy, filepath.Base(dest)), "stale policy\n")
+	if err := os.Symlink("target.md", filepath.Join(legacy, "link")); err != nil {
+		t.Fatal(err)
+	}
 	other := filepath.Join(filepath.Dir(dest), ".other.md.gap-recovery-abc123")
 	if err := os.MkdirAll(other, 0o755); err != nil {
 		t.Fatal(err)
@@ -1734,12 +1737,25 @@ func TestRemoveLegacyGapRecoveryDirs(t *testing.T) {
 	}
 	fileMatch := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-file")
 	write(t, fileMatch, "not a dir\n")
-	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
-	if err != nil || !wrote {
-		t.Fatalf("publication = %v, %v", wrote, err)
-	}
+	moved := filepath.Join(recoveryDir(dest, home), filepath.Base(legacy))
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	_ = stderr
 	if _, err := os.Lstat(legacy); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("legacy recovery dir remains: %v", err)
+	}
+	if readString(t, filepath.Join(moved, filepath.Base(dest))) != "stale policy\n" {
+		t.Fatalf("moved contents lost: %q", readString(t, filepath.Join(moved, filepath.Base(dest))))
+	}
+	if target, err := os.Readlink(filepath.Join(moved, "link")); err != nil || target != "target.md" {
+		t.Fatalf("moved symlink lost: %q, %v", target, err)
+	}
+	if !strings.Contains(stdout, "Moved leftover recovery dir "+legacy+" to "+moved) {
+		t.Fatalf("missing move line: %q", stdout)
 	}
 	if _, err := os.Lstat(other); err != nil {
 		t.Fatalf("unrelated dir removed: %v", err)
@@ -1759,6 +1775,32 @@ func TestRemoveLegacyGapRecoveryDirs(t *testing.T) {
 			}
 			t.Fatalf("unexpected leftover: %s", p)
 		}
+	}
+}
+
+func TestLegacyRecoveryMoveFailureLeavesSource(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, dest, gapMarked("old\n"))
+	legacy := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-abc123")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(legacy, filepath.Base(dest)), "stale policy\n")
+	oldRelocate := relocateDir
+	t.Cleanup(func() { relocateDir = oldRelocate })
+	relocateDir = func(src, dst string) error { return os.ErrPermission }
+	_, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if readString(t, filepath.Join(legacy, filepath.Base(dest))) != "stale policy\n" {
+		t.Fatal("failed move deleted the leftover dir")
+	}
+	if !strings.Contains(stderr, "Warning: moving leftover recovery dir "+legacy) {
+		t.Fatalf("missing move warning: %q", stderr)
 	}
 }
 

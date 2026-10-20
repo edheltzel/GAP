@@ -635,7 +635,60 @@ func recoveryHoldsSymlink(dir string) bool {
 	return false
 }
 
-func removeLegacyRecovery(dest string) {
+var relocateDir = relocateDirFile
+
+func copyTree(src, dst string) error {
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	if isSymlink(info) {
+		target, err := os.Readlink(src)
+		if err != nil {
+			return err
+		}
+		return os.Symlink(target, dst)
+	}
+	if info.IsDir() {
+		if err := os.Mkdir(dst, 0o755); err != nil {
+			return err
+		}
+		if err := os.Chmod(dst, info.Mode().Perm()); err != nil {
+			return err
+		}
+		entries, err := os.ReadDir(src)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if err := copyTree(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a file", src)
+	}
+	return copyPolicyFile(src, dst)
+}
+
+func relocateDirFile(src, dst string) error {
+	err := os.Rename(src, dst)
+	if err == nil {
+		return nil
+	}
+	if !isCrossDevice(err) {
+		return err
+	}
+	if err := copyTree(src, dst); err != nil {
+		os.RemoveAll(dst)
+		return err
+	}
+	return os.RemoveAll(src)
+}
+
+func removeLegacyRecovery(dest, home string) {
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-*"))
 	if err != nil {
 		return
@@ -645,9 +698,16 @@ func removeLegacyRecovery(dest string) {
 		if err != nil || !info.IsDir() {
 			continue
 		}
-		if err := os.RemoveAll(p); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: removing leftover recovery dir %s: %v\n", p, err)
+		dst := filepath.Join(recoveryDir(dest, home), filepath.Base(p))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: moving leftover recovery dir %s: %v\n", p, err)
+			continue
 		}
+		if err := relocateDir(p, dst); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: moving leftover recovery dir %s: %v\n", p, err)
+			continue
+		}
+		fmt.Println("Moved leftover recovery dir " + p + " to " + dst)
 	}
 }
 
@@ -1170,7 +1230,7 @@ func publish(payload, dest string, ledger map[string]string, ledgerFile string, 
 }
 
 func publishPolicy(source, dest string, cursor bool, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
-	removeLegacyRecovery(dest)
+	removeLegacyRecovery(dest, backupRoot)
 	body := adapt(source, false)
 	unmarked := adapt(source, cursor)
 	var existing, linkTarget string
