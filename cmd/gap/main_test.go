@@ -1019,6 +1019,152 @@ func TestEmpryoSpliceKeepsSoulStack(t *testing.T) {
 	}
 }
 
+func TestSpliceConcurrentConfirmation(t *testing.T) {
+	for _, state := range []string{"foreign update", "markers added", "symlink"} {
+		t.Run(state, func(t *testing.T) {
+			home := t.TempDir()
+			dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+			write(t, dest, empryoFixture)
+			latest := strings.ReplaceAll(empryoFixture, "keep this", "new SoulStack rules")
+			want := latest + gapMarked("new policy\n")
+			withYes(t)
+			confirmLine = func() string {
+				switch state {
+				case "markers added":
+					write(t, dest, latest+gapMarked("another publish\n")+"new footer\n")
+					want += "new footer\n"
+				case "symlink":
+					target := filepath.Join(home, "other.md")
+					write(t, target, latest)
+					if err := os.Remove(dest); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(target, dest); err != nil {
+						t.Fatal(err)
+					}
+					want = latest
+				default:
+					write(t, dest, latest)
+				}
+				return "y\n"
+			}
+			ledger := map[string]string{}
+			wrote, err := publishPolicy("new policy\n", dest, false, ledger, filepath.Join(home, "published.json"), true, home)
+			if err != nil || wrote != (state != "symlink") {
+				t.Fatalf("publish: wrote %v err %v", wrote, err)
+			}
+			if got := readString(t, dest); got != want {
+				t.Fatalf("concurrent update lost: got %q, want %q", got, want)
+			}
+			if state == "symlink" {
+				if _, err := os.Readlink(dest); err != nil || len(ledger) != 0 {
+					t.Fatalf("changed destination must stay untouched: ledger %v err %v", ledger, err)
+				}
+				return
+			}
+			backups, _ := filepath.Glob(filepath.Join(home, ".gap", "backups", "*", ".empryo", "EMPRYO.md"))
+			backupWant := latest
+			if state == "markers added" {
+				backupWant += gapMarked("another publish\n") + "new footer\n"
+			}
+			if len(backups) != 1 || readString(t, backups[0]) != backupWant {
+				t.Fatalf("backup must contain the confirmed current file: %v", backups)
+			}
+		})
+	}
+}
+
+func TestPolicyCommitRejectsConcurrentChanges(t *testing.T) {
+	for _, state := range []string{"marked edit", "legacy edit", "replacement", "deleted", "symlink", "created"} {
+		t.Run(state, func(t *testing.T) {
+			home := t.TempDir()
+			dest := filepath.Join(home, "EMPRYO.md")
+			before := "old policy\n"
+			if state != "legacy edit" {
+				before = empryoFixture + gapMarked(before)
+			}
+			if state == "created" {
+				before = ""
+			} else {
+				write(t, dest, before)
+			}
+			info, _ := os.Lstat(dest)
+			latest := "concurrent rules\n"
+			switch state {
+			case "deleted", "symlink":
+				if err := os.Remove(dest); err != nil {
+					t.Fatal(err)
+				}
+			}
+			switch state {
+			case "deleted":
+			case "symlink":
+				target := filepath.Join(home, "other.md")
+				write(t, target, latest)
+				if err := os.Symlink(target, dest); err != nil {
+					t.Fatal(err)
+				}
+			case "replacement":
+				latest = before
+				replacement := filepath.Join(home, "replacement.md")
+				write(t, replacement, latest)
+				if err := os.Rename(replacement, dest); err != nil {
+					t.Fatal(err)
+				}
+			default:
+				write(t, dest, latest)
+			}
+			ledger := map[string]string{dest: "previous ledger"}
+			ledgerFile := filepath.Join(home, "published.json")
+			wrote, err := commitPublish(dest, gapMarked("new policy\n"), "new policy\n", ledger, ledgerFile, before, info)
+			if err != nil || wrote {
+				t.Fatalf("stale publish must be refused: wrote %v err %v", wrote, err)
+			}
+			if state == "deleted" {
+				if _, err := os.Lstat(dest); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("deleted destination recreated: %v", err)
+				}
+			} else if got := readString(t, dest); got != latest {
+				t.Fatalf("concurrent contents lost: %q", got)
+			}
+			if ledger[dest] != "previous ledger" {
+				t.Fatal("refused publish changed the ledger")
+			}
+			if _, err := os.Stat(ledgerFile); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("refused publish wrote the ledger: %v", err)
+			}
+			if temps, _ := filepath.Glob(dest + ".*.tmp"); len(temps) != 0 {
+				t.Fatalf("refused publish left temporary files: %v", temps)
+			}
+		})
+	}
+}
+
+func TestSpliceSymlinkChangedDuringConfirmation(t *testing.T) {
+	home := t.TempDir()
+	dest, target := filepath.Join(home, "EMPRYO.md"), filepath.Join(home, "other.md")
+	write(t, target, "original target\n")
+	if err := os.Symlink(target, dest); err != nil {
+		t.Fatal(err)
+	}
+	withYes(t)
+	confirmLine = func() string {
+		if err := os.Remove(dest); err != nil {
+			t.Fatal(err)
+		}
+		write(t, dest, "new regular file\n")
+		return "y\n"
+	}
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("policy\n", dest, false, ledger, filepath.Join(home, "published.json"), true, home)
+	if err != nil || wrote || len(ledger) != 0 {
+		t.Fatalf("changed symlink must be refused: wrote %v ledger %v err %v", wrote, ledger, err)
+	}
+	if readString(t, dest) != "new regular file\n" || readString(t, target) != "original target\n" {
+		t.Fatal("replacement or original target changed")
+	}
+}
+
 func TestEmpryoForeignRefusedWithoutTerminal(t *testing.T) {
 	home := t.TempDir()
 	codex := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")

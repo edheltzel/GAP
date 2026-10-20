@@ -709,3 +709,85 @@ func TestEmpryoShadowKeepsDriftResult(t *testing.T) {
 		t.Fatalf("want exactly one shadow warning, got %d: %q", n, out)
 	}
 }
+
+func TestEmpryoShadowAfterDriftResolution(t *testing.T) {
+	for _, tc := range []struct {
+		name, choice, shadow string
+		terminal, fail, ok   bool
+		warnings             int
+	}{
+		{"take source exposes shadow", "t", "old\n", true, false, true, 1},
+		{"take source resolves shadow", "t", "new\n", true, false, true, 0},
+		{"keep matching shadow", "k", "old\n", true, false, true, 0},
+		{"keep differing shadow", "k", "new\n", true, false, true, 1},
+		{"skip", "s", "new\n", true, false, false, 1},
+		{"no terminal", "", "new\n", false, false, false, 1},
+		{"failed repair restores matching shadow", "t", "old\n", true, true, false, 0},
+		{"failed repair retains differing shadow", "t", "new\n", true, true, false, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home, repo, bin := t.TempDir(), t.TempDir(), t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("XDG_STATE_HOME", "")
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			sourceDir := filepath.Join(repo, "skills", "global", "core", "do-x")
+			write(t, filepath.Join(sourceDir, "SKILL.md"), "new\n")
+			t.Setenv("GAP_TEST_SOURCE", sourceDir)
+			for _, dir := range skillDirs(home, "do-x") {
+				write(t, filepath.Join(dir, "SKILL.md"), "old\n")
+			}
+			shadow := filepath.Join(home, ".empryo", "skills", "do-x", "SKILL.md")
+			write(t, shadow, tc.shadow)
+			script := `#!/bin/sh
+mkdir -p "$HOME/.agents/skills/do-x" "$HOME/.claude/skills/do-x"
+cp "$GAP_TEST_SOURCE/SKILL.md" "$HOME/.agents/skills/do-x/SKILL.md"
+cp "$GAP_TEST_SOURCE/SKILL.md" "$HOME/.claude/skills/do-x/SKILL.md"
+`
+			if tc.fail {
+				script = "#!/bin/sh\nexit 1\n"
+			}
+			npx := filepath.Join(bin, "npx")
+			write(t, npx, script)
+			if err := os.Chmod(npx, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			input := filepath.Join(home, "answer")
+			write(t, input, tc.choice+"\n")
+			in, err := os.Open(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer in.Close()
+			out, err := os.Create(filepath.Join(home, "stderr"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer out.Close()
+			oldIn, oldErr, oldTerm := os.Stdin, os.Stderr, termReady
+			os.Stdin, os.Stderr = in, out
+			termReady = func() bool { return tc.terminal }
+			t.Cleanup(func() { os.Stdin, os.Stderr, termReady = oldIn, oldErr, oldTerm })
+			ok, err := checkDrift(repo, home, []manifestEntry{{Source: ".", Skills: []string{"do-x"}}})
+			os.Stdin, os.Stderr, termReady = oldIn, oldErr, oldTerm
+			if err != nil || ok != tc.ok {
+				t.Fatalf("drift result: ok %v err %v", ok, err)
+			}
+			output := readString(t, out.Name())
+			if count := strings.Count(output, "Empryo loads "); count != tc.warnings {
+				t.Fatalf("shadow warnings = %d, want %d: %q", count, tc.warnings, output)
+			}
+			want := "old\n"
+			if tc.choice == "t" && !tc.fail {
+				want = "new\n"
+			}
+			for _, dir := range skillDirs(home, "do-x") {
+				if got := readString(t, filepath.Join(dir, "SKILL.md")); got != want {
+					t.Fatalf("managed skill = %q, want %q", got, want)
+				}
+			}
+			if readString(t, shadow) != tc.shadow {
+				t.Fatal("drift resolution changed the Empryo shadow")
+			}
+		})
+	}
+}

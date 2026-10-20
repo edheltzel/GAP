@@ -32,7 +32,7 @@ Sources: empryo.com/docs `context/prompt-system`, `tools/skills`, `tools/agents`
 ### U2. Warn on Empryo-only skill shadows
 - Depends on: none
 - Files: `cmd/gap/skills.go`, `cmd/gap/skills_test.go`
-- Change: during the drift check, for each managed skill name, if `~/.empryo/skills/<name>` exists and its content hash differs from the installed `~/.agents/skills/<name>`, print one warning naming both paths and saying Empryo loads the `~/.empryo` copy first. Warn only; never write or delete there. Skip the name `empryo`.
+- Change: after drift resolution, including failed repairs, for each managed skill name, if `~/.empryo/skills/<name>` exists and its content hash differs from the resulting `~/.agents/skills/<name>`, print one warning naming both paths and saying Empryo loads the `~/.empryo` copy first. Warn only; never write or delete there. Skip the name `empryo`.
 - Done when: a differing shadow copy produces exactly one warning, a matching copy or no copy produces none, and the exit code is unchanged.
 - Verify: table test in `cmd/gap/skills_test.go` with a fake home: no shadow, identical shadow, differing shadow, and a shadow named `empryo` (ignored). `go test ./...`.
 
@@ -46,16 +46,16 @@ Sources: empryo.com/docs `context/prompt-system`, `tools/skills`, `tools/agents`
 ### U4. Review A/B, then the swap if Empryo wins
 - Depends on: U3
 - Files: `skills/global/core/do-adversarial-review/SKILL.md`, `skills/global/core/do-adversarial-review/references/empryo-review.md` (new, only if Empryo wins), `docs/solutions/2026-10-19-empryo-review-ab.md` (new)
-- Change: spike first. Seed 3 throwaway diffs in a scratch repo (not GAP), each with one known bug from the skill's table (null deref, off-by-one, swallowed error) plus one decoy that looks wrong but is guarded. For each diff run (a) the skill in-session and (b) `empryo --headless --review "<the skill's hunt brief: bug classes and the trigger gate>" --json`. Record true bugs found, false positives, wall time, and cost. Empryo wins only if it finds at least as many true bugs with no more false positives. If it wins: inside Empryo (per U3) the skill runs that command as its engine, maps FAIL/PARTIAL findings to its P0-P3 report, and keeps its contract (read-only, `mode:return-to-caller`, status words). A `verdict: null` means not reviewed, never PASS, and falls back to the in-skill path; this covers a GitButler lane whose changes are already committed. More than 30 changed files also falls back. In a GitButler workspace the reviewer sees every applied lane's uncommitted changes: when more than one lane holds uncommitted changes, the skill lists the reviewed lane's files from `but status`, applies the 30-file limit to that list, names those files in the brief, and keeps only findings on them; if the lane's files cannot be listed, it falls back. Outside Empryo nothing changes. If it loses, the skill is unchanged. Either way the solutions note records the numbers and the decision.
+- Change: spike first. Seed 3 throwaway diffs in a scratch repo (not GAP), each with one known bug from the skill's table (null deref, off-by-one, swallowed error) plus one decoy that looks wrong but is guarded. For each diff run (a) the skill in-session and (b) `empryo --headless --review "<the skill's hunt brief: bug classes and the trigger gate>" --json`. Record true bugs found, false positives, wall time, and cost. Empryo wins only if it finds at least as many true bugs with no more false positives. If it wins: inside Empryo (per U3) the skill runs that command as its engine, maps FAIL/PARTIAL findings to its P0-P3 report, and keeps its contract (read-only, `mode:return-to-caller`, status words). A `verdict: null` means not reviewed, never PASS, and falls back to the in-skill path; this covers a GitButler lane whose changes are already committed. More than 30 changed files in the entire working tree also falls back. In a GitButler workspace the reviewer sees every applied lane's uncommitted changes: list every lane's changed files from `but status`. If the reviewed lane shares a changed file with another lane, or file ownership cannot be established, fall back to the in-skill hunt on the reviewed lane's actual diff and attribute findings to its hunks. Otherwise name the reviewed lane's files in the brief and keep only findings on them. Outside Empryo nothing changes. If it loses, the skill is unchanged. Either way the solutions note records the numbers and the decision.
 - Done when: the solutions note holds the A/B table and the decision, and the skill matches that decision.
 - Verify: the A/B table is in the note with the commands used. If swapped: one run of `do-adversarial-review` inside a real Empryo tab on a seeded diff reports the seeded bug, and one run with no uncommitted changes falls back instead of passing. A nested `empryo --headless` inside a running Empryo tab completes. `go test ./...` still passes (skills tree gate).
 
-### U5. One-line Empryo mappings in two skills
+### U5. One-line Empryo delegation mapping
 - Depends on: U3
-- Files: `skills/global/operations/do-delegation/SKILL.md`, `skills/global/core/do-redteam/Workflows/AdversarialValidation.md`
-- Change: one line each, citing U3: in Empryo, `do-delegation`'s subagent tool is `dispatch` / `background_dispatch`, with `find_agent` for custom agents; `AdversarialValidation` may use Empryo's `council` to develop competing alternatives. No other rewrites.
-- Done when: each file gains exactly that line and still reads correctly for other harnesses.
-- Verify: `git diff --stat` shows one or two added lines per file; `bash scripts/update-readme.sh` leaves the catalog unchanged.
+- Files: `skills/global/operations/do-delegation/SKILL.md`
+- Change: one line citing U3: in Empryo, `do-delegation`'s subagent tool is `dispatch` / `background_dispatch`, with `find_agent` for custom agents. No other rewrites.
+- Done when: the file gains exactly that line and still reads correctly for other harnesses.
+- Verify: `git diff --stat` shows one added line; `bash scripts/update-readme.sh` leaves the catalog unchanged.
 
 ### U6. Empryo pin set
 - Depends on: U1
@@ -85,7 +85,7 @@ Sources: empryo.com/docs `context/prompt-system`, `tools/skills`, `tools/agents`
 
 - U1-U3: Empryo policy destination, shadow warning, harness-detection doc
 - U4: A/B do-adversarial-review vs empryo --headless --review, swap only if Empryo wins
-- U5: one-line Empryo mappings in do-delegation and do-redteam
+- U5: one-line Empryo delegation mapping in do-delegation
 - U6: Empryo pin set (do-todo, do-commit, but-axi); no preset, gap sync prints the settings call
 - U7: gap sync from a terminal, prove policy, SoulStack round trip, and pin set in a new Empryo tab
 - Decide do-git-worktree: remove, or rewrite for GitButler lanes (contradicts the no-native-worktree rule)

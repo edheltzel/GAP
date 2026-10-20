@@ -44,6 +44,8 @@ var docsDir string
 // errSkipped means at least one destination was refused; the reason is already on stderr.
 var errSkipped = errors.New("skipped")
 
+var errPolicyChanged = errors.New("policy destination changed during sync")
+
 func main() { os.Exit(run(os.Args[1:])) }
 
 func run(args []string) int {
@@ -500,6 +502,10 @@ func isZero(v any) bool {
 }
 
 func writeAtomic(path, text string) error {
+	return writeAtomicChecked(path, text, nil)
+}
+
+func writeAtomicChecked(path, text string, check func() error) error {
 	info, err := os.Lstat(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -531,6 +537,11 @@ func writeAtomic(path, text string) error {
 	}
 	if closeErr != nil {
 		return closeErr
+	}
+	if check != nil {
+		if err := check(); err != nil {
+			return err
+		}
 	}
 	return os.Rename(tmp, path)
 }
@@ -713,8 +724,38 @@ func matchesPublish(onDisk, payload string) bool {
 	return ok && inner == payload
 }
 
-func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile string) (bool, error) {
-	if err := writeAtomic(dest, text); err != nil {
+func policyUnchanged(dest, existing string, before fs.FileInfo) error {
+	current, err := os.Lstat(dest)
+	if errors.Is(err, fs.ErrNotExist) {
+		if before == nil {
+			return nil
+		}
+		return errPolicyChanged
+	}
+	if err != nil {
+		return err
+	}
+	if before == nil || !os.SameFile(before, current) || before.Mode() != current.Mode() {
+		return errPolicyChanged
+	}
+	if current.Mode().IsRegular() {
+		b, err := os.ReadFile(dest)
+		if err != nil {
+			return err
+		}
+		if string(b) != existing {
+			return errPolicyChanged
+		}
+	}
+	return nil
+}
+
+func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile, existing string, before fs.FileInfo) (bool, error) {
+	err := writeAtomicChecked(dest, text, func() error { return policyUnchanged(dest, existing, before) })
+	if errors.Is(err, errPolicyChanged) {
+		return refuse("Refusing to publish policy changed during sync: %s", dest)
+	}
+	if err != nil {
 		return false, err
 	}
 	ledger[dest] = digest(body)
@@ -804,6 +845,11 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 		if !confirmReplace(dest, backup) {
 			return false, nil
 		}
+		if err := policyUnchanged(dest, existing, info); errors.Is(err, errPolicyChanged) {
+			return refuse("Refusing to replace policy changed during sync: %s", dest)
+		} else if err != nil {
+			return false, err
+		}
 		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
 			return false, err
 		}
@@ -812,16 +858,16 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 		}
 		fmt.Println("Backed up to " + backup)
 		fmt.Println(replaceWarning)
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, "", nil)
 	}
 	if !exists {
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, info)
 	}
 	if next, ok := replaceBlock(existing, body); ok {
-		return commitPublish(dest, next, body, ledger, ledgerFile)
+		return commitPublish(dest, next, body, ledger, ledgerFile, existing, info)
 	}
 	if ours(existing, true, unmarked, ledger[dest]) {
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, info)
 	}
 	if !allowPrompt || !termReady() {
 		return refuse("Refusing to replace foreign file (no prompt): %s", dest)
@@ -830,11 +876,27 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 	if !confirmSplice(dest, backup) {
 		return false, nil
 	}
+	info, err = os.Lstat(dest)
+	if errors.Is(err, fs.ErrNotExist) || err == nil && !info.Mode().IsRegular() {
+		return refuse("Refusing to splice policy changed during sync: %s", dest)
+	}
+	if err != nil {
+		return false, err
+	}
+	b, err := os.ReadFile(dest)
+	if err != nil {
+		return false, err
+	}
+	existing = string(b)
 	if err := copyFile(dest, backup); err != nil {
 		return false, err
 	}
 	fmt.Println("Backed up to " + backup)
-	return commitPublish(dest, appendBlock(existing, body), body, ledger, ledgerFile)
+	next, ok := replaceBlock(existing, body)
+	if !ok {
+		next = appendBlock(existing, body)
+	}
+	return commitPublish(dest, next, body, ledger, ledgerFile, existing, info)
 }
 
 func ensureGapHook(codexDir, policyPath, backupRoot string) (bool, error) {
