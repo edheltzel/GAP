@@ -395,6 +395,68 @@ func TestLoadSkillPathsLockShape(t *testing.T) {
 	}
 }
 
+func TestLockRejectsUnknownKeysAndBadTree(t *testing.T) {
+	repo := t.TempDir()
+	writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	write(t, filepath.Join(repo, gapLockPath), `schema = "2"
+comment = "nope"
+
+[components.do-skills]
+repo = "https://github.com/edheltzel/Do-Skills.git"
+ref = "master"
+commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+`)
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "unknown key") {
+		t.Fatalf("unknown lock key: %v", err)
+	}
+	writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	write(t, filepath.Join(repo, gapLockPath), `schema = "2"
+
+[components.do-skills]
+repo = "https://github.com/edheltzel/Do-Skills.git"
+ref = "master"
+commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+tre = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+`)
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "unknown key") {
+		t.Fatalf("unknown component key: %v", err)
+	}
+	writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	write(t, filepath.Join(repo, gapTOMLPath), `[components.do-skills]
+repo = "https://github.com/edheltzel/Do-Skills.git"
+ref = "master"
+extra = "nope"
+`)
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "unknown key") {
+		t.Fatalf("unknown toml key: %v", err)
+	}
+	writeDoSkillsLock(t, repo, "https://github.com/edheltzel/Do-Skills.git", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	write(t, filepath.Join(repo, gapLockPath), `schema = "2"
+
+[components.do-skills]
+repo = "https://github.com/edheltzel/Do-Skills.git"
+ref = "master"
+commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+tree = "not-a-tree"
+source = "edheltzel/Do-Skills"
+`)
+	if _, err := loadSkillPaths(repo); err == nil || !strings.Contains(err.Error(), "40-character lowercase hex SHA") {
+		t.Fatalf("bad tree: %v", err)
+	}
+	write(t, filepath.Join(repo, gapLockPath), `schema = "2"
+
+[components.do-skills]
+repo = "https://github.com/edheltzel/Do-Skills.git"
+ref = "master"
+commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+tree = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+source = "edheltzel/Do-Skills"
+`)
+	if _, err := loadSkillPaths(repo); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSourceMatchIgnoresCaseAndGitSuffix(t *testing.T) {
 	repo := t.TempDir()
 	write(t, filepath.Join(repo, gapTOMLPath), `[components.do-skills]

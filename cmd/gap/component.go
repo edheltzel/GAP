@@ -57,6 +57,9 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 	if tomlString(lock, "schema") != "2" {
 		return p, fmt.Errorf("%s: schema must be \"2\"", gapLockPath)
 	}
+	if err := checkTOMLKeys(lock, map[string]bool{"schema": true, "components": true}, gapLockPath); err != nil {
+		return p, err
+	}
 	comps := tomlChild(lock, "components")
 	if comps == nil {
 		return p, fmt.Errorf("%s: missing [components] tables", gapLockPath)
@@ -66,6 +69,9 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 		spec, ok := raw.(tomlTable)
 		if !ok {
 			return p, fmt.Errorf("%s: component %s is not a table", gapLockPath, name)
+		}
+		if err := checkTOMLKeys(spec, map[string]bool{"repo": true, "ref": true, "commit": true, "tree": true, "source": true}, gapLockPath+": component "+name); err != nil {
+			return p, err
 		}
 		c, err := componentFromTable(name, spec)
 		if err != nil {
@@ -84,6 +90,9 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 	if err != nil {
 		return p, fmt.Errorf("%s: %w", gapTOMLPath, err)
 	}
+	if err := checkTOMLKeys(req, map[string]bool{"components": true}, gapTOMLPath); err != nil {
+		return p, err
+	}
 	reqComps := tomlChild(req, "components")
 	if reqComps == nil {
 		return p, fmt.Errorf("%s: missing [components] tables", gapTOMLPath)
@@ -92,6 +101,9 @@ func loadSkillPaths(repoRoot string) (skillPaths, error) {
 		spec, ok := raw.(tomlTable)
 		if !ok {
 			return p, fmt.Errorf("%s: component %s is not a table", gapTOMLPath, name)
+		}
+		if err := checkTOMLKeys(spec, map[string]bool{"repo": true, "ref": true}, gapTOMLPath+": component "+name); err != nil {
+			return p, err
 		}
 		got, ok := byName[name]
 		if !ok {
@@ -178,6 +190,11 @@ func componentFromTable(name string, spec tomlTable) (component, error) {
 	}
 	if err := requirePinCommit(c); err != nil {
 		return component{}, err
+	}
+	if c.Tree != "" {
+		if err := lowercaseHexSHA(c.Tree, "component "+name+" tree"); err != nil {
+			return component{}, err
+		}
 	}
 	if c.Source == "" {
 		c.Source = githubSourceFromURL(c.Repo)
@@ -319,18 +336,31 @@ func ensureNeeded(repoRoot string, paths skillPaths, entries []manifestEntry) bo
 	return ok
 }
 
-func requirePinCommit(c component) error {
-	if len(c.Commit) != 40 {
-		return fmt.Errorf("component %s commit must be a 40-character lowercase hex SHA", c.Name)
+func checkTOMLKeys(t tomlTable, allowed map[string]bool, where string) error {
+	for k := range t {
+		if !allowed[k] {
+			return fmt.Errorf("%s: unknown key %s", where, k)
+		}
+	}
+	return nil
+}
+
+func lowercaseHexSHA(s, what string) error {
+	if len(s) != 40 {
+		return fmt.Errorf("%s must be a 40-character lowercase hex SHA", what)
 	}
 	for i := 0; i < 40; i++ {
-		ch := c.Commit[i]
+		ch := s[i]
 		if ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'f' {
 			continue
 		}
-		return fmt.Errorf("component %s commit must be a 40-character lowercase hex SHA", c.Name)
+		return fmt.Errorf("%s must be a 40-character lowercase hex SHA", what)
 	}
 	return nil
+}
+
+func requirePinCommit(c component) error {
+	return lowercaseHexSHA(c.Commit, "component "+c.Name+" commit")
 }
 
 func ensureComponent(repoRoot string, c component) error {
