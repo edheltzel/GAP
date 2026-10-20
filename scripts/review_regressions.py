@@ -12,10 +12,13 @@ from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ART = ROOT / "skills/global/content/do-art/Tools"
+DO_SKILLS = ROOT / ".vendor" / "do-skills"
+if not (DO_SKILLS / "skills").is_dir():
+    sys.exit("Do-Skills checkout missing at .vendor/do-skills; clone the pin in gap.lock first")
+ART = DO_SKILLS / "skills/global/content/do-art/Tools"
 PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9m8AAAAASUVORK5CYII=")
 sys.dont_write_bytecode = True
-spec = importlib.util.spec_from_file_location("illo", ROOT / "skills/global/content/do-illo/scripts/illo.py")
+spec = importlib.util.spec_from_file_location("illo", DO_SKILLS / "skills/global/content/do-illo/scripts/illo.py")
 illo = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(illo)
 
@@ -145,7 +148,7 @@ else:
                      "listenersPerCycle": 0.125, "finalHeapMB": series[-1], "series": [{"heapMB": h, "nodes": 10} for h in series]}}
             for name, value in (("before", before), ("after", after)):
                 (self.root / f"{name}.json").write_text(json.dumps(value))
-            result = self.run_cli("node", str(ROOT / "skills/project/tooling/do-perf/scripts/perf-report.mjs"), "--before=before.json", "--after=after.json", f"--out=report-{index}.html")
+            result = self.run_cli("node", str(DO_SKILLS / "skills/project/tooling/do-perf/scripts/perf-report.mjs"), "--before=before.json", "--after=after.json", f"--out=report-{index}.html")
             self.assertEqual(result.returncode, 0, result.stderr)
             report = GeneratedReport((self.root / f"report-{index}.html").read_text())
             self.assertIn(["Node growth per cycle", "0", "0.25", "GROWING"], report.rows)
