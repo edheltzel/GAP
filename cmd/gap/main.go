@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -43,6 +44,8 @@ var docsDir string
 
 // errSkipped means at least one destination was refused; the reason is already on stderr.
 var errSkipped = errors.New("skipped")
+
+var errPolicyChanged = errors.New("policy destination changed during sync")
 
 func main() { os.Exit(run(os.Args[1:])) }
 
@@ -500,6 +503,10 @@ func isZero(v any) bool {
 }
 
 func writeAtomic(path, text string) error {
+	return writeStaged(path, text, func(tmp string) error { return os.Rename(tmp, path) })
+}
+
+func writeStaged(path, text string, commit func(string) error) error {
 	info, err := os.Lstat(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -532,7 +539,7 @@ func writeAtomic(path, text string) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	return os.Rename(tmp, path)
+	return commit(tmp)
 }
 
 func copyFile(src, dst string) error {
@@ -583,6 +590,160 @@ func backupPath(dest, root string) string {
 		tail = dest[1:]
 	}
 	return filepath.Join(root, ".gap", "backups", stamp, tail)
+}
+
+// recoveryKeep is the number of timestamped recovery copies retained per destination.
+const recoveryKeep = 3
+
+func recoveryID(dest, home string) string {
+	rel, err := filepath.Rel(home, dest)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return strings.TrimPrefix(dest, string(filepath.Separator))
+	}
+	return rel
+}
+
+func recoveryDir(dest, home string) string {
+	return filepath.Join(home, ".gap", "recovery", recoveryID(dest, home))
+}
+
+func makeRecovery(dest, home string) (string, error) {
+	stamp := strings.NewReplacer(":", "-", ".", "-").Replace(time.Now().UTC().Format("2006-01-02T15:04:05.000Z"))
+	parent := recoveryDir(dest, home)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return "", err
+	}
+	dir, err := os.MkdirTemp(parent, stamp+"-")
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, filepath.Base(dest)), nil
+}
+
+var pruneRecovery = pruneRecoveryDir
+
+func isMovedLegacyRecovery(name string) bool {
+	return strings.Contains(name, ".gap-recovery-")
+}
+
+func recoveryHoldsSymlink(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.Type()&fs.ModeSymlink != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+var relocateDir = relocateDirFile
+
+func copyTree(src, dst string) error {
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	if isSymlink(info) {
+		target, err := os.Readlink(src)
+		if err != nil {
+			return err
+		}
+		return os.Symlink(target, dst)
+	}
+	if info.IsDir() {
+		if err := os.Mkdir(dst, 0o755); err != nil {
+			return err
+		}
+		if err := os.Chmod(dst, info.Mode().Perm()); err != nil {
+			return err
+		}
+		entries, err := os.ReadDir(src)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if err := copyTree(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a file", src)
+	}
+	return copyPolicyFile(src, dst)
+}
+
+func relocateDirFile(src, dst string) error {
+	err := os.Rename(src, dst)
+	if err == nil {
+		return nil
+	}
+	if !isCrossDevice(err) {
+		return err
+	}
+	if err := copyTree(src, dst); err != nil {
+		os.RemoveAll(dst)
+		return err
+	}
+	return os.RemoveAll(src)
+}
+
+func removeLegacyRecovery(dest, home string) {
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-*"))
+	if err != nil {
+		return
+	}
+	for _, p := range matches {
+		info, err := os.Lstat(p)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		dst := filepath.Join(recoveryDir(dest, home), filepath.Base(p))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: moving leftover recovery dir %s: %v\n", p, err)
+			continue
+		}
+		if err := relocateDir(p, dst); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: moving leftover recovery dir %s: %v\n", p, err)
+			continue
+		}
+		fmt.Println("Moved leftover recovery dir " + p + " to " + dst)
+	}
+}
+
+func pruneRecoveryDir(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	regular := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if recoveryHoldsSymlink(filepath.Join(dir, name)) || isMovedLegacyRecovery(name) {
+			continue
+		}
+		regular = append(regular, name)
+	}
+	slices.Sort(regular)
+	if len(regular) <= recoveryKeep {
+		return nil
+	}
+	for _, name := range regular[:len(regular)-recoveryKeep] {
+		if err := os.RemoveAll(filepath.Join(dir, name)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 const replaceWarning = "This harness will no longer load that file. The backup keeps the bytes only. Add to global/AGENTS.md only rules you want every harness to follow."
@@ -713,13 +874,310 @@ func matchesPublish(onDisk, payload string) bool {
 	return ok && inner == payload
 }
 
-func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile string) (bool, error) {
-	if err := writeAtomic(dest, text); err != nil {
+func policyUnchanged(dest, existing, linkTarget string, before fs.FileInfo) error {
+	current, err := os.Lstat(dest)
+	if errors.Is(err, fs.ErrNotExist) {
+		if before == nil {
+			return nil
+		}
+		return errPolicyChanged
+	}
+	if err != nil {
+		return err
+	}
+	if before == nil || !os.SameFile(before, current) || before.Mode() != current.Mode() {
+		return errPolicyChanged
+	}
+	if isSymlink(current) {
+		got, err := os.Readlink(dest)
+		if err != nil {
+			return err
+		}
+		if got != linkTarget {
+			return errPolicyChanged
+		}
+		return nil
+	}
+	if current.Mode().IsRegular() {
+		b, err := os.ReadFile(dest)
+		if err != nil {
+			return err
+		}
+		if string(b) != existing {
+			return errPolicyChanged
+		}
+	}
+	return nil
+}
+
+func policyContentUnchanged(path, existing, linkTarget string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if isSymlink(info) {
+		got, err := os.Readlink(path)
+		if err != nil {
+			return err
+		}
+		if got != linkTarget {
+			return errPolicyChanged
+		}
+		return nil
+	}
+	if !info.Mode().IsRegular() {
+		return errPolicyChanged
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if string(b) != existing {
+		return errPolicyChanged
+	}
+	return nil
+}
+
+var (
+	renamePolicy = os.Rename
+	linkPolicy   = os.Link
+)
+
+func isCrossDevice(err error) bool {
+	return errors.Is(err, syscall.EXDEV)
+}
+
+var (
+	copyPolicy     = copyPolicyFile
+	afterCopyWrite func(src, dst string)
+)
+
+func copyRace(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, errPolicyChanged) {
+		return errPolicyChanged
+	}
+	return err
+}
+
+func copyPolicyFile(src, dst string) error {
+	info, err := os.Lstat(src)
+	if err != nil {
+		return copyRace(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	if isSymlink(info) {
+		target, err := os.Readlink(src)
+		if err != nil {
+			return err
+		}
+		if err := os.Symlink(target, dst); err != nil {
+			return err
+		}
+		got, err := os.Readlink(dst)
+		if err != nil || got != target {
+			os.Remove(dst)
+			if err != nil {
+				return err
+			}
+			return errPolicyChanged
+		}
+		return nil
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a file", src)
+	}
+	perm := info.Mode().Perm()
+	in, err := os.Open(src)
+	if err != nil {
+		return copyRace(err)
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	if err != nil {
+		return err
+	}
+	cleanup := func() { out.Close(); os.Remove(dst) }
+	if err := out.Chmod(perm); err != nil {
+		cleanup()
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		cleanup()
+		return err
+	}
+	if err := out.Sync(); err != nil {
+		cleanup()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(dst)
+		return err
+	}
+	if afterCopyWrite != nil {
+		afterCopyWrite(src, dst)
+	}
+	want, err := os.ReadFile(src)
+	if err != nil {
+		os.Remove(dst)
+		return copyRace(err)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		os.Remove(dst)
+		return err
+	}
+	if string(got) != string(want) {
+		os.Remove(dst)
+		return fmt.Errorf("%s: %w", dst, errPolicyChanged)
+	}
+	return nil
+}
+
+func restorePolicy(backup, dest string) error {
+	info, err := os.Lstat(backup)
+	if err != nil {
+		return err
+	}
+	if isSymlink(info) {
+		target, err := os.Readlink(backup)
+		if err != nil {
+			return err
+		}
+		return os.Symlink(target, dest)
+	}
+	if err := os.Link(backup, dest); err == nil || !isCrossDevice(err) {
+		return err
+	}
+	return copyPolicy(backup, dest)
+}
+
+func recoveryDiverged(backup, existing, linkTarget string) bool {
+	info, err := os.Lstat(backup)
+	if err != nil {
+		return false
+	}
+	if isSymlink(info) {
+		got, err := os.Readlink(backup)
+		return err == nil && got != linkTarget
+	}
+	if !info.Mode().IsRegular() {
+		return false
+	}
+	b, err := os.ReadFile(backup)
+	return err == nil && string(b) != existing
+}
+
+func refuseChanged(dest, backup string, restoreErr error) (bool, error) {
+	switch {
+	case backup != "" && restoreErr != nil:
+		return refuse("Refusing to publish policy changed during sync: %s (previous policy retained at %s; restore: %v)", dest, backup, restoreErr)
+	case backup != "":
+		return refuse("Refusing to publish policy changed during sync: %s (previous policy retained at %s)", dest, backup)
+	default:
+		return refuse("Refusing to publish policy changed during sync: %s", dest)
+	}
+}
+
+func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile, existing, linkTarget, backupRoot, preparedBackup string, before fs.FileInfo) (bool, error) {
+	var backup string
+	var restoreErr error
+	err := writeStaged(dest, text, func(tmp string) (err error) {
+		if err := policyUnchanged(dest, existing, linkTarget, before); err != nil {
+			return err
+		}
+		if before != nil && before.Mode().IsRegular() && existing == text {
+			return nil
+		}
+		if before != nil {
+			backup = preparedBackup
+			if backup == "" {
+				var makeErr error
+				backup, makeErr = makeRecovery(dest, backupRoot)
+				if makeErr != nil {
+					return makeErr
+				}
+			}
+			copied := false
+			if err := renamePolicy(dest, backup); err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return errPolicyChanged
+				}
+				if !isCrossDevice(err) {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return err
+				}
+				if err := copyPolicy(dest, backup); err != nil {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return copyRace(err)
+				}
+				if err := policyContentUnchanged(backup, existing, linkTarget); err != nil {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return err
+				}
+				if err := policyUnchanged(dest, existing, linkTarget, before); err != nil {
+					return err
+				}
+				if err := os.Remove(dest); err != nil {
+					os.RemoveAll(filepath.Dir(backup))
+					backup = ""
+					return err
+				}
+				copied = true
+			}
+			defer func() {
+				if err != nil && backup != "" {
+					restoreErr = restorePolicy(backup, dest)
+				}
+			}()
+			if !copied {
+				if err := policyUnchanged(backup, existing, linkTarget, before); err != nil {
+					return err
+				}
+			}
+		}
+		if err := linkPolicy(tmp, dest); err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				return errPolicyChanged
+			}
+			return err
+		}
+		return nil
+	})
+	if backup == "" && preparedBackup != "" {
+		os.RemoveAll(filepath.Dir(preparedBackup))
+	}
+	if errors.Is(err, errPolicyChanged) {
+		return refuseChanged(dest, backup, restoreErr)
+	}
+	if err != nil {
+		if restoreErr != nil {
+			return false, fmt.Errorf("restore %s from %s: %w (publish failed: %v)", dest, backup, restoreErr, err)
+		}
 		return false, err
+	}
+	if backup != "" {
+		if recoveryDiverged(backup, existing, linkTarget) {
+			fmt.Fprintf(os.Stderr, "Warning: live policy edit retained only at %s\n", backup)
+		} else {
+			fmt.Println("Previous policy retained at " + backup)
+		}
 	}
 	ledger[dest] = digest(body)
 	if err := writeLedger(ledgerFile, ledger); err != nil {
 		return false, err
+	}
+	if err := pruneRecovery(recoveryDir(dest, backupRoot)); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: pruning recovery copies at %s: %v\n", recoveryDir(dest, backupRoot), err)
 	}
 	fmt.Println(dest)
 	return true, nil
@@ -777,14 +1235,19 @@ func publish(payload, dest string, ledger map[string]string, ledgerFile string, 
 }
 
 func publishPolicy(source, dest string, cursor bool, ledger map[string]string, ledgerFile string, allowPrompt bool, backupRoot string) (bool, error) {
+	removeLegacyRecovery(dest, backupRoot)
 	body := adapt(source, false)
 	unmarked := adapt(source, cursor)
-	var existing string
+	var existing, linkTarget string
 	exists, symlink := false, false
 	info, err := os.Lstat(dest)
 	switch {
 	case err == nil && isSymlink(info):
 		symlink = true
+		linkTarget, err = os.Readlink(dest)
+		if err != nil {
+			return false, err
+		}
 	case err == nil && info.Mode().IsRegular():
 		b, err := os.ReadFile(dest)
 		if err != nil {
@@ -800,28 +1263,25 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 		if !allowPrompt || !termReady() {
 			return refuse("Refusing to replace foreign file (no prompt): %s", dest)
 		}
-		backup := backupPath(dest, backupRoot)
+		backup, err := makeRecovery(dest, backupRoot)
+		if err != nil {
+			return false, err
+		}
 		if !confirmReplace(dest, backup) {
+			os.RemoveAll(filepath.Dir(backup))
 			return false, nil
 		}
-		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
-			return false, err
-		}
-		if err := os.Rename(dest, backup); err != nil {
-			return false, err
-		}
-		fmt.Println("Backed up to " + backup)
 		fmt.Println(replaceWarning)
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, backupRoot, backup, info)
 	}
 	if !exists {
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, backupRoot, "", info)
 	}
 	if next, ok := replaceBlock(existing, body); ok {
-		return commitPublish(dest, next, body, ledger, ledgerFile)
+		return commitPublish(dest, next, body, ledger, ledgerFile, existing, linkTarget, backupRoot, "", info)
 	}
 	if ours(existing, true, unmarked, ledger[dest]) {
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, backupRoot, "", info)
 	}
 	if !allowPrompt || !termReady() {
 		return refuse("Refusing to replace foreign file (no prompt): %s", dest)
@@ -830,11 +1290,27 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 	if !confirmSplice(dest, backup) {
 		return false, nil
 	}
+	info, err = os.Lstat(dest)
+	if errors.Is(err, fs.ErrNotExist) || err == nil && !info.Mode().IsRegular() {
+		return refuse("Refusing to splice policy changed during sync: %s", dest)
+	}
+	if err != nil {
+		return false, err
+	}
+	b, err := os.ReadFile(dest)
+	if err != nil {
+		return false, err
+	}
+	existing = string(b)
 	if err := copyFile(dest, backup); err != nil {
 		return false, err
 	}
 	fmt.Println("Backed up to " + backup)
-	return commitPublish(dest, appendBlock(existing, body), body, ledger, ledgerFile)
+	next, ok := replaceBlock(existing, body)
+	if !ok {
+		next = appendBlock(existing, body)
+	}
+	return commitPublish(dest, next, body, ledger, ledgerFile, existing, linkTarget, backupRoot, "", info)
 }
 
 func ensureGapHook(codexDir, policyPath, backupRoot string) (bool, error) {

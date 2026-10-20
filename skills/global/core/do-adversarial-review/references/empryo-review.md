@@ -9,7 +9,7 @@ All of these must hold. Otherwise run the in-skill hunt.
 - Empryo is the active harness, per GAP `global/docs/agents/harness-detection.md`.
 - The change under review is the uncommitted working tree, tracked and untracked. A committed branch, a PR, or a named commit range is not: the reviewer only sees uncommitted git changes.
 - At most 30 changed files: `git status --porcelain --untracked-files=all | wc -l` prints 30 or less. The reviewer stops at 30.
-- In a GitButler workspace (`but status` exits 0), the reviewer sees every applied lane's uncommitted changes, not only the lane under review. When more than one lane holds uncommitted changes, list the reviewed lane's files from `but status`, apply the 30-file limit to that list, name those files in the brief ("Review only these files: ..."), and keep only findings on them. If the lane's files cannot be listed, run the in-skill hunt.
+- In a GitButler workspace (`but status` exits 0), the reviewer sees every applied lane's uncommitted changes, not only the lane under review. List the changed files for every lane from `but status`. If the reviewed lane has no uncommitted files, run the in-skill hunt; an empty filtered report is never a pass. If the reviewed lane shares a changed file with another lane, or file ownership cannot be established, run the in-skill hunt on the reviewed lane's actual diff and attribute findings to its hunks. GitButler assigns ownership per hunk, not per file, so sharing a changed file is the conservative trigger. Otherwise name the reviewed lane's files in the brief ("Review only these files: ...") and keep only findings on them. The 30-file limit still applies to the entire working tree the engine reads.
 
 ## Run
 
@@ -32,7 +32,7 @@ EOF
 | 4 | `PARTIAL` | Findings. Map them below. |
 | other, or no JSON | | The engine failed. Run the in-skill hunt. |
 
-`verdict: null` also covers a GitButler lane whose changes are already committed. If `unreadPaths` is not empty, hunt those files in-skill and merge the results.
+`verdict: null` also covers a GitButler lane whose changes are already committed, or whose uncommitted file list is empty. Never treat an empty filtered report as a pass; run the in-skill hunt. If `unreadPaths` is not empty, hunt those files in-skill and merge the results.
 
 ## Map the findings
 

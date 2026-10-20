@@ -287,14 +287,20 @@ func skillBaseline(repoRoot, home, source, name string) (string, string, lockEnt
 }
 
 func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
-	tty := stdinIsTerminal()
+	defer func() {
+		for _, e := range entries {
+			for _, name := range e.Skills {
+				if warning := empryoShadow(home, name); warning != "" {
+					fmt.Fprintln(os.Stderr, warning)
+				}
+			}
+		}
+	}()
+	tty := termReady()
 	in := bufio.NewReader(os.Stdin)
 	ok := true
 	for _, e := range entries {
 		for _, name := range e.Skills {
-			if warning := empryoShadow(home, name); warning != "" {
-				fmt.Fprintln(os.Stderr, warning)
-			}
 			var sourceDir string
 			var external lockEntry
 			drifted := false

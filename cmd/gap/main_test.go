@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -239,6 +243,37 @@ func withYes(t *testing.T) {
 	termReady = func() bool { return true }
 	confirmLine = func() string { return "y\n" }
 	t.Cleanup(func() { termReady, confirmLine = oldTerm, oldLine })
+}
+
+func captureStd(t *testing.T, fn func()) (stdout, stderr string) {
+	t.Helper()
+	oldOut, oldErr := os.Stdout, os.Stderr
+	rout, wout, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rerr, werr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout, os.Stderr = wout, werr
+	var outBuf, errBuf bytes.Buffer
+	outDone, errDone := make(chan struct{}), make(chan struct{})
+	go func() { io.Copy(&outBuf, rout); close(outDone) }()
+	go func() { io.Copy(&errBuf, rerr); close(errDone) }()
+	defer func() {
+		wout.Close()
+		werr.Close()
+		os.Stdout, os.Stderr = oldOut, oldErr
+		<-outDone
+		<-errDone
+		rout.Close()
+		rerr.Close()
+		stdout = outBuf.String()
+		stderr = errBuf.String()
+	}()
+	fn()
+	return
 }
 
 func TestSpliceKeepsForeignContent(t *testing.T) {
@@ -1019,6 +1054,621 @@ func TestEmpryoSpliceKeepsSoulStack(t *testing.T) {
 	}
 }
 
+func TestSpliceConcurrentConfirmation(t *testing.T) {
+	for _, state := range []string{"foreign update", "markers added", "symlink"} {
+		t.Run(state, func(t *testing.T) {
+			home := t.TempDir()
+			dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+			write(t, dest, empryoFixture)
+			latest := strings.ReplaceAll(empryoFixture, "keep this", "new SoulStack rules")
+			want := latest + gapMarked("new policy\n")
+			withYes(t)
+			confirmLine = func() string {
+				switch state {
+				case "markers added":
+					write(t, dest, latest+gapMarked("another publish\n")+"new footer\n")
+					want += "new footer\n"
+				case "symlink":
+					target := filepath.Join(home, "other.md")
+					write(t, target, latest)
+					if err := os.Remove(dest); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(target, dest); err != nil {
+						t.Fatal(err)
+					}
+					want = latest
+				default:
+					write(t, dest, latest)
+				}
+				return "y\n"
+			}
+			ledger := map[string]string{}
+			wrote, err := publishPolicy("new policy\n", dest, false, ledger, filepath.Join(home, "published.json"), true, home)
+			if err != nil || wrote != (state != "symlink") {
+				t.Fatalf("publish: wrote %v err %v", wrote, err)
+			}
+			if got := readString(t, dest); got != want {
+				t.Fatalf("concurrent update lost: got %q, want %q", got, want)
+			}
+			if state == "symlink" {
+				if _, err := os.Readlink(dest); err != nil || len(ledger) != 0 {
+					t.Fatalf("changed destination must stay untouched: ledger %v err %v", ledger, err)
+				}
+				return
+			}
+			backups, _ := filepath.Glob(filepath.Join(home, ".gap", "backups", "*", ".empryo", "EMPRYO.md"))
+			backupWant := latest
+			if state == "markers added" {
+				backupWant += gapMarked("another publish\n") + "new footer\n"
+			}
+			if len(backups) != 1 || readString(t, backups[0]) != backupWant {
+				t.Fatalf("backup must contain the confirmed current file: %v", backups)
+			}
+		})
+	}
+}
+
+func TestPolicyCommitRejectsConcurrentChanges(t *testing.T) {
+	for _, state := range []string{"marked edit", "legacy edit", "replacement", "deleted", "symlink", "created"} {
+		t.Run(state, func(t *testing.T) {
+			home := t.TempDir()
+			dest := filepath.Join(home, "EMPRYO.md")
+			before := "old policy\n"
+			if state != "legacy edit" {
+				before = empryoFixture + gapMarked(before)
+			}
+			if state == "created" {
+				before = ""
+			} else {
+				write(t, dest, before)
+			}
+			info, _ := os.Lstat(dest)
+			latest := "concurrent rules\n"
+			switch state {
+			case "deleted", "symlink":
+				if err := os.Remove(dest); err != nil {
+					t.Fatal(err)
+				}
+			}
+			switch state {
+			case "deleted":
+			case "symlink":
+				target := filepath.Join(home, "other.md")
+				write(t, target, latest)
+				if err := os.Symlink(target, dest); err != nil {
+					t.Fatal(err)
+				}
+			case "replacement":
+				latest = before
+				replacement := filepath.Join(home, "replacement.md")
+				write(t, replacement, latest)
+				if err := os.Rename(replacement, dest); err != nil {
+					t.Fatal(err)
+				}
+			default:
+				write(t, dest, latest)
+			}
+			ledger := map[string]string{dest: "previous ledger"}
+			ledgerFile := filepath.Join(home, "published.json")
+			wrote, err := commitPublish(dest, gapMarked("new policy\n"), "new policy\n", ledger, ledgerFile, before, "", home, "", info)
+			if err != nil || wrote {
+				t.Fatalf("stale publish must be refused: wrote %v err %v", wrote, err)
+			}
+			if state == "deleted" {
+				if _, err := os.Lstat(dest); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("deleted destination recreated: %v", err)
+				}
+			} else if got := readString(t, dest); got != latest {
+				t.Fatalf("concurrent contents lost: %q", got)
+			}
+			if ledger[dest] != "previous ledger" {
+				t.Fatal("refused publish changed the ledger")
+			}
+			if _, err := os.Stat(ledgerFile); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("refused publish wrote the ledger: %v", err)
+			}
+			if temps, _ := filepath.Glob(dest + ".*.tmp"); len(temps) != 0 {
+				t.Fatalf("refused publish left temporary files: %v", temps)
+			}
+		})
+	}
+}
+
+func TestPolicyUnchangedDetectsRetargetedSymlink(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, "policy.md")
+	write(t, filepath.Join(home, "a.md"), "a\n")
+	write(t, filepath.Join(home, "b.md"), "b\n")
+	if err := os.Symlink("a.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Lstat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := os.Readlink(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := policyUnchanged(dest, "", target, info); err != nil {
+		t.Fatalf("unchanged symlink: %v", err)
+	}
+	if err := os.Remove(dest); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("b.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	if err := policyUnchanged(dest, "", target, info); !errors.Is(err, errPolicyChanged) {
+		t.Fatalf("retargeted symlink: %v, want errPolicyChanged", err)
+	}
+}
+
+func TestPolicyPublicationRecovery(t *testing.T) {
+	const (
+		oldBlock = "<!-- gap:begin -->\nold policy\n<!-- gap:end -->\n"
+		newBlock = "<!-- gap:begin -->\nnew policy\n<!-- gap:end -->\n"
+		latest   = "latest user rules\n"
+		front    = "---\nalwaysApply: true\n---\n\n"
+	)
+	for _, cursor := range []bool{false, true} {
+		for _, state := range []string{"missing", "marked", "legacy", "foreign", "symlink"} {
+			for _, event := range []string{"ordinary", "before capture", "before install", "open writer", "install failure"} {
+				if event == "before capture" && state == "missing" || event == "open writer" && (state == "missing" || state == "symlink") {
+					continue
+				}
+				name := map[bool]string{false: "plain", true: "cursor"}[cursor] + "/" + state + "/" + event
+				t.Run(name, func(t *testing.T) {
+					home := t.TempDir()
+					dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+					before, want := "", newBlock
+					if cursor {
+						want = front + want
+					}
+					ledger := map[string]string{"unrelated": "keep"}
+					switch state {
+					case "marked":
+						before, want = "user rules\n"+oldBlock+"footer\n", "user rules\n"+newBlock+"footer\n"
+					case "legacy":
+						before = "old policy\n"
+						if cursor {
+							before = front + before
+						}
+						ledger[dest] = digest(before)
+					case "foreign":
+						before, want = "user rules\n", "user rules\n"+newBlock
+					case "symlink":
+						write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target rules\n")
+						if err := os.Symlink("target.md", dest); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if state != "missing" && state != "symlink" {
+						write(t, dest, before)
+						if err := os.Chmod(dest, 0o600); err != nil {
+							t.Fatal(err)
+						}
+					}
+					previousLedger := make(map[string]string)
+					for key, value := range ledger {
+						previousLedger[key] = value
+					}
+					withYes(t)
+					oldRename, oldLink := renamePolicy, linkPolicy
+					t.Cleanup(func() { renamePolicy, linkPolicy = oldRename, oldLink })
+					if event == "before capture" {
+						renamePolicy = func(src, dst string) error {
+							if state == "symlink" {
+								if err := os.Remove(src); err != nil {
+									t.Fatal(err)
+								}
+								if err := os.Symlink("new-target.md", src); err != nil {
+									t.Fatal(err)
+								}
+							} else {
+								write(t, src, latest)
+							}
+							return os.Rename(src, dst)
+						}
+					}
+					if event == "before install" {
+						linkPolicy = func(src, dst string) error {
+							write(t, dst, latest)
+							return os.Link(src, dst)
+						}
+					}
+					if event == "open writer" {
+						writer, err := os.OpenFile(dest, os.O_WRONLY, 0)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer writer.Close()
+						linkPolicy = func(src, dst string) error {
+							if err := writer.Truncate(0); err != nil {
+								t.Fatal(err)
+							}
+							if _, err := writer.WriteString(latest); err != nil {
+								t.Fatal(err)
+							}
+							return os.Link(src, dst)
+						}
+					}
+					if event == "install failure" {
+						linkPolicy = func(string, string) error { return os.ErrPermission }
+					}
+					ledgerFile := filepath.Join(home, "published.json")
+					wrote, err := publishPolicy("new policy\n", dest, cursor, ledger, ledgerFile, true, home)
+					wantWrote := event == "ordinary" || event == "open writer"
+					if wrote != wantWrote || event == "install failure" && !errors.Is(err, os.ErrPermission) || event != "install failure" && err != nil {
+						t.Fatalf("publication = %v, %v; want wrote %v", wrote, err, wantWrote)
+					}
+					if !wantWrote {
+						if !reflect.DeepEqual(ledger, previousLedger) {
+							t.Fatalf("refused publication changed ledger: %v", ledger)
+						}
+						if _, err := os.Stat(ledgerFile); !errors.Is(err, os.ErrNotExist) {
+							t.Fatalf("refused publication wrote ledger: %v", err)
+						}
+						want = before
+						if event == "before install" || event == "before capture" {
+							want = latest
+						}
+					}
+					if state == "missing" && event == "install failure" {
+						if _, err := os.Lstat(dest); !errors.Is(err, os.ErrNotExist) {
+							t.Fatalf("failed creation left a destination: %v", err)
+						}
+					} else if state == "symlink" && (event == "before capture" || event == "install failure") {
+						wantTarget := "target.md"
+						if event == "before capture" {
+							wantTarget = "new-target.md"
+						}
+						if target, err := os.Readlink(dest); err != nil || target != wantTarget {
+							t.Fatalf("symlink not restored: %q, %v", target, err)
+						}
+					} else if got := readString(t, dest); got != want {
+						t.Fatalf("destination = %q, want %q", got, want)
+					}
+					if leaked, err := filepath.Glob(filepath.Join(filepath.Dir(dest), ".EMPRYO.md.gap-recovery-*")); err != nil || len(leaked) != 0 {
+						t.Fatalf("recovery leaked into destination dir: %v, %v", leaked, err)
+					}
+					backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", "EMPRYO.md"))
+					if err != nil || len(backups) != map[bool]int{false: 1, true: 0}[state == "missing"] {
+						t.Fatalf("recovery files = %v, %v", backups, err)
+					}
+					if len(backups) == 1 {
+						if state == "symlink" {
+							wantTarget := "target.md"
+							if event == "before capture" {
+								wantTarget = "new-target.md"
+							}
+							if target, err := os.Readlink(backups[0]); err != nil || target != wantTarget {
+								t.Fatalf("displaced link lost: %q, %v", target, err)
+							}
+						} else {
+							wantBackup := before
+							if event == "before capture" || event == "open writer" {
+								wantBackup = latest
+							}
+							if got := readString(t, backups[0]); got != wantBackup {
+								t.Fatalf("displaced contents lost: %q, want %q", got, wantBackup)
+							}
+							if info, err := os.Stat(backups[0]); err != nil || info.Mode().Perm() != 0o600 {
+								t.Fatalf("recovery permissions changed: %v, %v", info, err)
+							}
+						}
+					}
+					if state == "symlink" && readString(t, filepath.Join(filepath.Dir(dest), "target.md")) != "target rules\n" {
+						t.Fatal("publication changed symlink target")
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestRecoverySkippedWhenUnchanged(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	text := gapMarked("policy\n")
+	write(t, dest, text)
+	ledger := map[string]string{dest: digest("policy\n")}
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	wrote, err := publishPolicy("policy\n", dest, false, ledger, ledgerFile, true, home)
+	if err != nil || !wrote {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	if readString(t, dest) != text {
+		t.Fatal("unchanged dest was rewritten")
+	}
+	if leaked, err := filepath.Glob(filepath.Join(filepath.Dir(dest), ".*.gap-recovery-*")); err != nil || len(leaked) != 0 {
+		t.Fatalf("recovery leaked into rules dir: %v, %v", leaked, err)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 0 {
+		t.Fatalf("unchanged dest created recovery copies: %v, %v", backups, err)
+	}
+}
+
+func TestRecoveryStaysOutsideRuleDirs(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, dest, gapMarked("old\n"))
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("new\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+	if err != nil || !wrote {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	entries, err := os.ReadDir(filepath.Join(home, ".claude", "rules"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "gap-recovery") {
+			t.Fatalf("recovery in rules dir: %s", e.Name())
+		}
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if !strings.HasPrefix(backups[0], filepath.Join(home, ".gap", "recovery")+string(filepath.Separator)) {
+		t.Fatalf("recovery not under ~/.gap/recovery: %s", backups[0])
+	}
+}
+
+func TestPreviousPolicyRetainedMessage(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+	write(t, dest, "user rules\n"+gapMarked("old\n")+"footer\n")
+	ledger := map[string]string{}
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if strings.Contains(stderr, "Warning:") {
+		t.Fatalf("ordinary replace warned: %q", stderr)
+	}
+	if !strings.Contains(stdout, "Previous policy retained at ") {
+		t.Fatalf("missing retained message: %q", stdout)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if !strings.Contains(stdout, backups[0]) {
+		t.Fatalf("retained message missing recovery path %s: %q", backups[0], stdout)
+	}
+}
+
+func TestUnchangedPublishOmitsRetainedMessage(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+	write(t, dest, gapMarked("policy\n"))
+	ledger := map[string]string{dest: digest("policy\n")}
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("policy\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if strings.Contains(stdout, "Previous policy retained") || strings.Contains(stderr, "Warning:") {
+		t.Fatalf("unchanged publish printed recovery text: stdout %q stderr %q", stdout, stderr)
+	}
+}
+
+func TestWarningWhenLiveEditOnlyInRecovery(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+	before := "user rules\n" + gapMarked("old\n") + "footer\n"
+	write(t, dest, before)
+	writer, err := os.OpenFile(dest, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	oldLink := linkPolicy
+	t.Cleanup(func() { linkPolicy = oldLink })
+	linkPolicy = func(src, dst string) error {
+		if err := writer.Truncate(0); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.WriteString("latest user rules\n"); err != nil {
+			t.Fatal(err)
+		}
+		return os.Link(src, dst)
+	}
+	ledger := map[string]string{}
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if strings.Contains(stdout, "Previous policy retained") {
+		t.Fatalf("live-edit-only recovery printed success retained line: %q", stdout)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if !strings.Contains(stderr, "Warning:") || !strings.Contains(stderr, backups[0]) {
+		t.Fatalf("missing live-edit warning with recovery path %s: %q", backups[0], stderr)
+	}
+	if readString(t, backups[0]) != "latest user rules\n" {
+		t.Fatalf("recovery lost the live edit: %q", readString(t, backups[0]))
+	}
+}
+
+func TestRecoveryPrunedPerDestination(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".cursor", "rules", "global-agent-policy.mdc")
+	ledger := map[string]string{}
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	for i := 0; i < recoveryKeep+2; i++ {
+		body := "policy " + strings.Repeat("x", i+1) + "\n"
+		wrote, err := publishPolicy(body, dest, true, ledger, ledgerFile, true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publish %d: wrote %v err %v", i, wrote, err)
+		}
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != recoveryKeep {
+		t.Fatalf("kept %d recovery copies, want %d: %v, %v", len(backups), recoveryKeep, backups, err)
+	}
+}
+
+func TestSymlinkPromptShowsResolvedRecoveryPath(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	var prompted string
+	oldTerm, oldLine := termReady, confirmLine
+	termReady = func() bool { return true }
+	confirmLine = func() string {
+		matches, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(matches) != 0 {
+			t.Fatalf("recovery file already present at prompt: %v", matches)
+		}
+		dirs, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*"))
+		if err != nil || len(dirs) != 1 {
+			t.Fatalf("prepared recovery dir = %v, %v", dirs, err)
+		}
+		prompted = filepath.Join(dirs[0], filepath.Base(dest))
+		if _, err := os.Stat(dirs[0]); err != nil {
+			t.Fatalf("prompted recovery dir missing: %v", err)
+		}
+		return "y\n"
+	}
+	t.Cleanup(func() { termReady, confirmLine = oldTerm, oldLine })
+	stdout, _ := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if strings.Contains(stdout, "*") {
+		t.Fatalf("prompt contained a glob: %q", stdout)
+	}
+	if prompted == "" || !strings.Contains(stdout, prompted) {
+		t.Fatalf("prompt missing resolved recovery path %q: %q", prompted, stdout)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 || backups[0] != prompted {
+		t.Fatalf("recovery file = %v, prompted %q, %v", backups, prompted, err)
+	}
+}
+
+func TestUnusedPreparedRecoveryRemoved(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	oldTerm, oldLine := termReady, confirmLine
+	termReady = func() bool { return true }
+	confirmLine = func() string {
+		if err := os.Remove(dest); err != nil {
+			t.Fatal(err)
+		}
+		write(t, dest, "new regular file\n")
+		return "y\n"
+	}
+	t.Cleanup(func() { termReady, confirmLine = oldTerm, oldLine })
+	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), true, home)
+	if err != nil || wrote {
+		t.Fatalf("changed symlink must be refused: wrote %v err %v", wrote, err)
+	}
+	if readString(t, dest) != "new regular file\n" {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	leftover, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*"))
+	if err != nil || len(leftover) != 0 {
+		t.Fatalf("unused prepared recovery left behind: %v, %v", leftover, err)
+	}
+}
+
+func TestUnusedPreparedRecoveryRemovedOnWriteFailure(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	write(t, fmt.Sprintf("%s.%d.tmp", dest, os.Getpid()), "blocker\n")
+	withYes(t)
+	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), true, home)
+	if wrote || err == nil {
+		t.Fatalf("blocked write must fail: wrote %v err %v", wrote, err)
+	}
+	if target, err := os.Readlink(dest); err != nil || target != "target.md" {
+		t.Fatalf("write failure changed symlink: %q, %v", target, err)
+	}
+	leftover, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*"))
+	if err != nil || len(leftover) != 0 {
+		t.Fatalf("unused prepared recovery left behind: %v, %v", leftover, err)
+	}
+}
+
+func TestDeclinedSymlinkReplaceRemovesPreparedRecovery(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	oldTerm, oldLine := termReady, confirmLine
+	termReady = func() bool { return true }
+	confirmLine = func() string { return "n\n" }
+	t.Cleanup(func() { termReady, confirmLine = oldTerm, oldLine })
+	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), true, home)
+	if err != nil || wrote {
+		t.Fatalf("declined replace: wrote %v err %v", wrote, err)
+	}
+	if target, err := os.Readlink(dest); err != nil || target != "target.md" {
+		t.Fatalf("declined replace changed symlink: %q, %v", target, err)
+	}
+	leftover, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*"))
+	if err != nil || len(leftover) != 0 {
+		t.Fatalf("declined replace left recovery: %v, %v", leftover, err)
+	}
+}
+
+func TestSpliceSymlinkChangedDuringConfirmation(t *testing.T) {
+	home := t.TempDir()
+	dest, target := filepath.Join(home, "EMPRYO.md"), filepath.Join(home, "other.md")
+	write(t, target, "original target\n")
+	if err := os.Symlink(target, dest); err != nil {
+		t.Fatal(err)
+	}
+	withYes(t)
+	confirmLine = func() string {
+		if err := os.Remove(dest); err != nil {
+			t.Fatal(err)
+		}
+		write(t, dest, "new regular file\n")
+		return "y\n"
+	}
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("policy\n", dest, false, ledger, filepath.Join(home, "published.json"), true, home)
+	if err != nil || wrote || len(ledger) != 0 {
+		t.Fatalf("changed symlink must be refused: wrote %v ledger %v err %v", wrote, ledger, err)
+	}
+	if readString(t, dest) != "new regular file\n" || readString(t, target) != "original target\n" {
+		t.Fatal("replacement or original target changed")
+	}
+}
+
 func TestEmpryoForeignRefusedWithoutTerminal(t *testing.T) {
 	home := t.TempDir()
 	codex := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
@@ -1073,5 +1723,496 @@ func TestEmpryoPinAdvice(t *testing.T) {
 				t.Fatal("gap must never write Empryo's config")
 			}
 		})
+	}
+}
+
+func TestChangedPublishNamesRecoveryAndRestore(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
+	before := gapMarked("old\n")
+	write(t, dest, before)
+	oldLink := linkPolicy
+	t.Cleanup(func() { linkPolicy = oldLink })
+	linkPolicy = func(src, dst string) error {
+		write(t, dst, "concurrent\n")
+		return os.ErrExist
+	}
+	ledger := map[string]string{}
+	_, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if !strings.Contains(stderr, "Refusing to publish policy changed during sync: "+dest) {
+		t.Fatalf("missing refuse: %q", stderr)
+	}
+	if !strings.Contains(stderr, backups[0]) {
+		t.Fatalf("refuse missing recovery path %s: %q", backups[0], stderr)
+	}
+	if !strings.Contains(stderr, "restore:") {
+		t.Fatalf("refuse swallowed restore error: %q", stderr)
+	}
+	if readString(t, dest) != "concurrent\n" {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	if readString(t, backups[0]) != before {
+		t.Fatalf("recovery=%q", readString(t, backups[0]))
+	}
+	if len(ledger) != 0 {
+		t.Fatalf("refused publish changed ledger: %v", ledger)
+	}
+}
+
+func TestRemoveLegacyGapRecoveryDirs(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, dest, gapMarked("old\n"))
+	legacy := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-abc123")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(legacy, filepath.Base(dest)), "stale policy\n")
+	if err := os.Symlink("target.md", filepath.Join(legacy, "link")); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(filepath.Dir(dest), ".other.md.gap-recovery-abc123")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plain := filepath.Join(filepath.Dir(dest), filepath.Base(dest)+".gap-recovery-abc123")
+	if err := os.MkdirAll(plain, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fileMatch := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-file")
+	write(t, fileMatch, "not a dir\n")
+	moved := filepath.Join(recoveryDir(dest, home), filepath.Base(legacy))
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	_ = stderr
+	if _, err := os.Lstat(legacy); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy recovery dir remains: %v", err)
+	}
+	if readString(t, filepath.Join(moved, filepath.Base(dest))) != "stale policy\n" {
+		t.Fatalf("moved contents lost: %q", readString(t, filepath.Join(moved, filepath.Base(dest))))
+	}
+	if target, err := os.Readlink(filepath.Join(moved, "link")); err != nil || target != "target.md" {
+		t.Fatalf("moved symlink lost: %q, %v", target, err)
+	}
+	if !strings.Contains(stdout, "Moved leftover recovery dir "+legacy+" to "+moved) {
+		t.Fatalf("missing move line: %q", stdout)
+	}
+	if _, err := os.Lstat(other); err != nil {
+		t.Fatalf("unrelated dir removed: %v", err)
+	}
+	if _, err := os.Lstat(plain); err != nil {
+		t.Fatalf("name without leading dot removed: %v", err)
+	}
+	if readString(t, fileMatch) != "not a dir\n" {
+		t.Fatal("matching regular file was removed")
+	}
+	if leaked, err := filepath.Glob(filepath.Join(filepath.Dir(dest), ".*.gap-recovery-*")); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, p := range leaked {
+			if p == other || p == fileMatch {
+				continue
+			}
+			t.Fatalf("unexpected leftover: %s", p)
+		}
+	}
+}
+
+func TestMovedLegacyRecoveryDirsAreNotPruned(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, dest, gapMarked("old\n"))
+	var moved []string
+	for _, suffix := range []string{"0", "1", "2", "3"} {
+		legacy := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-"+suffix)
+		if err := os.MkdirAll(legacy, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		write(t, filepath.Join(legacy, filepath.Base(dest)), "stale "+suffix+"\n")
+		moved = append(moved, filepath.Join(recoveryDir(dest, home), filepath.Base(legacy)))
+	}
+	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || !wrote {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	for _, dir := range moved {
+		if _, err := os.Lstat(dir); err != nil {
+			t.Fatalf("moved leftover recovery pruned: %s: %v", dir, err)
+		}
+	}
+}
+
+func TestLegacyRecoveryMoveFailureLeavesSource(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, dest, gapMarked("old\n"))
+	legacy := filepath.Join(filepath.Dir(dest), "."+filepath.Base(dest)+".gap-recovery-abc123")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(legacy, filepath.Base(dest)), "stale policy\n")
+	oldRelocate := relocateDir
+	t.Cleanup(func() { relocateDir = oldRelocate })
+	relocateDir = func(src, dst string) error { return os.ErrPermission }
+	_, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if readString(t, filepath.Join(legacy, filepath.Base(dest))) != "stale policy\n" {
+		t.Fatal("failed move deleted the leftover dir")
+	}
+	if !strings.Contains(stderr, "Warning: moving leftover recovery dir "+legacy) {
+		t.Fatalf("missing move warning: %q", stderr)
+	}
+}
+
+func TestConfirmedSymlinkRecoveryNotPruned(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	withYes(t)
+	ledger := map[string]string{}
+	lp := filepath.Join(home, ".gap", "published.json")
+	if wrote, err := publishPolicy("v0\n", dest, false, ledger, lp, true, home); err != nil || !wrote {
+		t.Fatalf("symlink replace: wrote %v err %v", wrote, err)
+	}
+	var linkCopy string
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range backups {
+		if info, err := os.Lstat(p); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			linkCopy = p
+			break
+		}
+	}
+	if linkCopy == "" {
+		t.Fatal("displaced symlink missing from recovery")
+	}
+	if target, err := os.Readlink(linkCopy); err != nil || target != "target.md" {
+		t.Fatalf("displaced link = %q, %v", target, err)
+	}
+	for i := 0; i < recoveryKeep+2; i++ {
+		body := "v" + strings.Repeat("x", i+1) + "\n"
+		if wrote, err := publishPolicy(body, dest, false, ledger, lp, true, home); err != nil || !wrote {
+			t.Fatalf("publish %d: wrote %v err %v", i, wrote, err)
+		}
+	}
+	if target, err := os.Readlink(linkCopy); err != nil || target != "target.md" {
+		t.Fatalf("displaced symlink was pruned: %q, %v", target, err)
+	}
+	regular := 0
+	backups, err = filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range backups {
+		info, err := os.Lstat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		regular++
+	}
+	if regular != recoveryKeep {
+		t.Fatalf("regular recovery copies = %d, want %d", regular, recoveryKeep)
+	}
+}
+
+func TestPruneRecoveryFailureDoesNotAbort(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	ledger := map[string]string{}
+	lp := filepath.Join(home, ".gap", "published.json")
+	if _, err := publishPolicy("a\n", dest, false, ledger, lp, false, home); err != nil {
+		t.Fatal(err)
+	}
+	oldPrune := pruneRecovery
+	t.Cleanup(func() { pruneRecovery = oldPrune })
+	pruneRecovery = func(string) error { return os.ErrPermission }
+	stdout, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("b\n", dest, false, ledger, lp, false, home)
+		if err != nil || !wrote {
+			t.Fatalf("prune failure aborted: wrote %v err %v", wrote, err)
+		}
+	})
+	_ = stdout
+	if !strings.Contains(stderr, "Warning:") || !strings.Contains(stderr, recoveryDir(dest, home)) || !strings.Contains(stderr, os.ErrPermission.Error()) {
+		t.Fatalf("missing prune warning: %q", stderr)
+	}
+	if readString(t, dest) != gapMarked("b\n") {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	if ledger[dest] != digest("b\n") {
+		t.Fatal("ledger not updated after prune warning")
+	}
+}
+
+func TestReviewCrossDevice(t *testing.T) {
+	home := t.TempDir()
+	shm, err := os.MkdirTemp("/dev/shm", "gaprev")
+	if err != nil {
+		t.Skip(err)
+	}
+	defer os.RemoveAll(shm)
+	dest := filepath.Join(shm, "gap", "global-agent-policy.md")
+	ledger := map[string]string{}
+	lp := filepath.Join(home, ".gap", "published.json")
+	if _, err := publishPolicy("v1\n", dest, false, ledger, lp, false, home); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	wrote, err := publishPolicy("v2\n", dest, false, ledger, lp, false, home)
+	if err != nil || !wrote {
+		t.Fatalf("cross-device update failed: wrote %v err %v", wrote, err)
+	}
+	if readString(t, dest) != gapMarked("v2\n") {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 || readString(t, backups[0]) != gapMarked("v1\n") {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+}
+
+func TestRecoveryFallsBackOnEXDEV(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	write(t, dest, gapMarked("v1\n"))
+	if err := os.Chmod(dest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	oldRename := renamePolicy
+	t.Cleanup(func() { renamePolicy = oldRename })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || !wrote {
+		t.Fatalf("EXDEV update failed: wrote %v err %v", wrote, err)
+	}
+	if readString(t, dest) != gapMarked("v2\n") {
+		t.Fatalf("live=%q", readString(t, dest))
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if readString(t, backups[0]) != gapMarked("v1\n") {
+		t.Fatalf("recovery=%q", readString(t, backups[0]))
+	}
+	info, err := os.Stat(backups[0])
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("recovery mode = %v, %v", info, err)
+	}
+	if _, err := os.Lstat(dest); err != nil {
+		t.Fatalf("live dest missing after copy fallback: %v", err)
+	}
+}
+
+func TestCopyFallbackDisappearIsPolicyChanged(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	write(t, dest, gapMarked("v1\n"))
+	oldRename, oldCopy := renamePolicy, copyPolicy
+	t.Cleanup(func() { renamePolicy, copyPolicy = oldRename, oldCopy })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	copyPolicy = func(src, dst string) error {
+		if err := os.Remove(src); err != nil {
+			t.Fatal(err)
+		}
+		return copyPolicyFile(src, dst)
+	}
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || wrote {
+		t.Fatalf("disappear during copy aborted sync: wrote %v err %v", wrote, err)
+	}
+	if _, err := os.Lstat(dest); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("disappeared dest recreated: %v", err)
+	}
+	if len(ledger) != 0 {
+		t.Fatalf("refused publish changed ledger: %v", ledger)
+	}
+}
+
+func TestCopyFallbackMismatchIsPolicyChanged(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	write(t, dest, gapMarked("v1\n"))
+	oldRename, oldHook := renamePolicy, afterCopyWrite
+	t.Cleanup(func() { renamePolicy, afterCopyWrite = oldRename, oldHook })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	afterCopyWrite = func(src, dst string) {
+		write(t, src, "changed during copy\n")
+	}
+	ledger := map[string]string{}
+	wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
+	if err != nil || wrote {
+		t.Fatalf("mismatch during copy aborted sync: wrote %v err %v", wrote, err)
+	}
+	if readString(t, dest) != "changed during copy\n" {
+		t.Fatalf("live dest lost the concurrent edit: %q", readString(t, dest))
+	}
+	if len(ledger) != 0 {
+		t.Fatalf("refused publish changed ledger: %v", ledger)
+	}
+}
+
+func TestCopyFallbackDoesNotRemoveDestEditedDuringCopy(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	write(t, dest, gapMarked("v1\n"))
+	oldRename, oldCopy := renamePolicy, copyPolicy
+	t.Cleanup(func() { renamePolicy, copyPolicy = oldRename, oldCopy })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	copyPolicy = func(src, dst string) error {
+		if err := copyPolicyFile(src, dst); err != nil {
+			return err
+		}
+		write(t, src, "late edit\n")
+		return nil
+	}
+	ledger := map[string]string{}
+	_, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
+		if err != nil || wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if readString(t, dest) != "late edit\n" {
+		t.Fatalf("live dest deleted after mid-copy edit: %q", readString(t, dest))
+	}
+	if len(ledger) != 0 {
+		t.Fatalf("refused publish changed ledger: %v", ledger)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if readString(t, backups[0]) != gapMarked("v1\n") {
+		t.Fatalf("recovery=%q", readString(t, backups[0]))
+	}
+	if !strings.Contains(stderr, backups[0]) {
+		t.Fatalf("refuse missing recovery path %s: %q", backups[0], stderr)
+	}
+}
+
+func TestSyncContinuesAfterPolicyChanged(t *testing.T) {
+	home := t.TempDir()
+	codex := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	dests := policyDests(home, codex)
+	refused := dests[0].dest
+	for _, d := range dests {
+		write(t, d.dest, gapMarked("old\n"))
+	}
+	oldRename, oldCopy := renamePolicy, copyPolicy
+	t.Cleanup(func() { renamePolicy, copyPolicy = oldRename, oldCopy })
+	renamePolicy = func(src, dst string) error {
+		if src == refused {
+			return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+		}
+		return os.Rename(src, dst)
+	}
+	copyPolicy = func(src, dst string) error {
+		if err := copyPolicyFile(src, dst); err != nil {
+			return err
+		}
+		if src == refused {
+			write(t, src, "late edit\n")
+		}
+		return nil
+	}
+	ledger := map[string]string{}
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	skipped := false
+	_, stderr := captureStd(t, func() {
+		for _, c := range dests {
+			wrote, err := publishPolicy("new\n", c.dest, c.cursor, ledger, ledgerFile, false, home)
+			if err != nil {
+				t.Fatalf("policy-changed refuse aborted sync at %s: %v", c.dest, err)
+			}
+			if !wrote {
+				skipped = true
+			}
+		}
+	})
+	if !skipped {
+		t.Fatal("refused destination did not skip")
+	}
+	if readString(t, refused) != "late edit\n" {
+		t.Fatalf("refused dest = %q", readString(t, refused))
+	}
+	if _, inLedger := ledger[refused]; inLedger {
+		t.Fatalf("refused dest entered ledger: %v", ledger)
+	}
+	if !strings.Contains(stderr, "Refusing to publish policy changed during sync: "+refused) {
+		t.Fatalf("missing refuse: %q", stderr)
+	}
+	for _, c := range dests {
+		if c.dest == refused {
+			continue
+		}
+		want := gapMarked(adapt("new\n", false))
+		if readString(t, c.dest) != want {
+			t.Fatalf("%s not published: %q", c.dest, readString(t, c.dest))
+		}
+		if ledger[c.dest] != digest(adapt("new\n", false)) {
+			t.Fatalf("%s missing from ledger: %v", c.dest, ledger)
+		}
+	}
+	var syncErr error
+	if skipped {
+		syncErr = errSkipped
+	}
+	if !errors.Is(syncErr, errSkipped) {
+		t.Fatalf("sync err = %v, want errSkipped", syncErr)
+	}
+}
+
+func TestRecoveryEXDEVRestoresOnInstallFailure(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
+	before := gapMarked("v1\n")
+	write(t, dest, before)
+	oldRename, oldLink := renamePolicy, linkPolicy
+	t.Cleanup(func() { renamePolicy, linkPolicy = oldRename, oldLink })
+	renamePolicy = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	linkPolicy = func(string, string) error { return os.ErrPermission }
+	wrote, err := publishPolicy("v2\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), false, home)
+	if wrote || !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("publication = %v, %v", wrote, err)
+	}
+	if readString(t, dest) != before {
+		t.Fatalf("dest not restored after EXDEV copy: %q", readString(t, dest))
 	}
 }
