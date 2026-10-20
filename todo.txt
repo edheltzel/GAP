@@ -1,5 +1,5 @@
 x 2026-10-12 2026-10-12 Commit + merge GAP todo rule, then npm run sync +config pr:https://github.com/edheltzel/agent-config/pull/70
-2026-10-16 After feat/gap-commands merges: go install ./cmd/gap, gap sync publishes /state-docs +gap
+x 2026-10-19 2026-10-16 After feat/gap-commands merges: go install ./cmd/gap, gap sync publishes /state-docs +gap published by PR #90 + gap sync 2026-10-19
 x 2026-10-14 2026-10-13 Ship sync gitbutler/workspace gate change (src/sync.ts, README, AGENTS.md) via but branch + PR +gap
 x 2026-10-14 2026-10-14 Merge README tutorial PR +gap pr:https://github.com/edheltzel/agent-config/pull/72
 x 2026-10-15 2026-10-14 Red-team 8: rollback after --remove-codex-legacy brings back the replace prompt +gap
@@ -17,9 +17,9 @@ x 2026-10-16 2026-10-15 U8 publish: flip agent-config public, rename to GAP, arc
 x 2026-10-15 2026-10-15 Fix untracked global/skills.json merge-gate bypass + regression test, amend into suw +gap note:docs/plans/handoffs/archive/2026-10-15-gap-skills.md
 x 2026-10-16 2026-10-15 Decide U8 public history (fresh repo / filter-repo / full) and give the go +gap note:docs/plans/handoffs/archive/2026-10-15-gap-skills.md
 2026-10-15 U2: revoke the Eight Sleep APP_CLIENT_SECRET from commit 98ee113c (rotate, no history rewrite) +gap note:docs/plans/2026-10-15-secrets-scan.md
-2026-10-16 After the checkpoint PRs merge: git pull, go install ./cmd/gap, trash the stale ~/.claude/skills/typesafe-ai, then gap sync from a terminal +gap
-2026-10-16 After #79 and #87 merge: add global/commands/*.md to ignoredPathBlocks + regression test, so an ignored command can't bypass the merge gate +gap pr:https://github.com/edheltzel/GAP/pull/87
-2026-10-16 End-to-end test from gitbutler/workspace: git push no-mistakes <branch>, then no-mistakes axi run --run <id> --yes (daemon restarted on patched NM 2026-10-17) +gap
+x 2026-10-19 2026-10-16 After the checkpoint PRs merge: git pull, go install ./cmd/gap, trash the stale ~/.claude/skills/typesafe-ai, then gap sync from a terminal +gap typesafe-ai trashed and reinstalled, gap sync clean 2026-10-19
+x 2026-10-19 2026-10-16 After #79 and #87 merge: add global/commands/*.md to ignoredPathBlocks + regression test, so an ignored command can't bypass the merge gate +gap pr:https://github.com/edheltzel/GAP/pull/87 already covered by ignoredPathBlocks (main.go:306)
+x 2026-10-19 2026-10-16 End-to-end test from gitbutler/workspace: git push no-mistakes <branch>, then no-mistakes axi run --run <id> --yes (daemon restarted on patched NM 2026-10-17) +gap superseded by axi run --branch (PR #89)
 x 2026-10-19 2026-10-17 Confirm the GitButler command that integrates remote fix commits into a stack branch +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-requirements.md
 x 2026-10-19 2026-10-17 U1-U7: GitButler-safe No Mistakes built (a0f1777e) and proven on GAP PR #89; finish U5 no-upstream guidance fix, reinstall +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-plan.md
 x 2026-10-19 2026-10-17 U8: update GAP No Mistakes policy and do-commit for axi run --branch in GitButler repos +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-plan.md pr:https://github.com/edheltzel/GAP/pull/86
@@ -29,5 +29,5 @@ x 2026-10-19 2026-10-19 U1-U3: Empryo policy destination, shadow warning, harnes
 x 2026-10-19 2026-10-19 U4: A/B do-adversarial-review vs empryo --headless --review, swap only if Empryo wins +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-19-gap-empryo-harness-plan.md report:docs/solutions/2026-10-19-empryo-review-ab.md
 x 2026-10-19 2026-10-19 U5: one-line Empryo mappings in do-delegation and do-redteam +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-19-gap-empryo-harness-plan.md
 x 2026-10-19 2026-10-19 U6: Empryo pin set (do-todo, do-commit, but-axi); no preset, gap sync prints the settings call +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-19-gap-empryo-harness-plan.md
-2026-10-19 U7: gap sync from a terminal, prove policy, SoulStack round trip, and pin set in a new Empryo tab +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-19-gap-empryo-harness-plan.md @waiting on Ed: merge U1-U6, then go install ./cmd/gap && gap sync from a terminal (answer y for ~/.empryo/EMPRYO.md), then apply the printed settings call
+2026-10-19 U7: in a new Empryo tab confirm the GAP policy loads once and only do-todo/do-commit/but-axi are pinned, then /soulstack update and recheck rg -c gap:begin ~/.empryo/EMPRYO.md = 1 (PR #91 merged, gap sync clean 2026-10-19) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-19-gap-empryo-harness-plan.md
 x 2026-10-19 2026-10-19 Decide do-git-worktree: remove, or rewrite for GitButler lanes (contradicts the no-native-worktree rule) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-19-gap-empryo-harness-plan.md rewritten for GitButler lanes (user 2026-10-19)
