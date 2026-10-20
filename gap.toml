@@ -4,7 +4,6 @@ name   = "edheltzel/GAP"
 [components.do-skills]
 repo  = "github.com/edheltzel/Do-Skills"
 ref   = "master"
-load  = "listed"
 names = [
   "ai-visibility",
   "anatomy",

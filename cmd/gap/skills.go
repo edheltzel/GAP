@@ -193,7 +193,7 @@ func sameSource(repoRoot string, e manifestEntry, l lockEntry) bool {
 		if !ok {
 			return false
 		}
-		root := filepath.Clean(repoRoot)
+		root := filepath.Clean(addSource(repoRoot, e))
 		return p == root || storeSibling(root, p) || checkoutLock(root, p)
 	}
 	// Path is the pinned store. skills.sh records that directory, including an older commit of the same component.

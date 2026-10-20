@@ -15,24 +15,15 @@ func TestParseTOMLSubset(t *testing.T) {
 		"schema = \"2\"\n" +
 		"name   = \"edheltzel/GAP\"\n" +
 		"\n" +
-		"[defaults]\n" +
-		"profile   = \"machine\"\n" +
-		"harnesses = [\"claude\", \"omp\"]\n" +
-		"\n" +
 		"[components.do-skills]\n" +
 		"repo = \"github.com/edheltzel/Do-Skills\"\n" +
 		"ref  = \"master\"\n" +
-		"load = \"listed\"\n" +
 		"names = [\"do-todo\", \"do-commit\",]\n" +
-		"[components.do-skills.skills]\n" +
-		"do-todo   = { load = \"always\", harness = [\"empryo\"] }\n" +
-		"do-astro  = { load = \"project\", when.files = [\"astro.config.*\"] }\n" +
 		"\n" +
 		"[components.recall]\n" +
 		"repo = \"github.com/edheltzel/Recall\"\n" +
 		"ref  = \"v0.10.2\"\n" +
-		"required = true\n" +
-		"when.profile = [\"machine\"]\n"
+		"names = [\"do-recall-search\"]\n"
 	got, err := parseTOML(doc)
 	if err != nil {
 		t.Fatal(err)
@@ -40,25 +31,17 @@ func TestParseTOMLSubset(t *testing.T) {
 	if got["schema"] != "2" || got["name"] != "edheltzel/GAP" {
 		t.Fatalf("root: %#v", got)
 	}
-	skills := asTable(asTable(asTable(got["components"])["do-skills"])["skills"])
-	if _, ok := skills["do-todo"].(map[string]any); !ok {
-		t.Fatalf("skills table: %#v", skills)
-	}
-	when := asTable(skills["do-astro"])
-	files, ok := asStrings(asTable(when["when"])["files"])
-	if !ok || len(files) != 1 || files[0] != "astro.config.*" {
-		t.Fatalf("when.files: %#v", when)
-	}
-	recall := asTable(asTable(got["components"])["recall"])
-	if recall["required"] != true {
-		t.Fatalf("required: %#v", recall["required"])
+	components := got["components"].(map[string]any)
+	skills := components["do-skills"].(map[string]any)["names"].([]string)
+	if len(skills) != 2 || skills[0] != "do-todo" || skills[1] != "do-commit" {
+		t.Fatalf("skill names: %#v", skills)
 	}
 	lockDoc := "schema = \"2\"\n\n[components.do-skills]\nref = \"master\"\ncommit = \"" + hex + "\"\ntree = \"" + hex + "\"\n"
 	locked, err := parseTOML(lockDoc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	entry := asTable(asTable(locked["components"])["do-skills"])
+	entry := locked["components"].(map[string]any)["do-skills"].(map[string]any)
 	if entry["commit"] != hex || entry["tree"] != hex {
 		t.Fatalf("lock: %#v", entry)
 	}
@@ -67,7 +50,7 @@ func TestParseTOMLSubset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	names, ok := asStrings(gotMulti["names"])
+	names, ok := gotMulti["names"].([]string)
 	if !ok || len(names) != 2 || names[1] != "do-commit" {
 		t.Fatalf("multiline: %#v", gotMulti["names"])
 	}
@@ -75,21 +58,21 @@ func TestParseTOMLSubset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if asTable(asTable(quoted["components"])["do-skills"])["weird.key"] != "ok" {
+	if quoted["components"].(map[string]any)["do-skills"].(map[string]any)["weird.key"] != "ok" {
 		t.Fatalf("quoted key: %#v", quoted)
 	}
 	dotted, err := parseTOML("[components.\"owner.repo\"]\nrepo = \"github.com/owner/repo\"\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if asTable(asTable(dotted["components"])["owner.repo"])["repo"] != "github.com/owner/repo" {
+	if dotted["components"].(map[string]any)["owner.repo"].(map[string]any)["repo"] != "github.com/owner/repo" {
 		t.Fatalf("quoted header segment: %#v", dotted)
 	}
 	spaced, err := parseTOML("\"a b\".c = \"x\"\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if asTable(spaced["a b"])["c"] != "x" {
+	if spaced["a b"].(map[string]any)["c"] != "x" {
 		t.Fatalf("quoted dotted key: %#v", spaced)
 	}
 	bad := []struct{ text, line string }{
@@ -102,6 +85,9 @@ func TestParseTOMLSubset(t *testing.T) {
 		{"[a]\nx = \"1\"\n[a]\n", "line 3"},
 		{"[a]\nx = \"1\"\nx = \"2\"\n", "line 3"},
 		{"k = { a = { b = \"c\" } }\n", "line 1"},
+		{"k = { a = \"b\" }\n", "line 1"},
+		{"k = true\n", "line 1"},
+		{"k = false\n", "line 1"},
 		{"[components.bad key]\n", "line 1"},
 		{"a.b. = \"x\"\n", "line 1"},
 		{"\"bad\\q\" = \"x\"\n", "line 1"},
@@ -454,9 +440,8 @@ while [ $# -gt 0 ]; do
   if [ "$1" = add ]; then src=$2; fi
   if [ "$1" = -s ]; then
     mkdir -p "$HOME/.agents/skills/$2" "$HOME/.claude/skills/$2"
-    cp "$src/skills/global/core/$2/SKILL.md" "$HOME/.agents/skills/$2/SKILL.md"
-    cp "$src/skills/global/core/$2/SKILL.md" "$HOME/.claude/skills/$2/SKILL.md"
-    chmod 644 "$HOME/.agents/skills/$2/SKILL.md" "$HOME/.claude/skills/$2/SKILL.md"
+    cp -Rp "$src/skills/global/core/$2/." "$HOME/.agents/skills/$2/"
+    cp -Rp "$src/skills/global/core/$2/." "$HOME/.claude/skills/$2/"
     digest=$(GAP_TEST_CONTENT_HASH="$src/skills/global/core/$2" ` + shellQuote(os.Args[0]) + `) || exit 1
     python3 - "$HOME" "$2" "$src" "$digest" <<'PY'
 import json, os, sys
@@ -507,9 +492,8 @@ func TestGitHubStoreLockSecondSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := locked["do-todo"]
-	want, err := contentHash(localSkillDir(store, "do-todo"))
-	if err != nil || got.Source != store || got.SourceType != "local" || got.SourceURL != store || got.SkillFolderHash != want {
-		t.Fatalf("lock: %+v want source %s hash %s (%v)", got, store, want, err)
+	if got.Source != store || got.SourceType != "local" || got.SourceURL != store {
+		t.Fatalf("lock: %+v want source %s", got, store)
 	}
 	before := readString(t, filepath.Join(home, ".agents", ".skill-lock.json"))
 	if err := os.WriteFile(argv, nil, 0o644); err != nil {

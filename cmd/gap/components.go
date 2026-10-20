@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -18,12 +19,10 @@ type distro struct {
 }
 
 type component struct {
-	ID       string
-	Repo     string
-	Ref      string
-	Load     string
-	Required bool
-	Skills   []string
+	ID     string
+	Repo   string
+	Ref    string
+	Skills []string
 }
 
 type lockFile struct {
@@ -48,50 +47,41 @@ func readDistro(repoRoot string) (distro, error) {
 		return distro{}, fmt.Errorf("gap.toml: %w", err)
 	}
 	d := distro{Components: map[string]component{}}
-	if s, ok := asString(doc["schema"]); ok {
-		d.Schema = s
-	}
-	if s, ok := asString(doc["name"]); ok {
-		d.Name = s
-	}
-	if d.Schema != "" && d.Schema != "2" {
+	d.Schema, _ = doc["schema"].(string)
+	if d.Schema != "2" {
 		return distro{}, fmt.Errorf("gap.toml: schema must be \"2\"")
 	}
-	tables := asTable(doc["components"])
+	if raw, exists := doc["name"]; exists {
+		var ok bool
+		d.Name, ok = raw.(string)
+		if !ok {
+			return distro{}, fmt.Errorf("gap.toml: name must be a string")
+		}
+	}
+	tables, ok := doc["components"].(map[string]any)
+	if _, exists := doc["components"]; exists && !ok {
+		return distro{}, fmt.Errorf("gap.toml: components must be a table")
+	}
 	for id, raw := range tables {
 		if strings.HasPrefix(id, "\x00") {
 			continue
 		}
-		table := asTable(raw)
+		table, ok := raw.(map[string]any)
+		if !ok {
+			return distro{}, fmt.Errorf("gap.toml: component %s must be a table", id)
+		}
 		c := component{ID: id}
-		if s, ok := asString(table["repo"]); ok {
-			c.Repo = s
+		c.Repo, _ = table["repo"].(string)
+		c.Ref, _ = table["ref"].(string)
+		if c.Repo == "" || c.Ref == "" {
+			return distro{}, fmt.Errorf("gap.toml: component %s needs nonempty string repo and ref", id)
 		}
-		if s, ok := asString(table["ref"]); ok {
-			c.Ref = s
-		}
-		if s, ok := asString(table["load"]); ok {
-			c.Load = s
-		}
-		if v, ok := asBool(table["required"]); ok {
-			c.Required = v
-		}
-		names, _ := asStrings(table["names"])
-		c.Skills = append(c.Skills, names...)
-		for skill := range asTable(table["skills"]) {
-			if strings.HasPrefix(skill, "\x00") {
-				continue
-			}
-			c.Skills = append(c.Skills, skill)
+		c.Skills, ok = table["names"].([]string)
+		if !ok {
+			return distro{}, fmt.Errorf("gap.toml: component %s names must be a string array", id)
 		}
 		sort.Strings(c.Skills)
-		if c.Repo == "" || c.Ref == "" {
-			return distro{}, fmt.Errorf("gap.toml: component %s needs repo and ref", id)
-		}
 		d.Components[id] = c
-	}
-	if len(d.Components) > 0 && d.Schema != "2" {
-		return distro{}, fmt.Errorf("gap.toml: schema must be \"2\"")
 	}
 	return d, nil
 }
@@ -110,19 +100,28 @@ func readLock(repoRoot string) (lockFile, error) {
 		return lockFile{}, fmt.Errorf("gap.lock: %w", err)
 	}
 	lk := lockFile{Components: map[string]lockEntryM1{}}
-	schema, _ := asString(doc["schema"])
-	if schema != "" && schema != "2" {
+	if doc["schema"] != "2" {
 		return lockFile{}, fmt.Errorf("gap.lock: schema must be \"2\"")
 	}
-	for id, raw := range asTable(doc["components"]) {
+	tables, ok := doc["components"].(map[string]any)
+	if _, exists := doc["components"]; exists && !ok {
+		return lockFile{}, fmt.Errorf("gap.lock: components must be a table")
+	}
+	for id, raw := range tables {
 		if strings.HasPrefix(id, "\x00") {
 			continue
 		}
-		table := asTable(raw)
+		table, ok := raw.(map[string]any)
+		if !ok {
+			return lockFile{}, fmt.Errorf("gap.lock: component %s must be a table", id)
+		}
 		e := lockEntryM1{}
-		e.Ref, _ = asString(table["ref"])
-		e.Commit, _ = asString(table["commit"])
-		e.Tree, _ = asString(table["tree"])
+		e.Ref, _ = table["ref"].(string)
+		if e.Ref == "" {
+			return lockFile{}, fmt.Errorf("gap.lock: %s ref must be a nonempty string", id)
+		}
+		e.Commit, _ = table["commit"].(string)
+		e.Tree, _ = table["tree"].(string)
 		if !isHexLen(e.Commit, 40) {
 			return lockFile{}, fmt.Errorf("gap.lock: %s commit must be 40 hex digits", id)
 		}
@@ -261,25 +260,39 @@ func resolveRef(url, ref string) (string, error) {
 	if isHexLen(ref, 40) {
 		return ref, nil
 	}
-	out, err := git(".", "ls-remote", url, ref, ref+"^{}")
+	refs := []string{ref}
+	if ref != "HEAD" && !strings.HasPrefix(ref, "refs/") {
+		refs = []string{"refs/heads/" + ref, "refs/tags/" + ref}
+	}
+	args := []string{"ls-remote", "--", url}
+	for _, name := range refs {
+		args = append(args, name, name+"^{}")
+	}
+	out, err := git(".", args...)
 	if err != nil {
 		return "", fmt.Errorf("resolve %s: %w", ref, err)
 	}
-	var commit string
+	commits := map[string]string{}
 	for _, line := range strings.Split(out, "\n") {
 		fields := strings.Fields(line)
-		if len(fields) < 2 || !isHexLen(fields[0], 40) {
+		if len(fields) != 2 || !isHexLen(fields[0], 40) {
 			continue
 		}
-		if strings.HasSuffix(fields[1], "^{}") {
-			return fields[0], nil
+		name := strings.TrimSuffix(fields[1], "^{}")
+		if !slices.Contains(refs, name) {
+			continue
 		}
-		commit = fields[0]
+		if _, found := commits[name]; !found || fields[1] != name {
+			commits[name] = fields[0]
+		}
 	}
-	if commit == "" {
-		return "", fmt.Errorf("resolve %s: no matching ref", ref)
+	if len(commits) > 1 {
+		return "", fmt.Errorf("resolve %s: ambiguous ref; use refs/heads/ or refs/tags/", ref)
 	}
-	return commit, nil
+	for _, commit := range commits {
+		return commit, nil
+	}
+	return "", fmt.Errorf("resolve %s: no matching ref", ref)
 }
 
 func loadComponents(repoRoot, home string) ([]manifestEntry, error) {
@@ -315,9 +328,11 @@ func statusAll() error {
 	for _, id := range ids {
 		c := d.Components[id]
 		e, pinned := lk.Components[id]
+		ref := c.Ref
 		short := "unpinned"
 		store := "missing"
 		if pinned {
+			ref = e.Ref
 			short = e.Commit
 			if len(short) > 7 {
 				short = short[:7]
@@ -330,7 +345,7 @@ func statusAll() error {
 		} else {
 			bad = true
 		}
-		fmt.Printf("%s ref=%s commit=%s store=%s\n", id, c.Ref, short, store)
+		fmt.Printf("%s ref=%s commit=%s store=%s\n", id, ref, short, store)
 		if !pinned {
 			continue
 		}
@@ -354,13 +369,13 @@ func skillDriftCount(store, home, name string) int {
 	if src == "" {
 		return 1
 	}
-	want, err := contentHash(src)
+	want, err := treeHash(src)
 	if err != nil {
 		return 1
 	}
 	n := 0
 	for _, dir := range skillDirs(home, name) {
-		got, err := contentHash(dir)
+		got, err := treeHash(dir)
 		if err != nil || got != want {
 			n++
 		}

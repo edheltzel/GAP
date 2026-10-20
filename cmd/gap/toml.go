@@ -10,8 +10,8 @@ import (
 )
 
 // parseTOML reads the gap.toml subset: comments, [a] and [a.b.c] headers,
-// bare and quoted keys, dotted keys, basic strings, bools, string arrays,
-// and inline tables nested one level. Anything else errors with its line.
+// bare and quoted keys, dotted keys, basic strings, and string arrays.
+// Anything else errors with its line.
 func parseTOML(text string) (map[string]any, error) {
 	root := map[string]any{}
 	current := root
@@ -186,15 +186,6 @@ func validKey(key string, line int) error {
 	return nil
 }
 
-func splitDots(s string) []string {
-	raw := splitDotsRaw(s)
-	keys := make([]string, len(raw))
-	for i, part := range raw {
-		keys[i] = decodeKey(part)
-	}
-	return keys
-}
-
 func splitDotsRaw(s string) []string {
 	var keys []string
 	var b strings.Builder
@@ -279,12 +270,6 @@ func parseValue(s string, line int) (any, error) {
 	if s == "" {
 		return nil, tomlErr(line, "missing value")
 	}
-	switch s {
-	case "true":
-		return true, nil
-	case "false":
-		return false, nil
-	}
 	switch s[0] {
 	case '"':
 		v, err := unquote(s)
@@ -294,8 +279,6 @@ func parseValue(s string, line int) (any, error) {
 		return v, nil
 	case '[':
 		return parseArray(s, line)
-	case '{':
-		return parseInline(s, line)
 	}
 	if s[0] >= '0' && s[0] <= '9' || s[0] == '-' || s[0] == '+' {
 		return nil, tomlErr(line, "numbers are not supported")
@@ -367,52 +350,6 @@ func parseArray(s string, line int) ([]string, error) {
 	return out, nil
 }
 
-func parseInline(s string, line int) (map[string]any, error) {
-	if !strings.HasPrefix(s, "{") || !strings.HasSuffix(strings.TrimSpace(s), "}") {
-		return nil, tomlErr(line, "bad inline table")
-	}
-	body := strings.TrimSpace(s[1 : len(s)-1])
-	table := map[string]any{}
-	if strings.TrimSpace(body) == "" {
-		return table, nil
-	}
-	for _, part := range splitComma(body) {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		key, value, ok := strings.Cut(part, "=")
-		if !ok {
-			return nil, tomlErr(line, "bad inline table")
-		}
-		keys, err := splitKey(key, line)
-		if err != nil {
-			return nil, err
-		}
-		if len(keys) == 0 || keys[0] == "" {
-			return nil, tomlErr(line, "bad inline key")
-		}
-		v := strings.TrimSpace(value)
-		if strings.HasPrefix(v, "{") {
-			return nil, tomlErr(line, "inline tables nest one level")
-		}
-		parsed, err := parseValue(v, line)
-		if err != nil {
-			return nil, err
-		}
-		parent, err := descendTable(table, keys[:len(keys)-1], line, false)
-		if err != nil {
-			return nil, err
-		}
-		last := keys[len(keys)-1]
-		if _, exists := parent[last]; exists {
-			return nil, tomlErr(line, "duplicate key "+last)
-		}
-		parent[last] = parsed
-	}
-	return table, nil
-}
-
 // splitComma splits on commas that are outside quotes and brackets.
 func splitComma(s string) []string {
 	var parts []string
@@ -455,34 +392,6 @@ func splitComma(s string) []string {
 		b.WriteByte(c)
 	}
 	return append(parts, b.String())
-}
-
-func asTable(v any) map[string]any {
-	t, _ := v.(map[string]any)
-	if t == nil {
-		return map[string]any{}
-	}
-	return t
-}
-
-func asString(v any) (string, bool) {
-	s, ok := v.(string)
-	return s, ok
-}
-
-func asBool(v any) (bool, bool) {
-	b, ok := v.(bool)
-	return b, ok
-}
-
-func asStrings(v any) ([]string, bool) {
-	switch s := v.(type) {
-	case []string:
-		return s, true
-	case nil:
-		return nil, false
-	}
-	return nil, false
 }
 
 // writeLockTOML emits schema = "2" and sorted [components.<id>] tables.
