@@ -1092,8 +1092,16 @@ func TestLockFieldCommand(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("lock-field commit exit %d", code)
 	}
-	if got := strings.TrimSpace(string(out)); got != "78e2c15bfbc484d74a2d38ef3fa727a99272bf25" {
-		t.Fatalf("lock-field commit = %q", got)
+	root, err := sourceRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := lockField(root, "do-skills", "commit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(out)); got != want {
+		t.Fatalf("lock-field commit = %q, want %q", got, want)
 	}
 	if code := run([]string{"lock-field"}); code != 2 {
 		t.Fatalf("lock-field arity exit %d", code)
