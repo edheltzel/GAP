@@ -1,0 +1,6 @@
+schema = "2"
+
+[components.do-skills]
+ref = "master"
+commit = "ae1571346429ec5a57732c54bf82c52d2b5b00fd"
+tree = "f3ef5fe17540788483d38f43258b1d728aa04617"
