@@ -845,7 +845,7 @@ func recoveryDiverged(backup, existing, linkTarget string) bool {
 	return err == nil && string(b) != existing
 }
 
-func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile, existing, linkTarget, backupRoot string, before fs.FileInfo) (bool, error) {
+func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile, existing, linkTarget, backupRoot, preparedBackup string, before fs.FileInfo) (bool, error) {
 	var backup string
 	err := writeStaged(dest, text, func(tmp string) (err error) {
 		if err := policyUnchanged(dest, existing, linkTarget, before); err != nil {
@@ -855,10 +855,13 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 			return nil
 		}
 		if before != nil {
-			var makeErr error
-			backup, makeErr = makeRecovery(dest, backupRoot)
-			if makeErr != nil {
-				return makeErr
+			backup = preparedBackup
+			if backup == "" {
+				var makeErr error
+				backup, makeErr = makeRecovery(dest, backupRoot)
+				if makeErr != nil {
+					return makeErr
+				}
 			}
 			if err := renamePolicy(dest, backup); err != nil {
 				os.RemoveAll(filepath.Dir(backup))
@@ -990,21 +993,25 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 		if !allowPrompt || !termReady() {
 			return refuse("Refusing to replace foreign file (no prompt): %s", dest)
 		}
-		backup := filepath.Join(recoveryDir(dest, backupRoot), filepath.Base(dest))
+		backup, err := makeRecovery(dest, backupRoot)
+		if err != nil {
+			return false, err
+		}
 		if !confirmReplace(dest, backup) {
+			os.RemoveAll(filepath.Dir(backup))
 			return false, nil
 		}
 		fmt.Println(replaceWarning)
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, backupRoot, info)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, backupRoot, backup, info)
 	}
 	if !exists {
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, backupRoot, info)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, backupRoot, "", info)
 	}
 	if next, ok := replaceBlock(existing, body); ok {
-		return commitPublish(dest, next, body, ledger, ledgerFile, existing, linkTarget, backupRoot, info)
+		return commitPublish(dest, next, body, ledger, ledgerFile, existing, linkTarget, backupRoot, "", info)
 	}
 	if ours(existing, true, unmarked, ledger[dest]) {
-		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, backupRoot, info)
+		return commitPublish(dest, canonical(body, cursor), body, ledger, ledgerFile, existing, linkTarget, backupRoot, "", info)
 	}
 	if !allowPrompt || !termReady() {
 		return refuse("Refusing to replace foreign file (no prompt): %s", dest)
@@ -1033,7 +1040,7 @@ func publishPolicy(source, dest string, cursor bool, ledger map[string]string, l
 	if !ok {
 		next = appendBlock(existing, body)
 	}
-	return commitPublish(dest, next, body, ledger, ledgerFile, existing, linkTarget, backupRoot, info)
+	return commitPublish(dest, next, body, ledger, ledgerFile, existing, linkTarget, backupRoot, "", info)
 }
 
 func ensureGapHook(codexDir, policyPath, backupRoot string) (bool, error) {

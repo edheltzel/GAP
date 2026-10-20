@@ -1149,7 +1149,7 @@ func TestPolicyCommitRejectsConcurrentChanges(t *testing.T) {
 			}
 			ledger := map[string]string{dest: "previous ledger"}
 			ledgerFile := filepath.Join(home, "published.json")
-			wrote, err := commitPublish(dest, gapMarked("new policy\n"), "new policy\n", ledger, ledgerFile, before, "", home, info)
+			wrote, err := commitPublish(dest, gapMarked("new policy\n"), "new policy\n", ledger, ledgerFile, before, "", home, "", info)
 			if err != nil || wrote {
 				t.Fatalf("stale publish must be refused: wrote %v err %v", wrote, err)
 			}
@@ -1516,6 +1516,77 @@ func TestRecoveryPrunedPerDestination(t *testing.T) {
 	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
 	if err != nil || len(backups) != recoveryKeep {
 		t.Fatalf("kept %d recovery copies, want %d: %v, %v", len(backups), recoveryKeep, backups, err)
+	}
+}
+
+func TestSymlinkPromptShowsResolvedRecoveryPath(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	var prompted string
+	oldTerm, oldLine := termReady, confirmLine
+	termReady = func() bool { return true }
+	confirmLine = func() string {
+		matches, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(matches) != 0 {
+			t.Fatalf("recovery file already present at prompt: %v", matches)
+		}
+		dirs, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*"))
+		if err != nil || len(dirs) != 1 {
+			t.Fatalf("prepared recovery dir = %v, %v", dirs, err)
+		}
+		prompted = filepath.Join(dirs[0], filepath.Base(dest))
+		if _, err := os.Stat(dirs[0]); err != nil {
+			t.Fatalf("prompted recovery dir missing: %v", err)
+		}
+		return "y\n"
+	}
+	t.Cleanup(func() { termReady, confirmLine = oldTerm, oldLine })
+	stdout, _ := captureStd(t, func() {
+		wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), true, home)
+		if err != nil || !wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
+	if strings.Contains(stdout, "*") {
+		t.Fatalf("prompt contained a glob: %q", stdout)
+	}
+	if prompted == "" || !strings.Contains(stdout, prompted) {
+		t.Fatalf("prompt missing resolved recovery path %q: %q", prompted, stdout)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 || backups[0] != prompted {
+		t.Fatalf("recovery file = %v, prompted %q, %v", backups, prompted, err)
+	}
+}
+
+func TestDeclinedSymlinkReplaceRemovesPreparedRecovery(t *testing.T) {
+	home := t.TempDir()
+	dest := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+	write(t, filepath.Join(filepath.Dir(dest), "target.md"), "target\n")
+	if err := os.Symlink("target.md", dest); err != nil {
+		t.Fatal(err)
+	}
+	oldTerm, oldLine := termReady, confirmLine
+	termReady = func() bool { return true }
+	confirmLine = func() string { return "n\n" }
+	t.Cleanup(func() { termReady, confirmLine = oldTerm, oldLine })
+	wrote, err := publishPolicy("new\n", dest, false, map[string]string{}, filepath.Join(home, ".gap", "published.json"), true, home)
+	if err != nil || wrote {
+		t.Fatalf("declined replace: wrote %v err %v", wrote, err)
+	}
+	if target, err := os.Readlink(dest); err != nil || target != "target.md" {
+		t.Fatalf("declined replace changed symlink: %q, %v", target, err)
+	}
+	leftover, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*"))
+	if err != nil || len(leftover) != 0 {
+		t.Fatalf("declined replace left recovery: %v, %v", leftover, err)
 	}
 }
 
