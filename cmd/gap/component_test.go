@@ -76,8 +76,8 @@ func TestEnsureComponentDirtyAndOffPin(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(dir, "skills", "global", "core", "do-x", "SKILL.md"), "dirty\n")
-	if err := ensureComponent(repo, c); err != nil {
-		t.Fatal(err)
+	if err := ensureComponent(repo, c); err == nil || !strings.Contains(err.Error(), "dirty") {
+		t.Fatalf("dirty checkout must fail ensure: %v", err)
 	}
 	head, err := gitRun(dir, "rev-parse", "HEAD")
 	if err != nil || head != later {
@@ -118,6 +118,71 @@ func TestPinnedSkillDriftAgainstCheckout(t *testing.T) {
 	}
 	if readString(t, filepath.Join(skillDirs(home, "do-x")[0], "SKILL.md")) != "hand edit\n" {
 		t.Fatal("drift check overwrote the edit")
+	}
+}
+
+func TestCheckDriftDoesNotInstallFromDirtyCheckout(t *testing.T) {
+	bare, pin, later := doSkillsBare(t, "from-pin\n", "from-later\n")
+	repo := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	writeDoSkillsLock(t, repo, bare, pin)
+	c := mustDoSkillsComponent(t, repo)
+	dir := componentDir(repo, c.Name)
+	if err := cloneGit(t, bare, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gitRun(dir, "checkout", "-q", later); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(dir, "skills", "global", "core", "do-x", "SKILL.md"), "dirty-install\n")
+	for _, d := range skillDirs(home, "do-x") {
+		write(t, filepath.Join(d, "SKILL.md"), "from-pin\n")
+	}
+	npxLog := filepath.Join(t.TempDir(), "npx.log")
+	npx := filepath.Join(t.TempDir(), "npx")
+	write(t, npx, "#!/bin/sh\necho installed-from-dirty >> "+npxLog+"\nmkdir -p \"$HOME/.agents/skills/do-x\" \"$HOME/.claude/skills\"\nprintf '%s' 'dirty-install\n' > \"$HOME/.agents/skills/do-x/SKILL.md\"\nln -sfn \"$HOME/.agents/skills/do-x\" \"$HOME/.claude/skills/do-x\"\n")
+	if err := os.Chmod(npx, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", filepath.Dir(npx)+string(os.PathListSeparator)+oldPath)
+
+	rOut, wOut, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rErr, wErr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldStdout, oldStderr := os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = wOut, wErr
+	ok, err := checkDrift(repo, home, []manifestEntry{{Source: "edheltzel/Do-Skills", Skills: []string{"do-x"}}})
+	replaced, replaceErr := replaceSkill(npx, repo, home, "edheltzel/Do-Skills", "do-x")
+	os.Stdout, os.Stderr = oldStdout, oldStderr
+	wOut.Close()
+	wErr.Close()
+	out, _ := io.ReadAll(rOut)
+	errOut, _ := io.ReadAll(rErr)
+	if err != nil || ok {
+		t.Fatalf("dirty pin must fail drift: ok=%v err=%v", ok, err)
+	}
+	if strings.Contains(string(out), "Skill drifted") {
+		t.Fatalf("dirty component skills must be skipped, got stdout %q", out)
+	}
+	if !strings.Contains(string(errOut), "dirty") {
+		t.Fatalf("want dirty report, got stderr %q", errOut)
+	}
+	if replaced || replaceErr != nil {
+		t.Fatalf("take-source must not install from a dirty pin: replaced=%v err=%v", replaced, replaceErr)
+	}
+	if _, statErr := os.Stat(npxLog); !os.IsNotExist(statErr) {
+		t.Fatalf("npx must not run against a dirty pin, log=%q", readString(t, npxLog))
+	}
+	if readString(t, skillDirs(home, "do-x")[0]+"/SKILL.md") != "from-pin\n" {
+		t.Fatal("installed skill was replaced from the dirty checkout")
 	}
 }
 

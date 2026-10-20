@@ -282,8 +282,8 @@ func ensureComponent(repoRoot string, c component) error {
 		return verifyComponentTree(dir, c)
 	}
 	if err == nil && st.Dirty {
-		// Never reset a dirty checkout onto the pin.
-		return nil
+		// Never reset a dirty checkout onto the pin, and never install from it.
+		return fmt.Errorf("pinned component %s is dirty at %s", c.Name, dir)
 	}
 	return checkoutPin(dir, c)
 }

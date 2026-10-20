@@ -318,11 +318,13 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			ok = false
+			failed[c.Name] = true
 			continue
 		}
 		reportComponentStatus(st, c.Name)
 		if st.Dirty || st.Off {
 			ok = false
+			failed[c.Name] = true
 		}
 	}
 	for _, e := range entries {
@@ -418,6 +420,14 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 }
 
 func replaceSkill(npx, repoRoot, home, source, name string) (bool, error) {
+	paths, err := loadSkillPaths(repoRoot)
+	if err != nil {
+		return false, err
+	}
+	if !sourceInstallable(repoRoot, source, paths) {
+		reportSkippedComponent(repoRoot, source, paths)
+		return false, nil
+	}
 	dirs := skillDirs(home, name)
 	backups := map[string]string{}
 	restore := func() error {
@@ -450,11 +460,11 @@ func replaceSkill(npx, repoRoot, home, source, name string) (bool, error) {
 	if skillsAdd(npx, repoRoot, home, source, []string{name}) {
 		return true, nil
 	}
-	var err error
+	var result error
 	for _, dir := range dirs {
-		err = errors.Join(err, os.RemoveAll(dir))
+		result = errors.Join(result, os.RemoveAll(dir))
 	}
-	return false, errors.Join(err, restoreSkillLock(snap), restore())
+	return false, errors.Join(result, restoreSkillLock(snap), restore())
 }
 
 type skillLockSnap struct {
