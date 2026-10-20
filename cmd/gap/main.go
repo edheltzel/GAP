@@ -1121,8 +1121,6 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 					return err
 				}
 				if err := policyUnchanged(dest, existing, linkTarget, before); err != nil {
-					os.RemoveAll(filepath.Dir(backup))
-					backup = ""
 					return err
 				}
 				if err := os.Remove(dest); err != nil {

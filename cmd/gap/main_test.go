@@ -2054,15 +2054,27 @@ func TestCopyFallbackDoesNotRemoveDestEditedDuringCopy(t *testing.T) {
 		return nil
 	}
 	ledger := map[string]string{}
-	wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
-	if err != nil || wrote {
-		t.Fatalf("publication = %v, %v", wrote, err)
-	}
+	_, stderr := captureStd(t, func() {
+		wrote, err := publishPolicy("v2\n", dest, false, ledger, filepath.Join(home, ".gap", "published.json"), false, home)
+		if err != nil || wrote {
+			t.Fatalf("publication = %v, %v", wrote, err)
+		}
+	})
 	if readString(t, dest) != "late edit\n" {
 		t.Fatalf("live dest deleted after mid-copy edit: %q", readString(t, dest))
 	}
 	if len(ledger) != 0 {
 		t.Fatalf("refused publish changed ledger: %v", ledger)
+	}
+	backups, err := filepath.Glob(filepath.Join(recoveryDir(dest, home), "*", filepath.Base(dest)))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("recovery files = %v, %v", backups, err)
+	}
+	if readString(t, backups[0]) != gapMarked("v1\n") {
+		t.Fatalf("recovery=%q", readString(t, backups[0]))
+	}
+	if !strings.Contains(stderr, backups[0]) {
+		t.Fatalf("refuse missing recovery path %s: %q", backups[0], stderr)
 	}
 }
 
