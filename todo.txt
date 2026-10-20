@@ -3,7 +3,7 @@ x 2026-10-19 2026-10-16 After feat/gap-commands merges: go install ./cmd/gap, ga
 x 2026-10-14 2026-10-13 Ship sync gitbutler/workspace gate change (src/sync.ts, README, AGENTS.md) via but branch + PR +gap
 x 2026-10-14 2026-10-14 Merge README tutorial PR +gap pr:https://github.com/edheltzel/agent-config/pull/72
 x 2026-10-15 2026-10-14 Red-team 8: rollback after --remove-codex-legacy brings back the replace prompt +gap
-2026-10-14 Confirm in a live Cursor session that ~/.cursor/rules/global-agent-policy.mdc loads +gap
+x 2026-10-19 2026-10-14 Confirm in a live Cursor session that ~/.cursor/rules/global-agent-policy.mdc loads +gap 32 verified 2026-10-19: new Cursor agent quoted 'GAP is the global agent policy for coding agents.' and named the .mdc path with no tools
 x 2026-10-16 2026-10-14 D6: a foreign-file backup keeps bytes, not the harness behavior it gave +gap notice shipped on fix/gap-redteam-8; decide: splice / gap restore / refuse foreign markers pr:https://github.com/edheltzel/GAP/pull/88
 x 2026-10-16 2026-10-14 Rename edheltzel/agent-config to GAP; archive/rename old edheltzel/GAP Go scaffold repo so go install path resolves +gap
 x 2026-10-19 2026-10-15 Decide GitButler vs No Mistakes publish path, add phase-agent exception, publish docs/no-mistakes-autonomous +gap note:docs/plans/handoffs/archive/2026-10-15-no-mistakes-autonomous-policy.md pr:https://github.com/edheltzel/GAP/pull/86
