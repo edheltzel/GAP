@@ -675,6 +675,11 @@ func TestSyncEndToEnd(t *testing.T) {
 			}
 		}
 	}
+	for _, f := range []string{"gap.toml", "gap.lock"} {
+		if out, err := exec.Command("git", "-C", clone, "rm", "-q", "--ignore-unmatch", f).CombinedOutput(); err != nil {
+			t.Fatalf("git rm %s: %v\n%s", f, err, out)
+		}
+	}
 	write(t, filepath.Join(clone, "global", "skills.json"), `[{"source":".","skills":["do-a","do-b"]},{"source":"owner/ext","skills":["ext"]}]`+"\n")
 	for _, name := range []string{"do-a", "do-b"} {
 		write(t, filepath.Join(clone, "skills", "global", "core", name, "SKILL.md"), name+"\n")
