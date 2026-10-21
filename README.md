@@ -30,11 +30,6 @@ Check that your shell finds it:
 
 ```bash
 gap --help
-# gap publishes global/AGENTS.md and each global/commands/*.md into the files
-# those harnesses already read, and installs the skills listed in global/skills.json.
-# Usage:
-#   gap sync                         Publish the policy and commands, install missing skills, check skills for drift
-#   ...
 ```
 
 `gap` publishes the checkout it was installed from, so it runs from any folder. Run `go install ./cmd/gap` again after `cmd/gap` changes or after you move the repo. To skip installing, run `go run ./cmd/gap sync` from the repo root.
@@ -46,32 +41,33 @@ gap --help
 | `gap sync` | Publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
 | `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on drift or a missing store |
-| `gap restore [id]` | Put component skills back to the commit in `gap.lock`. No network when the store already holds it |
+| `gap restore [id]` | Back up and replace missing or drifted component skills at the locked commit, reusing a verified store copy |
 | `gap pin <id>@<ref>` | Resolve a branch, tag, or commit and write it to `gap.lock`. The only command that moves a pin |
 | `go test ./...` | Run the self-test against throwaway folders |
 
 ## Manage skills
 
-`global/skills.json` lists every skill `gap` manages and where each one comes from. `"source": "."` means a skill in this repo's `skills/` folder; any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
+`gap.toml` selects the pinned [component skills](#components), including Do-Skills. `global/skills.json` selects additional skills by source. In that manifest, `"source": "."` means a skill in this repo's `skills/` folder; any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
 
 ```json
 [
-  { "source": ".", "skills": ["do-commit", "do-plan"] },
   { "source": "kunchenguid/gh-axi", "skills": ["gh-axi"] }
 ]
 ```
 
 `gap sync` installs missing listed skills by running skills.sh (`npx -y skills add <source> -g -y -a claude-code -a codex -s <name>`, repeating `-s` for each missing skill). It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for installations. If an installation is needed but `npx` is unavailable, sync still publishes the policy, skips the installation, and exits `1`.
 
-Sync also checks every installed managed skill against its source: this repo's folder, or the hash skills.sh recorded at install. That hash is a Git tree id or a SHA-256 of the skill files; sync compares the same kind. A lock entry whose source is not that manifest source is reinstalled from the manifest after a backup, without asking, only when both destinations still match the recorded hash. An edited copy, or a hash sync cannot check, is reviewed like other drift, against the manifest source. For each skill whose content drifted, it shows the diff and asks:
+Sync also checks every installed managed skill against its source: the pinned store for a component, this repo's folder for `"source": "."`, or the hash skills.sh recorded for another manifest source. That hash is a Git tree id or a SHA-256 of the skill files; sync compares the same kind. A lock entry whose source is not the selected source is reinstalled after a backup, without asking, only when both destinations still match the recorded hash. This also migrates unedited Do-Skills copies previously installed from the GAP checkout to the component store. An edited copy, or a hash sync cannot check, is reviewed like other drift, against the selected source. For each drifted skill, it shows the diff and asks:
 
 - `k` keeps the installed copies for this run. Later runs check them again. An incomplete installation still exits `1`.
 - `t` takes the source. Sync backs up both destinations under `~/.gap/backups/`, then reinstalls. A failed install restores the previous destinations.
 - `s` skips it for now. Sync exits `1`.
 
-With no terminal to ask in, sync lists the drifted skills, including a foreign lock that was not migrated, changes none of them, and exits `1`. Skills the manifest doesn't list are never touched.
+With no terminal to ask in, sync lists the drifted skills, including a foreign lock that was not migrated, changes none of them, and exits `1`. Skills selected by neither `gap.toml` nor `global/skills.json` are never touched.
 
-To add a skill, add it to `global/skills.json`, then follow [the merge and publish steps](#step-2-merge-the-change).
+To add a skill from an existing component, add its name to that component's `names` array in `gap.toml`. For another source, add an entry to `global/skills.json`. Then follow [the merge and publish steps](#step-2-merge-the-change).
+
+For a direct skills.sh install that does not use `gap.lock`, run `npx skills add edheltzel/Do-Skills -s <skill-name>`.
 
 ### Components
 
@@ -86,7 +82,9 @@ ref   = "master"
 names = ["do-commit", "do-todo"]
 ```
 
-`gap pin do-skills@master` writes the pin. `gap sync` fetches that commit into `~/.gap/store/<id>/<commit>/`, checks its tree against the lock, and installs the skills from there through skills.sh, so Node is still needed. Sync never moves a pin. A component missing from `gap.lock` stops the sync and names the `gap pin` command to run. `gap.toml` and `gap.lock` pass the same merge gate as `global/`.
+`gap pin do-skills@master` writes the requested ref, resolved commit, and tree to `gap.lock`. If a branch and tag share a name, use `refs/heads/<name>` or `refs/tags/<name>` to choose one. `gap sync` fetches the locked commit into `~/.gap/store/<id>/<commit>/`, checks its tree against the lock, and installs the skills from there through skills.sh, so Node is still needed. Sync never moves a pin. A component missing from `gap.lock` stops the sync and names the `gap pin` command to run. `gap.toml` and `gap.lock` pass the same merge gate as `global/`.
+
+`gap status` reports component skills only, using the locked ref when pinned. `gap restore do-skills` repairs that component's missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids fetching the component again; skills.sh may still need network access.
 
 ## Change the policy
 
@@ -102,7 +100,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 
 - you're on a branch other than `master` or GitButler's `gitbutler/workspace`
 - you're in a git worktree
-- `global/` or `skills/` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`, top-level `global/commands/*.md`). Ignored `node_modules` and `.DS_Store` do not block.
+- `global/`, `skills/`, `gap.toml`, or `gap.lock` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`, top-level `global/commands/*.md`, `gap.toml`, `gap.lock`). Ignored `node_modules` and `.DS_Store` do not block.
 
 ### Step 3: Run `gap sync`
 

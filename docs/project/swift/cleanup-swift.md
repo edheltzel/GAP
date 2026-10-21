@@ -2,19 +2,9 @@
 
 Quickstart:
 
-This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/swift/do-cleanup-swift`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
+See [Manage skills](../../../README.md#manage-skills) for installation and updates.
 
-```bash
-gap sync
-```
-
-One skill by exact name:
-
-```bash
-npx skills add edheltzel/agent-config -s do-cleanup-swift
-```
-
-[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/swift/do-cleanup-swift)
+[Source](../../../skills/project/swift/do-cleanup-swift/SKILL.md)
 
 ## What it does
 

@@ -14,7 +14,6 @@ import (
 	"strings"
 )
 
-// manifestEntry is one source in global/skills.json. Source "." is the checkout gap was built from.
 // Path, when set, is the directory skills are read from. Source stays the identity used for lock matching.
 type manifestEntry struct {
 	Source string   `json:"source"`
@@ -520,7 +519,7 @@ func restoreSkillLock(snap skillLockSnap) error {
 }
 
 // openSourceSkill returns the skill directory for a diff.
-// A Path is that directory. Otherwise the manifest source is cloned.
+// Path selects the pinned checkout to read from. Otherwise the manifest source is cloned.
 // The cleanup removes a clone. A failed fetch returns an empty dir after reporting what take would replace.
 func openSourceSkill(e manifestEntry, name string) (string, func()) {
 	noop := func() {}
@@ -602,7 +601,7 @@ func entryRoot(repoRoot string, e manifestEntry) string {
 	return addSource(repoRoot, e)
 }
 
-// addSource is the directory passed to skills add. Path wins over Source, which is lock identity only.
+// addSource prefers the pinned Path over Source, which remains the lock identity.
 func addSource(repoRoot string, e manifestEntry) string {
 	if e.Path != "" {
 		return e.Path
@@ -632,7 +631,7 @@ func storeSibling(root, locked string) bool {
 	return !strings.Contains(rel, string(filepath.Separator))
 }
 
-// cleanPath is a cleaned absolute path with symlinks resolved. macOS reports /var as /private/var.
+// cleanPath resolves symlinks. macOS reports /var as /private/var.
 func cleanPath(path string) string {
 	path = filepath.Clean(path)
 	if resolved, err := filepath.EvalSymlinks(path); err == nil {

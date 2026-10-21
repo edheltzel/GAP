@@ -2,19 +2,9 @@
 
 Quickstart:
 
-This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/typescript/do-typescript-refactoring`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
+See [Manage skills](../../../README.md#manage-skills) for installation and updates.
 
-```bash
-gap sync
-```
-
-One skill by exact name:
-
-```bash
-npx skills add edheltzel/agent-config -s do-typescript-refactoring
-```
-
-[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/typescript/do-typescript-refactoring)
+[Source](../../../skills/project/typescript/do-typescript-refactoring/SKILL.md)
 
 ## What it does
 

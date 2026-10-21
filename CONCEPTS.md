@@ -40,7 +40,7 @@ The step that copies the current GAP policy into the files each harness already 
 `gap sync` runs this step and manages skills. Publish names only the policy-copying step.
 
 ### Managed skill
-A skill listed in `global/skills.json`. `gap sync` installs it when it's missing and checks it for drift from its source. A skill the manifest doesn't list is unmanaged, and `gap` never touches it.
+A skill selected by a component's `names` in `gap.toml` or by `global/skills.json`. See [Manage skills](README.md#manage-skills) for installation and drift handling.
 
 ## Decisions
 

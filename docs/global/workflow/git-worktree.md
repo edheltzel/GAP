@@ -2,19 +2,9 @@
 
 Quickstart:
 
-This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/workflow/do-git-worktree`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
+See [Manage skills](../../../README.md#manage-skills) for installation and updates.
 
-```bash
-gap sync
-```
-
-One skill by exact name:
-
-```bash
-npx skills add edheltzel/agent-config -s do-git-worktree
-```
-
-[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/workflow/do-git-worktree)
+[Source](../../../skills/global/workflow/do-git-worktree/SKILL.md)
 
 ## What it does
 
