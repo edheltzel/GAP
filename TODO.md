@@ -4,7 +4,6 @@ Mirror of `todo.txt` (source of truth, managed with `tuxedo`). Synced 2026-10-20
 
 ## Open
 
-- [ ] 2026-10-20 M1 proof: throwaway HOME sync then restore byte-identical for 67 skills, second sync no-op; after merge gap sync + gap status zero drift on BigMac throwaway HOME done 2026-10-20: 67 from store, restore and resync byte-identical (134 dirs), status 0, pre-M1 HOME migrated 67 silently then 0; BigMac run waits on merge
 - [ ] 2026-10-20 M2 Gap's own skill installer, load levels, and project skills
 - [ ] 2026-10-20 M3 Recall component + gap doctor (ATL-645)
 - [ ] 2026-10-20 M4 Echo component after Echo's first tagged release
@@ -14,6 +13,7 @@ Mirror of `todo.txt` (source of truth, managed with `tuxedo`). Synced 2026-10-20
 
 ## Done
 
+- [x] 2026-10-20 M1 proof: throwaway HOME and BigMac both pass; BigMac gap sync after #96 merged migrated 67 skills to the store silently, gap status 0 (67 drift=0), resync made no changes - [pr](https://github.com/edheltzel/GAP/pull/96) [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
 - [x] 2026-10-20 M1: write gap.toml (67 names), gap pin do-skills@master, drop the "." entry from global/skills.json gap.lock commit ae1571346429 tree f3ef5fe1
 - [x] 2026-10-20 M1 code: gap.toml/gap.lock, ~/.gap/store, gap status/restore/pin, gate covers gap.toml/gap.lock (committed on feat/gap-components-m1, go test green, review PASS; proof found and fixed github.com/ identity, store 0444 modes, treeHash mode forcing)
 - [x] 2026-10-20 Commit do-no-comments (vendored pstack no-comments) in GAP and DoSkills, merge, then gap sync to install it landed: GAP c8cd56da on origin/master, DoSkills PR #54 merged (ae15713). gap sync ran 2026-10-20 after unapplying the merged fix/empryo-review-fixes lane: policy republished, do-no-comments migrated from the throwaway clone onto the GAP checkout, guided-plan and guided-review installed. Drift reported for do-adversarial-review and do-redteam, pre-existing, not this skill.
