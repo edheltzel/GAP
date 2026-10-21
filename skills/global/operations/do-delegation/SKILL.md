@@ -36,7 +36,7 @@ A new dispatch starts a fresh worker. Do not assume persistent peer messaging or
 
 - **Claude Code**: background completions notify the parent. Use `/tasks` to inspect running agents and `TaskStop` to cancel a specific task or agent.
 - **Pi**: background completions notify the parent. Use the returned agent ID with `get_subagent_result` only when the result is needed and no completion result is already present. Use `steer_subagent` only for a supported running background agent that needs correction.
-- **Empryo** (detect it per GAP `global/docs/agents/harness-detection.md`): the subagent tool is `dispatch` (foreground) or `background_dispatch` (background). Use `find_agent` to find a custom agent definition before naming one.
+- **Empryo** (you're in Empryo only if the Empryo-only tools `final_response`, `genome_query` and `code_script` are all present; if unsure, take the portable path; https://github.com/edheltzel/GAP/blob/master/global/docs/agents/harness-detection.md): the subagent tool is `dispatch` (foreground) or `background_dispatch` (background). Use `find_agent` to find a custom agent definition before naming one.
 - **Other harnesses**: use their documented status and cancel controls.
 - **All**: do not poll, sleep, tail output files, or duplicate work while a background agent is already handling it.
 

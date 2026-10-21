@@ -1,7 +1,7 @@
 # Regroup: GAP
 
 Date: 2026-10-19
-Source: `todo.txt` via `tuxedo ls --json` (no `done.txt` exists), the `+gap` lines in `~/todo.txt`, `gh pr list -R edheltzel/GAP`, a live `gap sync`, and the previous check-in `regroup/2026-10-18-regroup-gap-2.md`. Resume point: no active handoff (`docs/plans/handoffs/` holds only `archive/`); the plan in flight is `docs/plans/2026-10-19-gap-empryo-harness-plan.md`.
+Source: `todo.txt` via `tuxedo ls --json` (no `done.txt` exists), the `+gap` lines in `~/todo.txt`, `gh pr list -R edheltzel/GAP`, a live `gap sync`, and the previous check-in `regroup/2026-10-18-regroup-gap-2.md`. Resume point: no active handoff (`docs/plans/handoffs/` holds only `archive/`); the plan in flight is `docs/plans/archive/2026-10-19-gap-empryo-harness-plan.md`.
 
 ## Last completed
 
@@ -29,6 +29,6 @@ Source: `todo.txt` via `tuxedo ls --json` (no `done.txt` exists), the `+gap` lin
 2026-10-14 Confirm in a live Cursor session that ~/.cursor/rules/global-agent-policy.mdc loads +gap
 2026-10-15 U2: revoke the Eight Sleep APP_CLIENT_SECRET from commit 98ee113c (rotate, no history rewrite) +gap note:docs/plans/2026-10-15-secrets-scan.md
 2026-10-17 U9: offer the NM changes upstream (needs explicit go) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-17-nm-gitbutler-safe-plan.md
-2026-10-19 U7: in a new Empryo tab confirm the GAP policy loads once and only do-todo/do-commit/but-axi are pinned, then /soulstack update and recheck rg -c gap:begin ~/.empryo/EMPRYO.md = 1 (PR #91 merged, gap sync clean 2026-10-19) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-19-gap-empryo-harness-plan.md
+2026-10-19 U7: in a new Empryo tab confirm the GAP policy loads once and only do-todo/do-commit/but-axi are pinned, then /soulstack update and recheck rg -c gap:begin ~/.empryo/EMPRYO.md = 1 (PR #91 merged, gap sync clean 2026-10-19) +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/archive/2026-10-19-gap-empryo-harness-plan.md
 (C) 2026-09-28 ATL-613 gap: Codex-in-Herdr review then Red-Team +gap @intern @todo id:ATL-613 pr:https://github.com/edheltzel/agent-config/pull/76
 ```

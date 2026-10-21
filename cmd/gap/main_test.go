@@ -22,6 +22,15 @@ const (
 )
 
 func TestMain(m *testing.M) {
+	if dir := os.Getenv("GAP_TEST_CONTENT_HASH"); dir != "" {
+		h, err := contentHash(dir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Print(h)
+		os.Exit(0)
+	}
 	docsDir = "/repo/global/docs/agents"
 	os.Exit(m.Run())
 }
@@ -664,6 +673,11 @@ func TestSyncEndToEnd(t *testing.T) {
 			if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
 				t.Fatalf("git %v: %v\n%s", args, err, out)
 			}
+		}
+	}
+	for _, f := range []string{"gap.toml", "gap.lock"} {
+		if out, err := exec.Command("git", "-C", clone, "rm", "-q", "--ignore-unmatch", f).CombinedOutput(); err != nil {
+			t.Fatalf("git rm %s: %v\n%s", f, err, out)
 		}
 	}
 	write(t, filepath.Join(clone, "global", "skills.json"), `[{"source":".","skills":["do-a","do-b"]},{"source":"owner/ext","skills":["ext"]}]`+"\n")

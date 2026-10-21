@@ -2,19 +2,9 @@
 
 Quickstart:
 
-This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/global/core/do-adversarial-review`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
+See [Manage skills](../../../README.md#manage-skills) for installation and updates.
 
-```bash
-gap sync
-```
-
-One skill by exact name:
-
-```bash
-npx skills add edheltzel/agent-config -s do-adversarial-review
-```
-
-[Source](https://github.com/edheltzel/agent-config/tree/master/skills/global/core/do-adversarial-review)
+[Source](../../../skills/global/core/do-adversarial-review/SKILL.md)
 
 ## What it does
 

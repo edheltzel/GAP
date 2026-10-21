@@ -44,10 +44,10 @@ done
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"good":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
-	if !skillsAdd(npx, t.TempDir(), home, "owner/repo", []string{"good"}) {
+	if !skillsAdd(npx, t.TempDir(), home, manifestEntry{Source: "owner/repo"}, []string{"good"}) {
 		t.Fatal("a complete matching install must succeed")
 	}
-	if skillsAdd(npx, t.TempDir(), home, "owner/repo", []string{"good", "typo"}) {
+	if skillsAdd(npx, t.TempDir(), home, manifestEntry{Source: "owner/repo"}, []string{"good", "typo"}) {
 		t.Fatal("a successful subset must not satisfy all requested installations")
 	}
 	if !installed(home, "good") || installed(home, "typo") {
@@ -90,7 +90,7 @@ func TestSkillsReplacement(t *testing.T) {
 				if err := os.Chmod(npx, 0o755); err != nil {
 					t.Fatal(err)
 				}
-				ok, err := replaceSkill(npx, repo, home, ".", "do-x")
+				ok, err := replaceSkill(npx, repo, home, manifestEntry{Source: "."}, "do-x")
 				if err != nil || ok != (mode == "complete") {
 					t.Fatalf("replace: ok=%v err=%v", ok, err)
 				}
@@ -249,7 +249,9 @@ done
 
 func TestSourceIdentity(t *testing.T) {
 	repo := "/tmp/gap-checkout"
-	match := func(manifest string, l lockEntry) bool { return sameSource(repo, manifest, l) }
+	match := func(manifest string, l lockEntry) bool {
+		return sameSource(repo, manifestEntry{Source: manifest}, l)
+	}
 	if !match("kunchenguid/gh-axi", lockEntry{Source: "https://github.com/kunchenguid/gh-axi.git", SourceURL: "https://github.com/kunchenguid/gh-axi.git"}) {
 		t.Fatal("a GitHub URL must match owner/repo")
 	}
@@ -267,6 +269,50 @@ func TestSourceIdentity(t *testing.T) {
 	}
 	if match(".", lockEntry{Source: "edheltzel/Do-Skills", SourceType: "github", SourceURL: "https://github.com/edheltzel/Do-Skills.git"}) {
 		t.Fatal("a GitHub lock must not match the checkout source")
+	}
+}
+
+func TestStorePathSecondSync(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", "")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	store := filepath.Join(home, ".gap", "store", "do-skills", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	write(t, filepath.Join(store, "skills", "global", "core", "do-todo", "SKILL.md"), "from-store\n")
+	for _, dir := range skillDirs(home, "do-todo") {
+		write(t, filepath.Join(dir, "SKILL.md"), "from-store\n")
+	}
+	hash, err := treeHash(skillDirs(home, "do-todo")[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkout := t.TempDir()
+	write(t, filepath.Join(checkout, "global", "AGENTS.md"), "policy\n")
+	init := exec.Command("git", "init", "-q", checkout)
+	init.Env = gitEnv()
+	if out, err := init.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	lock := `{"skills":{"do-todo":{"source":"` + store + `","sourceType":"local","sourceUrl":"` + store + `","skillFolderHash":"` + hash + `"}}}`
+	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), lock)
+	entry := manifestEntry{Source: ".", Skills: []string{"do-todo"}, Path: store}
+	if _, foreign := foreignLock(store, home, ".", "do-todo"); foreign {
+		t.Fatal("a store-path lock must be the same component")
+	}
+	if !installSkills(checkout, home, []manifestEntry{entry}) {
+		t.Fatal("second sync")
+	}
+	if got := readString(t, filepath.Join(home, ".agents", ".skill-lock.json")); got != lock {
+		t.Fatal("second sync re-migrated a store-path install")
+	}
+	other := filepath.Join(home, ".gap", "store", "do-skills", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !sameSource(store, manifestEntry{Source: ".", Path: store}, lockEntry{Source: other, SourceType: "local"}) {
+		t.Fatal("another commit of the same store must match")
+	}
+	if !sameSource(store, manifestEntry{Source: ".", Path: store}, lockEntry{Source: checkout, SourceType: "local"}) {
+		t.Fatal("a checkout-path lock must be migratable to the store")
 	}
 }
 
@@ -339,7 +385,7 @@ func TestSha256LockIsNotPermanentDrift(t *testing.T) {
 	fresh := t.TempDir()
 	t.Setenv("HOME", fresh)
 	write(t, filepath.Join(fresh, ".agents", ".skill-lock.json"), `{"skills":{"good":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+sum+`"}}}`)
-	if !skillsAdd(npx, t.TempDir(), fresh, "owner/repo", []string{"good"}) {
+	if !skillsAdd(npx, t.TempDir(), fresh, manifestEntry{Source: "owner/repo"}, []string{"good"}) {
 		t.Fatal("a content-hash baseline must accept a matching install")
 	}
 }
@@ -565,7 +611,7 @@ func TestForeignExternalDiff(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", stub+string(os.PathListSeparator)+os.Getenv("PATH"))
-	dir, cleanup := openSourceSkill("owner/gh-axi", "gh-axi")
+	dir, cleanup := openSourceSkill(manifestEntry{Source: "owner/gh-axi"}, "gh-axi")
 	if cleanup != nil {
 		defer cleanup()
 	}
@@ -595,7 +641,7 @@ func TestForeignExternalDiff(t *testing.T) {
 	}
 	oldErr := os.Stderr
 	os.Stderr = errW
-	miss, missCleanup := openSourceSkill("missing/repo", "gh-axi")
+	miss, missCleanup := openSourceSkill(manifestEntry{Source: "missing/repo"}, "gh-axi")
 	errW.Close()
 	os.Stderr = oldErr
 	msg, _ := io.ReadAll(errR)

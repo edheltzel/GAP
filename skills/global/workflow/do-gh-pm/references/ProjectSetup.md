@@ -62,7 +62,7 @@ Restate the resolved configuration before running the command.
 
 ## 2. Review the scaffold plan
 
-Run from the target repository checkout, not the installed skill directory. Invoke the tools by absolute path and pass that checkout as `--repo-path`. Reconcile writes `.agents/atlas/artifacts/` under the git root of its working directory; running it inside the installed skill dirties that copy and `gap sync` reports drift.
+Run from the target repository checkout, not the installed skill directory. Invoke the tools by absolute path and pass that checkout as `--repo-path`. Reconcile writes `.agents/atlas/artifacts/` under the git root of its working directory; running it inside the installed skill dirties that copy.
 
 ```bash
 bun "$SKILL/Tools/Scaffold.ts" \

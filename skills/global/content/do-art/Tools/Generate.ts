@@ -1080,6 +1080,27 @@ async function postProcessImage(actualOutput: string, args: CLIArgs): Promise<st
   return actualOutput;
 }
 
+/** Run every compare job to the end. Print each model's files or error; return false if any failed. */
+export async function runCompareJobs<T>(
+  jobs: Array<{ model: string; run: () => Promise<T> }>,
+  write: (line: string) => void,
+  formatOk: (value: T) => string,
+): Promise<boolean> {
+  const settled = await Promise.allSettled(jobs.map((job) => job.run()));
+  let allOk = true;
+  settled.forEach((result, i) => {
+    const model = jobs[i]!.model;
+    if (result.status === "fulfilled") {
+      write(`${model}: ${formatOk(result.value)}`);
+    } else {
+      allOk = false;
+      const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      write(`${model}: error: ${reason}`);
+    }
+  });
+  return allOk;
+}
+
 /** Run one model for n images. OpenRouter, Grok, and gpt-image-2 batch natively; direct Gemini fans out. */
 async function generateImages(model: ImageModel, route: Route, prompt: string, args: CLIArgs, n: number, outputBase: string): Promise<string[]> {
   let paths: string[];
@@ -1139,13 +1160,16 @@ async function main(): Promise<void> {
 
       console.log(`⚖️  Compare Mode: ${n} image(s) each from ${runnable.map((r) => (r.route === "openrouter" ? `${r.model} (OpenRouter)` : r.model)).join(", ")}`);
       const basePath = args.output.replace(/\.[^.]+$/, "");
-      const results = await Promise.all(
-        runnable.map(({ model, route }) =>
-          generateImages(model, route, finalPrompt, args, n, `${basePath}-${model}.png`)
-        )
+      const allOk = await runCompareJobs(
+        runnable.map(({ model, route }) => ({
+          model,
+          run: () => generateImages(model, route, finalPrompt, args, n, `${basePath}-${model}.png`),
+        })),
+        (line) => console.log(`   ${line}`),
+        (paths) => `${paths.length}/${n} ${paths.join(", ")}`,
       );
+      if (!allOk) process.exit(1);
       console.log(`\n✅ Compare complete`);
-      runnable.forEach(({ model }, i) => console.log(`   ${model}: ${results[i]!.length}/${n} ${results[i]!.join(", ")}`));
       return;
     }
 
@@ -1167,4 +1191,6 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+if (import.meta.main) {
+  void main();
+}

@@ -2,19 +2,9 @@
 
 Quickstart:
 
-This skill lives in this repo (`edheltzel/agent-config`, being renamed GAP) at `skills/project/product/do-marketing`. `global/skills.json` lists it with `"source": "."`. Install and refresh it with:
+See [Manage skills](../../../README.md#manage-skills) for installation and updates.
 
-```bash
-gap sync
-```
-
-One skill by exact name:
-
-```bash
-npx skills add edheltzel/agent-config -s do-marketing
-```
-
-[Source](https://github.com/edheltzel/agent-config/tree/master/skills/project/product/do-marketing)
+[Source](../../../skills/project/product/do-marketing/SKILL.md)
 
 Adapted from [proxysoul/SoulStack](https://github.com/proxysoul/SoulStack) marketing (MIT).
 

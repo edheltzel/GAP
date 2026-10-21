@@ -25,16 +25,21 @@ import (
 const (
 	trustLine = "Trust both GAP hooks (SessionStart and SubagentStart) in Codex with /hooks, confirm a session and a subagent both get the policy, then run: gap sync --remove-codex-legacy"
 	usage     = `gap publishes global/AGENTS.md and each global/commands/*.md into the files
-those harnesses already read, and installs the skills listed in global/skills.json.
+those harnesses already read, installs the skills listed in global/skills.json,
+and installs each component pinned in gap.toml from gap.lock.
 
 Usage:
   gap sync                         Publish the policy and commands, install missing skills, check skills for drift
   gap sync --remove-codex-legacy   Same, then strip the old policy copy from ~/.codex/AGENTS.md
+  gap status                       Show each component pin, store, and skill drift. Writes nothing
+  gap restore [id]                 Reinstall drifted component skills from the lock. No network when the store exists
+  gap pin <id>@<ref>               Record id's commit and tree in gap.lock
   gap --help                       Show this help
 
 gap publishes the checkout it was installed from. Reinstall with
 go install ./cmd/gap after cmd/gap changes or the repo moves.
-Installing skills needs Node (npx), because gap drives skills.sh.`
+Installing skills needs Node (npx), because gap drives skills.sh.
+sync never moves pins. pin is the only command that writes gap.lock.`
 	// Ledger value for Codex AGENTS.md once its legacy GAP prefix is stripped; never a sha256 digest.
 	cleaned = "cleaned"
 )
@@ -54,7 +59,52 @@ func run(args []string) int {
 		fmt.Println(usage)
 		return 0
 	}
-	if len(args) == 0 || args[0] != "sync" {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, usage)
+		return 2
+	}
+	switch args[0] {
+	case "status":
+		if len(args) != 1 {
+			fmt.Fprintln(os.Stderr, usage)
+			return 2
+		}
+		if err := statusAll(); err != nil {
+			if errors.Is(err, errSkipped) {
+				return 1
+			}
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
+	case "restore":
+		if len(args) > 2 {
+			fmt.Fprintln(os.Stderr, usage)
+			return 2
+		}
+		id := ""
+		if len(args) == 2 {
+			id = args[1]
+		}
+		if err := restoreAll(id); err != nil {
+			if !errors.Is(err, errSkipped) {
+				fmt.Fprintln(os.Stderr, err)
+			}
+			return 1
+		}
+		return 0
+	case "pin":
+		if len(args) != 2 {
+			fmt.Fprintln(os.Stderr, usage)
+			return 2
+		}
+		if err := pinComponent(args[1]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
+	case "sync":
+	default:
 		fmt.Fprintln(os.Stderr, usage)
 		return 2
 	}
@@ -151,6 +201,11 @@ func syncAll(removeLegacy bool) error {
 	if err != nil {
 		return err
 	}
+	componentSet, err := loadComponents(repoRoot, home)
+	if err != nil {
+		return err
+	}
+	entries = append(entries, componentSet...)
 	skillsOK := installSkills(repoRoot, home, entries)
 	driftOK, err := checkDrift(repoRoot, home, entries)
 	if err != nil {
@@ -237,9 +292,15 @@ func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath
 	return ok, nil
 }
 
+// sourceRootFor tests. Empty means the compile-time checkout.
+var sourceRootFor string
+
 // sourceRoot is the checkout gap was built from, so `gap sync` publishes that checkout from any directory.
 // ponytail: compile-time path; moving the checkout or building with -trimpath needs a fresh `go install ./cmd/gap`.
 func sourceRoot() (string, error) {
+	if sourceRootFor != "" {
+		return sourceRootFor, nil
+	}
 	_, file, _, ok := runtime.Caller(0)
 	if !ok || !filepath.IsAbs(file) {
 		return "", errors.New("gap was built without its source path; run go install ./cmd/gap from the GAP checkout")
@@ -267,6 +328,10 @@ func git(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
 	cmd.Env = gitEnv()
 	out, err := cmd.Output()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && len(exit.Stderr) > 0 {
+		err = fmt.Errorf("git %s: %w: %s", args[0], err, strings.TrimSpace(string(exit.Stderr)))
+	}
 	return strings.TrimSpace(string(out)), err
 }
 
@@ -281,9 +346,9 @@ func readCheckout(root string) (checkout, error) {
 		return checkout{}, errors.New("refusing to publish: origin/HEAD is not set; run git remote set-head origin --auto")
 	}
 	c := checkout{primary: strings.TrimPrefix(originHead, "origin/")}
-	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/", "skills/")
-	untracked, untrackedErr := git(root, "ls-files", "--others", "--exclude-standard", "--", "global/", "skills/")
-	ignored, ignoredErr := git(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", "global/", "skills/")
+	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/", "skills/", "gap.toml", "gap.lock")
+	untracked, untrackedErr := git(root, "ls-files", "--others", "--exclude-standard", "--", "global/", "skills/", "gap.toml", "gap.lock")
+	ignored, ignoredErr := git(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", "global/", "skills/", "gap.toml", "gap.lock")
 	c.unmerged = diffErr != nil || untrackedErr != nil || ignoredErr != nil || untracked != "" || ignoredBlocks(ignored)
 	if c.branch, err = git(root, "rev-parse", "--abbrev-ref", "HEAD"); err != nil {
 		return c, err
@@ -304,7 +369,7 @@ func refuseCheckout(root string, c checkout) string {
 		return "refusing to publish from a worktree"
 	}
 	if c.unmerged {
-		return fmt.Sprintf("refusing to publish: global/ or skills/ differs from origin/%s; commit, merge and pull first", c.primary)
+		return fmt.Sprintf("refusing to publish: global/ or skills/ differs from origin/%s (gap.toml and gap.lock are gated the same way); commit, merge and pull first", c.primary)
 	}
 	return ""
 }
@@ -334,7 +399,7 @@ func ignoredBlocks(list string) bool {
 func ignoredPathBlocks(path string) bool {
 	path = filepath.ToSlash(path)
 	switch path {
-	case "global/AGENTS.md", "global/skills.json":
+	case "global/AGENTS.md", "global/skills.json", "gap.toml", "gap.lock":
 		return true
 	}
 	if filepath.Dir(path) == "global/commands" && strings.HasSuffix(path, ".md") {
