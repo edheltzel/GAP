@@ -4,17 +4,7 @@ Swift and Apple platforms - macOS desktop apps, iOS review, and cleanup.
 
 ## Installation
 
-These skills live in this repo (`edheltzel/agent-config`, being renamed GAP). `gap sync` installs every skill listed in `global/skills.json`.
-
-```bash
-gap sync
-```
-
-One skill by exact name:
-
-```bash
-npx skills add edheltzel/agent-config -s <skill-name>
-```
+See [Manage skills](../../../README.md#manage-skills) for installation and updates.
 
 ## Skills
 

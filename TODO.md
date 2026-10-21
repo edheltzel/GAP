@@ -4,20 +4,20 @@ Mirror of `todo.txt` (source of truth, managed with `tuxedo`). Synced 2026-10-20
 
 ## Open
 
-- [ ] 2026-10-20 M1 proof: throwaway HOME sync then restore byte-identical for 67 skills, second sync no-op; after merge gap sync + gap status zero drift on BigMac throwaway HOME done 2026-10-20: 67 from store, restore and resync byte-identical (134 dirs), status 0, pre-M1 HOME migrated 67 silently then 0; BigMac run waits on merge - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
-- [ ] 2026-10-20 M2 Gap's own skill installer, load levels, and project skills - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
-- [ ] 2026-10-20 M3 Recall component + gap doctor (ATL-645) - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
-- [ ] 2026-10-20 M4 Echo component after Echo's first tagged release - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
-- [ ] 2026-10-20 M5 Forge component + gap init / --adopt (Forge public after secrets scan + captain go) - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
-- [ ] 2026-10-20 M6 override layer (~/.config/gap, <repo>/.gap) - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
-- [ ] 2026-10-20 M7 crew/cloud profile + new-machine bootstrap - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
+- [ ] 2026-10-20 M1 proof: throwaway HOME sync then restore byte-identical for 67 skills, second sync no-op; after merge gap sync + gap status zero drift on BigMac throwaway HOME done 2026-10-20: 67 from store, restore and resync byte-identical (134 dirs), status 0, pre-M1 HOME migrated 67 silently then 0; BigMac run waits on merge
+- [ ] 2026-10-20 M2 Gap's own skill installer, load levels, and project skills
+- [ ] 2026-10-20 M3 Recall component + gap doctor (ATL-645)
+- [ ] 2026-10-20 M4 Echo component after Echo's first tagged release
+- [ ] 2026-10-20 M5 Forge component + gap init / --adopt (Forge public after secrets scan + captain go)
+- [ ] 2026-10-20 M6 override layer (~/.config/gap, <repo>/.gap)
+- [ ] 2026-10-20 M7 crew/cloud profile + new-machine bootstrap
 
 ## Done
 
-- [x] 2026-10-20 M1: write gap.toml (67 names), gap pin do-skills@master, drop the "." entry from global/skills.json gap.lock commit ae1571346429 tree f3ef5fe1 - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
-- [x] 2026-10-20 M1 code: gap.toml/gap.lock, ~/.gap/store, gap status/restore/pin, gate covers gap.toml/gap.lock (committed on feat/gap-components-m1, go test green, review PASS; proof found and fixed github.com/ identity, store 0444 modes, treeHash mode forcing) - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
+- [x] 2026-10-20 M1: write gap.toml (67 names), gap pin do-skills@master, drop the "." entry from global/skills.json gap.lock commit ae1571346429 tree f3ef5fe1
+- [x] 2026-10-20 M1 code: gap.toml/gap.lock, ~/.gap/store, gap status/restore/pin, gate covers gap.toml/gap.lock (committed on feat/gap-components-m1, go test green, review PASS; proof found and fixed github.com/ identity, store 0444 modes, treeHash mode forcing)
 - [x] 2026-10-20 Commit do-no-comments (vendored pstack no-comments) in GAP and DoSkills, merge, then gap sync to install it landed: GAP c8cd56da on origin/master, DoSkills PR #54 merged (ae15713). gap sync ran 2026-10-20 after unapplying the merged fix/empryo-review-fixes lane: policy republished, do-no-comments migrated from the throwaway clone onto the GAP checkout, guided-plan and guided-review installed. Drift reported for do-adversarial-review and do-redteam, pre-existing, not this skill.
-- [x] 2026-10-20 ATL-GAPDEUCE part 1: parity: Do-Skills was newer (PR #53 scrubbed App ids, absolute links, runCompareJobs); GAP took Do-Skills bytes for do-adversarial-review, do-art, do-delegation, do-gh-pm, all 67 now match ae157134 - [note](docs/plans/2026-10-20-gap-env-provisioner-plan.md)
+- [x] 2026-10-20 ATL-GAPDEUCE part 1: parity: Do-Skills was newer (PR #53 scrubbed App ids, absolute links, runCompareJobs); GAP took Do-Skills bytes for do-adversarial-review, do-art, do-delegation, do-gh-pm, all 67 now match ae157134
 - [x] 2026-10-19 Review and merge PR #93 (fix/empryo-review-fixes: recovered review fix plus NM review fix for concurrent policy edits; checks passed, test skipped) - [pr](https://github.com/edheltzel/GAP/pull/93)
 - [x] 2026-10-19 U7: in a new Empryo tab confirm the GAP policy loads once and only do-todo/do-commit/but-axi are pinned, then /soulstack update and recheck rg -c gap:begin ~/.empryo/EMPRYO.md = 1 (PR #91 merged, gap sync clean 2026-10-19) - [note](docs/plans/archive/2026-10-19-gap-empryo-harness-plan.md)
 - [x] 2026-10-19 U6: Empryo pin set (do-todo, do-commit, but-axi); no preset, gap sync prints the settings call - [note](docs/plans/archive/2026-10-19-gap-empryo-harness-plan.md)

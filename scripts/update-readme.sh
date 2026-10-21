@@ -10,10 +10,6 @@ ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 README="$ROOT/README.md"
 SKILLS_DIR="$ROOT/skills"
 GROUPINGS_FILE="$ROOT/skills.sh.json"
-# skills.sh accepts owner/repo and a skills/<scope>/<group> subpath. A walk of
-# skills/project (no SKILL.md at the top) also installs SKILL.md files bundled
-# under references/. Catalogs install with gap sync, or one skill with -s.
-REPO="edheltzel/agent-config"
 
 # Render order. Group blurbs come from skills.sh.json ("<Scope>: <Group>"),
 # their authoritative owner. Unlisted groups on disk are appended.
@@ -71,10 +67,7 @@ is_promoted() {
 }
 
 write_install() {
-    printf 'These skills live in this repo (`%s`, being renamed GAP). `gap sync` installs every skill listed in `global/skills.json`.\n\n' "$REPO"
-    printf '```bash\ngap sync\n```\n\n'
-    printf 'One skill by exact name:\n\n'
-    printf '```bash\nnpx skills add %s -s <skill-name>\n```\n\n' "$REPO"
+    printf 'See [Manage skills](%s#manage-skills) for installation and updates.\n\n' "$1"
 }
 # Ordered groups for a scope: preferred order, then any others on disk.
 ordered_groups() {
@@ -173,7 +166,7 @@ write_group_readme() {
         blurb=$(group_blurb "$scope" "$group")
         [ -n "$blurb" ] && printf '%s\n\n' "$blurb"
         printf '## Installation\n\n'
-        write_install
+        write_install '../../../README.md'
         printf '## Skills\n\n| Skill | Description |\n|-------|-------------|\n'
         while IFS=$'\t' read -r name dir desc; do
             printf '| [`%s`](./%s/) | %s |\n' "$name" "$dir" "$(escape_cell "$desc")"
@@ -204,7 +197,7 @@ for scope in $SCOPE_ORDER; do
     {
         printf '# %s Skills\n\n%s\n\n' "$(scope_title "$scope")" "$(scope_blurb "$scope")"
         printf '## Installation\n\n'
-        write_install
+        write_install '../../README.md'
         printf '## Groups\n\n| Group | Skills | Coverage |\n|-------|--------|----------|\n'
         cat "$scope_rows"
         printf '\n## See Also\n\n- [Skill catalog](../../README.md)\n'
