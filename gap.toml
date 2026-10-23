@@ -1,6 +1,27 @@
 schema = "2"
 name   = "edheltzel/GAP"
 
+[components.forge]
+repo   = "github.com/edheltzel/Forge"
+ref    = "master"
+names  = ["forge-interview"]
+
+[components.echo]
+repo    = "github.com/edheltzel/Echo"
+ref     = "v0.13.0"
+doctor  = "cli/echo doctor"
+install = "scripts/install.sh"
+# macOS only. Adapters install through scripts/install.sh --adapter. Gap records them in M6.
+names   = []
+
+[components.recall]
+repo    = "github.com/edheltzel/Recall"
+ref     = "main"
+doctor  = "recall doctor"
+install = "./packaging/install.sh"
+# Recall owns do-recall-* and installs them itself. Gap runs its doctor and does not copy them.
+names   = []
+
 [components.do-skills]
 repo  = "github.com/edheltzel/Do-Skills"
 ref   = "master"

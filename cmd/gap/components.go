@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -19,10 +18,20 @@ type distro struct {
 }
 
 type component struct {
-	ID     string
-	Repo   string
-	Ref    string
-	Skills []string
+	ID       string
+	Repo     string
+	Ref      string
+	Skills   []string
+	SkillSet map[string]skillSpec
+	Doctor   string
+	Install  string
+}
+
+// skillSpec is one skill's load level. WhenFiles names the repo files that make a
+// project skill install. Empty Load means listed, which is what M1 installed.
+type skillSpec struct {
+	Load      string
+	WhenFiles []string
 }
 
 type lockFile struct {
@@ -73,17 +82,80 @@ func readDistro(repoRoot string) (distro, error) {
 		c := component{ID: id}
 		c.Repo, _ = table["repo"].(string)
 		c.Ref, _ = table["ref"].(string)
+		c.Doctor, _ = table["doctor"].(string)
+		c.Install, _ = table["install"].(string)
 		if c.Repo == "" || c.Ref == "" {
 			return distro{}, fmt.Errorf("gap.toml: component %s needs nonempty string repo and ref", id)
 		}
-		c.Skills, ok = table["names"].([]string)
-		if !ok {
-			return distro{}, fmt.Errorf("gap.toml: component %s names must be a string array", id)
+		c.Skills, c.SkillSet, err = componentSkills(table)
+		if err != nil {
+			return distro{}, fmt.Errorf("gap.toml: component %s: %w", id, err)
 		}
 		sort.Strings(c.Skills)
 		d.Components[id] = c
 	}
 	return d, nil
+}
+
+// componentSkills reads names plus an optional [components.<id>.skills] table.
+// names is the install list. The skills table only sets a load level for a name already in it.
+func componentSkills(table map[string]any) ([]string, map[string]skillSpec, error) {
+	raw, ok := table["names"]
+	if !ok {
+		return nil, nil, fmt.Errorf("names must be a string array")
+	}
+	list, ok := raw.([]string)
+	if !ok {
+		return nil, nil, fmt.Errorf("names must be a string array")
+	}
+	seen := map[string]bool{}
+	var names []string
+	for _, name := range list {
+		if name == "" || seen[name] {
+			return nil, nil, fmt.Errorf("names has an empty or repeated entry")
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	set := map[string]skillSpec{}
+	raw, exists := table["skills"]
+	if !exists {
+		return names, set, nil
+	}
+	skills, ok := raw.(map[string]any)
+	if !ok {
+		return nil, nil, fmt.Errorf("skills must be a table")
+	}
+	for name, value := range skills {
+		if strings.HasPrefix(name, "\x00") {
+			continue
+		}
+		spec, ok := value.(map[string]any)
+		if !ok {
+			return nil, nil, fmt.Errorf("skill %s must be a table", name)
+		}
+		s := skillSpec{}
+		if load, ok := spec["load"].(string); ok {
+			switch load {
+			case "always", "listed", "project", "command", "off":
+				s.Load = load
+			default:
+				return nil, nil, fmt.Errorf("skill %s load must be always, listed, project, command, or off", name)
+			}
+		}
+		if when, ok := spec["when"].(map[string]any); ok {
+			if files, ok := when["files"].([]string); ok {
+				s.WhenFiles = files
+			} else if _, present := when["files"]; present {
+				return nil, nil, fmt.Errorf("skill %s when.files must be a string array", name)
+			}
+		}
+		if !seen[name] {
+			return nil, nil, fmt.Errorf("skill %s is not in names", name)
+		}
+		set[name] = s
+	}
+	return names, set, nil
 }
 
 func readLock(repoRoot string) (lockFile, error) {
@@ -300,6 +372,10 @@ func loadComponents(repoRoot, home string) ([]manifestEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	d, err = applyOverrides(d, home, repoRoot, "")
+	if err != nil {
+		return nil, err
+	}
 	if len(d.Components) == 0 {
 		return nil, nil
 	}
@@ -320,6 +396,10 @@ func statusAll() error {
 		return err
 	}
 	d, lk, err := readPins(repoRoot)
+	if err != nil {
+		return err
+	}
+	d, err = applyOverrides(d, home, repoRoot, "")
 	if err != nil {
 		return err
 	}
@@ -397,10 +477,6 @@ func restoreAll(id string) error {
 			return fmt.Errorf("component %s is not in gap.toml", id)
 		}
 	}
-	npx, err := exec.LookPath("npx")
-	if err != nil {
-		return errors.New("npx not found; install Node to let gap restore skills")
-	}
 	ok := true
 	for _, cid := range sortedIDs(d.Components) {
 		if id != "" && cid != id {
@@ -417,14 +493,15 @@ func restoreAll(id string) error {
 		}
 		entry := manifestEntry{Source: componentSource(c.Repo), Skills: c.Skills, Path: dir}
 		for _, name := range c.Skills {
-			if skillDriftCount(dir, home, name) == 0 {
+			if !renderLoad(c, name, "") || skillDriftCount(dir, home, name) == 0 {
 				continue
 			}
-			replaced, err := replaceSkill(npx, repoRoot, home, entry, name)
-			if err != nil {
-				return err
+			src := localSkillDir(dir, name)
+			if src == "" {
+				return fmt.Errorf("component %s: %s has no source in the store", cid, name)
 			}
-			if !replaced {
+			if err := installLocal(home, entry, name, src); err != nil {
+				fmt.Fprintln(os.Stderr, err)
 				ok = false
 			}
 		}
@@ -569,7 +646,13 @@ func componentEntries(home string, d distro, pins map[string]lockEntryM1) ([]man
 			return nil, err
 		}
 		source := componentSource(c.Repo)
-		entries = append(entries, manifestEntry{Source: source, Skills: c.Skills, Path: dir})
+		var skills []string
+		for _, name := range c.Skills {
+			if renderLoad(c, name, "") {
+				skills = append(skills, name)
+			}
+		}
+		entries = append(entries, manifestEntry{Source: source, Skills: skills, Path: dir})
 	}
 	return entries, nil
 }

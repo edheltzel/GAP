@@ -34,11 +34,14 @@ Usage:
   gap status                       Show each component pin, store, and skill drift. Writes nothing
   gap restore [id]                 Reinstall drifted component skills from the lock. No network when the store exists
   gap pin <id>@<ref>               Record id's commit and tree in gap.lock
+  gap doctor                       Run each component's doctor and report which harnesses are present
+  gap init [--adopt] [dir]         Write .gap/gap.toml and a policy pointer. --adopt reports what the repo already has
   gap --help                       Show this help
 
 gap publishes the checkout it was installed from. Reinstall with
 go install ./cmd/gap after cmd/gap changes or the repo moves.
-Installing skills needs Node (npx), because gap drives skills.sh.
+Component skills install from the pinned store with no Node. Skills in
+global/skills.json that are not pinned still install through skills.sh, which needs Node (npx).
 sync never moves pins. pin is the only command that writes gap.lock.`
 	// Ledger value for Codex AGENTS.md once its legacy GAP prefix is stripped; never a sha256 digest.
 	cleaned = "cleaned"
@@ -103,6 +106,20 @@ func run(args []string) int {
 			return 1
 		}
 		return 0
+	case "init":
+		return initCmd(args[1:])
+	case "doctor":
+		if len(args) != 1 {
+			fmt.Fprintln(os.Stderr, usage)
+			return 2
+		}
+		if err := doctorAll(); err != nil {
+			if !errors.Is(err, errSkipped) {
+				fmt.Fprintln(os.Stderr, err)
+			}
+			return 1
+		}
+		return 0
 	case "sync":
 	default:
 		fmt.Fprintln(os.Stderr, usage)
@@ -110,6 +127,7 @@ func run(args []string) int {
 	}
 	flags := flag.NewFlagSet("sync", flag.ContinueOnError)
 	removeLegacy := flags.Bool("remove-codex-legacy", false, "strip the old GAP text from Codex AGENTS.md once both hooks are trusted")
+	profile := flags.String("profile", "", "apply profiles/<name>.toml over the distro for this run")
 	if err := flags.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -117,7 +135,7 @@ func run(args []string) int {
 		fmt.Fprintln(os.Stderr, usage)
 		return 2
 	}
-	if err := syncAll(*removeLegacy); err != nil {
+	if err := syncAll(*removeLegacy, *profile); err != nil {
 		if !errors.Is(err, errSkipped) {
 			fmt.Fprintln(os.Stderr, err)
 		}
@@ -126,7 +144,7 @@ func run(args []string) int {
 	return 0
 }
 
-func syncAll(removeLegacy bool) error {
+func syncAll(removeLegacy bool, profile string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err

@@ -41,6 +41,21 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 		var missing, migrate []string
 		var migrateFrom []lockEntry
 		for _, name := range e.Skills {
+			// A pinned copy that already matches its store needs nothing, whatever its lock says.
+			// A checkout source still migrates, so its lock moves off the old source.
+			if e.Path != "" && skillUsable(repoRoot, home, e, name) {
+				// The bytes are right but the lock may still name the old source. Record the store.
+				if e.Path != "" {
+					if _, foreign := foreignLockEntry(entryRoot(repoRoot, e), home, e, name); foreign {
+						src := localSkillSource(repoRoot, e, name)
+						hash, herr := contentHash(src)
+						if herr == nil {
+							_ = writeSkillLockEntry(home, name, lockEntry{Source: e.Path, SourceType: "local", SourceURL: e.Path, SkillFolderHash: hash})
+						}
+					}
+				}
+				continue
+			}
 			exists := false
 			for _, dir := range skillDirs(home, name) {
 				if _, err := os.Lstat(dir); !errors.Is(err, os.ErrNotExist) {
@@ -58,6 +73,24 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 			}
 		}
 		if len(missing) == 0 && len(migrate) == 0 {
+			continue
+		}
+		// A pinned store is copied directly. A checkout source and anything gap has to fetch still go through skills.sh.
+		if e.Path != "" && localSkillSource(repoRoot, e, firstName(missing, migrate)) != "" {
+			for _, name := range append(append([]string{}, missing...), migrate...) {
+				src := localSkillSource(repoRoot, e, name)
+				if src == "" {
+					fmt.Fprintf(os.Stderr, "Skill %s has no source in %s\n", name, addSource(repoRoot, e))
+					ok = false
+					continue
+				}
+				if err := installLocal(home, e, name, src); err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					ok = false
+					continue
+				}
+				fmt.Println(filepath.Join(home, ".agents", "skills", name))
+			}
 			continue
 		}
 		if npx == "" {
@@ -87,6 +120,15 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 		}
 	}
 	return ok
+}
+
+func firstName(groups ...[]string) string {
+	for _, g := range groups {
+		if len(g) > 0 {
+			return g[0]
+		}
+	}
+	return ""
 }
 
 func skillsAdd(npx, repoRoot, home string, e manifestEntry, names []string) bool {
