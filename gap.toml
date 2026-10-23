@@ -11,7 +11,7 @@ repo    = "github.com/edheltzel/Echo"
 ref     = "v0.13.0"
 doctor  = "cli/echo doctor"
 install = "scripts/install.sh"
-# macOS only. Adapters install through scripts/install.sh --adapter. Gap records them in M6.
+# macOS only. Adapters install through scripts/install.sh --adapter.
 names   = []
 
 [components.recall]

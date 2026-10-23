@@ -1,6 +1,6 @@
 # Plan: make Gap the LazyVim of agents (ATL-GAPENV)
 
-Tue Oct 20, 2026, ET. The captain answered the open questions on Oct 20; they are folded in below (see Decisions at the end). M1 through M7 landed on Oct 21, 2026. See the milestone notes in `todo.txt`.
+Tue Oct 20, 2026, ET. The captain answered the open questions on Oct 20; they are folded in below (see Decisions at the end). This is the design proposal, not a reference for supported commands or configuration; see the [README](../../README.md#commands) for the implemented CLI and [todo.txt](../../todo.txt) for milestone notes. The Recall setup breadcrumb and Echo adapter ledger are separate-branch work, excluded from this change.
 Backing evidence, sources and the full component notes are in the appendix `ATL-GAPENV.md` (kept outside this repo, in `/Users/ed/Documents/Atlas/Gap/`). Section numbers like "R§3.3" point there.
 
 **In one breath:** Gap becomes two things in one CLI. First, a **distribution**: our opinionated, batteries-included setup, meaning Forge, Recall, Echo, Do-Skills and the shared policy, wired into every harness. Second, a **manager**: it fetches each component at a pinned version, renders it into each harness's own folders, records it in a lockfile, checks drift, and rolls back. Components stay in their own repos. Gap configures them and doesn't own them. You change behavior through override files, never by editing a component.
