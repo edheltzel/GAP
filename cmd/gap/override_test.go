@@ -12,7 +12,7 @@ func TestOverrideDisablesComponent(t *testing.T) {
 		"do-skills": {ID: "do-skills", Ref: "master", Skills: []string{"do-astro"}, SkillSet: map[string]skillSpec{"do-astro": {Load: "project"}}},
 	}}
 	write(t, filepath.Join(home, ".config", "gap", "gap.toml"), "[components.echo]\nenabled = false\n")
-	got, err := applyOverrides(d, home, repo, "")
+	got, err := applyOverrides(d, home, repo, repo, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestProjectOverrideWinsOverUser(t *testing.T) {
 	}}
 	write(t, filepath.Join(home, ".config", "gap", "gap.toml"), "[components.do-skills.skills.do-astro]\nload = \"off\"\n")
 	write(t, filepath.Join(repo, ".gap", "gap.toml"), "[components.do-skills.skills.do-astro]\nload = \"always\"\n")
-	got, err := applyOverrides(d, home, repo, "")
+	got, err := applyOverrides(d, home, repo, repo, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestCrewProfileDropsMachineComponents(t *testing.T) {
 		"echo":      {ID: "echo"},
 		"do-skills": {ID: "do-skills"},
 	}}
-	got, err := applyOverrides(d, t.TempDir(), repo, "crew")
+	got, err := applyOverrides(d, t.TempDir(), repo, repo, "crew")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestCrewProfileDropsMachineComponents(t *testing.T) {
 
 func TestNoOverrideChangesNothing(t *testing.T) {
 	d := distro{Components: map[string]component{"echo": {ID: "echo", Ref: "v0.13.0"}}}
-	got, err := applyOverrides(d, t.TempDir(), t.TempDir(), "")
+	got, err := applyOverrides(d, t.TempDir(), t.TempDir(), t.TempDir(), "")
 	if err != nil || len(got.Components) != 1 {
 		t.Fatalf("missing overrides must leave the distro: %+v %v", got, err)
 	}

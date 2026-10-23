@@ -94,3 +94,8 @@ names = [
   "seo-foundations",
   "site-audit",
 ]
+
+[components.do-skills.skills.do-astro]
+load = "project"
+[components.do-skills.skills.do-astro.when]
+files = ["astro.config.*"]

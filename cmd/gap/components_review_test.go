@@ -189,7 +189,7 @@ func TestComponentLocalModeRestore(t *testing.T) {
 				t.Setenv("PATH", filepath.Dir(npx)+string(os.PathListSeparator)+os.Getenv("PATH"))
 				sourceRootFor = repo
 				t.Cleanup(func() { sourceRootFor = "" })
-				entries, err := loadComponents(repo, home)
+				entries, err := loadTestComponents(repo, home, repo)
 				if err != nil || !installSkills(repo, home, entries) {
 					t.Fatalf("install: %v", err)
 				}

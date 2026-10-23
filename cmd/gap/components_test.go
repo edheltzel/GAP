@@ -209,7 +209,7 @@ done
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", filepath.Dir(npx)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	entries, err := loadComponents(repo, home)
+	entries, err := loadTestComponents(repo, home, repo)
 	if err != nil || len(entries) != 1 || entries[0].Source != "." || entries[0].Path == "" {
 		t.Fatalf("entries: %+v %v", entries, err)
 	}
@@ -473,15 +473,9 @@ func TestGitHubStoreLockSecondSync(t *testing.T) {
 	if !installSkills(repo, home, []manifestEntry{entry}) {
 		t.Fatal("first sync")
 	}
-	locked, err := readSkillLock(home)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(skillLockPath(home)); !os.IsNotExist(err) {
+		t.Fatalf("native install created a legacy lock: %v", err)
 	}
-	got := locked["do-todo"]
-	if got.Source != store || got.SourceType != "local" || got.SourceURL != store {
-		t.Fatalf("lock: %+v want source %s", got, store)
-	}
-	before := readString(t, filepath.Join(home, ".agents", ".skill-lock.json"))
 	if err := os.WriteFile(argv, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -491,8 +485,8 @@ func TestGitHubStoreLockSecondSync(t *testing.T) {
 	if calls := readString(t, argv); strings.TrimSpace(calls) != "" {
 		t.Fatalf("second sync called skills.sh:\n%s", calls)
 	}
-	if after := readString(t, filepath.Join(home, ".agents", ".skill-lock.json")); after != before {
-		t.Fatal("second sync migrated a store-path lock")
+	if _, err := os.Stat(skillLockPath(home)); !os.IsNotExist(err) {
+		t.Fatalf("second sync created a legacy lock: %v", err)
 	}
 }
 
@@ -555,8 +549,8 @@ func TestPinMovesStoreIdentity(t *testing.T) {
 	if err != nil || !replaced {
 		t.Fatalf("reinstall: %v %v", replaced, err)
 	}
-	if !strings.Contains(readString(t, argv), pinned) {
-		t.Fatal("reinstall did not use the pinned store")
+	if _, err := os.Stat(argv); !os.IsNotExist(err) {
+		t.Fatalf("native replacement invoked npx: %v", err)
 	}
 	if got := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")); got != "second\n" {
 		t.Fatalf("reinstall body: %q", got)
@@ -587,18 +581,15 @@ func TestCheckoutLockMigrates(t *testing.T) {
 	}
 	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"do-todo":{"source":"`+repo+`","sourceType":"local","sourceUrl":"`+repo+`","skillFolderHash":"`+hash+`"}}}`)
 	entry := manifestEntry{Source: "edheltzel/Do-Skills", Skills: []string{"do-todo"}, Path: store}
-	if !checkoutLock(store, repo) {
-		t.Fatal("a GAP checkout lock must be migratable onto the store")
-	}
-	if _, foreign := foreignLockEntry(store, home, entry, "do-todo"); !foreign {
-		t.Fatal("a checkout-path lock must stay foreign until the copy is migrated")
-	}
+	before := readString(t, skillLockPath(home))
 	if !installSkills(repo, home, []manifestEntry{entry}) {
-		t.Fatal("migration install")
+		t.Fatal("adoption install")
 	}
-	locked, err := readSkillLock(home)
-	if err != nil || locked["do-todo"].Source != store {
-		t.Fatalf("migrated lock: %+v %v", locked["do-todo"], err)
+	if after := readString(t, skillLockPath(home)); after != before {
+		t.Fatal("native adoption modified the legacy lock")
+	}
+	if ok, err := checkDrift(repo, home, []manifestEntry{entry}); err != nil || !ok {
+		t.Fatalf("matching pinned copies were not adopted: %v %v", ok, err)
 	}
 }
 
@@ -675,9 +666,8 @@ func TestLocalInstallNeedsNoNode(t *testing.T) {
 			t.Fatalf("%s: %q", dir, got)
 		}
 	}
-	locked, err := readSkillLock(home)
-	if err != nil || locked["do-todo"].Source != store || locked["do-todo"].SourceType != "local" {
-		t.Fatalf("lock: %+v %v", locked["do-todo"], err)
+	if _, err := os.Stat(skillLockPath(home)); !os.IsNotExist(err) {
+		t.Fatalf("native install created a legacy lock: %v", err)
 	}
 	before := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md"))
 	if !installSkills(repo, home, []manifestEntry{entry}) {
@@ -709,4 +699,16 @@ func TestProjectSkillLoadsOnlyWhenMatched(t *testing.T) {
 	if renderLoad(c, "do-astro", "") {
 		t.Fatal("a project skill installed with no repo")
 	}
+}
+
+func loadTestComponents(repoRoot, home, projectRoot string) ([]manifestEntry, error) {
+	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
+	if err != nil {
+		return nil, err
+	}
+	pins, err := lockFor(d, lk)
+	if err != nil {
+		return nil, err
+	}
+	return componentEntries(home, projectRoot, d, pins)
 }

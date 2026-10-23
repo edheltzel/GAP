@@ -14,17 +14,20 @@ import (
 type distro struct {
 	Schema     string
 	Name       string
+	Profile    string
 	Components map[string]component
 }
 
 type component struct {
-	ID       string
-	Repo     string
-	Ref      string
-	Skills   []string
-	SkillSet map[string]skillSpec
-	Doctor   string
-	Install  string
+	ID          string
+	Repo        string
+	Ref         string
+	Skills      []string
+	SkillSet    map[string]skillSpec
+	Doctor      string
+	Install     string
+	Disabled    bool
+	RefOverride bool
 }
 
 // skillSpec is one skill's load level. WhenFiles names the repo files that make a
@@ -367,27 +370,32 @@ func resolveRef(url, ref string) (string, error) {
 	return "", fmt.Errorf("resolve %s: no matching ref", ref)
 }
 
-func loadComponents(repoRoot, home string) ([]manifestEntry, error) {
-	d, err := readDistro(repoRoot)
+func effectivePins(repoRoot, home, projectRoot, profile string) (distro, lockFile, error) {
+	d, lk, err := readPins(repoRoot)
 	if err != nil {
-		return nil, err
+		return distro{}, lockFile{}, err
 	}
-	d, err = applyOverrides(d, home, repoRoot, "")
+	d, err = applyOverrides(d, home, repoRoot, projectRoot, profile)
 	if err != nil {
-		return nil, err
+		return distro{}, lockFile{}, err
 	}
-	if len(d.Components) == 0 {
-		return nil, nil
+	for id, c := range d.Components {
+		if pin, exists := lk.Components[id]; exists && c.RefOverride && c.Ref != pin.Ref {
+			return distro{}, lockFile{}, fmt.Errorf("component %s requests ref %s but gap.lock pins %s; run `gap pin %s@%s`", id, c.Ref, pin.Ref, id, c.Ref)
+		}
 	}
-	lk, err := readLock(repoRoot)
+	return d, lk, nil
+}
+
+func invokingProjectRoot() (string, error) {
+	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	pins, err := lockFor(d, lk)
-	if err != nil {
-		return nil, err
+	if root, err := git(cwd, "rev-parse", "--show-toplevel"); err == nil {
+		return root, nil
 	}
-	return componentEntries(home, d, pins)
+	return cwd, nil
 }
 
 func statusAll() error {
@@ -395,13 +403,17 @@ func statusAll() error {
 	if err != nil {
 		return err
 	}
-	d, lk, err := readPins(repoRoot)
+	projectRoot, err := invokingProjectRoot()
 	if err != nil {
 		return err
 	}
-	d, err = applyOverrides(d, home, repoRoot, "")
+	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
 	if err != nil {
 		return err
+	}
+	if d.Profile == "crew" {
+		fmt.Println("crew: project files only")
+		return nil
 	}
 	bad := false
 	ids := sortedIDs(d.Components)
@@ -430,11 +442,13 @@ func statusAll() error {
 			continue
 		}
 		dir := storePath(home, id, e.Commit)
-		for _, name := range c.Skills {
-			n := skillDriftCount(dir, home, name)
-			fmt.Printf("  %s drift=%d\n", name, n)
-			if n > 0 {
-				bad = true
+		for _, entry := range selectedEntries(c, dir, projectRoot) {
+			for _, name := range entry.Skills {
+				n := skillDriftCount(dir, entryHome(home, entry), name)
+				fmt.Printf("  %s drift=%d\n", name, n)
+				if n > 0 {
+					bad = true
+				}
 			}
 		}
 	}
@@ -468,9 +482,16 @@ func restoreAll(id string) error {
 	if err != nil {
 		return err
 	}
-	d, lk, err := readPins(repoRoot)
+	projectRoot, err := invokingProjectRoot()
 	if err != nil {
 		return err
+	}
+	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
+	if err != nil {
+		return err
+	}
+	if d.Profile == "crew" {
+		return nil
 	}
 	if id != "" {
 		if _, ok := d.Components[id]; !ok {
@@ -491,18 +512,17 @@ func restoreAll(id string) error {
 		if err != nil {
 			return err
 		}
-		entry := manifestEntry{Source: componentSource(c.Repo), Skills: c.Skills, Path: dir}
-		for _, name := range c.Skills {
-			if !renderLoad(c, name, "") || skillDriftCount(dir, home, name) == 0 {
-				continue
-			}
-			src := localSkillDir(dir, name)
-			if src == "" {
-				return fmt.Errorf("component %s: %s has no source in the store", cid, name)
-			}
-			if err := installLocal(home, entry, name, src); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				ok = false
+		for _, entry := range selectedEntries(c, dir, projectRoot) {
+			target := entryHome(home, entry)
+			for _, name := range entry.Skills {
+				if skillDriftCount(dir, target, name) == 0 {
+					continue
+				}
+				replaced, err := replaceSkill("", repoRoot, target, entry, name)
+				if err != nil || !replaced {
+					fmt.Fprintf(os.Stderr, "Restoring %s: %v\n", name, err)
+					ok = false
+				}
 			}
 		}
 	}
@@ -632,27 +652,42 @@ func fetchCommit(home string, c component, l lockEntryM1) (string, error) {
 }
 
 // componentEntries turns pinned components into manifest entries installed from the store.
-func componentEntries(home string, d distro, pins map[string]lockEntryM1) ([]manifestEntry, error) {
-	ids := make([]string, 0, len(d.Components))
-	for id := range d.Components {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+func componentEntries(home, projectRoot string, d distro, pins map[string]lockEntryM1) ([]manifestEntry, error) {
 	var entries []manifestEntry
-	for _, id := range ids {
+	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
 		dir, err := ensureStore(home, c, pins[id])
 		if err != nil {
 			return nil, err
 		}
-		source := componentSource(c.Repo)
-		var skills []string
-		for _, name := range c.Skills {
-			if renderLoad(c, name, "") {
-				skills = append(skills, name)
+		if c.Install != "" {
+			if err := runComponentCommand(dir, c.Install); err != nil {
+				return nil, fmt.Errorf("component %s install: %w", id, err)
 			}
 		}
-		entries = append(entries, manifestEntry{Source: source, Skills: skills, Path: dir})
+		entries = append(entries, selectedEntries(c, dir, projectRoot)...)
 	}
 	return entries, nil
+}
+
+func selectedEntries(c component, store, projectRoot string) []manifestEntry {
+	global := manifestEntry{Source: componentSource(c.Repo), Path: store}
+	project := manifestEntry{Source: componentSource(c.Repo), Path: store, Project: projectRoot}
+	for _, name := range c.Skills {
+		if !renderLoad(c, name, projectRoot) {
+			continue
+		}
+		if c.SkillSet[name].Load == "project" {
+			project.Skills = append(project.Skills, name)
+		} else {
+			global.Skills = append(global.Skills, name)
+		}
+	}
+	var entries []manifestEntry
+	for _, entry := range []manifestEntry{global, project} {
+		if len(entry.Skills) > 0 {
+			entries = append(entries, entry)
+		}
+	}
+	return entries
 }

@@ -30,6 +30,7 @@ and installs each component pinned in gap.toml from gap.lock.
 
 Usage:
   gap sync                         Publish the policy and commands, install missing skills, check skills for drift
+  gap sync --profile crew          Prepare project files only for cloud agents
   gap sync --remove-codex-legacy   Same, then strip the old policy copy from ~/.codex/AGENTS.md
   gap status                       Show each component pin, store, and skill drift. Writes nothing
   gap restore [id]                 Reinstall drifted component skills from the lock. No network when the store exists
@@ -149,11 +150,29 @@ func syncAll(removeLegacy bool, profile string) error {
 	if err != nil {
 		return err
 	}
-	codexHome, err := resolveCodexHome(os.Getenv("CODEX_HOME"), home)
+	repoRoot, err := sourceRoot()
 	if err != nil {
 		return err
 	}
-	repoRoot, err := sourceRoot()
+	projectRoot, err := invokingProjectRoot()
+	if err != nil {
+		return err
+	}
+	d, lk, err := effectivePins(repoRoot, home, projectRoot, profile)
+	if err != nil {
+		return err
+	}
+	if d.Profile == "crew" {
+		if removeLegacy {
+			return errors.New("crew sync cannot remove home-directory Codex policy")
+		}
+		return initProject(projectRoot, "crew", false)
+	}
+	pins, err := lockFor(d, lk)
+	if err != nil {
+		return err
+	}
+	codexHome, err := resolveCodexHome(os.Getenv("CODEX_HOME"), home)
 	if err != nil {
 		return err
 	}
@@ -219,7 +238,7 @@ func syncAll(removeLegacy bool, profile string) error {
 	if err != nil {
 		return err
 	}
-	componentSet, err := loadComponents(repoRoot, home)
+	componentSet, err := componentEntries(home, projectRoot, d, pins)
 	if err != nil {
 		return err
 	}
