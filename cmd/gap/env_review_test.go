@@ -8,6 +8,7 @@ import (
 )
 
 func TestEnvReviewInit(t *testing.T) {
+	recallStub(t, "exit 0\n")
 	repo := t.TempDir()
 	write(t, filepath.Join(repo, "AGENTS.md"), "project rules\n")
 	if code := run([]string{"init", "--adopt", repo}); code != 0 {

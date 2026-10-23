@@ -50,6 +50,26 @@ func initProject(root, profile string, adopt bool) error {
 	} else if err != nil {
 		return err
 	}
+	defer func() {
+		if profile == "crew" {
+			return
+		}
+		b, err := os.ReadFile(config)
+		if err != nil {
+			return
+		}
+		doc, err := parseTOML(string(b))
+		if err != nil {
+			return
+		}
+		slug, ok := doc["slug"].(string)
+		if !ok || slug == "" {
+			return
+		}
+		if err := provisionBreadcrumb(slug); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}()
 	path := filepath.Join(root, "AGENTS.md")
 	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
 		return fmt.Errorf("refusing to append policy pointer to non-regular file %s", path)
@@ -117,6 +137,11 @@ func doctorAll() error {
 		if err := runComponentCommand(dir, c.Doctor); err != nil {
 			fmt.Fprintf(os.Stderr, "%s doctor: %v\n", id, err)
 			bad = true
+		}
+		if id == "echo" {
+			if err := recordEchoAdapters(home, dir, lk); err != nil {
+				return err
+			}
 		}
 	}
 	for _, harness := range []string{"claude", "omp", "pi", "codex", "cursor", "empryo", "grok"} {
