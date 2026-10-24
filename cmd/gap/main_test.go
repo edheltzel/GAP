@@ -59,6 +59,9 @@ func TestOurs(t *testing.T) {
 }
 
 func TestAdapt(t *testing.T) {
+	old := docsDir
+	docsDir = "/repo/global/docs/agents"
+	t.Cleanup(func() { docsDir = old })
 	payload := adapt(source, false)
 	if payload != "See [x](/repo/global/docs/agents/dox.md).\n" {
 		t.Fatalf("link not rewritten: %q", payload)

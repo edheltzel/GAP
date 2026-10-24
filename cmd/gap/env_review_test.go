@@ -8,6 +8,7 @@ import (
 )
 
 func TestEnvReviewInit(t *testing.T) {
+	recallStub(t, "exit 0\n")
 	repo := t.TempDir()
 	write(t, filepath.Join(repo, "AGENTS.md"), "project rules\n")
 	if code := run([]string{"init", "--adopt", repo}); code != 0 {
@@ -19,8 +20,8 @@ func TestEnvReviewInit(t *testing.T) {
 		t.Fatalf("project configuration: %+v %v", doc, err)
 	}
 	pointer := readString(t, filepath.Join(repo, "AGENTS.md"))
-	if !strings.HasPrefix(pointer, "project rules\n") || !strings.Contains(pointer, "https://github.com/edheltzel/GAP/blob/master/global/AGENTS.md") {
-		t.Fatalf("policy pointer: %s", pointer)
+	if pointer != "project rules\n" {
+		t.Fatalf("adoption changed existing rules: %s", pointer)
 	}
 	if code := run([]string{"init", "--adopt", repo}); code != 0 || readString(t, filepath.Join(repo, "AGENTS.md")) != pointer || readString(t, filepath.Join(repo, ".gap", "gap.toml")) != config {
 		t.Fatal("repeated adoption changed existing project files")
@@ -156,6 +157,7 @@ func TestEnvReviewComponentCommands(t *testing.T) {
 }
 
 func TestEnvReviewCrew(t *testing.T) {
+	recallStub(t, "exit 0\n")
 	home, repo, project := t.TempDir(), t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("CODEX_HOME", "relative-invalid-for-machine-sync")
@@ -179,6 +181,20 @@ func TestEnvReviewCrew(t *testing.T) {
 	}
 	if body := readString(t, filepath.Join(project, "AGENTS.md")); !strings.Contains(body, "https://github.com/edheltzel/GAP/blob/master/global/AGENTS.md") {
 		t.Fatalf("crew policy pointer: %s", body)
+	}
+	if code := run([]string{"init", project}); code != 0 {
+		t.Fatalf("init after crew sync: %d", code)
+	}
+	config := "profile = \"project\"\nslug = \"explicit-crew\"\n"
+	write(t, filepath.Join(project, ".gap", "gap.toml"), config)
+	if code := run([]string{"sync", "--profile", "crew"}); code != 0 || readString(t, filepath.Join(project, ".gap", "gap.toml")) != config {
+		t.Fatalf("explicit crew sync with existing project configuration: %d", code)
+	}
+	if got := recallArgv(t); len(got) != 0 {
+		t.Fatalf("crew provisioning called Recall: %v", got)
+	}
+	if entries, err := os.ReadDir(home); err != nil || len(entries) != 0 {
+		t.Fatalf("crew init wrote machine state: %v %v", entries, err)
 	}
 }
 

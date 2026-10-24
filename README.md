@@ -45,7 +45,7 @@ gap --help
 | `gap restore [id]` | Back up and replace missing or drifted component skills at the locked commit, reusing a verified store copy |
 | `gap pin <id>@<ref>` | Resolve a branch, tag, or commit and write it to `gap.lock`. The only command that moves a pin |
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
-| `gap init [--adopt] [dir]` | Create project configuration and append a policy pointer; `--adopt` also reports existing project files |
+| `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `go test ./...` | Run the self-test against throwaway folders |
 
 ## Manage skills
@@ -93,6 +93,8 @@ The distro includes Do-Skills, Forge, Echo, and Recall. Forge supplies `forge-in
 
 `gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing or changed stores and failed doctors produce exit `1`; doctor does not fetch missing components.
 
+Doctor also asks Echo's verified pinned store for `scripts/install.sh --list-installed`. A successful report replaces Echo's adapter list and store commit in `~/.gap/state.json`, preserving other component entries. The current Echo pin lacks this optional flag: doctor prints `echo reported nothing; no adapters recorded` and leaves the ledger unchanged. This skipped report does not itself fail doctor. Wait for a supporting Echo tag before changing the pin. GAP records only reported names and does not install or remove adapters.
+
 `gap status` reports component skills only, using the locked ref when pinned. It and `gap restore [id]` use the same overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
 
 ### Load levels
@@ -127,7 +129,7 @@ Overrides never write `gap.lock`. If an overridden `ref` differs from the locked
 
 ### Project setup
 
-Run `gap init --adopt [dir]` for an existing project, or `gap init [dir]` for a new one; `dir` defaults to the current directory. Both create `.gap/gap.toml` only when absent, using `profile = "project"` and the directory name as the slug. Both append a short policy pointer to `AGENTS.md`, preserving its existing text. If that file contains either GAP marker, it stays unchanged. Non-regular `AGENTS.md` files are refused. `--adopt` also lists existing agent, Forge, task, and stack files; it still performs the writes. Init does not run the Forge interview.
+Run `gap init --adopt [dir]` for an existing project, or `gap init [dir]` for a new one; `dir` defaults to the current directory. Both create `.gap/gap.toml` only when absent, using `profile = "project"` and the directory name as the slug. Existing configuration must parse and contain a non-empty string `slug`; init reports an error before project writes otherwise. Init appends a short policy pointer to an unmarked `AGENTS.md`, preserving its existing text. With `--adopt`, an existing `AGENTS.md` stays byte-identical, including an empty file. A missing `AGENTS.md` is created in either mode, and a file containing either GAP marker stays unchanged. Non-regular `AGENTS.md` files are refused. `--adopt` also lists existing agent, Forge, task, and stack files. Successful project setup checks Recall through its CLI and adds `gap provisioned <slug>` using the persisted slug, unless a matching breadcrumb already exists anywhere in that project's history. Project-file provisioning failures add no breadcrumb; keeping an adopted or marked file still reaches the Recall check. Missing Recall prints a notice and succeeds. A failed Recall search or add reports an error and makes init exit `1`; project files already written stay in place for a retry. GAP never writes Recall's database directly. Crew setup, including a later init on a project with persisted `profile = "crew"`, never calls Recall. Init does not run the Forge interview.
 
 For cloud agents, run `gap sync --profile crew`. It uses the same protected project-file writes, creating missing configuration with `profile = "crew"`. The [crew profile](profiles/crew.toml) excludes Recall and Echo; this sync skips home publication, store fetching, component installers, and skill installation. Commit the project files for the cloud agent. With an effective crew profile, status reports `crew: project files only` and restore writes nothing.
 
