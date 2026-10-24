@@ -12,7 +12,7 @@ Held:
 
 - Idempotency needs a project-scoped search of the full breadcrumb history. A recent-record limit of 1,000 still loses the setup note after 1,000 newer entries. Recall's `search` filters by project and table before limiting matches, so a quoted phrase query can find the setup note regardless of its age. Search previews truncate at 100 characters; use the returned breadcrumb record header to detect a match.
 - A missing `recall` stays a notice. Init has already written its files by then, and failing the command over an optional memory tool punishes a machine that never installed one.
-- Replacing `state.json` whole is right. The file is a picture of one moment. A history of pictures is a log, and nobody asked for one.
+- Replace Echo's prior report after a successful read, rather than appending history. The [components reference](../../README.md#components) owns ledger updates and skipped-report behavior.
 
 Rejected:
 
@@ -33,7 +33,7 @@ Open, and accepted: the flag does not exist in the pinned Echo (`f8001264`, v0.1
 ### U1. Recall breadcrumb from gap init
 
 - Depends on: none
-- Files: `cmd/gap/init.go`, `cmd/gap/init_test.go`, `cmd/gap/AGENTS.md`
+- Files: `cmd/gap/provision.go`, `cmd/gap/init.go`, `cmd/gap/init_test.go`, `cmd/gap/env_review_test.go`
 - Change: validate `.gap/gap.toml` and its non-empty string slug before writing project files, preserving existing configuration. Only after successful provisioning, run `recall search '"gap provisioned <slug>"' -t breadcrumbs -p <slug> --include-duplicates -l 1`. Double any quotes in the note inside the FTS phrase. This searches all matching project breadcrumbs before limiting the result, including records Recall marked as duplicates. A returned breadcrumb record skips the add regardless of preview truncation. Otherwise run `recall add breadcrumb "gap provisioned <slug>" -p <slug> -c setup`. Adopted files stay byte-identical; keeping an existing adopted or marked file still counts as successful provisioning. Failed provisioning writes no breadcrumb. An explicit or persisted crew profile never calls Recall. `recall` missing from `PATH` prints one line and does not fail init. Gap does not write Recall's database itself.
 - Done when: `gap init` on a repo with no prior breadcrumb runs the add command once, and a second `gap init` on the same repo runs no add command.
 - Verify: `go test -count=1 -run 'TestInit|TestEnvReviewInit|TestEnvReviewCrew|TestParseTOML|TestOverride|TestProjectOverride|TestCrewProfile|TestNoOverride|TestEnvReviewEffectiveSelection' ./cmd/gap`. The tests use a Recall CLI fixture with isolated history, check one setup note after 1,000 newer notes, and exercise persisted slugs, truncated previews, adoption, crew, and provisioning failures without touching the real Recall database. Parser and override checks cover boolean types and component selection.
@@ -41,19 +41,19 @@ Open, and accepted: the flag does not exist in the pinned Echo (`f8001264`, v0.1
 ### U2. Echo adapter ledger
 
 - Depends on: U1
-- Files: `cmd/gap/doctor.go`, `cmd/gap/doctor_test.go`, `cmd/gap/AGENTS.md`
-- Change: `gap doctor` grows a `~/.gap/state.json`. For the `echo` component it runs `scripts/install.sh --list-installed` inside the pinned store and reads adapter names, one per line. It records them keyed by component id, with the store commit from `gap.lock`, and rewrites the file whole on each run so a second run replaces the list. The flag does not exist in the pinned Echo yet. Until it does, the command exits 2 with `Unknown argument`, and gap prints that echo reported nothing and writes no echo entry. Gap does not parse `--check` output, does not source `install.sh`, and does not reimplement the checks. It does not install, remove, or reorder adapters.
+- Files: `cmd/gap/provision.go`, `cmd/gap/doctor.go`, `cmd/gap/doctor_test.go`
+- Change: implement the [Echo adapter reporting contract](../../README.md#components) in `gap doctor`. Read adapter names, one per line, from `scripts/install.sh --list-installed` in the verified pinned store. Do not parse `--check` output, source `install.sh`, or reimplement Echo's checks.
 - Blocked on: Echo. `scripts/install.sh` needs a `--list-installed` branch beside `--check` that runs the ten `*_installed` functions, prints each installed name, and exits 0 before `warn_if_linked_worktree`. Gap cannot pin that until Echo tags it. This unit's test uses a fixture script, so it does not wait on the tag. The real pin does.
-- Done when: after `gap doctor`, `~/.gap/state.json` lists exactly the adapters whose checks returned installed, and a second run with a different set replaces the list.
+- Done when: after a successful Echo adapter report, `~/.gap/state.json` lists exactly the adapters whose checks returned installed, and a later successful report with a different set replaces the list.
 - Verify: `go test -count=1 -run 'TestDoctorRecordsAdapters|TestDoctorLedgerReplaces|TestDoctorLedgerNoFlag' ./cmd/gap`. The first two point the echo store at a fixture script that prints two adapter names and exits 0, then read `state.json` back and compare the names and the commit. The third points it at a script that exits 2, and asserts there is no echo entry and the run still finishes.
 
 ### U3. Contract
 
 - Depends on: U2
-- Files: `cmd/gap/AGENTS.md`
-- Change: the Local Contracts paragraph names both behaviors. `gap init` writes one Recall breadcrumb per project and skips when one exists. `gap doctor` records Echo's installed adapters in `~/.gap/state.json` and replaces that record on each run. Both say what they do not do: gap does not write Recall's database, and it does not change Echo's adapters.
-- Done when: `cmd/gap/AGENTS.md` states both behaviors and both limits.
-- Verify: `grep -n "breadcrumb\|state.json" cmd/gap/AGENTS.md` shows both, and `go test -count=1 ./cmd/gap` passes.
+- Files: `README.md`, `cmd/gap/AGENTS.md`
+- Change: keep user-facing behavior in README's [project setup](../../README.md#project-setup) and [components](../../README.md#components) sections. Reduce the stale Local Contracts copy to pointers to those owners.
+- Done when: README describes setup breadcrumbs, Echo adapter reporting, and their limits, with pointers from `cmd/gap/AGENTS.md`.
+- Verify: re-read those sections against `provision.go`, `init.go`, and `doctor.go`; `go test -count=1 ./cmd/gap` remains the behavioral check.
 
 ## Out of scope
 
@@ -66,6 +66,6 @@ Open, and accepted: the flag does not exist in the pinned Echo (`f8001264`, v0.1
 
 - 2026-10-22 U1 gap init writes one Recall breadcrumb per project and skips when one exists +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-22-gap-breadcrumb-ledger-plan.md
 - 2026-10-22 U2 gap doctor records Echo's installed adapters in ~/.gap/state.json +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-22-gap-breadcrumb-ledger-plan.md
-- 2026-10-22 U3 record both behaviors in cmd/gap/AGENTS.md +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-22-gap-breadcrumb-ledger-plan.md
+- 2026-10-22 U3 document both behaviors in README and point to them from cmd/gap/AGENTS.md +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-22-gap-breadcrumb-ledger-plan.md
 
 Review complete

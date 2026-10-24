@@ -15,7 +15,7 @@
 
 `gap sync` publishes unless the effective profile is `crew`; see [project setup](../../README.md#project-setup). `gap sync --remove-codex-legacy` is valid only for machine publication. `gap status` prints selected components and exits 1 on drift or a missing store. `gap restore [id]` reinstalls selected drifted component skills from the lock. `gap pin <id>@<ref>` is the only command that writes `gap.lock`. `gap -h`, `gap --help`, and `gap help` print usage and exit 0. No command, an unknown command, or extra arguments exit 2. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
 
-`gap init` asks Recall for a project setup breadcrumb after provisioning and adds `gap provisioned <slug>` only when absent. It uses the slug stored in `.gap/gap.toml`. Missing Recall is a notice, not an init failure. Gap never writes Recall's database. `gap doctor` asks the verified Echo store for `scripts/install.sh --list-installed` and records adapter names and the store commit in `~/.gap/state.json`. Each successful report replaces the prior adapter list. Unsupported reporting prints a notice; Gap does not change adapters.
+The setup breadcrumb contract, including the crew exception, is in [project setup](../../README.md#project-setup). The Echo adapter ledger contract and unsupported-report behavior are in [components](../../README.md#components).
 
 ### Sync steps
 

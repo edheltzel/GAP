@@ -7,7 +7,7 @@ Finish the two behaviors the env provisioner plan promised and left undone. When
 ## In scope
 
 - `gap init` leaves one Recall breadcrumb for the project, and a second run on the same project leaves the count unchanged.
-- `gap doctor` writes a record of the Echo adapters currently installed, and a later run shows the current set rather than a history of sets.
+- `gap doctor` records each successful Echo adapter report, replacing the prior set rather than keeping a history of sets.
 - Both keep working when the thing they talk to is absent: no `recall` on the machine, or an Echo component with nothing to report. The command still finishes and says what it skipped.
 
 ## Out of scope
@@ -20,7 +20,7 @@ Finish the two behaviors the env provisioner plan promised and left undone. When
 ## Success
 
 - After `gap init` on a project, Recall holds exactly one breadcrumb naming that project. After a second `gap init`, it still holds one.
-- After `gap doctor`, the record names exactly the adapters installed at that moment. After a second `gap doctor` where the installed set changed, the record names the new set and not the old one.
+- After a successful Echo adapter report, the record names exactly the adapters installed at that moment. After a later successful report where the installed set changed, the record names the new set and not the old one.
 - `gap init` on a machine with no `recall` command completes and prints that it skipped the breadcrumb.
 
 ## Constraints
@@ -32,7 +32,7 @@ Finish the two behaviors the env provisioner plan promised and left undone. When
 ## Decisions
 
 - One breadcrumb per project, matched by a quoted phrase through `recall search` with project and breadcrumb-table filters. Search covers the complete history before limiting matches, so newer notes cannot hide the setup note. Include records marked as duplicates and detect a returned record independently of its truncated preview.
-- The adapter record is replaced on every run, not appended.
+- Adapter report replacement and skipped-report behavior follow the [components reference](../../README.md#components).
 - A missing `recall` is a notice, not a failure.
 
 ## Open questions
