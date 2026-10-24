@@ -117,7 +117,7 @@ func TestDoctorLedgerReplaces(t *testing.T) {
 	if code := run([]string{"doctor"}); code != 0 {
 		t.Fatalf("doctor: %d", code)
 	}
-	// The same pinned store now reports one adapter. The tree changes, so the store is re-fetched.
+	// Update the lock to accept the fixture store's changed tree without fetching.
 	store := filepath.Join(home, ".gap", "store", "echo", commit)
 	write(t, filepath.Join(store, "scripts", "install.sh"), "#!/bin/sh\nif [ \"$1\" = --list-installed ]; then printf 'pi\\n'; exit 0; fi\nexit 0\n")
 	tree, err := treeHash(store)
