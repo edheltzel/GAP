@@ -15,24 +15,35 @@ GAP is one set of rules that every coding agent on your machine follows. You, or
 
 ## Before you start
 
-- Go 1.24 or newer (`go version`)
+- Go 1.25 or newer (`go version`)
 - Go's bin folder on your `PATH`: `$(go env GOPATH)/bin`, or `GOBIN` if you set it
 
 ## Install `gap`
 
-Run this once from the repo root:
-
 ```bash
-go install ./cmd/gap
+curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/install.sh | sh
 ```
 
-Check that your shell finds it:
+That one line does four things:
+
+1. `curl` downloads `scripts/install.sh` from the `master` branch of `github.com/edheltzel/GAP`.
+2. The script sees it is being piped, so it clones that repo into a temporary folder and deletes the folder when it finishes.
+3. It builds `gap` with `go install ./cmd/gap` and puts the binary in Go's bin folder.
+4. It checks whether your shell can find that folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it.
+
+It needs Go 1.25 or newer and git. Nothing else is installed, and nothing in your home directory changes until you run `gap sync`.
+
+Already have the repo checked out? From its root, `sh scripts/install.sh` builds that copy instead of cloning.
+
+Then publish:
 
 ```bash
-gap --help
+gap sync
 ```
 
-`gap` publishes the checkout it was installed from, so it runs from any folder. Run `go install ./cmd/gap` again after `cmd/gap` changes or after you move the repo. To skip installing, run `go run ./cmd/gap sync` from the repo root.
+`gap status` checks component source checkouts, not Recall's memory database. `store=missing` means the checkout is absent, `store=changed` means its source files differ from the pin, and `store=unpinned` means `gap.lock` has no entry. Ignored build output does not change the result; edits to tracked files still do. The command prints the matching repair command.
+
+`gap` publishes the checkout it was built from, so it runs from any folder. Run the curl command again after `cmd/gap` changes. To skip installing, run `go run ./cmd/gap sync` from a checkout.
 
 ## Commands
 
@@ -41,7 +52,7 @@ gap --help
 | `gap sync` | Publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift |
 | `gap sync --profile crew` | Prepare project files for cloud agents without fetching components or writing to the home directory |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
-| `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on drift or a missing store |
+| `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
 | `gap restore [id]` | Back up and replace missing or drifted component skills at the locked commit, reusing a verified store copy |
 | `gap pin <id>@<ref>` | Resolve a branch, tag, or commit and write it to `gap.lock`. The only command that moves a pin |
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |

@@ -123,21 +123,40 @@ func doctorAll() error {
 	if err != nil {
 		return err
 	}
+	out := newReport(os.Stdout)
 	bad := false
+	missing := false
+	var rows [][]string
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
 		if c.Doctor == "" {
-			fmt.Printf("%s: no doctor configured\n", id)
+			rows = append(rows, []string{id, "no doctor configured"})
 			continue
 		}
 		pin, pinned := lk.Components[id]
-		dir := storePath(home, id, pin.Commit)
-		if tree, err := worktreeID(dir); !pinned || err != nil || tree != pin.Tree {
-			fmt.Printf("%s: pinned store missing or changed; run gap sync\n", id)
+		if !pinned {
+			rows = append(rows, []string{id, "not pinned; run gap pin " + id + "@" + c.Ref})
 			bad = true
 			continue
 		}
-		fmt.Printf("%s: %s\n", id, c.Doctor)
+		dir := storePath(home, id, pin.Commit)
+		state, err := storeState(dir, pin.Tree)
+		if err != nil {
+			return err
+		}
+		if state != storeOK {
+			detail := "pinned source checkout " + state + "; run gap sync"
+			if state == storeChanged {
+				detail += " after inspecting local changes"
+			}
+			rows = append(rows, []string{id, detail})
+			bad = true
+			if state == storeMissing {
+				missing = true
+			}
+			continue
+		}
+		rows = append(rows, []string{id, c.Doctor})
 		if err := runComponentCommand(dir, c.Doctor); err != nil {
 			fmt.Fprintf(os.Stderr, "%s doctor: %v\n", id, err)
 			bad = true
@@ -148,12 +167,20 @@ func doctorAll() error {
 			}
 		}
 	}
+	if len(rows) > 0 {
+		out.doctorTable(rows)
+	}
+	var harnesses [][]string
 	for _, harness := range []string{"claude", "omp", "pi", "codex", "cursor", "empryo", "grok"} {
 		if path, err := exec.LookPath(harness); err == nil {
-			fmt.Printf("%s: present (%s)\n", harness, path)
+			harnesses = append(harnesses, []string{harness, "present (" + path + ")"})
 		} else {
-			fmt.Printf("%s: absent; install this harness separately if needed\n", harness)
+			harnesses = append(harnesses, []string{harness, "absent; install this harness separately if needed"})
 		}
+	}
+	out.doctorTable(harnesses)
+	if missing {
+		out.next("gap sync    fetch each missing source checkout, then rerun gap doctor")
 	}
 	if bad {
 		return errSkipped
