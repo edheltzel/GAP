@@ -333,19 +333,18 @@ func worktreeID(dir string) (string, error) {
 		return "", fmt.Errorf("creating store index: %w", err)
 	}
 	defer os.RemoveAll(tmp)
-	objects, err := git(dir, "rev-parse", "--path-format=absolute", "--git-path", "objects")
-	if err != nil {
-		return "", fmt.Errorf("locating store objects: %w", err)
-	}
 	objectDir := filepath.Join(tmp, "objects")
 	if err := os.Mkdir(objectDir, 0o700); err != nil {
 		return "", fmt.Errorf("creating store objects: %w", err)
 	}
-	env := append(gitEnv(), "GIT_INDEX_FILE="+filepath.Join(tmp, "index"), "GIT_OBJECT_DIRECTORY="+objectDir, "GIT_ALTERNATE_OBJECT_DIRECTORIES="+objects)
+	env := append(gitEnv(), "GIT_INDEX_FILE="+filepath.Join(tmp, "index"))
 	var tree string
 	for _, args := range [][]string{{"read-tree", "HEAD"}, {"add", "-A", "--", "."}, {"write-tree"}} {
 		cmd := exec.Command("git", args...)
 		cmd.Dir, cmd.Env = dir, env
+		if args[0] != "read-tree" {
+			cmd.Env = append(cmd.Env, "GIT_OBJECT_DIRECTORY="+objectDir)
+		}
 		out, err := cmd.Output()
 		if err != nil {
 			return "", fmt.Errorf("hashing store %s: git %s: %w", dir, args[0], err)

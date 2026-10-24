@@ -4,9 +4,84 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestStatusPreservesSourceAndStore(t *testing.T) {
+	for _, packed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("packed=%t", packed), func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			repo, commit := echoFixture(t, home, "#!/bin/sh\nexit 0\n")
+			t.Chdir(repo)
+			sourceRootFor = repo
+			t.Cleanup(func() { sourceRootFor = "" })
+			store := storePath(home, "echo", commit)
+			if packed {
+				if _, err := git(store, "repack", "-ad"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			stamp := time.Unix(946684800, 0)
+			if err := filepath.Walk(filepath.Join(store, ".git", "objects"), func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() {
+					return err
+				}
+				return os.Chtimes(path, stamp, stamp)
+			}); err != nil {
+				t.Fatal(err)
+			}
+			type fileState struct {
+				mode  os.FileMode
+				mtime time.Time
+				body  string
+			}
+			snapshot := func() map[string]fileState {
+				t.Helper()
+				files := map[string]fileState{}
+				for _, root := range []string{home, repo} {
+					if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+						if err != nil {
+							return err
+						}
+						state := fileState{mode: info.Mode(), mtime: info.ModTime()}
+						if !info.IsDir() {
+							body, err := os.ReadFile(path)
+							if err != nil {
+								return err
+							}
+							state.body = string(body)
+						}
+						files[path] = state
+						return nil
+					}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return files
+			}
+			before := snapshot()
+			var code int
+			out, stderr := captureStd(t, func() { code = run([]string{"status"}) })
+			want := fmt.Sprintf("echo ref=master commit=%s store=ok\n", commit[:7])
+			if code != 0 || out != want || stderr != "" {
+				t.Fatalf("healthy status: exit=%d stdout=%q stderr=%q", code, out, stderr)
+			}
+			after := snapshot()
+			for path, state := range before {
+				if after[path] != state {
+					t.Errorf("status changed %s: mtime %s -> %s", path, state.mtime, after[path].mtime)
+				}
+			}
+			if !reflect.DeepEqual(before, after) {
+				t.Fatal("status must preserve source and store contents, modes, and timestamps")
+			}
+		})
+	}
+}
 
 func TestStatusGroupsComponentSkills(t *testing.T) {
 	home, repo, remote := t.TempDir(), t.TempDir(), t.TempDir()
