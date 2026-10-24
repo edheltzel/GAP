@@ -6,7 +6,7 @@ This file covers how to change the repo. Shared behavior rules are in `global/AG
 
 ## Publish
 
-Machine `gap sync` writes `global/AGENTS.md` between `<!-- gap:begin -->` and `<!-- gap:end -->` in the files these harnesses already read, publishes each `global/commands/*.md` unchanged into the command files those harnesses already load, then installs and checks the skills in `global/skills.json` and the components pinned in `gap.toml` / `gap.lock`. Pins live in `~/.gap/store/<id>/<commit>`. `gap status` prints drift and writes nothing. `gap restore [id]` puts component skills back to the lock. `gap pin <id>@<ref>` is the only writer of `gap.lock`. Sync steps, the ledger, backups, source-identity migration, and drift choices are in `cmd/gap/AGENTS.md`. Install it once with `go install ./cmd/gap`; it then runs from any directory and publishes from the checkout it was built from. Reinstall after `cmd/gap` changes or the checkout moves. `go run ./cmd/gap sync` from the repo root works without installing.
+Machine `gap sync` writes `global/AGENTS.md` between `<!-- gap:begin -->` and `<!-- gap:end -->` in the files these harnesses already read, publishes each `global/commands/*.md` unchanged into the command files those harnesses already load, then installs and checks the skills in `global/skills.json` and the components pinned in `gap.toml` / `gap.lock`. Pins live in `~/.gap/store/<id>/<commit>`. `gap status` prints drift and writes nothing. `gap restore [id]` puts component skills back to the lock. `gap pin <id>@<ref>` is the only writer of `gap.lock`. Sync steps, the ledger, backups, source-identity migration, and drift choices are in `cmd/gap/AGENTS.md`. Install it once with `curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/install.sh | sh`; each curl install retains its source under `~/.gap/checkouts/`. It then runs from any directory and publishes from the checkout it was built from. Keep that checkout. Reinstall after `cmd/gap` changes or the checkout moves. `go run ./cmd/gap sync` from the repo root works without installing.
 
 - `~/.claude/rules/global-agent-policy.md`
 - `~/.pi/agent/APPEND_SYSTEM.md`
@@ -28,7 +28,7 @@ After a shared markdown change is merged and pulled, run `gap sync`. Sync refuse
 - Add a harness destination in `cmd/gap/main.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
 - Skills live in `skills/<scope>/<group>/<skill>/`. Installation selection is in [Manage skills](README.md#manage-skills). After adding, moving, or renaming a skill, run `bash scripts/update-readme.sh` to regenerate the catalog. Layout and catalog ownership are in `skills/AGENTS.md`.
 - `docs/solutions/` holds documented solutions to past problems, by category, with YAML frontmatter (`module`, `tags`, `problem_type`). `CONCEPTS.md` is the shared domain vocabulary. Relevant when implementing or debugging in a documented area, or when a domain word is unclear.
-- Go 1.24 or newer, standard library only. `gap.toml` and `gap.lock` are parsed by the TOML subset in `cmd/gap/toml.go`. Runtime installation requirements are in [Manage skills](README.md#manage-skills). `go test ./...` is the self-test.
+- Go 1.25 or newer. `gap.toml` and `gap.lock` are parsed by the TOML subset in `cmd/gap/toml.go`. Dependencies are declared in [go.mod](go.mod). Runtime installation requirements are in [Manage skills](README.md#manage-skills). `go test ./...` is the self-test.
 
 ## Child DOX Index
 

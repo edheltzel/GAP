@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+
 	"errors"
 	"fmt"
 	"io"
@@ -655,7 +656,7 @@ func TestSyncEndToEnd(t *testing.T) {
 		}
 	}
 	sources, _ := filepath.Glob("*.go")
-	for _, src := range append(sources, "../../go.mod") {
+	for _, src := range append(sources, "../../go.mod", "../../go.sum") {
 		rel, _ := filepath.Rel(".", src)
 		write(t, filepath.Join(clone, "cmd", "gap", rel), readString(t, src))
 	}

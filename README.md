@@ -15,24 +15,33 @@ GAP is one set of rules that every coding agent on your machine follows. You, or
 
 ## Before you start
 
-- Go 1.24 or newer (`go version`)
+- Go 1.25 or newer (`go version`)
 - Go's bin folder on your `PATH`: `$(go env GOPATH)/bin`, or `GOBIN` if you set it
 
 ## Install `gap`
 
-Run this once from the repo root:
-
 ```bash
-go install ./cmd/gap
+curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/install.sh | sh
 ```
 
-Check that your shell finds it:
+That one line does four things:
+
+1. `curl` downloads `scripts/install.sh` from the `master` branch of `github.com/edheltzel/GAP`.
+2. The piped script clones that repo into a new checkout under `~/.gap/checkouts/` and keeps it there. Each curl install gets its own checkout, so earlier installs and published documentation links keep their source.
+3. It builds `gap` with `go install ./cmd/gap` and puts the binary in Go's bin folder.
+4. It checks whether your shell can find that folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it.
+
+It needs Go 1.25 or newer and git. Installation writes the source checkout and Go binary. `gap sync` publishes the policy and installs the selected components and skills.
+
+Already have the repo checked out? From its root, `sh scripts/install.sh` builds that copy instead of cloning, including when stdin is redirected. Keep that checkout too.
+
+Then publish:
 
 ```bash
-gap --help
+gap sync
 ```
 
-`gap` publishes the checkout it was installed from, so it runs from any folder. Run `go install ./cmd/gap` again after `cmd/gap` changes or after you move the repo. To skip installing, run `go run ./cmd/gap sync` from the repo root.
+`gap` publishes the checkout it was built from, so it runs from any folder. Run the curl command again after `cmd/gap` changes. To skip installing, run `go run ./cmd/gap sync` from a checkout.
 
 ## Commands
 
@@ -41,12 +50,14 @@ gap --help
 | `gap sync` | Publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift |
 | `gap sync --profile crew` | Prepare project files for cloud agents without fetching components or writing to the home directory |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
-| `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on drift or a missing store |
+| `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
 | `gap restore [id]` | Back up and replace missing or drifted component skills at the locked commit, reusing a verified store copy |
 | `gap pin <id>@<ref>` | Resolve a branch, tag, or commit and write it to `gap.lock`. The only command that moves a pin |
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `go test ./...` | Run the self-test against throwaway folders |
+
+Use `gap --help` or `gap <command> --help` for usage and flags. Status and doctor reports use color and tables in terminals, and plain text when redirected.
 
 ## Manage skills
 
@@ -91,11 +102,13 @@ names = ["do-commit", "do-todo"]
 
 The distro includes Do-Skills, Forge, Echo, and Recall. Forge supplies `forge-interview`. Echo and Recall have empty skill lists: machine sync runs their configured `install` commands from their verified stores, and those installers own their skills and runtime prerequisites. Gap copies no skills from them and never installs a harness.
 
-`gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing or changed stores and failed doctors produce exit `1`; doctor does not fetch missing components.
+`gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing pins, missing or changed stores, and failed doctors produce exit `1`; doctor does not fetch missing components.
 
 Doctor also asks Echo's verified pinned store for `scripts/install.sh --list-installed`. A successful report replaces Echo's adapter list and store commit in `~/.gap/state.json`, preserving other component entries. The current Echo pin lacks this optional flag: doctor prints `echo reported nothing; no adapters recorded` and leaves the ledger unchanged. This skipped report does not itself fail doctor. Wait for a supporting Echo tag before changing the pin. GAP records only reported names and does not install or remove adapters.
 
-`gap status` reports component skills only, using the locked ref when pinned. It and `gap restore [id]` use the same overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
+`gap status` checks component source checkouts and selected component skills, using the locked ref when pinned. It does not check Recall's memory database or additional manifest skills. `store=missing` means the checkout is absent, `store=changed` means its source files differ from the pin, and `store=unpinned` means `gap.lock` has no entry. For these states, it prints the matching repair command. Ignored, untracked build output does not change the result; tracked edits, deletions, and mode changes still do. Skill drift is checked only when the source checkout matches the lock; an unreadable checkout reports an error.
+
+Status and `gap restore [id]` use the same overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
 
 ### Load levels
 

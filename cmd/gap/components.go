@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -322,12 +323,61 @@ func placeStore(tmp, dest string) error {
 	return nil
 }
 
-// worktreeID is the tree of the files on disk, not the commit. A tampered store must not match.
+// worktreeID hashes tracked files and non-ignored additions, not just HEAD.
 func worktreeID(dir string) (string, error) {
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		return "", err
 	}
-	return treeHash(dir)
+	tmp, err := os.MkdirTemp("", "gap-store-index-")
+	if err != nil {
+		return "", fmt.Errorf("creating store index: %w", err)
+	}
+	defer os.RemoveAll(tmp)
+	objectDir := filepath.Join(tmp, "objects")
+	if err := os.Mkdir(objectDir, 0o700); err != nil {
+		return "", fmt.Errorf("creating store objects: %w", err)
+	}
+	env := append(gitEnv(), "GIT_INDEX_FILE="+filepath.Join(tmp, "index"))
+	var tree string
+	for _, args := range [][]string{{"read-tree", "HEAD"}, {"add", "-A", "--", "."}, {"write-tree"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir, cmd.Env = dir, env
+		if args[0] != "read-tree" {
+			cmd.Env = append(cmd.Env, "GIT_OBJECT_DIRECTORY="+objectDir)
+		}
+		out, err := cmd.Output()
+		if err != nil {
+			return "", fmt.Errorf("hashing store %s: git %s: %w", dir, args[0], err)
+		}
+		tree = strings.TrimSpace(string(out))
+	}
+	return tree, nil
+}
+
+const (
+	storeOK       = "ok"
+	storeMissing  = "missing"
+	storeChanged  = "changed"
+	storeUnpinned = "unpinned"
+)
+
+// storeState names why a pinned checkout does not match its lock. A directory
+// that is not there is missing; one whose files differ from the locked tree is
+// changed. ok means the checkout matches.
+func storeState(dir, tree string) (string, error) {
+	if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
+		return storeMissing, nil
+	} else if err != nil {
+		return "", err
+	}
+	got, err := worktreeID(dir)
+	if err != nil {
+		return "", fmt.Errorf("reading store %s: %w", dir, err)
+	}
+	if got != tree {
+		return storeChanged, nil
+	}
+	return storeOK, nil
 }
 
 // resolveRef returns the commit a ref names. A 40-hex ref is that commit.
@@ -411,47 +461,72 @@ func statusAll() error {
 	if err != nil {
 		return err
 	}
+	out := newReport(os.Stdout)
 	if d.Profile == "crew" {
-		fmt.Println("crew: project files only")
+		out.heading("crew: project files only")
 		return nil
 	}
 	bad := false
+	missing := false
+	changed := false
+	var pinSteps []string
 	ids := sortedIDs(d.Components)
 	for _, id := range ids {
 		c := d.Components[id]
 		e, pinned := lk.Components[id]
 		ref := c.Ref
 		short := "unpinned"
-		store := "missing"
+		store := storeUnpinned
 		if pinned {
 			ref = e.Ref
 			short = e.Commit
 			if len(short) > 7 {
 				short = short[:7]
 			}
-			if tree, err := worktreeID(storePath(home, id, e.Commit)); err == nil && tree == e.Tree {
-				store = "ok"
-			} else {
-				bad = true
+			var err error
+			store, err = storeState(storePath(home, id, e.Commit), e.Tree)
+			if err != nil {
+				return err
 			}
+			bad = bad || store != storeOK
 		} else {
 			bad = true
+			pinSteps = append(pinSteps, "gap pin "+id+"@"+c.Ref+"    create the missing lock entry")
 		}
-		fmt.Printf("%s ref=%s commit=%s store=%s\n", id, ref, short, store)
-		if !pinned {
+		if store == storeChanged {
+			changed = true
+		}
+		if store == storeMissing {
+			missing = true
+		}
+		out.statusLine(id, ref, short, store)
+		if store != storeOK {
 			continue
 		}
 		dir := storePath(home, id, e.Commit)
+		var rows [][]string
 		for _, entry := range selectedEntries(c, dir, projectRoot) {
 			for _, name := range entry.Skills {
 				n := skillDriftCount(dir, entryHome(home, entry), name)
-				fmt.Printf("  %s drift=%d\n", name, n)
+				rows = append(rows, []string{name, fmt.Sprintf("drift=%d", n)})
 				if n > 0 {
 					bad = true
 				}
 			}
 		}
+		if len(rows) > 0 {
+			out.driftTable(rows)
+		}
 	}
+	var steps []string
+	steps = append(steps, pinSteps...)
+	if missing {
+		steps = append(steps, "gap sync    fetch each missing source checkout and install it")
+	}
+	if changed {
+		steps = append(steps, "gap sync    replace changed source checkouts from the lock; inspect local changes first")
+	}
+	out.next(steps...)
 	if bad {
 		return errSkipped
 	}

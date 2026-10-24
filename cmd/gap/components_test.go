@@ -189,6 +189,86 @@ func TestEnsureStore(t *testing.T) {
 	}
 }
 
+func TestStoreState(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	home := t.TempDir()
+	remote := filepath.Join(t.TempDir(), "remote")
+	gitFixture(t, remote, "todo\n")
+	write(t, filepath.Join(remote, ".gitignore"), "dist/\nskills/\n")
+	for _, args := range [][]string{{"add", ".gitignore"}, {"-c", "user.name=gap", "-c", "user.email=gap@example.com", "commit", "-qm", "ignore build output"}} {
+		if _, err := git(remote, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commit, err := git(remote, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := git(remote, "rev-parse", "HEAD^{tree}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := component{ID: "recall", Repo: remote, Ref: "main"}
+	l := lockEntryM1{Ref: "main", Commit: commit, Tree: tree}
+	dir, err := ensureStore(home, c, l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertState := func(want string) {
+		t.Helper()
+		got, err := storeState(dir, tree)
+		if err != nil || got != want {
+			t.Fatalf("store state: got %q err %v, want %q", got, err, want)
+		}
+	}
+	index := readString(t, filepath.Join(dir, ".git", "index"))
+	objects, err := git(dir, "count-objects", "-v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertState(storeOK)
+	write(t, filepath.Join(dir, "dist", "index.js"), "built\n")
+	assertState(storeOK)
+	if err := os.RemoveAll(remote); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ensureStore(home, c, l); err != nil {
+		t.Fatalf("build output prevented offline reuse: %v", err)
+	}
+	source := filepath.Join(dir, "skills", "global", "core", "do-todo", "SKILL.md")
+	write(t, source, "edited\n")
+	assertState(storeChanged)
+	write(t, source, "todo\n")
+	assertState(storeOK)
+	if err := os.Remove(source); err != nil {
+		t.Fatal(err)
+	}
+	assertState(storeChanged)
+	write(t, source, "todo\n")
+	if err := os.Chmod(source, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	assertState(storeChanged)
+	if err := os.Chmod(source, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(dir, "extra.txt"), "extra\n")
+	assertState(storeChanged)
+	if readString(t, filepath.Join(dir, ".git", "index")) != index {
+		t.Fatal("store check changed the real index")
+	}
+	after, err := git(dir, "count-objects", "-v")
+	if err != nil || objects != after {
+		t.Fatalf("store check wrote objects: before %s after %s err %v", objects, after, err)
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	assertState(storeMissing)
+}
+
 func TestComponentSyncRestore(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
