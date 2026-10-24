@@ -79,8 +79,8 @@ func mergeOverride(d distro, path string) (distro, error) {
 		if !found {
 			continue
 		}
-		if enabled, ok := table["enabled"].(string); ok {
-			c.Disabled = enabled == "false"
+		if enabled, ok := table["enabled"].(bool); ok {
+			c.Disabled = !enabled
 		}
 		if ref, ok := table["ref"].(string); ok && ref != "" {
 			c.Ref = ref

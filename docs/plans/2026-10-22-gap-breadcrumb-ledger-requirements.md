@@ -31,7 +31,7 @@ Finish the two behaviors the env provisioner plan promised and left undone. When
 
 ## Decisions
 
-- One breadcrumb per project, matched on its text. `recall recent` does filter by project (`-p`), so the check uses both the filter and the text. The text stays, because the filter alone would also match a breadcrumb someone else wrote for that project.
+- One breadcrumb per project, matched by a quoted phrase through `recall search` with project and breadcrumb-table filters. Search covers the complete history before limiting matches, so newer notes cannot hide the setup note. Include records marked as duplicates and detect a returned record independently of its truncated preview.
 - The adapter record is replaced on every run, not appended.
 - A missing `recall` is a notice, not a failure.
 

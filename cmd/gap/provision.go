@@ -13,7 +13,7 @@ import (
 
 func initCmd(args []string) int {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
-	adopt := flags.Bool("adopt", false, "report existing project files before adding GAP configuration")
+	adopt := flags.Bool("adopt", false, "preserve existing project files while adding missing GAP configuration")
 	if err := flags.Parse(args); err != nil || flags.NArg() > 1 {
 		return 2
 	}
@@ -41,35 +41,33 @@ func initProject(root, profile string, adopt bool) error {
 		}
 	}
 	config := filepath.Join(root, ".gap", "gap.toml")
-	if _, err := os.Lstat(config); errors.Is(err, os.ErrNotExist) {
-		text := "profile = " + strconv.Quote(profile) + "\nslug = " + strconv.Quote(filepath.Base(root)) + "\n"
-		if err := writeAtomic(config, text); err != nil {
+	_, err := os.Lstat(config)
+	newConfig := errors.Is(err, os.ErrNotExist)
+	if err != nil && !newConfig {
+		return fmt.Errorf("read project configuration %s: %w", config, err)
+	}
+	configText := "profile = " + strconv.Quote(profile) + "\nslug = " + strconv.Quote(filepath.Base(root)) + "\n"
+	if !newConfig {
+		b, err := os.ReadFile(config)
+		if err != nil {
+			return fmt.Errorf("read project configuration %s: %w", config, err)
+		}
+		configText = string(b)
+	}
+	doc, err := parseTOML(configText)
+	if err != nil {
+		return fmt.Errorf("fix project configuration %s before running gap init: %w", config, err)
+	}
+	slug, ok := doc["slug"].(string)
+	if !ok || strings.TrimSpace(slug) == "" {
+		return fmt.Errorf("%s: set slug to a non-empty string before running gap init", config)
+	}
+	if newConfig {
+		if err := writeAtomic(config, configText); err != nil {
 			return err
 		}
 		fmt.Println(config)
-	} else if err != nil {
-		return err
 	}
-	defer func() {
-		if profile == "crew" {
-			return
-		}
-		b, err := os.ReadFile(config)
-		if err != nil {
-			return
-		}
-		doc, err := parseTOML(string(b))
-		if err != nil {
-			return
-		}
-		slug, ok := doc["slug"].(string)
-		if !ok || slug == "" {
-			return
-		}
-		if err := provisionBreadcrumb(slug); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
-	}()
 	path := filepath.Join(root, "AGENTS.md")
 	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
 		return fmt.Errorf("refusing to append policy pointer to non-regular file %s", path)
@@ -81,21 +79,29 @@ func initProject(root, profile string, adopt bool) error {
 		return err
 	}
 	text := string(data)
-	if strings.Contains(text, gapBegin) || strings.Contains(text, gapEnd) {
+	switch {
+	case adopt && err == nil:
+		fmt.Println("Keeping adopted file " + path)
+	case strings.Contains(text, gapBegin) || strings.Contains(text, gapEnd):
 		fmt.Println("Keeping marked file " + path)
-		return nil
+	default:
+		if text != "" && !strings.HasSuffix(text, "\n") {
+			text += "\n"
+		}
+		if text != "" {
+			text += "\n"
+		}
+		text += gapBegin + "\nFollow the [GAP global agent policy](https://github.com/edheltzel/GAP/blob/master/global/AGENTS.md).\n" + gapEnd + "\n"
+		if err := writeAtomic(path, text); err != nil {
+			return err
+		}
+		fmt.Println(path)
 	}
-	if text != "" && !strings.HasSuffix(text, "\n") {
-		text += "\n"
+	if profile != "crew" && doc["profile"] != "crew" {
+		if err := provisionBreadcrumb(slug); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
 	}
-	if text != "" {
-		text += "\n"
-	}
-	text += gapBegin + "\nFollow the [GAP global agent policy](https://github.com/edheltzel/GAP/blob/master/global/AGENTS.md).\n" + gapEnd + "\n"
-	if err := writeAtomic(path, text); err != nil {
-		return err
-	}
-	fmt.Println(path)
 	return nil
 }
 

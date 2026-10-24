@@ -98,6 +98,16 @@ func TestParseTOMLSubset(t *testing.T) {
 	}
 }
 
+func TestParseTOMLBooleans(t *testing.T) {
+	doc, err := parseTOML("enabled = false\nincluded = true\nslug = \"false\"\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc["enabled"] != false || doc["included"] != true || doc["slug"] != "false" {
+		t.Fatalf("TOML booleans must remain distinct from quoted strings: %#v", doc)
+	}
+}
+
 func TestLockRoundTrip(t *testing.T) {
 	const hex = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	const hex2 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

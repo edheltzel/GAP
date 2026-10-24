@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -22,7 +24,7 @@ func TestInitAdoptWritesOnlyNewFiles(t *testing.T) {
 		t.Fatalf("gap.toml: %q", got)
 	}
 	agents := readString(t, filepath.Join(repo, "AGENTS.md"))
-	if !strings.HasPrefix(agents, "# Existing\n") || !strings.Contains(agents, "<!-- gap:begin -->") {
+	if agents != "# Existing\n\nKeep this.\n" || readString(t, filepath.Join(repo, "todo.txt")) != "task\n" {
 		t.Fatalf("AGENTS.md was rewritten:\n%s", agents)
 	}
 	before := agents
@@ -36,15 +38,21 @@ func TestInitAdoptWritesOnlyNewFiles(t *testing.T) {
 
 func TestInitOnEmptyRepo(t *testing.T) {
 	t.Setenv("PATH", "/usr/bin:/bin")
-	repo := t.TempDir()
-	if code := run([]string{"init", repo}); code != 0 {
-		t.Fatalf("init: %d", code)
-	}
-	if _, err := os.Stat(filepath.Join(repo, "AGENTS.md")); err != nil {
-		t.Fatal("init did not create AGENTS.md")
-	}
-	if _, err := os.Stat(filepath.Join(repo, ".gap", "gap.toml")); err != nil {
-		t.Fatal("init did not create .gap/gap.toml")
+	for _, adopt := range []bool{false, true} {
+		repo := t.TempDir()
+		args := []string{"init"}
+		if adopt {
+			args = append(args, "--adopt")
+		}
+		if code := run(append(args, repo)); code != 0 {
+			t.Fatalf("init: %d", code)
+		}
+		if _, err := os.Stat(filepath.Join(repo, "AGENTS.md")); err != nil {
+			t.Fatal("init did not create AGENTS.md")
+		}
+		if _, err := os.Stat(filepath.Join(repo, ".gap", "gap.toml")); err != nil {
+			t.Fatal("init did not create .gap/gap.toml")
+		}
 	}
 }
 
@@ -81,7 +89,7 @@ func TestInitBreadcrumb(t *testing.T) {
 	slug := filepath.Base(repo)
 	got := recallArgv(t)
 	want := []string{
-		"recent breadcrumbs -p " + slug + " -l 1000",
+		"search \"gap provisioned " + slug + "\" -t breadcrumbs -p " + slug + " --include-duplicates -l 1",
 		"add breadcrumb gap provisioned " + slug + " -p " + slug + " -c setup",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -90,16 +98,198 @@ func TestInitBreadcrumb(t *testing.T) {
 }
 
 func TestInitBreadcrumbIdempotent(t *testing.T) {
-	slug := ""
 	repo := t.TempDir()
-	slug = filepath.Base(repo)
-	recallStub(t, "case \"$1\" in\nrecent) echo \"#1 ["+slug+"] 2026-10-23\"; echo \"  gap provisioned "+slug+"\";;\nesac\nexit 0\n")
+	config := "profile = \"project\"\nslug = \"ledger-project\"\n"
+	write(t, filepath.Join(repo, ".gap", "gap.toml"), config)
+	t.Setenv("RECALL_HISTORY", filepath.Join(t.TempDir(), "history"))
+	recallStub(t, `case "$1" in
+search)
+  [ "$2" = '"gap provisioned ledger-project"' ] || exit 64
+  [ "$3 $4 $5 $6 $7 $8 $9" = '-t breadcrumbs -p ledger-project --include-duplicates -l 1' ] || exit 64
+  if [ -f "$RECALL_HISTORY" ] && /usr/bin/grep -Fxq 'gap provisioned ledger-project' "$RECALL_HISTORY"; then
+    printf 'Found 1 result(s):\n\n[breadcrumbs#1] [ledger-project] 2026-10-23\n  gap provisioned ledger-project\n'
+  else
+    printf 'No results found.\n'
+  fi
+  ;;
+recent) if [ -f "$RECALL_HISTORY" ]; then /usr/bin/tail -n 1000 "$RECALL_HISTORY"; fi ;;
+add) printf '%s\n' "$3" >> "$RECALL_HISTORY" ;;
+*) exit 64 ;;
+esac
+`)
 	if code := run([]string{"init", repo}); code != 0 {
 		t.Fatalf("init: %d", code)
 	}
+	history := readString(t, os.Getenv("RECALL_HISTORY"))
+	if history != "gap provisioned ledger-project\n" {
+		t.Fatalf("initial breadcrumb: %q", history)
+	}
+	write(t, os.Getenv("RECALL_HISTORY"), history+strings.Repeat("newer project activity\n", 1000))
+	if code := run([]string{"init", repo}); code != 0 {
+		t.Fatalf("second init: %d", code)
+	}
+	if got := strings.Count(readString(t, os.Getenv("RECALL_HISTORY")), "gap provisioned ledger-project\n"); got != 1 {
+		t.Fatalf("setup breadcrumbs after 1000 newer notes: %d", got)
+	}
 	got := recallArgv(t)
-	if len(got) != 1 || !strings.HasPrefix(got[0], "recent breadcrumbs -p "+slug+" ") {
-		t.Fatalf("a second breadcrumb must not be added:\n%v", got)
+	if len(got) != 3 || got[0] != got[2] || readString(t, filepath.Join(repo, ".gap", "gap.toml")) != config {
+		t.Fatalf("repeated init changed configuration or added another breadcrumb:\n%v", got)
+	}
+}
+
+func TestInitBreadcrumbSearchPhrase(t *testing.T) {
+	repo := t.TempDir()
+	slug := "quoted \"project\"-" + strings.Repeat("x", 120)
+	write(t, filepath.Join(repo, ".gap", "gap.toml"), "slug = "+strconv.Quote(slug)+"\n")
+	t.Setenv("RECALL_QUERY", `"gap provisioned quoted ""project""-`+strings.Repeat("x", 120)+`"`)
+	recallStub(t, `
+[ "$1" = search ] && [ "$2" = "$RECALL_QUERY" ] || exit 64
+printf 'Found 1 result(s):\n\n[breadcrumbs#42] 2026-10-23\n  gap provisioned quoted "project"-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...\n'
+`)
+	_, stderr := captureStd(t, func() {
+		if code := run([]string{"init", repo}); code != 0 {
+			t.Fatalf("init: %d", code)
+		}
+	})
+	if got := recallArgv(t); len(got) != 1 || stderr != "" {
+		t.Fatalf("an existing result with a truncated preview must prevent add: %v, stderr: %s", got, stderr)
+	}
+}
+
+func TestInitBreadcrumbSuccessfulPaths(t *testing.T) {
+	for _, c := range []struct {
+		name, existing string
+		adopt          bool
+	}{
+		{"unmarked", "existing rules", false},
+		{"begin marker", "<!-- gap:begin -->\nprotected\n", false},
+		{"end marker", "<!-- gap:end -->\nprotected\n", false},
+		{"adopted", "existing rules", true},
+		{"adopted empty", "", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			recallStub(t, "exit 0\n")
+			repo := t.TempDir()
+			path := filepath.Join(repo, "AGENTS.md")
+			write(t, path, c.existing)
+			args := []string{"init"}
+			if c.adopt {
+				args = append(args, "--adopt")
+			}
+			if code := run(append(args, repo)); code != 0 {
+				t.Fatalf("init: %d", code)
+			}
+			got := readString(t, path)
+			if c.name == "unmarked" {
+				if !strings.HasPrefix(got, c.existing+"\n\n") || !strings.Contains(got, gapBegin) {
+					t.Fatalf("policy pointer: %q", got)
+				}
+			} else if got != c.existing {
+				t.Fatalf("existing file changed: %q", got)
+			}
+			if got := recallArgv(t); len(got) != 2 || !strings.HasPrefix(got[1], "add breadcrumb ") {
+				t.Fatalf("successful provisioning did not record a breadcrumb: %v", got)
+			}
+		})
+	}
+}
+
+func TestInitInvalidConfiguration(t *testing.T) {
+	for _, config := range []string{
+		"[components.recall]\nenabled = false\n",
+		"slug = \"\"\n",
+		"slug = \"  \"\n",
+		"slug = false\n",
+		"slug = true\n",
+		"slug = []\n",
+		"[slug]\nvalue = \"project\"\n",
+		"slug = \"unterminated\n",
+	} {
+		t.Run(config, func(t *testing.T) {
+			recallStub(t, "exit 0\n")
+			repo := t.TempDir()
+			path := filepath.Join(repo, ".gap", "gap.toml")
+			write(t, path, config)
+			_, stderr := captureStd(t, func() {
+				if code := run([]string{"init", repo}); code != 1 {
+					t.Errorf("invalid configuration accepted: %d", code)
+				}
+			})
+			if !strings.Contains(stderr, path) || !strings.Contains(stderr, "before running gap init") {
+				t.Fatalf("configuration error must explain how to proceed: %s", stderr)
+			}
+			if _, err := os.Lstat(filepath.Join(repo, "AGENTS.md")); !os.IsNotExist(err) {
+				t.Fatal("invalid configuration wrote project files")
+			}
+			if readString(t, path) != config || len(recallArgv(t)) != 0 {
+				t.Fatal("invalid configuration was changed or recorded as provisioned")
+			}
+		})
+	}
+}
+
+func TestInitReadConfigurationFailure(t *testing.T) {
+	for _, kind := range []string{"directory", "dangling symlink", "blocked parent"} {
+		t.Run(kind, func(t *testing.T) {
+			recallStub(t, "exit 0\n")
+			repo := t.TempDir()
+			path := filepath.Join(repo, ".gap", "gap.toml")
+			if kind == "blocked parent" {
+				write(t, filepath.Dir(path), "not a directory\n")
+			} else {
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if kind == "directory" {
+					if err := os.Mkdir(path, 0o755); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Symlink(filepath.Join(repo, "missing"), path); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, stderr := captureStd(t, func() {
+				if code := run([]string{"init", repo}); code != 1 {
+					t.Errorf("unreadable configuration accepted: %d", code)
+				}
+			})
+			if !strings.Contains(stderr, path) {
+				t.Fatalf("read error must identify the configuration: %s", stderr)
+			}
+			if _, err := os.Lstat(filepath.Join(repo, "AGENTS.md")); !os.IsNotExist(err) || len(recallArgv(t)) != 0 {
+				t.Fatal("unreadable configuration wrote policy or a breadcrumb")
+			}
+		})
+	}
+}
+
+func TestInitFailureDoesNotRecordBreadcrumb(t *testing.T) {
+	for _, kind := range []string{"symlink", "directory", "write failure"} {
+		t.Run(kind, func(t *testing.T) {
+			recallStub(t, "exit 0\n")
+			repo := t.TempDir()
+			path := filepath.Join(repo, "AGENTS.md")
+			switch kind {
+			case "symlink":
+				target := filepath.Join(repo, "rules.md")
+				write(t, target, "protected\n")
+				if err := os.Symlink(target, path); err != nil {
+					t.Fatal(err)
+				}
+			case "directory":
+				if err := os.Mkdir(path, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			case "write failure":
+				write(t, fmt.Sprintf("%s.%d.tmp", path, os.Getpid()), "occupied\n")
+			}
+			if code := run([]string{"init", repo}); code != 1 {
+				t.Fatalf("provisioning failure accepted: %d", code)
+			}
+			if got := recallArgv(t); len(got) != 0 {
+				t.Fatalf("failed provisioning called Recall: %v", got)
+			}
+		})
 	}
 }
 

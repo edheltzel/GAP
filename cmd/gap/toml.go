@@ -281,7 +281,7 @@ func parseValue(s string, line int) (any, error) {
 		return parseArray(s, line)
 	}
 	if s == "true" || s == "false" {
-		return s, nil
+		return s == "true", nil
 	}
 	if s[0] >= '0' && s[0] <= '9' || s[0] == '-' || s[0] == '+' {
 		return nil, tomlErr(line, "numbers are not supported")
