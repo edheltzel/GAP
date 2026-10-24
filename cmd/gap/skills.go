@@ -16,9 +16,10 @@ import (
 
 // Path, when set, is the directory skills are read from. Source stays the identity used for lock matching.
 type manifestEntry struct {
-	Source string   `json:"source"`
-	Skills []string `json:"skills"`
-	Path   string   `json:"-"`
+	Source  string   `json:"source"`
+	Skills  []string `json:"skills"`
+	Path    string   `json:"-"`
+	Project string   `json:"-"`
 }
 
 func readManifest(repoRoot string) ([]manifestEntry, error) {
@@ -38,6 +39,25 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 	var err error
 	ok := true
 	for _, e := range entries {
+		target := entryHome(home, e)
+		if e.Path != "" {
+			for _, name := range e.Skills {
+				exists := false
+				for _, dir := range skillDirs(target, name) {
+					if _, err := os.Lstat(dir); !errors.Is(err, os.ErrNotExist) {
+						exists = true
+					}
+				}
+				if !exists {
+					replaced, err := replaceSkill("", repoRoot, target, e, name)
+					if err != nil || !replaced {
+						fmt.Fprintf(os.Stderr, "Installing %s: %v\n", name, err)
+						ok = false
+					}
+				}
+			}
+			continue
+		}
 		var missing, migrate []string
 		var migrateFrom []lockEntry
 		for _, name := range e.Skills {
@@ -165,6 +185,9 @@ func foreignLock(repoRoot, home, source, name string) (lockEntry, bool) {
 }
 
 func foreignLockEntry(repoRoot, home string, e manifestEntry, name string) (lockEntry, bool) {
+	if e.Path != "" {
+		return lockEntry{}, false
+	}
 	skills, err := readSkillLock(home)
 	if err != nil {
 		return lockEntry{}, false
@@ -193,14 +216,7 @@ func sameSource(repoRoot string, e manifestEntry, l lockEntry) bool {
 			return false
 		}
 		root := filepath.Clean(addSource(repoRoot, e))
-		return p == root || storeSibling(root, p) || checkoutLock(root, p)
-	}
-	// Path is the pinned store. skills.sh records that directory, including an older commit of the same component.
-	// A lock that still names the GAP checkout is not this store, so an unedited copy stays foreign and migrates.
-	if e.Path != "" {
-		if p, ok := localLockPath(l); ok && storeSibling(e.Path, p) {
-			return true
-		}
+		return p == root
 	}
 	wantRepo, wantSub, ok := githubIdentity(manifest)
 	if !ok {
@@ -306,6 +322,9 @@ func skillBaseline(repoRoot, home string, e manifestEntry, name string) (string,
 func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 	defer func() {
 		for _, e := range entries {
+			if e.Project != "" {
+				continue
+			}
 			for _, name := range e.Skills {
 				if warning := empryoShadow(home, name); warning != "" {
 					fmt.Fprintln(os.Stderr, warning)
@@ -317,13 +336,14 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 	in := bufio.NewReader(os.Stdin)
 	ok := true
 	for _, e := range entries {
+		target := entryHome(home, e)
 		for _, name := range e.Skills {
 			var sourceDir string
 			var external lockEntry
 			drifted := false
 			foreignReview := false
 			root := entryRoot(repoRoot, e)
-			if locked, foreign := foreignLockEntry(root, home, e, name); foreign {
+			if locked, foreign := foreignLockEntry(root, target, e, name); foreign {
 				foreignReview = true
 				fmt.Fprintf(os.Stderr, "Skill %s is locked to %s, not %s\n", name, lockLabel(locked), e.Source)
 				drifted = true
@@ -331,15 +351,15 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 					sourceDir = localSkillDir(addSource(repoRoot, e), name)
 				}
 			} else {
-				want, dir, ext, err := skillBaseline(root, home, e, name)
+				want, dir, ext, err := skillBaseline(root, target, e, name)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
 					ok = false
 					continue
 				}
 				sourceDir, external = dir, ext
-				dirs := skillDirs(home, name)
-				drifted = !installed(home, name)
+				dirs := skillDirs(target, name)
+				drifted = !installed(target, name)
 				for _, dir := range dirs {
 					info, err := os.Stat(dir)
 					if errors.Is(err, os.ErrNotExist) {
@@ -372,7 +392,7 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 				sourceDir, cleanup = openSourceSkill(e, name)
 				defer cleanup()
 			}
-			for _, dir := range skillDirs(home, name) {
+			for _, dir := range skillDirs(target, name) {
 				if _, err := os.Stat(dir); err == nil {
 					showDiff(sourceDir, external, dir)
 				} else {
@@ -383,15 +403,9 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 			line, _ := in.ReadString('\n')
 			switch strings.ToLower(strings.TrimSpace(line)) {
 			case "k":
-				ok = installed(home, name) && ok
+				ok = installed(target, name) && ok
 			case "t":
-				npx, err := exec.LookPath("npx")
-				if err != nil {
-					fmt.Fprintln(os.Stderr, "Cannot take source: npx not found")
-					ok = false
-					continue
-				}
-				replaced, err := replaceSkill(npx, entryRoot(repoRoot, e), home, e, name)
+				replaced, err := replaceSkill("", entryRoot(repoRoot, e), target, e, name)
 				if err != nil {
 					return false, err
 				}
@@ -405,6 +419,19 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 }
 
 func replaceSkill(npx, repoRoot, home string, e manifestEntry, name string) (bool, error) {
+	src := ""
+	if e.Path != "" {
+		src = localSkillDir(e.Path, name)
+		if src == "" {
+			return false, fmt.Errorf("skill %s has no source in pinned store %s", name, e.Path)
+		}
+	} else if npx == "" {
+		var err error
+		npx, err = exec.LookPath("npx")
+		if err != nil {
+			return false, fmt.Errorf("cannot take source: npx not found: %w", err)
+		}
+	}
 	dirs := skillDirs(home, name)
 	backups := map[string]string{}
 	restore := func() error {
@@ -433,15 +460,27 @@ func replaceSkill(npx, repoRoot, home string, e manifestEntry, name string) (boo
 		backups[dir] = backup
 		fmt.Println("Backed up to " + backup)
 	}
-	snap := snapshotSkillLock(home, name)
-	if skillsAdd(npx, repoRoot, home, e, []string{name}) {
-		return true, nil
+	var installErr error
+	if src != "" {
+		for _, dir := range dirs {
+			if installErr = copySkill(src, dir); installErr != nil {
+				break
+			}
+		}
+		if installErr == nil {
+			return true, nil
+		}
+	} else {
+		snap := snapshotSkillLock(home, name)
+		if skillsAdd(npx, repoRoot, home, e, []string{name}) {
+			return true, nil
+		}
+		installErr = restoreSkillLock(snap)
 	}
-	var err error
 	for _, dir := range dirs {
-		err = errors.Join(err, os.RemoveAll(dir))
+		installErr = errors.Join(installErr, os.RemoveAll(dir))
 	}
-	return false, errors.Join(err, restoreSkillLock(snap), restore())
+	return false, errors.Join(installErr, restore())
 }
 
 type skillLockSnap struct {
@@ -610,48 +649,6 @@ func addSource(repoRoot string, e manifestEntry) string {
 		return repoRoot
 	}
 	return e.Source
-}
-
-// storeSibling reports that locked is another commit of the same component store as root
-// (home/.gap/store/<id>/<commit>). A checkout-path lock is the same identity only when root is that checkout.
-func storeSibling(root, locked string) bool {
-	root, locked = cleanPath(root), cleanPath(locked)
-	if root == locked {
-		return true
-	}
-	id := filepath.Base(filepath.Dir(root))
-	store := cleanPath(filepath.Dir(filepath.Dir(root)))
-	if filepath.Base(store) != "store" || id == "" || id == "." {
-		return false
-	}
-	rel, err := filepath.Rel(filepath.Join(store, id), locked)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return false
-	}
-	return !strings.Contains(rel, string(filepath.Separator))
-}
-
-// cleanPath resolves symlinks. macOS reports /var as /private/var.
-func cleanPath(path string) string {
-	path = filepath.Clean(path)
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		return filepath.Clean(resolved)
-	}
-	// A removed commit dir still has to compare. Resolve the parent that exists.
-	parent := filepath.Dir(path)
-	if resolved, err := filepath.EvalSymlinks(parent); err == nil {
-		return filepath.Clean(filepath.Join(resolved, filepath.Base(path)))
-	}
-	return path
-}
-
-// checkoutLock reports a skills.sh lock whose source is the GAP checkout while the
-// manifest now points at that component's store. Hashes still have to match before migration.
-func checkoutLock(store, locked string) bool {
-	if _, err := os.Stat(filepath.Join(locked, "global", "AGENTS.md")); err != nil {
-		return false
-	}
-	return filepath.Base(filepath.Dir(filepath.Dir(store))) == "store"
 }
 
 // treeHash is the Git tree id of dir. skills.sh records that when the GitHub tree API works.
@@ -910,4 +907,11 @@ func installed(home, name string) bool {
 		}
 	}
 	return true
+}
+
+func entryHome(home string, e manifestEntry) string {
+	if e.Project != "" {
+		return e.Project
+	}
+	return home
 }

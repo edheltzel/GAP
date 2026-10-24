@@ -136,8 +136,13 @@ func TestComponentInputTypes(t *testing.T) {
 	}
 	write(t, filepath.Join(root, "gap.toml"), "schema = \"2\"\n[components.good]\n"+distroFields+"[components.good.skills]\nother = \"always\"\n")
 	d, err = readDistro(root)
-	if err != nil || len(d.Components["good"].Skills) != 1 || d.Components["good"].Skills[0] != "do-todo" {
-		t.Fatalf("only names may select M1 skills: %+v %v", d, err)
+	if err == nil || !strings.Contains(err.Error(), "other") {
+		t.Fatalf("a skill entry must be a table, not a string: %+v %v", d, err)
+	}
+	write(t, filepath.Join(root, "gap.toml"), "schema = \"2\"\n[components.good]\n"+distroFields+"[components.good.skills.do-todo]\nload = \"always\"\n")
+	d, err = readDistro(root)
+	if err != nil || d.Components["good"].SkillSet["do-todo"].Load != "always" {
+		t.Fatalf("a skill table sets its load: %+v %v", d, err)
 	}
 }
 
@@ -184,7 +189,7 @@ func TestComponentLocalModeRestore(t *testing.T) {
 				t.Setenv("PATH", filepath.Dir(npx)+string(os.PathListSeparator)+os.Getenv("PATH"))
 				sourceRootFor = repo
 				t.Cleanup(func() { sourceRootFor = "" })
-				entries, err := loadComponents(repo, home)
+				entries, err := loadTestComponents(repo, home, repo)
 				if err != nil || !installSkills(repo, home, entries) {
 					t.Fatalf("install: %v", err)
 				}

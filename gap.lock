@@ -4,3 +4,18 @@ schema = "2"
 ref = "master"
 commit = "ae1571346429ec5a57732c54bf82c52d2b5b00fd"
 tree = "f3ef5fe17540788483d38f43258b1d728aa04617"
+
+[components.forge]
+ref = "master"
+commit = "3825d7e5ee2a1225efda234020748c80ceb6d83a"
+tree = "306ae487c4e384fe3143eedbbeebaa7106401d66"
+
+[components.echo]
+ref = "v0.13.0"
+commit = "f8001264b18631c5e0d01f3b6a7213588e1a1fe1"
+tree = "fc36c5c4597058a3370f0780f32b9441bd819ef8"
+
+[components.recall]
+ref = "main"
+commit = "431917695ee5441ccab8e3f666b934c1111bb1b0"
+tree = "bdbabeffa8bdd25809afae5ebf939657877812db"

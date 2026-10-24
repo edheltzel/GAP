@@ -304,15 +304,12 @@ func TestStorePathSecondSync(t *testing.T) {
 	if got := readString(t, filepath.Join(home, ".agents", ".skill-lock.json")); got != lock {
 		t.Fatal("second sync re-migrated a store-path install")
 	}
-	other := filepath.Join(home, ".gap", "store", "do-skills", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-	if err := os.MkdirAll(other, 0o755); err != nil {
-		t.Fatal(err)
+	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"do-todo":{"source":"unrelated/legacy"}}}`)
+	if _, foreign := foreignLockEntry(checkout, home, entry, "do-todo"); foreign {
+		t.Fatal("pinned copies must use the pinned baseline, not legacy identity")
 	}
-	if !sameSource(store, manifestEntry{Source: ".", Path: store}, lockEntry{Source: other, SourceType: "local"}) {
-		t.Fatal("another commit of the same store must match")
-	}
-	if !sameSource(store, manifestEntry{Source: ".", Path: store}, lockEntry{Source: checkout, SourceType: "local"}) {
-		t.Fatal("a checkout-path lock must be migratable to the store")
+	if ok, err := checkDrift(checkout, home, []manifestEntry{entry}); err != nil || !ok {
+		t.Fatalf("a stale legacy lock must not cause pinned-copy drift: %v %v", ok, err)
 	}
 }
 

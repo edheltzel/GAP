@@ -1,0 +1,9 @@
+# The crew profile is what a cloud agent gets: committed files only.
+# No Recall, no Echo, no machine state. The policy pointer in AGENTS.md is enough.
+profile = "crew"
+
+[components.recall]
+enabled = false
+
+[components.echo]
+enabled = false

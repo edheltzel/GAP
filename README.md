@@ -39,10 +39,13 @@ gap --help
 | Command | What it does |
 | --- | --- |
 | `gap sync` | Publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift |
+| `gap sync --profile crew` | Prepare project files for cloud agents without fetching components or writing to the home directory |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
 | `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on drift or a missing store |
 | `gap restore [id]` | Back up and replace missing or drifted component skills at the locked commit, reusing a verified store copy |
 | `gap pin <id>@<ref>` | Resolve a branch, tag, or commit and write it to `gap.lock`. The only command that moves a pin |
+| `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
+| `gap init [--adopt] [dir]` | Create project configuration and append a policy pointer; `--adopt` also reports existing project files |
 | `go test ./...` | Run the self-test against throwaway folders |
 
 ## Manage skills
@@ -55,9 +58,11 @@ gap --help
 ]
 ```
 
-`gap sync` installs missing listed skills by running skills.sh (`npx -y skills add <source> -g -y -a claude-code -a codex -s <name>`, repeating `-s` for each missing skill). It goes into `~/.agents/skills`, which Codex, Cursor, Pi, and OMP read, and skills.sh links it into `~/.claude/skills` for Claude Code. You need Node for installations. If an installation is needed but `npx` is unavailable, sync still publishes the policy, skips the installation, and exits `1`.
+`gap sync` copies selected component skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Component skill installation, drift repair, and restore do not use Node or `npx`. Project skills use the same two paths under the invoking project instead of the home directory; see [load levels](#load-levels).
 
-Sync also checks every installed managed skill against its source: the pinned store for a component, this repo's folder for `"source": "."`, or the hash skills.sh recorded for another manifest source. That hash is a Git tree id or a SHA-256 of the skill files; sync compares the same kind. A lock entry whose source is not the selected source is reinstalled after a backup, without asking, only when both destinations still match the recorded hash. This also migrates unedited Do-Skills copies previously installed from the GAP checkout to the component store. An edited copy, or a hash sync cannot check, is reviewed like other drift, against the selected source. For each drifted skill, it shows the diff and asks:
+Additional skills in `global/skills.json` still install through skills.sh (`npx -y skills add <source> -g -y -a claude-code -a codex -s <name>`, repeating `-s` for each missing skill). They use the home-directory destinations above, with a Claude link managed by skills.sh, and require Node. If such an installation is needed but `npx` is unavailable, sync still publishes the policy, skips that installation, and exits `1`.
+
+Sync checks installed managed skills against their selected source. Component skills use the pinned store as their baseline and leave the skills.sh lock unchanged; matching existing copies stay in place. Manifest skills retain skills.sh source-identity migration and hash checks, described in the [sync contract](cmd/gap/AGENTS.md#sync-steps). For each drifted skill, sync shows the diff and asks:
 
 - `k` keeps the installed copies for this run. Later runs check them again. An incomplete installation still exits `1`.
 - `t` takes the source. Sync backs up both destinations under `~/.gap/backups/`, then reinstalls. A failed install restores the previous destinations.
@@ -71,7 +76,7 @@ For a direct skills.sh install that does not use `gap.lock`, run `npx skills add
 
 ### Components
 
-A component is a repo that ships many skills, pinned to one commit. `gap.toml` names each component and its skills, and `gap.lock` records the exact commit and tree:
+A component is a repo pinned to one commit that supplies skills or its own installer and doctor. [`gap.toml`](gap.toml) selects the components and their skills; [`gap.lock`](gap.lock) records the exact commits and trees:
 
 ```toml
 # gap.toml
@@ -82,9 +87,49 @@ ref   = "master"
 names = ["do-commit", "do-todo"]
 ```
 
-`gap pin do-skills@master` writes the requested ref, resolved commit, and tree to `gap.lock`. If a branch and tag share a name, use `refs/heads/<name>` or `refs/tags/<name>` to choose one. `gap sync` fetches the locked commit into `~/.gap/store/<id>/<commit>/`, checks its tree against the lock, and installs the skills from there through skills.sh, so Node is still needed. Sync never moves a pin. A component missing from `gap.lock` stops the sync and names the `gap pin` command to run. `gap.toml` and `gap.lock` pass the same merge gate as `global/`.
+`gap pin do-skills@master` writes the requested ref, resolved commit, and tree to `gap.lock`. If a branch and tag share a name, use `refs/heads/<name>` or `refs/tags/<name>` to choose one. Machine sync fetches the locked commit into `~/.gap/store/<id>/<commit>/`, checks its tree against the lock, and installs the selected skills as described above. Sync never moves a pin. A component missing from `gap.lock` stops the sync and names the `gap pin` command to run. `gap.toml` and `gap.lock` pass the same merge gate as `global/`.
 
-`gap status` reports component skills only, using the locked ref when pinned. `gap restore do-skills` repairs that component's missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids fetching the component again; skills.sh may still need network access.
+The distro includes Do-Skills, Forge, Echo, and Recall. Forge supplies `forge-interview`. Echo and Recall have empty skill lists: machine sync runs their configured `install` commands from their verified stores, and those installers own their skills and runtime prerequisites. Gap copies no skills from them and never installs a harness.
+
+`gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing or changed stores and failed doctors produce exit `1`; doctor does not fetch missing components.
+
+`gap status` reports component skills only, using the locked ref when pinned. It and `gap restore [id]` use the same overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
+
+### Load levels
+
+Each component's `names` array is its skill list. An optional `[components.<id>.skills.<name>]` table selects how an existing name installs:
+
+| `load` | Installation |
+| --- | --- |
+| `listed` (default), `always` | Install in the home-directory skill destinations |
+| `project` | Install under the invoking project only when any `when.files` glob matches |
+| `command`, `off` | Not selected for installation by sync or restore |
+
+For example, the distro's `do-astro` selection uses `load = "project"` with `when.files = ["astro.config.*"]`. Globs are relative to the invoking project's Git root, or the current directory outside Git.
+
+### Overrides
+
+Sync, status, restore, and doctor read the installed distro's `gap.toml`, then `~/.config/gap/gap.toml`, then the invoking project's `.gap/gap.toml`. Later values win. `gap sync --profile <name>` applies the distro's `profiles/<name>.toml` last. A project with `profile = "crew"` also loads the crew profile on later runs.
+
+Overrides can replace an existing component's `enabled` and `ref`, or a listed skill's `load` and `when.files`. A later `enabled = true` can re-enable a component. `when.files` replaces the earlier list. For example:
+
+```toml
+[components.recall]
+enabled = false
+
+[components.do-skills.skills.do-astro]
+load = "project"
+[components.do-skills.skills.do-astro.when]
+files = ["astro.config.*", "apps/site/astro.config.*"]
+```
+
+Overrides never write `gap.lock`. If an overridden `ref` differs from the locked ref, the command stops and names the `gap pin <id>@<ref>` command needed to change the pin.
+
+### Project setup
+
+Run `gap init --adopt [dir]` for an existing project, or `gap init [dir]` for a new one; `dir` defaults to the current directory. Both create `.gap/gap.toml` only when absent, using `profile = "project"` and the directory name as the slug. Both append a short policy pointer to `AGENTS.md`, preserving its existing text. If that file contains either GAP marker, it stays unchanged. Non-regular `AGENTS.md` files are refused. `--adopt` also lists existing agent, Forge, task, and stack files; it still performs the writes. Init does not run the Forge interview.
+
+For cloud agents, run `gap sync --profile crew`. It uses the same protected project-file writes, creating missing configuration with `profile = "crew"`. The [crew profile](profiles/crew.toml) excludes Recall and Echo; this sync skips home publication, store fetching, component installers, and skill installation. Commit the project files for the cloud agent. With an effective crew profile, status reports `crew: project files only` and restore writes nothing.
 
 ## Change the policy
 
