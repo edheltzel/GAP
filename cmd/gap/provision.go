@@ -98,9 +98,7 @@ func initProject(root, profile string, adopt bool) error {
 		fmt.Println(path)
 	}
 	if profile != "crew" && doc["profile"] != "crew" {
-		if err := provisionBreadcrumb(slug); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
+		return provisionBreadcrumb(slug)
 	}
 	return nil
 }

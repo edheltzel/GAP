@@ -293,6 +293,67 @@ func TestInitFailureDoesNotRecordBreadcrumb(t *testing.T) {
 	}
 }
 
+func TestInitBreadcrumbRecallFailures(t *testing.T) {
+	for _, stage := range []string{"search", "add"} {
+		for _, mode := range []string{"new", "adopted", "marked"} {
+			t.Run(stage+"/"+mode, func(t *testing.T) {
+				t.Setenv("RECALL_FAILURE", stage)
+				t.Setenv("RECALL_WRITTEN", filepath.Join(t.TempDir(), "breadcrumbs"))
+				recallStub(t, `
+[ "$1" != "$RECALL_FAILURE" ] || exit 17
+case "$1" in
+search) printf 'No results found.\n' ;;
+add) printf '%s\n' "$3" >> "$RECALL_WRITTEN" ;;
+*) exit 64 ;;
+esac
+`)
+				repo := t.TempDir()
+				configPath := filepath.Join(repo, ".gap", "gap.toml")
+				config := "profile = \"project\"\nslug = \"persisted-project\"\n"
+				write(t, configPath, config)
+				path := filepath.Join(repo, "AGENTS.md")
+				existing := ""
+				args := []string{"init"}
+				if mode == "adopted" {
+					existing = "existing project rules\n"
+					args = append(args, "--adopt")
+				} else if mode == "marked" {
+					existing = "<!-- gap:begin -->\nprotected\n"
+				}
+				if existing != "" {
+					write(t, path, existing)
+				}
+				args = append(args, repo)
+				_, stderr := captureStd(t, func() {
+					if code := run(args); code != 1 {
+						t.Errorf("Recall %s failure must fail init: %d", stage, code)
+					}
+				})
+				if !strings.Contains(stderr, "recall "+stage+" breadcrumb") || !strings.Contains(stderr, "exit status 17") {
+					t.Fatalf("missing Recall failure diagnostic: %s", stderr)
+				}
+				calls := recallArgv(t)
+				if len(calls) != 1 && stage == "search" || len(calls) != 2 && stage == "add" {
+					t.Fatalf("unexpected commands after Recall %s failure: %v", stage, calls)
+				}
+				if _, err := os.Stat(os.Getenv("RECALL_WRITTEN")); !os.IsNotExist(err) {
+					t.Fatal("failed Recall command wrote a breadcrumb")
+				}
+				if readString(t, configPath) != config || existing != "" && readString(t, path) != existing {
+					t.Fatal("Recall failure changed existing project files")
+				}
+				t.Setenv("RECALL_FAILURE", "")
+				if code := run(args); code != 0 {
+					t.Fatalf("retry after Recall recovered: %d", code)
+				}
+				if got := readString(t, os.Getenv("RECALL_WRITTEN")); got != "gap provisioned persisted-project\n" {
+					t.Fatalf("retry did not write the required breadcrumb: %q", got)
+				}
+			})
+		}
+	}
+}
+
 func TestInitBreadcrumbNoRecall(t *testing.T) {
 	t.Setenv("PATH", "/usr/bin:/bin")
 	repo := t.TempDir()
