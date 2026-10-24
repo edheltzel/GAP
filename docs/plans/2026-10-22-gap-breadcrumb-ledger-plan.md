@@ -60,7 +60,7 @@ Open, and accepted: the flag does not exist in the pinned Echo (`f8001264`, v0.1
 - Installing or removing Echo adapters. Echo's installer owns that, and the plan records what it did.
 - Writing into Recall's SQLite database. The breadcrumb goes through `recall add`.
 - The render ledger the env provisioner plan describes for skill files. This ledger holds Echo's adapters only.
-- Any change to `gap.toml` or to a pinned commit other than echo's. Pinning the Echo commit that ships `--list-installed` is the one pin this plan allows, and it waits on Echo's tag.
+- Component and pin changes, as defined in the [requirements](2026-10-22-gap-breadcrumb-ledger-requirements.md#out-of-scope).
 
 ## todo.txt
 
