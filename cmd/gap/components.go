@@ -323,7 +323,7 @@ func placeStore(tmp, dest string) error {
 	return nil
 }
 
-// worktreeID is the tree of the files on disk, not the commit. A tampered store must not match.
+// worktreeID hashes tracked files and non-ignored additions, not just HEAD.
 func worktreeID(dir string) (string, error) {
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		return "", err

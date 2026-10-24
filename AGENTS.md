@@ -28,7 +28,7 @@ After a shared markdown change is merged and pulled, run `gap sync`. Sync refuse
 - Add a harness destination in `cmd/gap/main.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
 - Skills live in `skills/<scope>/<group>/<skill>/`. Installation selection is in [Manage skills](README.md#manage-skills). After adding, moving, or renaming a skill, run `bash scripts/update-readme.sh` to regenerate the catalog. Layout and catalog ownership are in `skills/AGENTS.md`.
 - `docs/solutions/` holds documented solutions to past problems, by category, with YAML frontmatter (`module`, `tags`, `problem_type`). `CONCEPTS.md` is the shared domain vocabulary. Relevant when implementing or debugging in a documented area, or when a domain word is unclear.
-- Go 1.25 or newer. `gap.toml` and `gap.lock` are parsed by the TOML subset in `cmd/gap/toml.go`. The command surface uses Cobra through Fang; the rest is standard library. Runtime installation requirements are in [Manage skills](README.md#manage-skills). `go test ./...` is the self-test.
+- Go 1.25 or newer. `gap.toml` and `gap.lock` are parsed by the TOML subset in `cmd/gap/toml.go`. Dependencies are declared in [go.mod](go.mod). Runtime installation requirements are in [Manage skills](README.md#manage-skills). `go test ./...` is the self-test.
 
 ## Child DOX Index
 

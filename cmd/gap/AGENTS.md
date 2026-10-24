@@ -13,7 +13,7 @@
 
 `gap` publishes the checkout it was built from. `sourceRoot` is that compile-time path, so `gap sync` uses it from any directory. Curl installation retains a new checkout under `~/.gap/checkouts/` each time. `sh scripts/install.sh` builds the local checkout regardless of stdin. Both run `go install ./cmd/gap`, check that the shell can find the binary, and require keeping the source checkout. Reinstall after `cmd/gap` changes, after the checkout moves, or after a `-trimpath` build. `go run ./cmd/gap sync` from the repo root uses that checkout without installing.
 
-`gap sync` publishes unless the effective profile is `crew`; see [project setup](../../README.md#project-setup). `gap sync --remove-codex-legacy` is valid only for machine publication. `gap status` prints selected components and exits 1 on drift, a missing store, or a store whose files no longer match the locked tree. `gap restore [id]` reinstalls selected drifted component skills from the lock. `gap pin <id>@<ref>` is the only command that writes `gap.lock`. `gap -h`, `gap --help`, and `gap help` print styled usage and exit 0. No command exits 2. An unknown command or extra arguments exit 1. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
+`gap sync` publishes unless the effective profile is `crew`; see [project setup](../../README.md#project-setup). `gap sync --remove-codex-legacy` is valid only for machine publication. Component status and its failure conditions are described in [components](../../README.md#components). `gap restore [id]` reinstalls selected drifted component skills from the lock. `gap pin <id>@<ref>` is the only command that writes `gap.lock`. `gap -h`, `gap --help`, and `gap help` print styled usage and exit 0. Invoking `gap` without a subcommand prints help and exits 2. An unknown command or extra arguments exit 1. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
 
 The setup breadcrumb contract, including the crew exception, is in [project setup](../../README.md#project-setup). The Echo adapter ledger contract and unsupported-report behavior are in [components](../../README.md#components).
 
@@ -45,7 +45,7 @@ Do not add a destination nothing reads. Grok loads the Claude file when Claude c
 
 ## Work Guidance
 
-- Go 1.25 or newer. `gap.toml` and `gap.lock` use the TOML subset in `toml.go` (no TOML library). The command surface in `cli.go` uses Cobra through Fang (`charm.land/fang/v2`) for styled help and errors. Everything else stays standard library. See [Manage skills](../../README.md#manage-skills) for installation requirements.
+- Go 1.25 or newer. `gap.toml` and `gap.lock` use the TOML subset in `toml.go` (no TOML library). Dependencies are declared in [go.mod](../../go.mod). See [Manage skills](../../README.md#manage-skills) for installation requirements.
 - Add a destination in `main.go` only when that harness loads the path.
 - Tests run against throwaway homes. They must not touch the real `$HOME`.
 

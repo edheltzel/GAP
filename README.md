@@ -41,8 +41,6 @@ Then publish:
 gap sync
 ```
 
-`gap status` checks component source checkouts, not Recall's memory database. `store=missing` means the checkout is absent, `store=changed` means its source files differ from the pin, and `store=unpinned` means `gap.lock` has no entry. Ignored build output does not change the result; edits to tracked files still do. The command prints the matching repair command.
-
 `gap` publishes the checkout it was built from, so it runs from any folder. Run the curl command again after `cmd/gap` changes. To skip installing, run `go run ./cmd/gap sync` from a checkout.
 
 ## Commands
@@ -58,6 +56,8 @@ gap sync
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `go test ./...` | Run the self-test against throwaway folders |
+
+Use `gap --help` or `gap <command> --help` for usage and flags. Status and doctor reports use color and tables in terminals, and plain text when redirected.
 
 ## Manage skills
 
@@ -102,11 +102,13 @@ names = ["do-commit", "do-todo"]
 
 The distro includes Do-Skills, Forge, Echo, and Recall. Forge supplies `forge-interview`. Echo and Recall have empty skill lists: machine sync runs their configured `install` commands from their verified stores, and those installers own their skills and runtime prerequisites. Gap copies no skills from them and never installs a harness.
 
-`gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing or changed stores and failed doctors produce exit `1`; doctor does not fetch missing components.
+`gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing pins, missing or changed stores, and failed doctors produce exit `1`; doctor does not fetch missing components.
 
 Doctor also asks Echo's verified pinned store for `scripts/install.sh --list-installed`. A successful report replaces Echo's adapter list and store commit in `~/.gap/state.json`, preserving other component entries. The current Echo pin lacks this optional flag: doctor prints `echo reported nothing; no adapters recorded` and leaves the ledger unchanged. This skipped report does not itself fail doctor. Wait for a supporting Echo tag before changing the pin. GAP records only reported names and does not install or remove adapters.
 
-`gap status` reports component skills only, using the locked ref when pinned. It and `gap restore [id]` use the same overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
+`gap status` checks component source checkouts and selected component skills, using the locked ref when pinned. It does not check Recall's memory database or additional manifest skills. `store=missing` means the checkout is absent, `store=changed` means its source files differ from the pin, and `store=unpinned` means `gap.lock` has no entry. For these states, it prints the matching repair command. Ignored, untracked build output does not change the result; tracked edits, deletions, and mode changes still do. Skill drift is checked only when the source checkout matches the lock; an unreadable checkout reports an error.
+
+Status and `gap restore [id]` use the same overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
 
 ### Load levels
 

@@ -54,8 +54,6 @@ func (r *report) next(steps ...string) {
 	}
 }
 
-// statusLine keeps the exact "id ref= commit= store=" text the tests match,
-// coloring only the store word on a terminal.
 func (r *report) statusLine(id, ref, commit, store string) {
 	word := store
 	switch store {
