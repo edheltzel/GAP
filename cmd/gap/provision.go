@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,27 +9,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-func initCmd(args []string) int {
-	flags := flag.NewFlagSet("init", flag.ContinueOnError)
-	adopt := flags.Bool("adopt", false, "preserve existing project files while adding missing GAP configuration")
-	if err := flags.Parse(args); err != nil || flags.NArg() > 1 {
-		return 2
-	}
-	dir := "."
-	if flags.NArg() == 1 {
-		dir = flags.Arg(0)
-	}
-	root, err := filepath.Abs(dir)
-	if err == nil {
-		err = initProject(root, "project", *adopt)
-	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	return 0
-}
 
 func initProject(root, profile string, adopt bool) error {
 	if adopt {

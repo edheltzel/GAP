@@ -1,11 +1,57 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestStatusGroupsComponentSkills(t *testing.T) {
+	home, repo, remote := t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Chdir(repo)
+	commit, tree := gitFixture(t, remote, "skill\n")
+	write(t, filepath.Join(repo, "global", "AGENTS.md"), "policy\n")
+	config := "schema = \"2\"\n"
+	lock := lockFile{Components: map[string]lockEntryM1{}}
+	for _, id := range []string{"alpha", "beta", "zeta"} {
+		names := "[\"do-todo\"]"
+		if id == "zeta" {
+			names = "[]"
+		}
+		config += fmt.Sprintf("[components.%s]\nrepo = %q\nref = \"master\"\nnames = %s\n", id, remote, names)
+		if id == "beta" {
+			config += "[components.beta.skills.do-todo]\nload = \"project\"\n[components.beta.skills.do-todo.when]\nfiles = [\"gap.toml\"]\n"
+		}
+		pin := lockEntryM1{Ref: "master", Commit: commit, Tree: tree}
+		lock.Components[id] = pin
+		if _, err := ensureStore(home, component{ID: id, Repo: remote}, pin); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(t, filepath.Join(repo, "gap.toml"), config)
+	if err := writeLock(repo, lock); err != nil {
+		t.Fatal(err)
+	}
+	gitFixture(t, repo, "project skill\n")
+	for _, dir := range skillDirs(home, "do-todo") {
+		write(t, filepath.Join(dir, "SKILL.md"), "skill\n")
+	}
+	write(t, filepath.Join(repo, ".agents", "skills", "do-todo", "SKILL.md"), "skill\n")
+	sourceRootFor = repo
+	t.Cleanup(func() { sourceRootFor = "" })
+	out, stderr := captureStd(t, func() {
+		if code := run([]string{"status"}); code != 1 {
+			t.Errorf("status with one missing project copy exit=%d, want 1", code)
+		}
+	})
+	want := fmt.Sprintf("alpha ref=master commit=%s store=ok\n  do-todo drift=0\nbeta ref=master commit=%s store=ok\n  do-todo drift=1\nzeta ref=master commit=%s store=ok\n", commit[:7], commit[:7], commit[:7])
+	if out != want || stderr != "" {
+		t.Fatalf("skills must follow their component headers:\ngot %q\nwant %q\nstderr %s", out, want, stderr)
+	}
+}
 
 func TestStatusStoreStates(t *testing.T) {
 	for _, tc := range []struct {

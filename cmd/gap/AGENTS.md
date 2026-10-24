@@ -11,7 +11,7 @@
 
 ## Local Contracts
 
-`gap` publishes the checkout it was built from. `sourceRoot` is that compile-time path, so `gap sync` uses it from any directory. Reinstall with `sh scripts/install.sh` (which runs `go install ./cmd/gap` and checks that the shell can find the binary) after `cmd/gap` changes, after the checkout moves, or after a `-trimpath` build. `go run ./cmd/gap sync` from the repo root uses that checkout without installing.
+`gap` publishes the checkout it was built from. `sourceRoot` is that compile-time path, so `gap sync` uses it from any directory. Curl installation retains a new checkout under `~/.gap/checkouts/` each time. `sh scripts/install.sh` builds the local checkout regardless of stdin. Both run `go install ./cmd/gap`, check that the shell can find the binary, and require keeping the source checkout. Reinstall after `cmd/gap` changes, after the checkout moves, or after a `-trimpath` build. `go run ./cmd/gap sync` from the repo root uses that checkout without installing.
 
 `gap sync` publishes unless the effective profile is `crew`; see [project setup](../../README.md#project-setup). `gap sync --remove-codex-legacy` is valid only for machine publication. `gap status` prints selected components and exits 1 on drift, a missing store, or a store whose files no longer match the locked tree. `gap restore [id]` reinstalls selected drifted component skills from the lock. `gap pin <id>@<ref>` is the only command that writes `gap.lock`. `gap -h`, `gap --help`, and `gap help` print styled usage and exit 0. No command exits 2. An unknown command or extra arguments exit 1. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
 

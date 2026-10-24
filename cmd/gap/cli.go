@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"charm.land/fang/v2"
 	"github.com/spf13/cobra"
@@ -133,19 +134,13 @@ func initCommand() *cobra.Command {
 			if len(args) == 1 {
 				dir = args[0]
 			}
-			if code := initCmd(append(adoptFlag(adopt), dir)); code != 0 {
-				exitCode = code
+			root, err := filepath.Abs(dir)
+			if err != nil {
+				return err
 			}
-			return nil
+			return initProject(root, "project", adopt)
 		},
 	}
 	cmd.Flags().BoolVar(&adopt, "adopt", false, "preserve existing project files while adding missing GAP configuration")
 	return cmd
-}
-
-func adoptFlag(adopt bool) []string {
-	if adopt {
-		return []string{"--adopt"}
-	}
-	return nil
 }

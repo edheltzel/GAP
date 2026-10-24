@@ -27,13 +27,13 @@ curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/instal
 That one line does four things:
 
 1. `curl` downloads `scripts/install.sh` from the `master` branch of `github.com/edheltzel/GAP`.
-2. The script sees it is being piped, so it clones that repo into a temporary folder and deletes the folder when it finishes.
+2. The piped script clones that repo into a new checkout under `~/.gap/checkouts/` and keeps it there. Each curl install gets its own checkout, so earlier installs and published documentation links keep their source.
 3. It builds `gap` with `go install ./cmd/gap` and puts the binary in Go's bin folder.
 4. It checks whether your shell can find that folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it.
 
-It needs Go 1.25 or newer and git. Nothing else is installed, and nothing in your home directory changes until you run `gap sync`.
+It needs Go 1.25 or newer and git. Installation writes the source checkout and Go binary. `gap sync` publishes the policy and installs the selected components and skills.
 
-Already have the repo checked out? From its root, `sh scripts/install.sh` builds that copy instead of cloning.
+Already have the repo checked out? From its root, `sh scripts/install.sh` builds that copy instead of cloning, including when stdin is redirected. Keep that checkout too.
 
 Then publish:
 

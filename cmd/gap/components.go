@@ -471,7 +471,6 @@ func statusAll() error {
 	missing := false
 	changed := false
 	var pinSteps []string
-	var rows [][]string
 	ids := sortedIDs(d.Components)
 	for _, id := range ids {
 		c := d.Components[id]
@@ -506,6 +505,7 @@ func statusAll() error {
 			continue
 		}
 		dir := storePath(home, id, e.Commit)
+		var rows [][]string
 		for _, entry := range selectedEntries(c, dir, projectRoot) {
 			for _, name := range entry.Skills {
 				n := skillDriftCount(dir, entryHome(home, entry), name)
@@ -515,9 +515,9 @@ func statusAll() error {
 				}
 			}
 		}
-	}
-	if len(rows) > 0 {
-		out.driftTable(rows)
+		if len(rows) > 0 {
+			out.driftTable(rows)
+		}
 	}
 	var steps []string
 	steps = append(steps, pinSteps...)

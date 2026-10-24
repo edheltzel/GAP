@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
@@ -90,16 +89,7 @@ func (r *report) driftTable(rows [][]string) {
 	r.table([]string{"skill", "drift"}, rows)
 }
 
-// table prints aligned columns. On a terminal the header is colored and the
-// rows sit under a rule; piped, it is plain space-separated columns.
 func (r *report) table(headers []string, rows [][]string) {
-	if !r.tty {
-		r.println(strings.Join(headers, "  "))
-		for _, row := range rows {
-			r.println(strings.Join(row, "  "))
-		}
-		return
-	}
 	b := lipgloss.NewStyle().Foreground(lipgloss.Color("#444444"))
 	h := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true)
 	t := table.New().

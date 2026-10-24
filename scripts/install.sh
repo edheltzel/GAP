@@ -10,19 +10,21 @@ if ! command -v go >/dev/null 2>&1; then
 	exit 1
 fi
 
-# A pipe has no checkout. Clone one and build that.
-if [ ! -t 0 ]; then
+case "$0" in
+*/install.sh|install.sh)
+	cd "$(dirname "$0")/.." || exit 1
+	;;
+*)
 	if ! command -v git >/dev/null 2>&1; then
 		echo "git is not installed. Install git, then run this again." >&2
 		exit 1
 	fi
-	dir="$(mktemp -d)"
-	trap 'rm -rf "$dir"' EXIT
+	mkdir -p "$HOME/.gap/checkouts"
+	dir="$(mktemp -d "$HOME/.gap/checkouts/gap.XXXXXX")"
 	git clone --depth 1 --branch master "$repo" "$dir" >/dev/null
 	cd "$dir" || exit 1
-else
-	cd "$(dirname "$0")/.." || exit 1
-fi
+	;;
+esac
 
 go install ./cmd/gap
 
@@ -32,6 +34,7 @@ if [ -z "$bin" ]; then
 fi
 
 echo "Installed $bin/gap"
+echo "Keep the source checkout at $PWD; gap reads it when it runs."
 case ":$PATH:" in
 *":$bin:"*)
 	echo "Your shell can find it. Next: gap sync"
