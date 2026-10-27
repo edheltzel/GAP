@@ -11,7 +11,7 @@
 
 GAP is one set of rules that every coding agent on your machine follows. You, or an agent, write the rules once in `global/AGENTS.md`. The `gap sync` command copies them into the file each agent already reads.
 
-![One AGENTS.md file, published by gap sync into Claude, Pi, OMP, Codex, and Cursor. Grok reads the Claude copy.](docs/images/publish-overview.webp)
+![Blip keeps the AGENTS.md rulebook on a GAP lectern while a crew of very different robots each works from the same copy.](docs/images/publish-overview.webp)
 
 ## Before you start
 
@@ -201,7 +201,7 @@ Any other answer leaves that file alone. With no terminal to ask in, such as an 
 
 Codex has no rules folder. The first `gap sync` adds two hooks to `~/.codex/hooks.json`, SessionStart and SubagentStart. They print `~/.codex/gap/global-agent-policy.md` into every Codex session and subagent.
 
-![Two hooks, SessionStart and SubagentStart, cat ~/.codex/gap/global-agent-policy.md into each Codex session and subagent.](docs/images/codex-hooks.webp)
+![Blip slides the policy out of ~/.codex/gap. Two hooks, SessionStart and SubagentStart, cat ~/.codex/gap/global-agent-policy.md into each Codex session and subagent.](docs/images/codex-hooks.webp)
 
 1. Open Codex and run `/hooks`. Trust both GAP hooks.
 2. Start a session and a subagent. Confirm both see the policy.
