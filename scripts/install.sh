@@ -22,6 +22,8 @@ case "$0" in
 	mkdir -p "$HOME/.gap/checkouts"
 	dir="$(mktemp -d "$HOME/.gap/checkouts/gap.XXXXXX")"
 	git clone --depth 1 --branch master "$repo" "$dir" >/dev/null
+	# A single-branch clone leaves origin/HEAD unset, and gap sync refuses to publish without it.
+	git -C "$dir" remote set-head origin master >/dev/null
 	cd "$dir" || exit 1
 	;;
 esac
