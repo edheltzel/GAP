@@ -1,13 +1,5 @@
 [
   {
-    "source": "backnotprop/plannotator/apps/skills/extra",
-    "skills": [
-      "plannotator-compound",
-      "plannotator-setup-goal",
-      "plannotator-visual-explainer"
-    ]
-  },
-  {
     "source": "edheltzel/but-axi",
     "skills": [
       "but-axi"
