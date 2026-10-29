@@ -7,7 +7,7 @@
 ## Ownership
 
 - `cmd/gap/` owns publish, install, source-identity migration, and drift.
-- Policy text stays in `global/`. Command prompts stay in `global/commands/`. Skill files stay in `skills/`. The manifest stays in `global/skills.json`. Component pins stay in `gap.toml` and `gap.lock`.
+- Policy text stays in `global/`. Command prompts stay in `global/commands/`. Skill source stays in component repos. A manifest `"."` source would read `skills/` in this checkout, which the merge gate covers. The manifest stays in `global/skills.json`. Component pins stay in `gap.toml` and `gap.lock`.
 
 ## Local Contracts
 

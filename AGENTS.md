@@ -26,15 +26,14 @@ After a shared markdown change is merged and pulled, run `gap sync`. Sync refuse
 
 - Change a shared rule in `global/`, then sync. Do not paste the rule into a harness home by hand.
 - Add a harness destination in `cmd/gap/main.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
-- Skills live in `skills/<scope>/<group>/<skill>/`. Installation selection is in [Manage skills](README.md#manage-skills). After adding, moving, or renaming a skill, run `bash scripts/update-readme.sh` to regenerate the catalog. Layout and catalog ownership are in `skills/AGENTS.md`.
+- Skill source lives in its component repo, not here. Change a `do-*` skill in Do-Skills, then move the pin with `gap pin do-skills@master`. Installation selection is in [Manage skills](README.md#manage-skills).
 - `docs/solutions/` holds documented solutions to past problems, by category, with YAML frontmatter (`module`, `tags`, `problem_type`). `CONCEPTS.md` is the shared domain vocabulary. Relevant when implementing or debugging in a documented area, or when a domain word is unclear.
 - Go 1.25 or newer. `gap.toml` and `gap.lock` are parsed by the TOML subset in `cmd/gap/toml.go`. Dependencies are declared in [go.mod](go.mod). Runtime installation requirements are in [Manage skills](README.md#manage-skills). `go test ./...` is the self-test.
 
 ## Child DOX Index
 
 - `cmd/gap/AGENTS.md`: how `gap sync` publishes, installs, migrates, and checks drift. Parent keeps the destination list and the publish limits in Publish.
-- `skills/AGENTS.md`: skill source layout, manifest, and generated catalog.
 - `docs/plans/AGENTS.md`: plans, requirements, and handoffs.
 - `regroup/AGENTS.md`: dated status snapshots. Do not overwrite older files.
 
-Not indexed as DOX children: `global/AGENTS.md` (published policy), `docs/solutions/` (frontmatter contract stays in Edit), `scripts/` (the catalog command is named above).
+Not indexed as DOX children: `global/AGENTS.md` (published policy), `docs/solutions/` (frontmatter contract stays in Edit), `scripts/` (the installer is named in Publish).
