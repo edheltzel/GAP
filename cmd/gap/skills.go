@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -333,7 +332,6 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 		}
 	}()
 	tty := termReady()
-	in := bufio.NewReader(os.Stdin)
 	ok := true
 	for _, e := range entries {
 		target := entryHome(home, e)
@@ -400,8 +398,7 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 				}
 			}
 			fmt.Printf("%s: [k]eep installed, [t]ake source, [s]kip? ", name)
-			line, _ := in.ReadString('\n')
-			switch strings.ToLower(strings.TrimSpace(line)) {
+			switch strings.ToLower(strings.TrimSpace(stdinLine())) {
 			case "k":
 				ok = installed(target, name) && ok
 			case "t":

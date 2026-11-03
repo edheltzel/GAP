@@ -66,6 +66,8 @@ func TestSyncSelection(t *testing.T) {
 		{"picker quit", []string{"sync"}, true, []string{"q\n"}, 0, false, false, "Nothing synced.", ""},
 		{"picker end of input", []string{"sync"}, true, []string{""}, 0, false, false, "Nothing synced.", ""},
 		{"picker end of input while choosing", []string{"sync"}, true, []string{"c\n", ""}, 0, false, false, "Nothing synced.", ""},
+		{"picker quit while choosing", []string{"sync"}, true, []string{"c\n", "q\n"}, 0, false, false, "Nothing synced.", ""},
+		{"picker typo re-asks", []string{"sync"}, true, []string{"c\n", "nope\n", "n\n", "y\n"}, 0, false, true, "Answer y, n, or q.", ""},
 		{"picker none chosen", []string{"sync"}, true, []string{"c\n", "n\n", "n\n"}, 0, false, false, "Nothing synced.", ""},
 		{"unknown group", []string{"sync", "--skip", "nope"}, false, nil, 1, false, false, "", "choose from: policy, owned"},
 		{"legacy needs policy", []string{"sync", "--skip", "policy", "--remove-codex-legacy"}, false, nil, 1, false, false, "", "needs the policy group"},
@@ -90,5 +92,24 @@ func TestSyncSelection(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestStdinLineKeepsBufferedAnswers(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = old; r.Close() })
+	if _, err := w.WriteString("c\nn\ny\n"); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	for _, want := range []string{"c\n", "n\n", "y\n", ""} {
+		if got := stdinLine(); got != want {
+			t.Fatalf("stdinLine = %q, want %q", got, want)
+		}
 	}
 }

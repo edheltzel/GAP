@@ -95,7 +95,7 @@ gap sync will:
 Sync all of it? [a]ll, [c]hoose, [q]uit [a]
 ```
 
-`c` asks about each group; `q` writes nothing. For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. Without a terminal, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
+`c` asks `[Y/n/q]` about each group; `q` at any prompt writes nothing. For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. Without a terminal, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
 
 To add a skill from an existing component, add its name to that component's `names` array in `gap.toml`. For another source, add an entry to `global/skills.json`. Then follow [the merge and publish steps](#step-2-merge-the-change).
 

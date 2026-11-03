@@ -787,11 +787,22 @@ func replacePrompt(dest, backup string) string {
 // termReady and confirmLine are the terminal boundary. Tests replace them.
 var (
 	termReady   = stdinIsTerminal
-	confirmLine = func() string {
-		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-		return line
-	}
+	confirmLine = stdinLine
 )
+
+var stdin struct {
+	file   *os.File
+	reader *bufio.Reader
+}
+
+// stdinLine reads one line through a single reader per os.Stdin, so a pasted burst of answers is not dropped between prompts.
+func stdinLine() string {
+	if stdin.file != os.Stdin {
+		stdin.file, stdin.reader = os.Stdin, bufio.NewReader(os.Stdin)
+	}
+	line, _ := stdin.reader.ReadString('\n')
+	return line
+}
 
 func confirmReplace(dest, backup string) bool {
 	fmt.Print(replacePrompt(dest, backup))
