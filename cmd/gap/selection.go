@@ -117,14 +117,25 @@ func chooseGroups(groups []syncGroup, only, skip []string, yes bool) (map[string
 		return sel, nil
 	case "c":
 		for _, g := range groups {
-			fmt.Printf("Sync %s (%s)? [Y/n] ", g.ID, g.Summary)
-			line := confirmLine()
-			if line == "" {
-				fmt.Println()
-				return nil, errSyncCancelled
+			for asked := false; ; asked = true {
+				if asked {
+					fmt.Println("Answer y, n, or q.")
+				}
+				fmt.Printf("Sync %s (%s)? [Y/n/q] ", g.ID, g.Summary)
+				line := confirmLine()
+				if line == "" {
+					fmt.Println()
+					return nil, errSyncCancelled
+				}
+				answer := strings.ToLower(strings.TrimSpace(line))
+				if answer == "q" || answer == "quit" {
+					return nil, errSyncCancelled
+				}
+				if answer == "" || answer == "y" || answer == "yes" || answer == "n" || answer == "no" {
+					sel[g.ID] = answer != "n" && answer != "no"
+					break
+				}
 			}
-			answer := strings.ToLower(strings.TrimSpace(line))
-			sel[g.ID] = answer != "n" && answer != "no"
 		}
 		if !slices.Contains(slices.Collect(maps.Values(sel)), true) {
 			return nil, errSyncCancelled
