@@ -62,22 +62,33 @@ func finish(err error) error {
 		exitCode = 1
 		return nil
 	}
+	if errors.Is(err, errSyncCancelled) {
+		fmt.Println("Nothing synced.")
+		return nil
+	}
 	return err
 }
 
 func syncCmd() *cobra.Command {
-	var removeLegacy bool
-	var profile string
+	var opts syncOptions
 	cmd := &cobra.Command{
 		Use:   "sync",
-		Short: "Publish the policy and commands, install missing skills, check skills for drift",
-		Args:  cobra.NoArgs,
+		Short: "Preview, then publish the policy and commands, install component and manifest skills, check skills for drift",
+		Long: `sync prints what it will touch, grouped as policy, each component in gap.toml,
+and manifest (global/skills.json). On a terminal it asks [a]ll, [c]hoose, or [q]uit
+before writing anything. --only, --skip, or --yes skip the question. Without a
+terminal every group syncs unless a flag leaves it out.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return finish(syncAll(removeLegacy, profile))
+			return finish(syncAll(opts))
 		},
 	}
-	cmd.Flags().BoolVar(&removeLegacy, "remove-codex-legacy", false, "strip the old GAP text from Codex AGENTS.md once both hooks are trusted")
-	cmd.Flags().StringVar(&profile, "profile", "", "apply profiles/<name>.toml over the distro for this run")
+	cmd.Flags().BoolVar(&opts.RemoveLegacy, "remove-codex-legacy", false, "strip the old GAP text from Codex AGENTS.md once both hooks are trusted")
+	cmd.Flags().StringVar(&opts.Profile, "profile", "", "apply profiles/<name>.toml over the distro for this run")
+	cmd.Flags().StringSliceVar(&opts.Only, "only", nil, "sync only these groups (policy, manifest, or a component id)")
+	cmd.Flags().StringSliceVar(&opts.Skip, "skip", nil, "leave these groups out of this run")
+	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "sync every selected group without asking")
+	cmd.MarkFlagsMutuallyExclusive("only", "skip")
 	return cmd
 }
 

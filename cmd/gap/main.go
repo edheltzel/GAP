@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,7 +50,7 @@ func run(args []string) int {
 	return exitCode
 }
 
-func syncAll(removeLegacy bool, profile string) error {
+func syncAll(opts syncOptions) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -62,12 +63,12 @@ func syncAll(removeLegacy bool, profile string) error {
 	if err != nil {
 		return err
 	}
-	d, lk, err := effectivePins(repoRoot, home, projectRoot, profile)
+	d, lk, err := effectivePins(repoRoot, home, projectRoot, opts.Profile)
 	if err != nil {
 		return err
 	}
 	if d.Profile == "crew" {
-		if removeLegacy {
+		if opts.RemoveLegacy {
 			return errors.New("crew sync cannot remove home-directory Codex policy")
 		}
 		return initProject(projectRoot, "crew", false)
@@ -93,55 +94,71 @@ func syncAll(removeLegacy bool, profile string) error {
 	if err != nil {
 		return err
 	}
+	manifest, err := readManifest(repoRoot)
+	if err != nil {
+		return err
+	}
+	codexPolicy := filepath.Join(codexHome, "gap", "global-agent-policy.md")
+	dests := policyDests(home, codexPolicy)
+	groups := syncGroups(d, pins, manifest, projectRoot, len(dests), commandCount(repoRoot))
+	sel, err := chooseGroups(groups, opts.Only, opts.Skip, opts.Yes)
+	if err != nil {
+		return err
+	}
+	if opts.RemoveLegacy && !sel["policy"] {
+		return errors.New("--remove-codex-legacy needs the policy group")
+	}
 	ledgerPath := filepath.Join(home, ".gap", "published.json")
 	ledger, err := readLedger(ledgerPath)
 	if err != nil {
 		return err
 	}
 
-	codexPolicy := filepath.Join(codexHome, "gap", "global-agent-policy.md")
-	skipped, codexWrote := false, false
-	for _, c := range policyDests(home, codexPolicy) {
-		wrote, err := publishPolicy(string(raw), c.dest, c.cursor, ledger, ledgerPath, true, home)
+	skipped, ok := false, true
+	if sel["policy"] {
+		codexWrote := false
+		for _, c := range dests {
+			wrote, err := publishPolicy(string(raw), c.dest, c.cursor, ledger, ledgerPath, true, home)
+			if err != nil {
+				return err
+			}
+			if !wrote {
+				skipped = true
+			}
+			if c.dest == codexPolicy && wrote {
+				codexWrote = true
+			}
+		}
+
+		commandsOK, err := publishCommands(repoRoot, home, ledger, ledgerPath)
 		if err != nil {
 			return err
 		}
-		if !wrote {
+		if !commandsOK {
 			skipped = true
 		}
-		if c.dest == codexPolicy && wrote {
-			codexWrote = true
+
+		payload := adapt(string(raw), false)
+		// Cleanup runs before this run's hook install, so a hook added just now (not yet trusted in /hooks) never counts.
+		if opts.RemoveLegacy {
+			if !codexWrote {
+				fmt.Fprintf(os.Stderr, "Refusing to strip unmarked Codex policy; this run did not publish the GAP policy file: %s\n", codexPolicy)
+				skipped = true
+			} else if stripped, err := cleanupLegacyCodex(codexHome, codexPolicy, payload, ledger, home, ledgerPath); err != nil {
+				return err
+			} else if !stripped {
+				skipped = true
+			}
 		}
-	}
-
-	commandsOK, err := publishCommands(repoRoot, home, ledger, ledgerPath)
-	if err != nil {
-		return err
-	}
-	if !commandsOK {
-		skipped = true
-	}
-
-	payload := adapt(string(raw), false)
-	// Cleanup runs before this run's hook install, so a hook added just now (not yet trusted in /hooks) never counts.
-	if removeLegacy {
-		if !codexWrote {
-			fmt.Fprintf(os.Stderr, "Refusing to strip unmarked Codex policy; this run did not publish the GAP policy file: %s\n", codexPolicy)
-			skipped = true
-		} else if ok, err := cleanupLegacyCodex(codexHome, codexPolicy, payload, ledger, home, ledgerPath); err != nil {
+		if ok, err = afterCodexPublish(codexWrote, codexPolicy, payload, codexHome, home); err != nil {
 			return err
-		} else if !ok {
-			skipped = true
 		}
 	}
-	ok, err := afterCodexPublish(codexWrote, codexPolicy, payload, codexHome, home)
-	if err != nil {
-		return err
+	var entries []manifestEntry
+	if sel["manifest"] {
+		entries = manifest
 	}
-	entries, err := readManifest(repoRoot)
-	if err != nil {
-		return err
-	}
+	maps.DeleteFunc(d.Components, func(id string, _ component) bool { return !sel[id] })
 	componentSet, err := componentEntries(home, projectRoot, d, pins)
 	if err != nil {
 		return err
@@ -155,10 +172,19 @@ func syncAll(removeLegacy bool, profile string) error {
 	if advice := empryoPinAdvice(home); advice != "" {
 		fmt.Println(advice)
 	}
+	if left := skippedIDs(groups, sel); len(left) > 0 {
+		fmt.Printf("Skipped this run: %s. To leave a component out of every sync, set enabled = false under [components.<id>] in ~/.config/gap/gap.toml.\n", strings.Join(left, ", "))
+	}
 	if !ok || skipped || !skillsOK || !driftOK {
 		return errSkipped
 	}
 	return nil
+}
+
+// commandCount is the number of top-level global/commands/*.md files publishCommands writes.
+func commandCount(repoRoot string) int {
+	matches, _ := filepath.Glob(filepath.Join(repoRoot, "global", "commands", "*.md"))
+	return len(matches)
 }
 
 // empryoPins is the skill set GAP recommends for Empryo's skills.autoLoad. Pinned skills load in full into every prompt.
