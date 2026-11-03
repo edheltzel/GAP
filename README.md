@@ -47,7 +47,8 @@ gap sync
 
 | Command | What it does |
 | --- | --- |
-| `gap sync` | Publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift |
+| `gap sync` | Preview what will sync, ask on a terminal, then publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift. See [Choose what syncs](#choose-what-syncs) |
+| `gap sync --skip <groups>` / `--only <groups>` / `--yes` | Leave groups out, sync only some, or sync without asking. Groups: `policy`, `manifest`, or a component id |
 | `gap sync --profile crew` | Prepare project files for cloud agents without fetching components or writing to the home directory |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
 | `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
@@ -80,6 +81,21 @@ Sync checks installed managed skills against their selected source. Component sk
 - `s` skips it for now. Sync exits `1`.
 
 With no terminal to ask in, sync lists the drifted skills, including a foreign lock that was not migrated, changes none of them, and exits `1`. Skills selected by neither `gap.toml` nor `global/skills.json` are never touched.
+
+### Choose what syncs
+
+`gap sync` first prints what it will touch, one line per group:
+
+```
+gap sync will:
+  policy     publish AGENTS.md to 6 harness files and 1 command
+  do-skills  66 skills @ master (abc1234)
+  echo       run its installer @ v0.13.0 (def5678)
+  manifest   15 skills from 12 sources in global/skills.json (skills.sh, needs npx)
+Sync all of it? [a]ll, [c]hoose, [q]uit [a]
+```
+
+`c` asks about each group; `q` writes nothing. For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. Without a terminal, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
 
 To add a skill from an existing component, add its name to that component's `names` array in `gap.toml`. For another source, add an entry to `global/skills.json`. Then follow [the merge and publish steps](#step-2-merge-the-change).
 
