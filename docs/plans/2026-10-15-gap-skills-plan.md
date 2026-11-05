@@ -4,7 +4,9 @@ Requirements: `docs/plans/2026-10-15-gap-skills-requirements.md`
 
 ## Outcome
 
-`gap sync` publishes the policy and also installs every skill a manifest lists, from this repo or other projects, through skills.sh into `~/.agents/skills` with the Claude mirror. It shows the diff of each drifted managed skill and lets you choose per skill. Your `do-*` skills live in this repo, DoSkills is archived, and the repo is public under the name GAP.
+Original target (2026-10-15): `gap sync` publishes the policy and also installs every skill a manifest lists, from this repo or other projects, through skills.sh into `~/.agents/skills` with the Claude mirror. It shows the diff of each drifted managed skill and lets you choose per skill. Your `do-*` skills live in this repo, DoSkills is archived, and the repo is public under the name GAP.
+
+See [U8](#u8-archive-doskills-go-public-rename-to-gap) for the shipped and superseded publication steps. [Manage skills](../../README.md#manage-skills) owns current installation behavior.
 
 Facts this plan builds on (read 2026-10-15):
 
@@ -96,6 +98,7 @@ Facts this plan builds on (read 2026-10-15):
   7. Reinstall the 54 Do-Skills skills from GAP so the lock shows `edheltzel/GAP`.
 - Done when: `gh repo view edheltzel/GAP --json visibility` shows `PUBLIC`, DoSkills is archived, and the lock has no `edheltzel/Do-Skills` sources.
 - Verify: those two `gh` calls, `npx skills add edheltzel/GAP --list` from outside the repo, and a lock count by source.
+- Status: done 2026-10-16. Steps 1-4 shipped; `gh repo view edheltzel/GAP` shows `PUBLIC`. The history decision was made the same day (todo.txt). Steps 5-7 are superseded: PR #103 removed the vendored skills and `scripts/update-readme.sh`, and Do-Skills is now a pinned component (`gap pin do-skills@master`), so it stays unarchived and the lock keeps `edheltzel/Do-Skills` sources.
 
 ## Out of scope
 
@@ -106,14 +109,13 @@ Facts this plan builds on (read 2026-10-15):
 
 ## Blockers
 
-- U8 needs your explicit go when it runs: it makes the repo public and renames repos.
-- U8's "public with full history" decision is reopened (user, 2026-10-15). The U2 scan found pi session transcripts, the old harness-config era, and 2 real-looking values (`docs/plans/2026-10-15-secrets-scan.md`). Choose a fresh public repo, filter-repo, or full history before U8.
+None. U8's go and its public-history decision were both given on 2026-10-16.
 
 ## todo.txt
 
 - U1 restore DoSkills --yes fix before the merge
 - U2 gitleaks scan of agent-config and DoSkills history
 - U3-U7 build gap skills from docs/plans/2026-10-15-gap-skills-plan.md
-- U8 publish: rename old GAP repo, flip agent-config public, rename to GAP, archive DoSkills (needs explicit go)
+- U8 publish: rename old GAP repo, flip agent-config public, rename to GAP (done 2026-10-16; archiving DoSkills superseded by the component pin)
 
 Review complete
