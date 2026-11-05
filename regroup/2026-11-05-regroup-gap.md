@@ -19,5 +19,5 @@ Up next not specified. The two open tasks have no priority or due date.
 
 Not tracked as tasks, still open in the plan (carried from 2026-10-29):
 
-- Plan section 9 step 4: the Do-Skills README still points at `npx skills add edheltzel/Do-Skills`. That README lives in the Do-Skills repo, not here.
-- Plan section 9 step 5: GAP README "Manage skills" still documents the `npx skills add` path (`README.md` line 102) and the Node requirement for manifest skills (line 75).
+- [Provisioner plan, section 9 step 4](../docs/plans/2026-10-20-gap-env-provisioner-plan.md#9-replace-skillssh-with-gaps-own-skill-handling): update Do-Skills' install guidance in its own repo.
+- [Provisioner plan, section 9 step 5](../docs/plans/2026-10-20-gap-env-provisioner-plan.md#9-replace-skillssh-with-gaps-own-skill-handling): reconcile GAP's install guidance with the planned migration. [Manage skills](../README.md#manage-skills) owns current usage and prerequisites.

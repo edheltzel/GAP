@@ -4,9 +4,9 @@ Requirements: `docs/plans/2026-10-15-gap-skills-requirements.md`
 
 ## Outcome
 
-`gap sync` publishes the policy and also installs every skill a manifest lists, from this repo or other projects, through skills.sh into `~/.agents/skills` with the Claude mirror. It shows the diff of each drifted managed skill and lets you choose per skill. Your `do-*` skills live in this repo, DoSkills is archived, and the repo is public under the name GAP.
+Original target (2026-10-15): `gap sync` publishes the policy and also installs every skill a manifest lists, from this repo or other projects, through skills.sh into `~/.agents/skills` with the Claude mirror. It shows the diff of each drifted managed skill and lets you choose per skill. Your `do-*` skills live in this repo, DoSkills is archived, and the repo is public under the name GAP.
 
-Current state (2026-11-05): the repo is public as GAP, and sync still shows each drifted skill's diff for a per-skill choice. Two parts of the target above are superseded. The `do-*` skills do not live here: PR #103 removed them, and Do-Skills stays unarchived as a pinned component. Component skills do not go through skills.sh: `gap sync` copies them from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Only the manifest skills in `global/skills.json` still install through skills.sh.
+See [U8](#u8-archive-doskills-go-public-rename-to-gap) for the shipped and superseded publication steps. [Manage skills](../../README.md#manage-skills) owns current installation behavior.
 
 Facts this plan builds on (read 2026-10-15):
 
