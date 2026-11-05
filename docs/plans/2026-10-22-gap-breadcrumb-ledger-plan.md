@@ -4,6 +4,8 @@
 
 Close the two items the env provisioner plan named and M3, M5, and M6 left unfinished. `gap init` writes one Recall breadcrumb for the project it provisions, and `gap doctor` records which Echo adapters are installed into `~/.gap/state.json`. The breadcrumb goes through `recall`. The adapter list needs one new flag in Echo, because nothing Echo exposes today returns it.
 
+Status, 2026-11-05: U1, U2, and U3 landed in GAP with PR #100. U2's real pin is still open: Echo v0.13.3, its newest tag, has no `scripts/install.sh --list-installed`, so `gap doctor` records nothing for echo. Move the pin with `gap pin echo@<tag>` once a tag ships the flag.
+
 ## Redteam, 2026-10-22
 
 Four angles attacked the argument, then two candidates were built for the adapter mechanism and a critic judged them.
@@ -62,10 +64,13 @@ Open, and accepted: the flag does not exist in the pinned Echo (`f8001264`, v0.1
 - The render ledger the env provisioner plan describes for skill files. This ledger holds Echo's adapters only.
 - Component and pin changes, as defined in the [requirements](2026-10-22-gap-breadcrumb-ledger-requirements.md#out-of-scope).
 
-## todo.txt
+## Todo
 
-- 2026-10-22 U1 gap init writes one Recall breadcrumb per project and skips when one exists +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-22-gap-breadcrumb-ledger-plan.md
-- 2026-10-22 U2 gap doctor records Echo's installed adapters in ~/.gap/state.json +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-22-gap-breadcrumb-ledger-plan.md
-- 2026-10-22 U3 document both behaviors in README and point to them from cmd/gap/AGENTS.md +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-22-gap-breadcrumb-ledger-plan.md
+U1-U3 are done (see the status line under Outcome). Open tasks, copied verbatim from Echo's and GAP's `todo.txt`:
+
+```text
+2026-11-05 Add scripts/install.sh --list-installed (print each installed adapter, exit 0 before warn_if_linked_worktree) and tag a release, so GAP can pin it id:echo-list-installed note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-22-gap-breadcrumb-ledger-plan.md +echo
+2026-11-05 Pin Echo at the first tag with install.sh --list-installed, then confirm gap doctor records adapters +gap dep:echo-list-installed note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-22-gap-breadcrumb-ledger-plan.md
+```
 
 Review complete
