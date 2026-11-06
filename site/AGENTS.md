@@ -19,7 +19,7 @@ The public website at `https://gap.edheltzel.codes`: the landing page at `/` and
 - Every page shares `public/og.png` (1200x630); there are no per-page cards.
 - Light and dark choice is stored under `gap-theme` on both the landing page and the docs.
 - Node `22.23.4` or newer (Astro 7.4's minimum); `.nvmrc` pins the version CI and Cloudflare Pages use. Dependencies are exact versions in `package.json` with `package-lock.json`. Site tooling stays in `site/`; nothing here runs from the repo root or touches Go tooling.
-- Deploy: a Cloudflare Pages project building this repo, root directory `site`, build command `npm run build`, output directory `dist`, production branch `master`, serving `gap.edheltzel.codes`. Until the cutover in the migration PR is done, production still builds from `edheltzel/gap-site` (Pages project `gap-site`, `gap-site-292.pages.dev`). `gap-site.pages.dev` belongs to someone else; never use it.
+- Deploy: Cloudflare Pages project `gap-website` (`gap-website-7fs.pages.dev`), git `edheltzel/GAP`, production branch `master`, root directory `site`, build command `npm run build`, output directory `dist`, env `NODE_VERSION=22.23.4` (keep equal to `.nvmrc`) and production `SITE_URL=https://gap.edheltzel.codes`, preview deployments off, build watch paths `site/*`, `README.md`, `CONCEPTS.md`, `docs/images/*`. It serves `gap.edheltzel.codes` (DNS `CNAME gap → gap-website-7fs.pages.dev`, proxied). The old project `gap-site` (`gap-site-292.pages.dev`, archived repo `edheltzel/gap-site`) has deployments off and still serves the pre-migration site as the rollback: move the domain back and point the CNAME at `gap-site-292.pages.dev`. `gap-site.pages.dev` belongs to someone else; never use it.
 
 ## Work Guidance
 
