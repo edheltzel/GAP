@@ -13,19 +13,19 @@ The public website at `https://gap.edheltzel.codes`: the landing page at `/` and
 
 ## Local Contracts
 
-- Publish only files listed in `repoPages` (`src/lib/repo-pages.ts`). Never add `AGENTS.md`, `docs/plans/`, `docs/solutions/`, handoffs, `global/`, or other operational material.
-- A README or CONCEPTS link to a repo file the site doesn't publish goes to that file on GitHub (`blob/master`). Images stay relative (`docs/images/…`) so Astro builds them in.
+- Publish only files listed in `repoPages` (`src/lib/repo-links.ts`). Never add `AGENTS.md`, `docs/plans/`, `docs/solutions/`, handoffs, `global/`, or other operational material.
+- A README or CONCEPTS link to a published page (`README.md#…`, `CONCEPTS.md`) becomes its site URL; a link to any other repo file goes to that file on GitHub (`blob/master`). Images stay relative (`docs/images/…`) so Astro builds them in; the Markdown versions point them at `raw.githubusercontent.com`.
 - Old `/docs/<page>` URLs from the earlier Starlight site redirect in `public/_redirects` to README anchors. A README heading rename breaks its anchor: update `_redirects` and the landing links in the same change. `npm run links` fails on a missing anchor.
 - Every page shares `public/og.png` (1200x630); there are no per-page cards.
 - Light and dark choice is stored under `gap-theme` on both the landing page and the docs.
-- Node `22.12` or newer; `.nvmrc` pins the version CI and Cloudflare Pages use. Dependencies are exact versions in `package.json` with `package-lock.json`. Site tooling stays in `site/`; nothing here runs from the repo root or touches Go tooling.
+- Node `22.23.4` or newer (Astro 7.4's minimum); `.nvmrc` pins the version CI and Cloudflare Pages use. Dependencies are exact versions in `package.json` with `package-lock.json`. Site tooling stays in `site/`; nothing here runs from the repo root or touches Go tooling.
 - Deploy: Cloudflare Pages project `gap-site`, root directory `site`, build command `npm run build`, output directory `dist`, production branch `master`. `gap-site-292.pages.dev` is that project. `gap-site.pages.dev` belongs to someone else; never use it.
 
 ## Work Guidance
 
 - Nimbus workflow (upgrade, `migrate`, `diff`, `add`): `node_modules/@cloudflare/nimbus-docs/dist/docs-for-agents.md`, matched to the installed release. After a Nimbus upgrade, run `npx @cloudflare/nimbus-docs migrate --dry-run --diff` and keep `nimbus.json` committed.
 - `nimbus-docs lint` does not inspect the docs collection (its loader reads the repo root, not a folder under `src/content`); `npm run links` covers link checking instead.
-- Clear `.astro/` after changing `src/lib/repo-pages.ts`: the content cache keys on file contents, not on the loader.
+- After changing `src/lib/`, delete `node_modules/.astro/` before building: the content cache keys on file contents, not on the loader, and keeps the old output.
 
 ## Verification
 
