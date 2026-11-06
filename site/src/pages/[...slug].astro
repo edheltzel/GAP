@@ -13,12 +13,13 @@ import {
   stripBase,
 } from "@cloudflare/nimbus-docs/runtime";
 import { components } from "../components";
+import { ogImage } from "../site.js";
 
 export const getStaticPaths = getDocsStaticPaths;
 
 const page = await getDocsPage(Astro);
 if (page instanceof Response) return page;
-const { entry, Content, headings, markdownUrl, ogImageUrl } = page;
+const { entry, Content, headings, markdownUrl } = page;
 
 const currentSlug = stripBase(Astro.url.pathname, import.meta.env.BASE_URL).replace(/\/$/, "") || "/";
 
@@ -34,7 +35,9 @@ const prevNext = await getPrevNext(currentSlug, {
 // Pass `collection` so versioned pages (docs-<v>) get version-prefixed
 // breadcrumb hrefs — parity with the getSidebar call above.
 const breadcrumbs = await getBreadcrumbs(currentSlug, { collection: entry.collection });
-const editUrl = await getEditUrl(entry);
+// Pages live at the repo root, outside site/: `new URL` folds `site/../`.
+const rawEditUrl = await getEditUrl(entry);
+const editUrl = rawEditUrl ? new URL(rawEditUrl).href : rawEditUrl;
 // Frontmatter wins; git is the fallback.
 const lastUpdated = entry.data.lastUpdated ??
   await getLastUpdated(entry);
@@ -43,7 +46,8 @@ const lastUpdated = entry.data.lastUpdated ??
 // ever sees its options object (or undefined), never `false`.
 const tocConfig = entry.data.tableOfContents;
 const toc = tocOn && tocConfig !== false ? getTOC(headings, tocConfig) : false;
-const socialImage = entry.data.socialImage ?? ogImageUrl;
+// Every page shares the GAP card in public/og.png; no per-page cards are drawn.
+const socialImage = entry.data.socialImage ?? ogImage.path;
 ---
 
 <DocsLayout
