@@ -6,10 +6,9 @@ export const prerender = true;
 export function GET() {
   const body = [
     "User-agent: *",
-    // Content Signals (https://contentsignals.org): edit the values to match
-    // your policy. If you set any signal to "no", paste the policy text from
-    // that site above this block so the restriction is an express reservation.
-    "Content-Signal: ai-train=yes, search=yes, ai-input=yes",
+    // No Content-Signal line: gap-site never declared one, and the zone's
+    // Cloudflare-managed robots.txt text is prepended at the edge. Granting or
+    // refusing AI use (https://contentsignals.org) is the owner's call.
     "Allow: /",
     "",
     `Sitemap: ${new URL(withBase("/sitemap-index.xml", import.meta.env.BASE_URL), config.site).href}`,
