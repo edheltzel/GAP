@@ -1,0 +1,22 @@
+---
+import Base from '../layouts/Landing.astro';
+import '../styles/landing/landing.css';
+
+const description = 'This page does not exist or has moved.';
+---
+
+<Base title="Page not found · GAP" description={description}>
+  <main class="nf">
+    <a class="word" href="/"><i></i>GAP</a>
+    <h1>Page not found</h1>
+    <p class="sub">{description}</p>
+    <p class="hint">
+      <a href="/">Back to the landing page</a> ·
+      <a href="/docs/">Docs</a>
+    </p>
+  </main>
+</Base>
+
+<style>
+  .nf { max-width: 40rem; margin: 0 auto; padding: 18vh 1.5rem 4rem; display: grid; gap: 1rem; }
+</style>

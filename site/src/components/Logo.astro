@@ -1,0 +1,9 @@
+---
+/* GAP's wordmark, as on the landing page: the teal dot, then "GAP" in the text
+   colour. Decorative; callers keep the site title as the link's accessible name. */
+interface Props { class?: string }
+const { class: cls } = Astro.props;
+---
+<span class:list={["inline-flex items-center gap-2.5 text-[18px] font-semibold leading-none tracking-[-0.04em]", cls]} aria-hidden="true">
+  <i class="block size-2 rounded-full bg-brand shadow-[0_0_12px_var(--nb-brand)]"></i>GAP
+</span>

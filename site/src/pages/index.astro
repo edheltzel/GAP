@@ -1,0 +1,151 @@
+---
+import Base from '../layouts/Landing.astro';
+import ThemeToggle from '../components/landing/ThemeToggle.astro';
+import { installCommand } from '../site.js';
+import '../styles/landing/landing.css';
+---
+
+<Base>
+  <a class="skip" href="#content">Skip to content</a>
+  <main id="content">
+    <div class="stage" id="stage">
+      <canvas id="field" aria-hidden="true"></canvas>
+      <div class="shade"></div>
+      <p class="sr">
+        Illustration: one large dithered disc of text, lit on its upper left rim in the accent colour,
+        fully on screen with space around it.
+      </p>
+      <header class="top">
+        <a class="word" href="/"><i></i>GAP</a>
+        <nav class="mono" aria-label="Primary">
+          <a href="/docs/">Docs</a>
+          <a href="https://github.com/edheltzel/GAP">GitHub</a>
+          <ThemeToggle />
+        </nav>
+      </header>
+      <div class="copy">
+        <div class="eyebrow">Global Agent Policies</div>
+        <h1>One set of rules.<br /><span class="l2">Every coding</span><br /><span class="l3">agent.</span></h1>
+        <p class="sub">
+          Write your policy once. <code>gap sync</code> copies it into the file each agent already reads.
+        </p>
+        <div class="tabs"><b>Go</b></div>
+        <div class="cmd">
+          <span class="d">$</span><span class="t">{installCommand}</span>
+          <button class="cp" type="button">Copy</button>
+        </div>
+        <p class="hint">
+          Go 1.25 or newer, plus git. Node is only needed for extra skills in global/skills.json.
+        </p>
+        <div class="cta">
+          <a class="btn" href="/docs/#install-gap">Read the docs</a>
+          <a class="ghost" href="https://github.com/edheltzel/GAP">GitHub</a>
+        </div>
+      </div>
+      <i class="spark" id="sp1" aria-hidden="true"></i>
+      <i class="spark v" id="sp2" aria-hidden="true"></i>
+      <div class="foot">
+        <div class="lock">
+          <span class="nm">GAP</span>
+          <div class="pills">
+            <a class="pill" href="/docs/">Docs →</a>
+            <a class="pill" href="https://github.com/edheltzel/GAP">GitHub</a>
+          </div>
+        </div>
+        <div class="legal"><span>© 2026 GAP</span></div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <section id="how" aria-labelledby="how-title">
+        <div class="sec-eye"><b>§ 01</b> How it works</div>
+        <h2 id="how-title">Write it once. <span>Every agent reads it.</span></h2>
+        <p class="lead">
+          One rules file, <code>global/AGENTS.md</code>. <code>gap sync</code> copies it into the file each agent
+          already reads.
+        </p>
+        <div class="cards">
+          <article class="card">
+            <div class="n"><span>Step</span><i>01</i></div>
+            <h3>Write the rules</h3>
+            <p>
+              Edit <code>global/AGENTS.md</code>, merge it to <code>master</code>, and pull.
+              <code>gap sync</code> only publishes merged rules.
+            </p>
+          </article>
+          <article class="card">
+            <div class="n"><span>Step</span><i>02</i></div>
+            <h3>Run gap sync</h3>
+            <p>Copies your rules into every agent's file and installs any listed skills that are missing.</p>
+          </article>
+          <article class="card">
+            <div class="n"><span>Step</span><i>03</i></div>
+            <h3>Check status</h3>
+            <p><code>gap status</code> shows each component's pin and any skill drift. It writes nothing and exits 1 on drift.</p>
+          </article>
+        </div>
+      </section>
+      <section id="safe" aria-labelledby="safe-title">
+        <div class="sec-eye"><b>§ 02</b> Guarantees</div>
+        <h2 id="safe-title">Quiet by default. <span>Nothing moves on its own.</span></h2>
+        <div class="rows">
+          <div>
+            <span>Pins</span>
+            <p>
+              <b>Sync never moves a skill pin.</b> Only <code>gap pin &lt;id&gt;@&lt;ref&gt;</code> changes
+              <code>gap.lock</code>.
+            </p>
+          </div>
+          <div>
+            <span>Status</span>
+            <p>
+              <b>Drift is a signal, not a crash.</b> <code>gap status</code> writes nothing and exits 1 on drift.
+            </p>
+          </div>
+          <div>
+            <span>Files</span>
+            <p>
+              <b>It asks before it changes a file it did not write.</b> In a shell with no terminal, it prints
+              <code>Refusing to replace foreign file</code>, skips that file, publishes the rest, and exits 1.
+            </p>
+          </div>
+        </div>
+      </section>
+      <div class="end">
+        <h2>One set of rules.<br /><span>Every coding agent.</span></h2>
+        <a class="btn" href="/docs/">Read the docs</a>
+      </div>
+    </div>
+  </main>
+  <footer class="base">
+    <span>GAP · Global Agent Policies</span>
+    <nav aria-label="Footer">
+      <a href="/docs/">Docs</a>
+      <a href="/docs/concepts/">Concepts</a>
+      <a href="https://github.com/edheltzel/GAP">GitHub</a>
+    </nav>
+  </footer>
+</Base>
+
+<script>
+  import '../scripts/hero.ts';
+  import { installCommand } from '../site.js';
+
+  const copy = document.querySelector<HTMLButtonElement>('.cmd .cp');
+  const shown = document.querySelector('.cmd .t')?.textContent ?? '';
+  if (shown !== installCommand) throw new Error('install command mismatch');
+  copy?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(installCommand);
+      copy.textContent = 'Copied';
+      window.setTimeout(() => {
+        copy.textContent = 'Copy';
+      }, 1200);
+    } catch {
+      copy.textContent = 'Failed';
+      window.setTimeout(() => {
+        copy.textContent = 'Copy';
+      }, 1600);
+    }
+  });
+</script>

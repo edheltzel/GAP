@@ -1,0 +1,52 @@
+name: site
+on:
+  pull_request:
+    paths:
+      - site/**
+      - README.md
+      - CONCEPTS.md
+      - docs/images/**
+      - .github/workflows/site.yml
+  push:
+    branches: [master]
+    paths:
+      - site/**
+      - README.md
+      - CONCEPTS.md
+      - docs/images/**
+      - .github/workflows/site.yml
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Last-updated dates come from git history.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: site/.nvmrc
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run links
+      - run: npm run og-image
+      - name: Chrome for the browser checks
+        run: |
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y google-chrome-stable
+          fi
+      - run: npm run contrast
+      - run: npm run toc
+      - run: npm run flash
+      - run: npm run hero-start
+      - run: npm run hero-spin
+      - run: npm run logo-round
