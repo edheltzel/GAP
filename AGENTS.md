@@ -29,11 +29,13 @@ After a shared markdown change is merged and pulled, run `gap sync`. Sync refuse
 - Skill source lives in its component repo, not here. Change a `do-*` skill in Do-Skills, then move the pin with `gap pin do-skills@master`. Installation selection is in [Manage skills](README.md#manage-skills).
 - `docs/solutions/` holds documented solutions to past problems, by category, with YAML frontmatter (`module`, `tags`, `problem_type`). `CONCEPTS.md` is the shared domain vocabulary. Relevant when implementing or debugging in a documented area, or when a domain word is unclear.
 - Go 1.25 or newer. `gap.toml` and `gap.lock` are parsed by the TOML subset in `cmd/gap/toml.go`. Dependencies are declared in [go.mod](go.mod). Runtime installation requirements are in [Manage skills](README.md#manage-skills). `go test ./...` is the self-test.
+- `README.md` and `CONCEPTS.md` are also the website's docs pages (`/docs/`, `/docs/concepts/`), built from `site/`. A heading rename moves its anchor; follow `site/AGENTS.md` for the redirects and landing links that use it.
 
 ## Child DOX Index
 
 - `cmd/gap/AGENTS.md`: how `gap sync` publishes, installs, migrates, and checks drift. Parent keeps the destination list and the publish limits in Publish.
 - `docs/plans/AGENTS.md`: plans, requirements, and handoffs.
 - `regroup/AGENTS.md`: dated status snapshots. Do not overwrite older files.
+- `site/AGENTS.md`: the website (landing page and docs, Nimbus on Astro) and its Cloudflare Pages deploy. Node tooling stays inside `site/`.
 
 Not indexed as DOX children: `global/AGENTS.md` (published policy), `docs/solutions/` (frontmatter contract stays in Edit), `scripts/` (the installer is named in Publish).
