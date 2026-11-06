@@ -15,6 +15,7 @@
     "lint:docs": "nimbus-docs lint",
     "check:docs": "nimbus-docs check",
     "contrast": "node scripts/contrast.mjs",
+    "toc": "node scripts/toc.mjs",
     "flash": "node scripts/flash.mjs",
     "hero-start": "node scripts/hero-start.mjs",
     "hero-spin": "node scripts/hero-spin.mjs",

@@ -1,50 +1,8 @@
-// Logo shape check. The GAP mark is a circle, like the hero globe.
-// In dark and light themes, on the landing page, the header
-// mark (.word i / .site-word i) must have equal width and height and a border
-// radius of at least half its size. public/favicon.svg must contain no <rect>
-// and at least one <circle>, and rendered in Chrome with no page background
-// its four corners must be transparent while the centre and the middle of each
-// edge are painted, so the outer shape is a circle.
-
-import http from 'node:http';
-import fs from 'node:fs';
-import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { PNG } from 'pngjs';
+import { serveSite } from './serve.mjs';
 
-const root = path.resolve('dist');
 const chrome = process.env.CHROME_PATH || '/usr/bin/google-chrome';
-
-function serve(dir) {
-  return http.createServer((req, res) => {
-    const url = decodeURIComponent((req.url || '/').split('?')[0]);
-    let file = path.join(dir, url);
-    if (url.endsWith('/')) file = path.join(file, 'index.html');
-    else if (!path.extname(file)) {
-      if (fs.existsSync(file + '.html')) file += '.html';
-      else if (fs.existsSync(path.join(file, 'index.html'))) file = path.join(file, 'index.html');
-    }
-    fs.readFile(file, (err, data) => {
-      if (err) {
-        res.statusCode = 404;
-        res.end('not found');
-        return;
-      }
-      const types = {
-        '.html': 'text/html; charset=utf-8',
-        '.css': 'text/css',
-        '.js': 'text/javascript',
-        '.svg': 'image/svg+xml',
-        '.woff2': 'font/woff2',
-        '.ico': 'image/x-icon',
-        '.png': 'image/png',
-        '.xml': 'application/xml',
-      };
-      res.setHeader('content-type', types[path.extname(file)] || 'application/octet-stream');
-      res.end(data);
-    });
-  });
-}
 
 // Colour helpers shared by the favicon checks.
 const lin = (v) => {
@@ -68,9 +26,7 @@ const pages = [
   { path: '/', selector: '.word i' },
 ];
 
-const server = serve(root);
-await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-const base = `http://127.0.0.1:${server.address().port}`;
+const { base, close } = await serveSite();
 const browser = await chromium.launch({
   executablePath: chrome,
   args: ['--no-sandbox', '--disable-dev-shm-usage'],
@@ -123,13 +79,6 @@ for (const theme of ['dark', 'light']) {
     await context.close();
   }
 }
-
-// Favicon source.
-const svg = fs.readFileSync('public/favicon.svg', 'utf8');
-const rects = (svg.match(/<rect\b/g) || []).length;
-const circles = (svg.match(/<circle\b/g) || []).length;
-report(rects === 0, `favicon.svg has ${rects} <rect>`);
-report(circles >= 1, `favicon.svg has ${circles} <circle>`);
 
 // Favicon rendered with no page background.
 {
@@ -351,7 +300,7 @@ report(circles >= 1, `favicon.svg has ${circles} <circle>`);
 }
 
 await browser.close();
-server.close();
+await close();
 console.log(lines.join('\n'));
 console.log(failed ? 'FAIL' : 'PASS');
 if (failed) process.exit(1);

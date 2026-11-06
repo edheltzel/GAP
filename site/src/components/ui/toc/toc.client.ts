@@ -1,9 +1,3 @@
-/**
- * Scroll-spy + animated rail indicator. Active heading tracked via a single
- * IntersectionObserver; the dash slides by arc-length so it weaves through the
- * rail's curves instead of cutting across.
- */
-
 import { mount } from "@cloudflare/nimbus-docs/client";
 
 const READING_BAND = 0.25;
@@ -25,9 +19,6 @@ function initToc(root: HTMLElement): () => void {
     .map((slug, index) => ({ el: document.getElementById(slug), index }))
     .filter((o): o is { el: HTMLElement; index: number } => o.el !== null);
   if (observed.length === 0) return () => {};
-  const indexOfEl = new Map<HTMLElement, number>(
-    observed.map((o) => [o.el, o.index]),
-  );
 
   let segments: { start: number; length: number }[] = [];
   let totalLength = 0;
@@ -157,7 +148,6 @@ function initToc(root: HTMLElement): () => void {
     hasApplied = true;
   }
 
-  const inBand = new Set<number>();
   let observedIndex = 0;
   let atBottom = false;
   let pinnedIndex: number | null = null;
@@ -170,22 +160,6 @@ function initToc(root: HTMLElement): () => void {
     }
     setActive(atBottom ? links.length - 1 : observedIndex);
   }
-
-  // rootMargin collapses the root to the top band; deepest in-band heading wins.
-  const spy = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        const i = indexOfEl.get(entry.target as HTMLElement);
-        if (i === undefined) continue;
-        if (entry.isIntersecting) inBand.add(i);
-        else inBand.delete(i);
-      }
-      if (inBand.size > 0) observedIndex = Math.max(...inBand);
-      resolve();
-    },
-    { rootMargin: `0px 0px -${(1 - READING_BAND) * 100}% 0px`, threshold: 0 },
-  );
-  observed.forEach((o) => spy.observe(o.el));
 
   function updateBottom() {
     const scrollEl = document.scrollingElement ?? document.documentElement;
@@ -200,7 +174,10 @@ function initToc(root: HTMLElement): () => void {
   }
 
   function updateObservedIndex() {
-    const bandBottom = window.innerHeight * READING_BAND;
+    const bandBottom = Math.max(
+      window.innerHeight * READING_BAND,
+      parseFloat(getComputedStyle(observed[0].el).scrollMarginTop),
+    );
     let nextIndex = 0;
     for (const o of observed) {
       if (o.el.getBoundingClientRect().top <= bandBottom) nextIndex = o.index;
@@ -317,6 +294,10 @@ function initToc(root: HTMLElement): () => void {
     passive: true,
     signal: controller.signal,
   });
+  window.addEventListener("pageshow", onLayoutChange, {
+    passive: true,
+    signal: controller.signal,
+  });
   // Content that loads later (the API home's parts) dispatches
   // `nb:toc-headings`: track the headings that have appeared since.
   document.addEventListener(
@@ -328,8 +309,6 @@ function initToc(root: HTMLElement): () => void {
         const el = document.getElementById(slug);
         if (!el) return;
         observed.push({ el, index });
-        indexOfEl.set(el, index);
-        spy.observe(el);
         added = true;
       });
       if (!added) return;
@@ -350,7 +329,6 @@ function initToc(root: HTMLElement): () => void {
   return () => {
     controller.abort();
     ro.disconnect();
-    spy.disconnect();
   };
 }
 
