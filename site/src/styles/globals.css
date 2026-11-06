@@ -24,40 +24,38 @@
 :root {
 	color-scheme: light;
 
-	/* Surfaces (paired with foregrounds for contrast) */
-	--nb-background: oklch(0.99 0 0);
-	--nb-foreground: oklch(0.21 0 0);
+	/* Surfaces — GAP's paper and ink (site/src/styles/landing/tokens.css, light). */
+	--nb-background: #f6f5f1;
+	--nb-foreground: #111111;
 
-	--nb-card: oklch(1 0 0);
+	--nb-card: #fcfbf8;
 	--nb-card-foreground: var(--nb-foreground);
 
-	--nb-muted: oklch(0.98 0 0);
+	--nb-muted: #f6f5f1;
 	/* 4.5:1 or better on every light surface, inline code included. */
-	--nb-muted-foreground: oklch(0.52 0 0);
+	--nb-muted-foreground: #5f5f5f;
 
-	--nb-accent: oklch(0.967 0 0);
+	--nb-accent: #ecebe6;
 	--nb-accent-foreground: var(--nb-foreground);
 
-	/* Primary action / brand */
-	--nb-primary: oklch(0.145 0 0);
-	--nb-primary-foreground: oklch(0.97 0 0);
-	--nb-primary-hover: oklch(0.371 0 0);
+	/* Primary action: the landing page's button ink. */
+	--nb-primary: #111111;
+	--nb-primary-foreground: #f6f5f1;
+	--nb-primary-hover: #000000;
 
-	/* Brand — Nimbus steel, the accent of the Chrome palette: a grey with a
-	   trace of blue, so it reads apart from the pure-neutral ink. Used only
-	   for wayfinding: where you are (current page, section, tab) and what you
-	   can act on (focus, link hover). */
-	--nb-brand: oklch(0.373 0.034 260.2);
+	/* Brand — GAP teal on paper. Used only for wayfinding: where you are
+	   (current page, section, tab) and what you can act on (focus, link hover). */
+	--nb-brand: #0f766e;
 	/* The current page's fill: a light wash of the brand. */
 	--nb-brand-wash: color-mix(in oklch, var(--nb-brand) 7%, transparent);
 
 	/* Borders / focus */
-	--nb-border: oklch(0.935 0 0);
-	--nb-border-strong: oklch(0.87 0 0);
-	--nb-selected: oklch(0.92 0 0);
+	--nb-border: rgba(0, 0, 0, 0.11);
+	--nb-border-strong: rgba(0, 0, 0, 0.17);
+	--nb-selected: rgba(0, 0, 0, 0.11);
 	/* Inline code's tint. */
 	--nb-code-tint: color-mix(in oklch, var(--nb-foreground) 4.5%, transparent);
-	--nb-ring: oklch(0.373 0.034 260.2 / 0.4);
+	--nb-ring: rgb(15 118 110 / 0.4);
 
 	/* Status colors — paired (saturated for text/border + muted for bg) */
 	--nb-info: oklch(0.424 0.199 265.638);
@@ -108,13 +106,13 @@
 	/* Used only by the API reference (registry: api-layout); harmless elsewhere. */
 	--nb-code-rail-width: 34rem;
 
-	/* Typography — self-hosted via @fontsource-variable in BaseLayout.astro */
+	/* Typography — GAP's Geist, self-hosted via @fontsource-variable in BaseLayout.astro */
 	--nb-font-sans:
-		"Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+		"Geist Variable", "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
 		sans-serif;
 	--nb-font-mono:
-		"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Code",
-		"Source Code Pro", Menlo, Consolas, monospace;
+		"Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+		monospace;
 	/* Type scale: one ratio, √1.5, stepping up from the 16px body. Two steps
 	   make 1.5, so body → h2 → h1 is the same interval twice and lands on
 	   whole pixels: 16 → 24 → 36, with h3 at the half step (19.6 → 20).
@@ -157,30 +155,31 @@
 [data-mode="dark"] {
 	color-scheme: dark;
 
-	--nb-background: oklch(0.085 0 0);
-	--nb-foreground: oklch(0.97 0 0);
+	/* GAP's slate surface and teal (site/src/styles/landing/tokens.css, dark). */
+	--nb-background: #0b1113;
+	--nb-foreground: #ededed;
 
-	--nb-card: #0F0F0F;
+	--nb-card: #111a1d;
 	--nb-card-foreground: var(--nb-foreground);
 
-	--nb-muted: #060606;
-	--nb-muted-foreground: oklch(0.708 0 0);
+	--nb-muted: #0b1113;
+	--nb-muted-foreground: #a1a1a1;
 
-	--nb-accent: oklch(0.269 0 0);
+	--nb-accent: #172327;
 	--nb-accent-foreground: var(--nb-foreground);
 
-	--nb-primary: oklch(0.9 0 0);
-	--nb-primary-foreground: oklch(0.085 0 0);
-	--nb-primary-hover: oklch(0.7 0 0);
+	--nb-primary: #ededed;
+	--nb-primary-foreground: #000000;
+	--nb-primary-hover: #ffffff;
 
-	--nb-brand: oklch(0.837 0.018 261.3);
+	--nb-brand: #2dd4bf;
 	--nb-brand-wash: color-mix(in oklch, var(--nb-brand) 10%, transparent);
 
-	--nb-border: oklch(0.269 0 0);
-	--nb-border-strong: oklch(0.371 0 0);
-	--nb-selected: oklch(0.371 0 0);
+	--nb-border: rgba(170, 205, 205, 0.14);
+	--nb-border-strong: rgba(170, 205, 205, 0.22);
+	--nb-selected: rgba(170, 205, 205, 0.22);
 	--nb-code-tint: color-mix(in oklch, var(--nb-foreground) 6%, transparent);
-	--nb-ring: oklch(0.837 0.018 261.3 / 0.45);
+	--nb-ring: rgb(45 212 191 / 0.45);
 
 	--nb-info: oklch(0.707 0.165 254.624);
 	--nb-info-foreground: oklch(0.707 0.165 254.624);

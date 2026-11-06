@@ -1,8 +1,8 @@
 ---
-import "@fontsource-variable/inter";
-import "@fontsource-variable/jetbrains-mono";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 // The body font starts downloading with the page instead of after the CSS.
-import interLatin from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import geistLatin from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
 import "../styles/globals.css";
 import "../styles/prose.css";
 import { ClientRouter } from "astro:transitions";
@@ -68,12 +68,13 @@ const resolvedMarkdownUrl =
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="preload" href={interLatin} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={geistLatin} as="font" type="font/woff2" crossorigin />
     <WebMCP />
 
     <script is:inline>
       (() => {
-        const KEY = "ui-mode";
+        // Shared with the landing page's ThemeScript, so a choice carries across.
+        const KEY = "gap-theme";
         const media = window.matchMedia("(prefers-color-scheme: dark)");
         // A choice storage refused, kept until the page unloads.
         let unsaved = null;

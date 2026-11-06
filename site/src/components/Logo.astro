@@ -1,10 +1,9 @@
 ---
-/* The site's logo, inline so it takes the text colour in light and dark. The
-   drawing lives in logo.ts, which the social cards read too. */
-import { logo } from "./logo";
-
+/* GAP's wordmark, as on the landing page: the teal dot, then "GAP" in the text
+   colour. Decorative; callers keep the site title as the link's accessible name. */
 interface Props { class?: string }
-// Callers give it a whole-pixel box and the drawing centres inside.
-const { class: cls = "h-5 w-8" } = Astro.props;
+const { class: cls } = Astro.props;
 ---
-<svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${logo.width} ${logo.height}`} class={cls} aria-hidden="true">{logo.paths.map((d) => <path d={d} fill="currentColor" />)}</svg>
+<span class:list={["inline-flex items-center gap-2.5 text-[18px] font-semibold leading-none tracking-[-0.04em]", cls]} aria-hidden="true">
+  <i class="block size-2 rounded-full bg-brand shadow-[0_0_12px_var(--nb-brand)]"></i>GAP
+</span>

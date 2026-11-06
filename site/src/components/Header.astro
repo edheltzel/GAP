@@ -66,7 +66,7 @@ const resolveSectionHref = (href: string): string =>
       <slot name="brand">
         {/* The mark alone; the site title stays as the link's accessible name. */}
         <a href={homeHref} class="flex shrink-0 items-center text-foreground transition-opacity hover:opacity-70">
-          <Logo class="h-5 w-8 shrink-0" />
+          <Logo class="shrink-0" />
           <span class="sr-only">{config.title}</span>
         </a>
       </slot>
