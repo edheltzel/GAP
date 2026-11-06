@@ -35,24 +35,50 @@ export function repoUrl(url: string, image = false): string | undefined {
 }
 
 /**
+ * The source span of a link destination: the token after `](` (link, image)
+ * or `]:` (definition), where `open` is the index of the label's `[`. A
+ * `<…>` destination or a bare one with escapes and balanced parentheses, per
+ * CommonMark. Undefined when the source doesn't have that shape.
+ */
+function destinationSpan(src: string, open: number, definition: boolean): [number, number] | undefined {
+  let i = open + 1;
+  for (let depth = 1; i < src.length && depth > 0; i++) {
+    if (src[i] === "\\") i++;
+    else if (src[i] === "[") depth++;
+    else if (src[i] === "]") depth--;
+  }
+  if (src[i] !== (definition ? ":" : "(")) return undefined;
+  i++;
+  while (/\s/.test(src[i] ?? "")) i++;
+  const from = i;
+  if (src[i] === "<") {
+    for (i++; i < src.length && src[i] !== ">"; i++) if (src[i] === "\\") i++;
+    return src[i] === ">" ? [from, i + 1] : undefined;
+  }
+  for (let depth = 0; i < src.length && !/\s/.test(src[i]); i++) {
+    if (src[i] === "\\") i++;
+    else if (src[i] === "(") depth++;
+    else if (src[i] === ")" && depth-- === 0) break;
+  }
+  return i > from ? [from, i] : undefined;
+}
+
+/**
  * The Markdown version of a page (`/docs/index.md`, llms-full.txt) is served
  * away from the repo, so its links, images and link definitions go through
- * `repoUrl` too, images included. Destinations come from the parsed tree, so
- * code spans and fences are never touched.
+ * `repoUrl` too, images included. Nodes come from the parsed tree, so code
+ * spans and fences are never touched; each destination token is replaced in
+ * the source, so titles and the rest of the text stay as written.
  */
 export function absoluteLinks(body: string): string {
   const edits: { from: number; to: number; url: string }[] = [];
   const walk = (node: MdastNode) => {
     if ((node.type === "link" || node.type === "image" || node.type === "definition") && node.position) {
       const target = repoUrl(node.url, node.type === "image");
-      const { start, end } = node.position;
-      if (target && start.offset !== undefined && end.offset !== undefined) {
-        const slice = body.slice(start.offset, end.offset);
-        // The destination follows the label: `](url` or `]: url`.
-        const label = node.type === "definition" ? slice.indexOf("]:") : slice.lastIndexOf("](");
-        const at = label < 0 ? -1 : slice.indexOf(node.url, label);
-        if (at >= 0) edits.push({ from: start.offset + at, to: start.offset + at + node.url.length, url: target });
-      }
+      const start = node.position.start.offset;
+      const open = start === undefined ? -1 : body.indexOf("[", start);
+      const span = target && open >= 0 ? destinationSpan(body, open, node.type === "definition") : undefined;
+      if (target && span) edits.push({ from: span[0], to: span[1], url: target });
     }
     if ("children" in node) for (const child of node.children as MdastNode[]) walk(child);
   };
