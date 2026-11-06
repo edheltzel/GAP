@@ -35,32 +35,40 @@ export function repoUrl(url: string, image = false): string | undefined {
 }
 
 /**
- * The source span of a link destination: the token after `](` (link, image)
- * or `]:` (definition), where `open` is the index of the label's `[`. The
- * label may nest brackets and hold code spans; the destination is `<…>` or
+ * The source span of a link destination inside `src[open, end)`, one parsed
+ * node: the token after `](` (link, image) or `]:` (definition), where `open`
+ * is the label's `[`. A link label ends where its last parsed child does; an
+ * image alt may nest brackets and hold code spans (complete backtick runs of
+ * equal length); a definition label is literal. The destination is `<…>` or
  * bare with escapes and balanced parentheses, per CommonMark. Undefined when
  * the source doesn't have that shape.
  */
-function destinationSpan(src: string, open: number, definition: boolean): [number, number] | undefined {
+function destinationSpan(src: string, open: number, end: number, node: MdastNode): [number, number] | undefined {
+  const run = (at: number) => /^`+/.exec(src.slice(at, end))?.[0].length ?? 0;
+  const children = "children" in node ? (node.children as MdastNode[]) : [];
   let i = open + 1;
-  for (let depth = 1; i < src.length && depth > 0; i++) {
-    if (src[i] === "\\") i++;
-    else if (src[i] === "`") {
-      const ticks = /^`+/.exec(src.slice(i))![0];
-      const close = src.indexOf(ticks, i + ticks.length);
-      i = close < 0 ? i + ticks.length - 1 : close + ticks.length - 1;
-    } else if (src[i] === "[") depth++;
-    else if (src[i] === "]") depth--;
-  }
-  if (src[i] !== (definition ? ":" : "(")) return undefined;
-  i++;
-  while (/\s/.test(src[i] ?? "")) i++;
+  if (node.type === "link") i = children.length ? (children.at(-1)!.position?.end.offset ?? end) : i;
+  else
+    for (let depth = 1; i < end; i++) {
+      if (src[i] === "\\") i++;
+      else if (src[i] === "`" && node.type === "image") {
+        const n = run(i);
+        let j = i + n;
+        while (j < end && !(src[j] === "`" && run(j) === n)) j += src[j] === "`" ? run(j) : 1;
+        if (j < end) i = j + n - 1;
+        else i += n - 1;
+      } else if (src[i] === "[") depth++;
+      else if (src[i] === "]" && --depth === 0) break;
+    }
+  if (src[i] !== "]" || src[i + 1] !== (node.type === "definition" ? ":" : "(")) return undefined;
+  i += 2;
+  while (i < end && /\s/.test(src[i])) i++;
   const from = i;
   if (src[i] === "<") {
-    for (i++; i < src.length && src[i] !== ">"; i++) if (src[i] === "\\") i++;
+    for (i++; i < end && src[i] !== ">"; i++) if (src[i] === "\\") i++;
     return src[i] === ">" ? [from, i + 1] : undefined;
   }
-  for (let depth = 0; i < src.length && !/\s/.test(src[i]); i++) {
+  for (let depth = 0; i < end && !/\s/.test(src[i]); i++) {
     if (src[i] === "\\") i++;
     else if (src[i] === "(") depth++;
     else if (src[i] === ")" && depth-- === 0) break;
@@ -80,9 +88,10 @@ export function absoluteLinks(body: string): string {
   const walk = (node: MdastNode) => {
     if ((node.type === "link" || node.type === "image" || node.type === "definition") && node.position) {
       const target = repoUrl(node.url, node.type === "image");
-      const start = node.position.start.offset;
-      const open = start === undefined ? -1 : body.indexOf("[", start);
-      const span = target && open >= 0 ? destinationSpan(body, open, node.type === "definition") : undefined;
+      const { start, end } = node.position;
+      const open = start.offset === undefined ? -1 : body.indexOf("[", start.offset);
+      const span =
+        target && open >= 0 && end.offset !== undefined ? destinationSpan(body, open, end.offset, node) : undefined;
       // A bare destination: `URL` already encodes spaces and `<>`; parentheses
       // are percent-encoded so an unbalanced one can't end the link early.
       const url = target?.replace(/\(/g, "%28").replace(/\)/g, "%29");
