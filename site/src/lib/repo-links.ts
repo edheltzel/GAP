@@ -36,15 +36,20 @@ export function repoUrl(url: string, image = false): string | undefined {
 
 /**
  * The source span of a link destination: the token after `](` (link, image)
- * or `]:` (definition), where `open` is the index of the label's `[`. A
- * `<…>` destination or a bare one with escapes and balanced parentheses, per
- * CommonMark. Undefined when the source doesn't have that shape.
+ * or `]:` (definition), where `open` is the index of the label's `[`. The
+ * label may nest brackets and hold code spans; the destination is `<…>` or
+ * bare with escapes and balanced parentheses, per CommonMark. Undefined when
+ * the source doesn't have that shape.
  */
 function destinationSpan(src: string, open: number, definition: boolean): [number, number] | undefined {
   let i = open + 1;
   for (let depth = 1; i < src.length && depth > 0; i++) {
     if (src[i] === "\\") i++;
-    else if (src[i] === "[") depth++;
+    else if (src[i] === "`") {
+      const ticks = /^`+/.exec(src.slice(i))![0];
+      const close = src.indexOf(ticks, i + ticks.length);
+      i = close < 0 ? i + ticks.length - 1 : close + ticks.length - 1;
+    } else if (src[i] === "[") depth++;
     else if (src[i] === "]") depth--;
   }
   if (src[i] !== (definition ? ":" : "(")) return undefined;
@@ -78,7 +83,10 @@ export function absoluteLinks(body: string): string {
       const start = node.position.start.offset;
       const open = start === undefined ? -1 : body.indexOf("[", start);
       const span = target && open >= 0 ? destinationSpan(body, open, node.type === "definition") : undefined;
-      if (target && span) edits.push({ from: span[0], to: span[1], url: target });
+      // A bare destination: `URL` already encodes spaces and `<>`; parentheses
+      // are percent-encoded so an unbalanced one can't end the link early.
+      const url = target?.replace(/\(/g, "%28").replace(/\)/g, "%29");
+      if (url && span) edits.push({ from: span[0], to: span[1], url });
     }
     if ("children" in node) for (const child of node.children as MdastNode[]) walk(child);
   };
