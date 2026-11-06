@@ -1,4 +1,4 @@
-/** Wording from docs-copy.md. `gap` alone is ambiguous in search. */
+/** Site name and description. `gap` alone is ambiguous in search. */
 export const siteName = 'GAP: Global Agent Policies';
 
 export const siteDescription =
@@ -9,8 +9,8 @@ export const installCommand =
   'curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/install.sh | sh';
 
 /**
- * Social preview image. The landing page (Base.astro) resolves `path` against
- * the `site` origin. File: public/og.png, 1200x630.
+ * Social preview image for every page. Landing.astro and the docs route resolve
+ * `path` against the `site` origin. File: public/og.png, 1200x630.
  */
 export const ogImage = {
   path: '/og.png',

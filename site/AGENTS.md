@@ -19,7 +19,7 @@ The public website at `https://gap.edheltzel.codes`: the landing page at `/` and
 - Every page shares `public/og.png` (1200x630); there are no per-page cards.
 - Light and dark choice is stored under `gap-theme` on both the landing page and the docs.
 - Node `22.23.4` or newer (Astro 7.4's minimum); `.nvmrc` pins the version CI and Cloudflare Pages use. Dependencies are exact versions in `package.json` with `package-lock.json`. Site tooling stays in `site/`; nothing here runs from the repo root or touches Go tooling.
-- Deploy: Cloudflare Pages project `gap-site`, root directory `site`, build command `npm run build`, output directory `dist`, production branch `master`. `gap-site-292.pages.dev` is that project. `gap-site.pages.dev` belongs to someone else; never use it.
+- Deploy: a Cloudflare Pages project building this repo, root directory `site`, build command `npm run build`, output directory `dist`, production branch `master`, serving `gap.edheltzel.codes`. Until the cutover in the migration PR is done, production still builds from `edheltzel/gap-site` (Pages project `gap-site`, `gap-site-292.pages.dev`). `gap-site.pages.dev` belongs to someone else; never use it.
 
 ## Work Guidance
 
@@ -33,5 +33,5 @@ From `site/`, after `npm ci`:
 
 - `npm run typecheck`
 - `npm run build`
-- `npm run links`, `npm run og-image`, `npm run contrast`, `npm run logo-round`
-- `npm run flash`, `npm run hero-start`, `npm run hero-spin` (need Chrome; `CHROME_PATH` overrides `/usr/bin/google-chrome`; CI runs them on Linux)
+- `npm run links`, `npm run og-image`
+- `npm run contrast`, `npm run toc`, `npm run logo-round`, `npm run flash`, `npm run hero-start`, `npm run hero-spin` (need Chrome; `CHROME_PATH` overrides `/usr/bin/google-chrome`; hero-start and hero-spin fail under macOS headless Chrome, so Linux CI is their gate)
