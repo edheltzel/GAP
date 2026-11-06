@@ -4,7 +4,7 @@ The landing page and docs at [gap.edheltzel.codes](https://gap.edheltzel.codes),
 
 ## Local development
 
-Needs Node 22.12 or newer (`.nvmrc`).
+Needs Node 22.23.4 or newer (`.nvmrc`).
 
 ```bash
 cd site
