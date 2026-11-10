@@ -1,19 +1,19 @@
 schema = "2"
 
 [components.do-skills]
-ref = "master"
-commit = "ae1571346429ec5a57732c54bf82c52d2b5b00fd"
-tree = "f3ef5fe17540788483d38f43258b1d728aa04617"
-
-[components.forge]
-ref = "master"
-commit = "3825d7e5ee2a1225efda234020748c80ceb6d83a"
-tree = "306ae487c4e384fe3143eedbbeebaa7106401d66"
+ref = "af85e07bf83baee26ffb79daa425eb84356b35b4"
+commit = "af85e07bf83baee26ffb79daa425eb84356b35b4"
+tree = "ec767558cabfcabd5d0dd5f31e106ffcd5e1d5fc"
 
 [components.echo]
 ref = "v0.13.0"
 commit = "f8001264b18631c5e0d01f3b6a7213588e1a1fe1"
 tree = "fc36c5c4597058a3370f0780f32b9441bd819ef8"
+
+[components.forge]
+ref = "master"
+commit = "3825d7e5ee2a1225efda234020748c80ceb6d83a"
+tree = "306ae487c4e384fe3143eedbbeebaa7106401d66"
 
 [components.recall]
 ref = "main"
