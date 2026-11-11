@@ -2,7 +2,7 @@
 
 Date: 2026-11-08. Read-only task ATL-GAP-REGROUP-01.
 
-Sources read on registered desktop `6d56310b-4f2e-499c-8954-c63fbc3e13af`, labelled `ip-163-182-62-183.dynamic.fuse.net`; Darwin, home `/Users/ed`. The label alone does not establish that this is BigMac. MacDaddy was disconnected; its files were not read. No remote GitHub files substituted.
+Sources read on a registered Darwin desktop, home `/Users/ed`. Its identity as BigMac was not confirmed. MacDaddy was disconnected; its files were not read. No remote GitHub files substituted.
 
 - `/Users/ed/Developer/Atlas/GAP/todo.txt` (contains completed and open tasks).
 - `/Users/ed/Developer/Atlas/GAP/TODO.md` (points to todo.txt).
