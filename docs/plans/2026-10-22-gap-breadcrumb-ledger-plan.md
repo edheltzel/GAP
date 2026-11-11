@@ -4,7 +4,7 @@
 
 Close the two items the env provisioner plan named and M3, M5, and M6 left unfinished. `gap init` writes one Recall breadcrumb for the project it provisions, and `gap doctor` records which Echo adapters are installed into `~/.gap/state.json`. The breadcrumb goes through `recall`. The adapter list needs one new flag in Echo, because nothing Echo exposes today returns it.
 
-Status, 2026-11-05: U1, U2, and U3 landed in GAP with PR #100. U2's real pin is still open: Echo v0.13.3, its newest tag, has no `scripts/install.sh --list-installed`, so `gap doctor` records nothing for echo. Move the pin with `gap pin echo@<tag>` once a tag ships the flag.
+Status, 2026-11-05: U1, U2, and U3 landed in GAP with PR #100. U2's real pin is still open; see the [components reference](../../README.md#components) for the pinned Echo's reporting limits and [Todo](#todo) for the release dependency.
 
 ## Redteam, 2026-10-22
 

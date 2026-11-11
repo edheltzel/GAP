@@ -5,8 +5,8 @@ Date: 2026-11-05
 ## State
 
 - Active plans in `docs/plans/`:
-  - `2026-10-20-gap-env-provisioner-plan.md`: M1-M7 landed (#96, #99). Status line under the header. Open: section 9 steps 4 and 5, listed in its new `## todo.txt`.
-  - `2026-10-22-gap-breadcrumb-ledger-plan.md` and its requirements: U1-U3 landed in #100. Open: the real Echo pin. Echo v0.13.3 (newest tag) has no `scripts/install.sh --list-installed`, so `gap doctor` records nothing for echo.
+  - `2026-10-20-gap-env-provisioner-plan.md`: M1-M7 landed (#96, #99). Status line under the header. Open: section 9 steps 4 and 5, listed in [its Todo section](../2026-10-20-gap-env-provisioner-plan.md#todo).
+  - `2026-10-22-gap-breadcrumb-ledger-plan.md` and its requirements: U1-U3 landed in #100. Open: the [Echo release and pin](../2026-10-22-gap-breadcrumb-ledger-plan.md#todo).
 - Archived to `docs/plans/archive/` because every task is done or dropped: the 2026-10-14 product-name (#75) and merge-gate (#76) plans, gap-skills plan and requirements, secrets scan, and the nm-gitbutler-safe plan and requirements. Repo paths inside them now point at `archive/`.
 - `todo.txt`: the `note:` paths of 11 completed lines now point at `archive/`. Two new `+gap` tasks are open (see below).
 - Machine-local, outside this repo: an Echo task (`id:echo-list-installed`) in `/Users/ed/Developer/Atlas/Echo/todo.txt`, a Do-Skills README task in `/Users/ed/Developer/Atlas/DoSkills/todo.txt`, and an Echo `@route` in `/Users/ed/todo.txt` (it had none). These are uncommitted in their repos.
