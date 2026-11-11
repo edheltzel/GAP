@@ -15,7 +15,10 @@ import (
 	"time"
 )
 
-func pickerHelper() {
+func init() {
+	if os.Getenv("GAP_TEST_PICKER") == "" {
+		return
+	}
 	fmt.Println("ready")
 	sel, err := runPicker([]syncGroup{{"policy", "publish policy"}, {"owned", "run installer"}}, map[string]bool{"policy": true, "owned": true}, struct{ io.Reader }{os.Stdin}, io.Discard)
 	switch {
