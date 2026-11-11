@@ -53,5 +53,5 @@ GAP manages everything agent-related on a machine from one public repo. The firs
 ## todo.txt
 
 - Restore the lost DoSkills --yes fix (fix/no-mistakes-yes discarded 2026-10-15 04:31) or re-apply it in GAP after the merge
-- Plan gap skills (A+B) from docs/plans/2026-10-15-gap-skills-requirements.md with do-plan
-- Write requirements for (C) gap installs harnesses
+- Plan gap skills (A+B) from docs/plans/archive/2026-10-15-gap-skills-requirements.md with do-plan
+- Write requirements for (C) gap installs harnesses (rejected 2026-10-16: gap does not install harnesses)

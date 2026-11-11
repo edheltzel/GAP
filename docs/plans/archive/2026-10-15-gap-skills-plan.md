@@ -1,12 +1,12 @@
 # gap-skills
 
-Requirements: `docs/plans/2026-10-15-gap-skills-requirements.md`
+Requirements: `docs/plans/archive/2026-10-15-gap-skills-requirements.md`
 
 ## Outcome
 
 Original target (2026-10-15): `gap sync` publishes the policy and also installs every skill a manifest lists, from this repo or other projects, through skills.sh into `~/.agents/skills` with the Claude mirror. It shows the diff of each drifted managed skill and lets you choose per skill. Your `do-*` skills live in this repo, DoSkills is archived, and the repo is public under the name GAP.
 
-See [U8](#u8-archive-doskills-go-public-rename-to-gap) for the shipped and superseded publication steps. [Manage skills](../../README.md#manage-skills) owns current installation behavior.
+See [U8](#u8-archive-doskills-go-public-rename-to-gap) for the shipped and superseded publication steps. [Manage skills](../../../README.md#manage-skills) owns current installation behavior.
 
 Facts this plan builds on (read 2026-10-15):
 
@@ -28,7 +28,7 @@ Facts this plan builds on (read 2026-10-15):
 ### U2. Secrets scan of the full history
 
 - Depends on: none
-- Files: none (report only, saved to `docs/plans/2026-10-15-secrets-scan.md`)
+- Files: none (report only, saved to `docs/plans/archive/2026-10-15-secrets-scan.md`)
 - Change: install `gitleaks` as a dev tool, not a `gap` runtime dependency. Run it over every commit of this repo and of DoSkills, since DoSkills' history comes along in U3.
 - Done when: both scans report zero findings, or every finding has been removed or rotated with your sign-off.
 - Verify: `gitleaks git --log-opts="--all" .` exits 0 in each repo, and the saved report shows the commit counts scanned (458 and DoSkills' count).
@@ -115,7 +115,7 @@ None. U8's go and its public-history decision were both given on 2026-10-16.
 
 - U1 restore DoSkills --yes fix before the merge
 - U2 gitleaks scan of agent-config and DoSkills history
-- U3-U7 build gap skills from docs/plans/2026-10-15-gap-skills-plan.md
+- U3-U7 build gap skills from docs/plans/archive/2026-10-15-gap-skills-plan.md
 - U8 publish: rename old GAP repo, flip agent-config public, rename to GAP (done 2026-10-16; archiving DoSkills superseded by the component pin)
 
 Review complete

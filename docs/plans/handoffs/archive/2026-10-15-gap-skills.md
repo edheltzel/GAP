@@ -8,7 +8,7 @@ Date: 2026-10-15
   - `feat/gap-skills` (`suw`) is stacked on `feat/gap-help` (`oqv`). It holds plan units U3-U7: `skills/`, `docs/global|project`, `global/skills.json` (73 skills), `cmd/gap/skills.go` (install via skills.sh, drift check), the `skills/` merge gate, and docs.
   - `docs/no-mistakes-autonomous` (`lsu` policy line, `nyt` handoff, regroup and todos).
 - DoSkills local branch `fix/no-mistakes-yes` (`mop`) holds U1, the `--yes` restore.
-- U2 scan is in `docs/plans/2026-10-15-secrets-scan.md`. U8 (go public, rename, archive DoSkills) has not started.
+- U2 scan is in `docs/plans/archive/2026-10-15-secrets-scan.md`. U8 (go public, rename, archive DoSkills) has not started.
 - **Known bug, must fix before publishing `suw`.** `readCheckout` (`cmd/gap/main.go:208-210`) checks untracked files only under `skills/`. `readManifest` reads `global/skills.json` from the working tree, so an untracked manifest on a checkout whose origin lacks one can install an unmerged external skill. Fix: include `global/` in the `ls-files --others` check, and add an e2e case with an untracked manifest. The e2e fixture now commits its manifest (`commitMerged`), so the current tests cannot catch this. (Reviewer advisory; I agree.)
 - `gap sync` in this checkout refuses until `skills/` is merged. That is expected.
 - Read-only probe of the real home (machine-local): all 73 managed skills count as installed, with 0 drift.
@@ -44,9 +44,9 @@ Fix the untracked-manifest gate bypass, with a failing test first, and amend the
 
 ## Links
 
-- `docs/plans/2026-10-15-gap-skills-requirements.md`: the interview outcome.
-- `docs/plans/2026-10-15-gap-skills-plan.md`: units U1-U8 and blockers. Its U3 and U8 notes record the build-time changes.
-- `docs/plans/2026-10-15-secrets-scan.md`: U2 findings.
+- `docs/plans/archive/2026-10-15-gap-skills-requirements.md`: the interview outcome.
+- `docs/plans/archive/2026-10-15-gap-skills-plan.md`: units U1-U8 and blockers. Its U3 and U8 notes record the build-time changes.
+- `docs/plans/archive/2026-10-15-secrets-scan.md`: U2 findings.
 - `docs/plans/handoffs/archive/2026-10-15-no-mistakes-autonomous-policy.md`: the GitButler/No Mistakes blocker.
 - `cmd/gap/skills.go`: install, drift, `treeHash`.
 - `cmd/gap/main.go:202-232`: the merge gate.

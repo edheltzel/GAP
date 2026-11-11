@@ -3,6 +3,8 @@
 Tue Oct 20, 2026, ET. The captain answered the open questions on Oct 20; they are folded in below (see Decisions at the end). This is the design proposal, not a reference for supported commands or configuration; see the [README](../../README.md#commands) for the implemented CLI and [todo.txt](../../todo.txt) for milestone notes. The Recall setup breadcrumb and Echo adapter ledger are separate-branch work, excluded from this change.
 Backing evidence, sources and the full component notes are in the appendix `ATL-GAPENV.md` (kept outside this repo, in `/Users/ed/Documents/Atlas/Gap/`). Section numbers like "R§3.3" point there.
 
+Status, 2026-11-05: M1 through M7 landed (PRs #96 and #99). The breadcrumb and Echo ledger moved to [their own plan](2026-10-22-gap-breadcrumb-ledger-plan.md). Section 9 steps 4 and 5 are still open; [Todo](#todo) lists their tasks in Do-Skills and GAP.
+
 **In one breath:** Gap becomes two things in one CLI. First, a **distribution**: our opinionated, batteries-included setup, meaning Forge, Recall, Echo, Do-Skills and the shared policy, wired into every harness. Second, a **manager**: it fetches each component at a pinned version, renders it into each harness's own folders, records it in a lockfile, checks drift, and rolls back. Components stay in their own repos. Gap configures them and doesn't own them. You change behavior through override files, never by editing a component.
 
 ---
@@ -289,3 +291,12 @@ Render = pinned source file → frontmatter merge → patch → append → write
 9. **Echo pin**: wait for a tagged release. Don't pin `master`.
 10. **Overrides**: `~/.config/gap/` (personal) and `<repo>/.gap/` (project). Dotfiles may link to `~/.config/gap`.
 11. **Eight Sleep `APP_CLIENT_SECRET`** (commit `98ee113c`, public repo): replace it now, take it out of the repo, and load it from a secret.
+
+## Todo
+
+Open tasks, copied verbatim from Do-Skills' and GAP's `todo.txt`:
+
+```text
+2026-11-05 Change the README install section from npx skills add to Gap, keeping a short skills.sh note for outside users (GAP provisioner section 9 step 4) +doskills note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-20-gap-env-provisioner-plan.md
+2026-11-05 Provisioner section 9 step 5: drop the skills.sh and Node path from README Manage skills once global/skills.json no longer needs npx +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-20-gap-env-provisioner-plan.md
+```

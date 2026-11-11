@@ -1,6 +1,6 @@
 # nm-gitbutler-safe
 
-Requirements: `docs/plans/2026-10-17-nm-gitbutler-safe-requirements.md`.
+Requirements: `docs/plans/archive/2026-10-17-nm-gitbutler-safe-requirements.md`.
 
 ## Outcome
 

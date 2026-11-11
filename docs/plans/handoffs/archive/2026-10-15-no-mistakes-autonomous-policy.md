@@ -34,7 +34,7 @@ Get the user's GitButler/No Mistakes choice. Then amend `lsu` with that choice a
 - `~/.agents/skills/no-mistakes/SKILL.md:322-345`: `--yes` consent and refusal rules (machine-local).
 - `~/.agents/skills/do-commit/references/procedure.md:13-23`: when No Mistakes applies, and the stop on `gitbutler/workspace` (machine-local).
 - `regroup/2026-10-15-regroup-gap.md`: status at handoff.
-- `docs/plans/2026-10-14-002-fix-gap-merge-gate-bypass-plan.md`: ATL-613 fix plan.
+- `docs/plans/archive/2026-10-14-002-fix-gap-merge-gate-bypass-plan.md`: ATL-613 fix plan.
 
 ## todo.txt
 
