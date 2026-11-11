@@ -105,7 +105,6 @@ func doctorAll() error {
 	if err != nil {
 		return err
 	}
-	defer gate.save(home)
 	out := newReport(os.Stdout)
 	bad := false
 	missing := false

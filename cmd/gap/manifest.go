@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,7 +32,7 @@ func hasUtilityManifest(dir string) bool {
 }
 
 func readUtilityManifest(dir string) (utilityManifest, error) {
-	b, err := os.ReadFile(filepath.Join(dir, utilityManifestName))
+	b, err := readUtilityFile(dir, utilityManifestName)
 	if errors.Is(err, os.ErrNotExist) {
 		return utilityManifest{}, fmt.Errorf("%w: no %s at the repo root", errNotUtility, utilityManifestName)
 	}
@@ -89,8 +90,8 @@ func readUtilityManifest(dir string) (utilityManifest, error) {
 		if filepath.Ext(clean) != ".md" {
 			return fail("command %s must be a .md file", rel)
 		}
-		if info, err := os.Stat(filepath.Join(dir, clean)); err != nil || !info.Mode().IsRegular() {
-			return fail("command %s is not a file in the repo", rel)
+		if _, err := readUtilityFile(dir, clean); err != nil {
+			return fail("command %s is not a file in the repo: %v", rel, err)
 		}
 	}
 	if raw, exists := doc["hooks"]; exists {
@@ -124,6 +125,22 @@ func readUtilityManifest(dir string) (utilityManifest, error) {
 		return fail("declares no skills, commands, or hooks")
 	}
 	return m, nil
+}
+
+func readUtilityFile(dir, rel string) ([]byte, error) {
+	f, err := os.OpenInRoot(dir, filepath.FromSlash(rel))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", rel)
+	}
+	return io.ReadAll(f)
 }
 
 func manifestList(doc map[string]any, key string) ([]string, error) {

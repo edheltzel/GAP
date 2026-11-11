@@ -179,7 +179,7 @@ gap add owner/repo@v1.2.0     # a branch, tag, or commit
 gap add owner/repo --id tools # another id; the default is the repo name, lowercased
 ```
 
-`gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs its skills, commands, and install hook. These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused.
+`gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs its skills, commands, and install hook. These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved sync group names. User utility skills install under home; `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
 
 ```toml
 # ~/.config/gap/gap.toml, as written by gap add
@@ -199,7 +199,7 @@ GAP removes only the files it recorded for that utility in `~/.gap/state.json`. 
 
 ### Hooks and trust
 
-A utility's hooks are shell commands from someone else's repo, so GAP asks before it runs one. It shows the command and asks `[y/N]` the first time, and again with the old command when a new pin changes it. With no terminal, an unapproved hook is skipped and the command exits `1`; skills and commands still install. Approvals are kept in `~/.gap/state.json`.
+A utility's hooks are shell commands from someone else's repo, so GAP shows the command and asks `[y/N]` whenever it needs to run one. Approval applies to that execution. With no terminal, an untrusted hook is skipped and the command exits `1`; skills and commands still install. Successful install and update hooks are recorded in `~/.gap/state.json` so the same pin does not run again.
 
 To stop the questions for a repo or an owner you trust, the way you trust a Homebrew tap, list it in your config:
 

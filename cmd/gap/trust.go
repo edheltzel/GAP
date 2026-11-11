@@ -59,11 +59,9 @@ func isTrusted(repo string, trust []string) bool {
 }
 
 // hookGate decides whether a component's hook may run. Distro components and trusted repos run.
-// An approval is kept per hook name and command, so a changed command asks again.
 type hookGate struct {
 	trust []string
 	state stateFile
-	dirty bool
 }
 
 func newHookGate(home string) (*hookGate, error) {
@@ -86,48 +84,32 @@ func (g *hookGate) approve(c component, hook, command string) bool {
 	if g.trusted(c) {
 		return true
 	}
-	entry := g.state.Components[c.ID]
-	prev, seen := entry.Approved[hook]
-	if seen && prev == command {
-		return true
-	}
 	if !termReady() {
 		fmt.Fprintf(os.Stderr, "%s: skipped its %s hook; it is not approved. Run gap from a terminal to approve it, or add %q to [trust] repos in ~/.config/gap/gap.toml.\n", c.ID, hook, repoIdentity(c.Repo))
 		return false
 	}
 	fmt.Printf("%s (%s) wants to run its %s hook:\n  %s\n", c.ID, repoIdentity(c.Repo), hook, command)
-	if seen {
-		fmt.Printf("It changed from the approved command:\n  %s\n", prev)
-	}
 	fmt.Print("Run it? [y/N] ")
 	if strings.ToLower(strings.TrimSpace(confirmLine())) != "y" {
 		fmt.Fprintf(os.Stderr, "%s: %s hook not approved; skipped\n", c.ID, hook)
 		return false
 	}
-	if entry.Approved == nil {
-		entry.Approved = map[string]string{}
-	}
-	entry.Approved[hook] = command
-	g.state.Components[c.ID] = entry
-	g.dirty = true
 	return true
 }
 
-func (g *hookGate) save(home string) error {
-	if !g.dirty {
-		return nil
-	}
-	g.dirty = false
+func (g *hookGate) recordInstalled(home, id, commit string) error {
 	fresh, err := readState(home)
 	if err != nil {
 		return err
 	}
-	for id, entry := range g.state.Components {
-		cur := fresh.Components[id]
-		cur.Approved, cur.Installed = entry.Approved, entry.Installed
-		fresh.Components[id] = cur
+	entry := fresh.Components[id]
+	entry.Installed = commit
+	fresh.Components[id] = entry
+	if err := writeState(home, fresh); err != nil {
+		return err
 	}
-	return writeState(home, fresh)
+	g.state = fresh
+	return nil
 }
 
 // installHook is the hook a pin needs: install the first time, then update when the utility has one.

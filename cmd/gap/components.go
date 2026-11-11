@@ -100,6 +100,9 @@ func readDistro(repoRoot string) (distro, error) {
 }
 
 func parseComponent(id string, table map[string]any) (component, error) {
+	if !validID(id) {
+		return component{}, fmt.Errorf("invalid component id %q; policy and manifest are reserved sync groups", id)
+	}
 	c := component{ID: id}
 	c.Repo, _ = table["repo"].(string)
 	c.Ref, _ = table["ref"].(string)
@@ -119,13 +122,16 @@ func parseComponent(id string, table map[string]any) (component, error) {
 }
 
 // applyManifest fills a component's skills, commands, and hooks from gap-utility.toml in its pinned store.
-// names in the spec narrows the manifest's skills. A store with no manifest keeps the spec's own fields.
+// names in the spec narrows the manifest's skills.
 func applyManifest(c component, store string) (component, error) {
+	if err := validateUtilityLoads(c); err != nil {
+		return component{}, err
+	}
 	if c.Manifest {
 		return c, nil
 	}
 	if !hasUtilityManifest(store) {
-		if !c.Named {
+		if c.User || !c.Named {
 			return component{}, fmt.Errorf("component %s: no names in its spec and no %s in its repo", c.ID, utilityManifestName)
 		}
 		return c, nil
@@ -511,6 +517,15 @@ func effectivePins(repoRoot, home, projectRoot, profile string) (distro, lockFil
 		if pin, exists := lk.Components[id]; exists && c.RefOverride && c.Ref != pin.Ref && !c.User {
 			return distro{}, lockFile{}, fmt.Errorf("component %s requests ref %s but gap.lock pins %s; run `gap pin %s@%s`", id, c.Ref, pin.Ref, id, c.Ref)
 		}
+	}
+	if err := loadLocalManifests(home, d, lk); err != nil {
+		return distro{}, lockFile{}, err
+	}
+	return d, lk, nil
+}
+
+func loadLocalManifests(home string, d distro, lk lockFile) error {
+	for id, c := range d.Components {
 		pin, pinned := lk.Components[id]
 		if !pinned {
 			continue
@@ -519,11 +534,55 @@ func effectivePins(repoRoot, home, projectRoot, profile string) (distro, lockFil
 		if state, err := storeState(dir, pin.Tree); err != nil || state != storeOK {
 			continue
 		}
-		if d.Components[id], err = applyManifest(c, dir); err != nil {
-			return distro{}, lockFile{}, err
+		resolved, err := applyManifest(c, dir)
+		if err != nil {
+			return err
+		}
+		resolved.Store = dir
+		d.Components[id] = resolved
+	}
+	return nil
+}
+
+func registeredPins(repoRoot, home string) (distro, lockFile, error) {
+	d, lk, err := readPins(repoRoot)
+	if err != nil {
+		return distro{}, lockFile{}, err
+	}
+	d, err = mergeOverride(d, userConfigFile(home), true)
+	if err != nil {
+		return distro{}, lockFile{}, err
+	}
+	userLk, err := readLock(userConfigDir(home))
+	if err != nil {
+		return distro{}, lockFile{}, err
+	}
+	for id, c := range d.Components {
+		if c.User {
+			delete(lk.Components, id)
+			if pin, ok := userLk.Components[id]; ok {
+				lk.Components[id] = pin
+			}
 		}
 	}
 	return d, lk, nil
+}
+
+func prepareComponentSources(home string, d distro, pins map[string]lockEntryM1) error {
+	for _, id := range sortedIDs(d.Components) {
+		c := d.Components[id]
+		dir, err := ensureStore(home, c, pins[id])
+		if err != nil {
+			return err
+		}
+		c, err = applyManifest(c, dir)
+		if err != nil {
+			return err
+		}
+		c.Store = dir
+		d.Components[id] = c
+	}
+	return nil
 }
 
 func invokingProjectRoot() (string, error) {
@@ -822,7 +881,6 @@ func fetchCommit(home string, c component, l lockEntryM1) (string, error) {
 }
 
 // componentEntries turns pinned components into manifest entries installed from the store.
-// componentEntries turns pinned components into manifest entries installed from the store.
 // It resolves each component's manifest into d, runs an install or update hook once per pin, and reports false when a hook was not approved.
 func componentEntries(home, projectRoot string, d distro, pins map[string]lockEntryM1) ([]manifestEntry, bool, error) {
 	gate, err := newHookGate(home)
@@ -853,28 +911,21 @@ func componentEntries(home, projectRoot string, d distro, pins map[string]lockEn
 				start := time.Now()
 				if err := runComponentCommand(dir, command); err != nil {
 					out.result(false, id+" "+hook+" hook failed")
-					if werr := gate.save(home); werr != nil {
-						return nil, false, werr
-					}
 					return nil, false, fmt.Errorf("component %s %s: %w", id, hook, err)
 				}
 				out.result(true, fmt.Sprintf("%s %s hook finished in %s", id, hook, time.Since(start).Round(100*time.Millisecond)))
-				state = gate.state.Components[id]
-				state.Installed = pins[id].Commit
-				gate.state.Components[id] = state
-				gate.dirty = true
+				if err := gate.recordInstalled(home, id, pins[id].Commit); err != nil {
+					return nil, false, err
+				}
 			}
 		}
 		entries = append(entries, selectedEntries(c, dir, projectRoot)...)
-	}
-	if err := gate.save(home); err != nil {
-		return nil, false, err
 	}
 	return entries, ok, nil
 }
 
 func selectedEntries(c component, store, projectRoot string) []manifestEntry {
-	global := manifestEntry{Source: componentSource(c.Repo), Path: store}
+	global := manifestEntry{Source: componentSource(c.Repo), Path: store, Owner: c.ID}
 	project := manifestEntry{Source: componentSource(c.Repo), Path: store, Project: projectRoot}
 	for _, name := range c.Skills {
 		if !renderLoad(c, name, projectRoot) {

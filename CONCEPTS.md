@@ -56,7 +56,7 @@ A shell command a utility's manifest runs at install, update, uninstall, or doct
 `~/.config/gap/gap.lock`: the pins for utilities added with `gap add`. It is the user's own, like `lazy-lock.json`. It is not the distro's `gap.lock`.
 
 ### Trust
-A `[trust]` entry in `~/.config/gap/gap.toml` that lets a repo, or every repo of an owner, run its hooks without asking. Without it, GAP asks before each new or changed hook.
+A `[trust]` entry in `~/.config/gap/gap.toml` that lets a repo, or every repo of an owner, run its hooks without asking. Without it, GAP asks each time a hook runs.
 
 ## Decisions
 

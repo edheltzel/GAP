@@ -19,6 +19,7 @@ type manifestEntry struct {
 	Skills  []string `json:"skills"`
 	Path    string   `json:"-"`
 	Project string   `json:"-"`
+	Owner   string   `json:"-"`
 }
 
 func readManifest(repoRoot string) ([]manifestEntry, error) {
@@ -465,7 +466,7 @@ func replaceSkill(npx, repoRoot, home string, e manifestEntry, name string) (boo
 			}
 		}
 		if installErr == nil {
-			return true, nil
+			return true, recordOwnership(home, e.Owner, []string{name}, nil)
 		}
 	} else {
 		snap := snapshotSkillLock(home, name)

@@ -50,7 +50,7 @@ func defaultBranch(url string) (string, error) {
 }
 
 func validID(id string) bool {
-	if id == "" {
+	if id == "" || id == "policy" || id == "manifest" {
 		return false
 	}
 	for _, r := range id {
@@ -82,9 +82,9 @@ func addUtility(spec, id string) error {
 		id = defaultID
 	}
 	if !validID(id) {
-		return fmt.Errorf("id %q must use lowercase letters, digits, dot, dash, or underscore; pass --id", id)
+		return fmt.Errorf("id %q must use lowercase letters, digits, dot, dash, or underscore; policy and manifest are reserved; pass --id", id)
 	}
-	d, _, err := effectivePins(repoRoot, home, projectRoot, "")
+	d, _, err := registeredPins(repoRoot, home)
 	if err != nil {
 		return err
 	}
@@ -115,6 +115,13 @@ func addUtility(spec, id string) error {
 	m, err := readUtilityManifest(storePath(home, id, commit))
 	if err != nil {
 		return fmt.Errorf("%s: %w", repo, err)
+	}
+	c, err = applyManifest(c, storePath(home, id, commit))
+	if err != nil {
+		return err
+	}
+	if err := checkCommandOwners(repoRoot, home, distro{Components: map[string]component{id: c}}); err != nil {
+		return err
 	}
 	out := newReport(os.Stdout)
 	out.section(id, describeUtility(m)+pinLabel(pin))
@@ -185,11 +192,17 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 	}
 	c, ok := d.Components[id]
 	if !ok {
-		return fmt.Errorf("utility %s is not in %s", id, userConfigFile(home))
+		return nil
 	}
 	d.Components = map[string]component{id: c}
 	pins, err := lockFor(d, lk)
 	if err != nil {
+		return err
+	}
+	if err := prepareComponentSources(home, d, pins); err != nil {
+		return err
+	}
+	if err := checkCommandOwners(repoRoot, home, d); err != nil {
 		return err
 	}
 	entries, hooksOK, err := componentEntries(home, projectRoot, d, pins)
@@ -206,10 +219,17 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 		return err
 	}
 	skillsOK := true
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
 	if prevStore != "" && prevStore != d.Components[id].Store {
 		for _, entry := range entries {
 			target := entryHome(home, entry)
 			for _, name := range entry.Skills {
+				if !slices.Contains(state.Components[id].Skills, name) {
+					continue
+				}
 				if !installed(target, name) || skillDriftCount(entry.Path, target, name) == 0 {
 					continue
 				}
@@ -226,10 +246,14 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 		}
 	}
 	skillsOK = installSkills(repoRoot, home, entries) && skillsOK
-	if err := recordOwnership(home, projectRoot, d, owned); err != nil {
+	driftOK, err := checkDrift(repoRoot, home, entries)
+	if err != nil {
 		return err
 	}
-	if !hooksOK || !commandsOK || !skillsOK {
+	if err := recordDeclarativeInstalls(home, projectRoot, d, owned); err != nil {
+		return err
+	}
+	if !hooksOK || !commandsOK || !skillsOK || !driftOK {
 		return errSkipped
 	}
 	return nil
@@ -244,11 +268,8 @@ func updateUtilities(id string) error {
 	if err != nil {
 		return err
 	}
-	d, err := readDistro(repoRoot)
+	d, _, err := registeredPins(repoRoot, home)
 	if err != nil {
-		return err
-	}
-	if d, err = applyOverrides(d, home, repoRoot, projectRoot, ""); err != nil {
 		return err
 	}
 	lk, err := readLock(userConfigDir(home))
@@ -318,11 +339,7 @@ func listUtilities() error {
 	if err != nil {
 		return err
 	}
-	projectRoot, err := invokingProjectRoot()
-	if err != nil {
-		return err
-	}
-	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
+	d, lk, err := registeredPins(repoRoot, home)
 	if err != nil {
 		return err
 	}
@@ -350,17 +367,36 @@ func listUtilities() error {
 	return w.Flush()
 }
 
-// removeTOMLComponent drops [components.<id>] and its subtables from a TOML text, leaving every other line as it was.
 func removeTOMLComponent(text, id string) (string, bool) {
-	head := "[components." + tomlKey(id)
 	var kept []string
-	dropping, found := false, false
-	for _, line := range strings.SplitAfter(text, "\n") {
+	var section []string
+	found := false
+	lines := strings.SplitAfter(text, "\n")
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		trim := strings.TrimSpace(stripComment(line))
+		keys := section
 		if strings.HasPrefix(trim, "[") {
-			dropping = trim == head+"]" || strings.HasPrefix(trim, head+".")
-			found = found || dropping
+			var err error
+			section, err = splitKey(strings.TrimSuffix(strings.TrimPrefix(trim, "["), "]"), i+1)
+			if err != nil {
+				return text, false
+			}
+			keys = section
+		} else if key, value, assignment := strings.Cut(trim, "="); assignment {
+			parts, err := splitKey(strings.TrimSpace(key), i+1)
+			if err != nil {
+				return text, false
+			}
+			keys = append(slices.Clone(section), parts...)
+			for arrayContinues(value) && i+1 < len(lines) {
+				i++
+				line += lines[i]
+				value += "\n" + stripComment(lines[i])
+			}
 		}
+		dropping := len(keys) >= 2 && keys[0] == "components" && keys[1] == id
+		found = found || dropping
 		if !dropping {
 			kept = append(kept, line)
 		}
@@ -377,11 +413,7 @@ func removeUtility(id string) error {
 	if err != nil {
 		return err
 	}
-	projectRoot, err := invokingProjectRoot()
-	if err != nil {
-		return err
-	}
-	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
+	d, lk, err := registeredPins(repoRoot, home)
 	if err != nil {
 		return err
 	}
@@ -391,6 +423,24 @@ func removeUtility(id string) error {
 			return fmt.Errorf("%s is a distro component; set enabled = false under [components.%s] in %s to leave it out", id, id, userConfigFile(home))
 		}
 		return fmt.Errorf("utility %s is not added", id)
+	}
+	config := userConfigFile(home)
+	text, err := readOptional(config)
+	if err != nil {
+		return err
+	}
+	next, found := removeTOMLComponent(text, id)
+	if !found {
+		return fmt.Errorf("utility %s: cannot remove its configuration; nothing removed", id)
+	}
+	doc, err := parseTOML(next)
+	if err != nil {
+		return err
+	}
+	if components, ok := doc["components"].(map[string]any); ok {
+		if _, remains := components[id]; remains {
+			return fmt.Errorf("utility %s: configuration still declares it; nothing removed", id)
+		}
 	}
 	gate, err := newHookGate(home)
 	if err != nil {
@@ -408,11 +458,9 @@ func removeUtility(id string) error {
 		c.Store = dir
 		if c.Uninstall != "" {
 			if !gate.approve(c, "uninstall", c.Uninstall) {
-				gate.save(home)
 				return fmt.Errorf("%s: uninstall hook not approved; nothing removed", id)
 			}
 			if err := runComponentCommand(dir, c.Uninstall); err != nil {
-				gate.save(home)
 				return fmt.Errorf("%s uninstall hook failed; nothing removed: %w", id, err)
 			}
 			out.result(true, id+" uninstall hook finished")
@@ -422,10 +470,38 @@ func removeUtility(id string) error {
 	}
 	entry := gate.state.Components[id]
 	shared := map[string]bool{}
+	sharedCommands := map[string]bool{}
+	for oid, other := range gate.state.Components {
+		if oid != id {
+			for _, name := range other.Skills {
+				shared[name] = true
+			}
+			for _, path := range other.Commands {
+				sharedCommands[path] = true
+			}
+		}
+	}
+	if err := loadLocalManifests(home, d, lk); err != nil {
+		return err
+	}
+	globals, err := filepath.Glob(filepath.Join(repoRoot, "global", "commands", "*.md"))
+	if err != nil {
+		return err
+	}
+	for _, path := range globals {
+		for _, dest := range commandDests(home, filepath.Base(path)) {
+			sharedCommands[dest] = true
+		}
+	}
 	for oid, other := range d.Components {
 		if oid != id {
 			for _, name := range other.Skills {
 				shared[name] = true
+			}
+			for _, rel := range other.Commands {
+				for _, path := range commandDests(home, filepath.Base(rel)) {
+					sharedCommands[path] = true
+				}
 			}
 		}
 	}
@@ -481,11 +557,18 @@ func removeUtility(id string) error {
 		return err
 	}
 	for _, path := range entry.Commands {
+		if sharedCommands[path] {
+			fmt.Printf("Kept %s: another source also owns it\n", path)
+			continue
+		}
 		changed := true
 		if c.Store != "" {
 			for _, rel := range c.Commands {
 				if filepath.Base(rel) == filepath.Base(path) {
-					want, _ := os.ReadFile(filepath.Join(c.Store, filepath.FromSlash(rel)))
+					want, err := readUtilityFile(c.Store, rel)
+					if err != nil {
+						return err
+					}
 					got, _ := os.ReadFile(path)
 					changed = string(want) != string(got)
 				}
@@ -499,15 +582,8 @@ func removeUtility(id string) error {
 	if err := writeLedger(ledgerPath, ledger); err != nil {
 		return err
 	}
-	config := userConfigFile(home)
-	text, err := readOptional(config)
-	if err != nil {
+	if err := writeAtomic(config, next); err != nil {
 		return err
-	}
-	if next, found := removeTOMLComponent(text, id); found {
-		if err := writeAtomic(config, next); err != nil {
-			return err
-		}
 	}
 	userLk, err := readLock(userConfigDir(home))
 	if err != nil {

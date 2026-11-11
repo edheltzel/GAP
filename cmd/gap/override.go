@@ -85,13 +85,12 @@ func mergeOverride(d distro, path string, user bool) (distro, error) {
 			if !user {
 				return distro{}, fmt.Errorf("%s: only ~/.config/gap/gap.toml can add a utility (%s)", path, id)
 			}
-			added, err := parseComponent(id, table)
+			c, err = parseComponent(id, table)
 			if err != nil {
 				return distro{}, fmt.Errorf("%s: %w", path, err)
 			}
-			added.User = true
-			d.Components[id] = added
-			continue
+			c.User = true
+			found = true
 		}
 		if !found {
 			continue
@@ -139,7 +138,21 @@ func mergeOverride(d distro, path string, user bool) (distro, error) {
 				c.SkillSet[name] = s
 			}
 		}
+		if err := validateUtilityLoads(c); err != nil {
+			return distro{}, fmt.Errorf("%s: %w", path, err)
+		}
 		d.Components[id] = c
 	}
 	return d, nil
+}
+
+func validateUtilityLoads(c component) error {
+	if c.User {
+		for name, spec := range c.SkillSet {
+			if spec.Load == "project" {
+				return fmt.Errorf("utility %s: skill %s cannot use project load; user utilities install under home", c.ID, name)
+			}
+		}
+	}
+	return nil
 }

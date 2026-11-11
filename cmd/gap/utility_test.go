@@ -127,8 +127,8 @@ func TestUtilityUpdate(t *testing.T) {
 	if !strings.Contains(readString(t, filepath.Join(e.home, ".agents", "skills", "util-skill", "SKILL.md")), "v2") {
 		t.Fatal("update did not install the new skill")
 	}
-	if !e.exists("installed") || e.exists("updated") {
-		t.Fatal("first hook run after an add with no hook must be install")
+	if e.exists("installed") || !e.exists("updated") {
+		t.Fatal("an update after declarative installation must use the update hook")
 	}
 	if err := updateUtilities("nope"); err == nil {
 		t.Fatal("unknown id updated")

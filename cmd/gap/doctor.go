@@ -16,12 +16,11 @@ type stateFile struct {
 }
 
 type stateEntry struct {
-	Commit    string            `json:"commit"`
-	Adapters  []string          `json:"adapters"`
-	Installed string            `json:"installed,omitempty"`
-	Approved  map[string]string `json:"approved,omitempty"`
-	Skills    []string          `json:"skills,omitempty"`
-	Commands  []string          `json:"commands,omitempty"`
+	Commit    string   `json:"commit"`
+	Adapters  []string `json:"adapters"`
+	Installed string   `json:"installed,omitempty"`
+	Skills    []string `json:"skills,omitempty"`
+	Commands  []string `json:"commands,omitempty"`
 }
 
 func statePath(home string) string {
@@ -47,9 +46,7 @@ func readState(home string) (stateFile, error) {
 	return state, nil
 }
 
-// recordOwnership writes, per synced component, the home skills and command files gap placed for it.
-// gap remove deletes only these paths.
-func recordOwnership(home, projectRoot string, d distro, commands map[string][]string) error {
+func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[string][]string) error {
 	if !slices.ContainsFunc(sortedIDs(d.Components), func(id string) bool { return d.Components[id].Store != "" }) {
 		return nil
 	}
@@ -62,16 +59,40 @@ func recordOwnership(home, projectRoot string, d distro, commands map[string][]s
 		if c.Store == "" {
 			continue
 		}
-		var skills []string
-		for _, entry := range selectedEntries(c, c.Store, projectRoot) {
-			if entry.Project == "" {
-				skills = append(skills, entry.Skills...)
+		entry := state.Components[id]
+		if entry.Installed == "" && c.Install == "" && len(commands[id]) == 2*len(c.Commands) {
+			complete := true
+			for _, selected := range selectedEntries(c, c.Store, projectRoot) {
+				for _, name := range selected.Skills {
+					target := entryHome(home, selected)
+					complete = installed(target, name) && skillDriftCount(c.Store, target, name) == 0 && complete
+				}
+			}
+			if complete {
+				entry.Installed = filepath.Base(c.Store)
 			}
 		}
-		entry := state.Components[id]
-		entry.Skills, entry.Commands = skills, commands[id]
 		state.Components[id] = entry
 	}
+	return writeState(home, state)
+}
+
+func recordOwnership(home, id string, skills, commands []string) error {
+	if id == "" {
+		return nil
+	}
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	entry := state.Components[id]
+	entry.Skills = append(entry.Skills, skills...)
+	slices.Sort(entry.Skills)
+	entry.Skills = slices.Compact(entry.Skills)
+	entry.Commands = append(entry.Commands, commands...)
+	slices.Sort(entry.Commands)
+	entry.Commands = slices.Compact(entry.Commands)
+	state.Components[id] = entry
 	return writeState(home, state)
 }
 

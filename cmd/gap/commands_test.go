@@ -34,8 +34,12 @@ func TestComponentCommandSync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := componentEntries(home, project, d, pins); err != nil {
+	entries, _, err := componentEntries(home, project, d, pins)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !installSkills(repo, home, entries) {
+		t.Fatal("skill installation failed")
 	}
 	ledgerPath := filepath.Join(home, ".gap", "published.json")
 	ledger, err := readLedger(ledgerPath)
@@ -51,7 +55,7 @@ func TestComponentCommandSync(t *testing.T) {
 			t.Fatalf("%s = %q", dest, got)
 		}
 	}
-	if err := recordOwnership(home, project, d, owned); err != nil {
+	if err := recordDeclarativeInstalls(home, project, d, owned); err != nil {
 		t.Fatal(err)
 	}
 	state, err := readState(home)
