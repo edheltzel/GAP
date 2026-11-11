@@ -8,7 +8,7 @@ Arguments: $ARGUMENTS
 - First argument: absolute project path. If missing, use the git repository root of the current directory.
 - Remaining text: what to cover. If empty, update pages affected by recent changes; if no `docs/state/README.md` exists, map the whole project.
 
-Nessa docs root: use `$NESSA_DOCS` if set, else `/Users/ed/Developer/Tools/nessa-docs`.
+Nessa docs root: `$NESSA_DOCS`, a local clone of https://github.com/nessalabs/nessa-docs. If it is unset or has no `skills/nessa-docs/SKILL.md`, stop and ask the user for the clone path, and tell them to export `NESSA_DOCS`.
 
 Steps:
 1. Read the nessa docs root's `skills/nessa-docs/SKILL.md` and `references/format.md` beside it, and follow them exactly. Do not copy the skill into the project.
