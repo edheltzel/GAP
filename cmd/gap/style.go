@@ -8,19 +8,25 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
+	"github.com/charmbracelet/x/term"
 )
 
 // report renders status and doctor output. Color is applied only when the
 // destination is a terminal, so piped output and the test capture stay plain
 // text and the substrings those tests match are unchanged.
 type report struct {
-	out io.Writer
-	tty bool
+	out   io.Writer
+	tty   bool
+	width int
 }
 
 func newReport(w io.Writer) *report {
 	f, ok := w.(*os.File)
-	return &report{out: w, tty: ok && isTerminal(f)}
+	r := &report{out: w, tty: ok && isTerminal(f)}
+	if r.tty {
+		r.width, _, _ = term.GetSize(f.Fd())
+	}
+	return r
 }
 
 func isTerminal(f *os.File) bool {
@@ -127,7 +133,11 @@ func (r *report) preview(groups []syncGroup, sel map[string]bool) {
 	}
 	title := r.bold("gap sync", colorAccent) + r.tone("  will publish and install", colorDim)
 	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(colorAccent)).Padding(0, 1)
-	r.println(box.Render(title + "\n\n" + strings.Join(lines, "\n")))
+	content := title + "\n\n" + strings.Join(lines, "\n")
+	if r.width > box.GetHorizontalFrameSize() {
+		box = box.Width(min(r.width, lipgloss.Width(content)+box.GetHorizontalFrameSize()))
+	}
+	r.println(box.Render(content))
 }
 
 // next lists the commands that move the report forward. Empty does nothing.
