@@ -11,9 +11,8 @@ import (
 	"github.com/charmbracelet/x/term"
 )
 
-// report renders status and doctor output. Color is applied only when the
-// destination is a terminal, so piped output and the test capture stay plain
-// text and the substrings those tests match are unchanged.
+// report renders sync, status, and doctor output. Color is applied only when the
+// destination is a terminal, so piped output stays plain text.
 type report struct {
 	out   io.Writer
 	tty   bool

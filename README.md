@@ -84,7 +84,9 @@ With no terminal to ask in, sync lists the drifted skills, including a foreign l
 
 ### Choose what syncs
 
-`gap sync` first prints what it will touch, one line per group:
+`gap sync` groups its work as `policy` (policy and commands), each component id in the effective distro, and `manifest` (`global/skills.json`, when it lists any source). With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Ctrl+c or submitting with no groups checked prints `Nothing synced.` and writes nothing.
+
+After selection, terminal output shows a framed plan, phase headers, progress lines, and a final result. Written paths use `~` for your home directory. Piped output keeps the plain preview and progress lines, for example:
 
 ```
 gap sync will:
@@ -94,7 +96,7 @@ gap sync will:
   manifest   15 skills from 12 sources in global/skills.json (skills.sh, needs npx)
 ```
 
-On a terminal, `gap sync` shows these groups in a picker with every group checked: space toggles a group, enter syncs, ctrl+c writes nothing. When only stdin is a terminal (output piped), it asks `[a]ll, [c]hoose, [q]uit` instead; `c` asks `[Y/n/q]` about each group and `q` at any prompt writes nothing. For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. Without a terminal, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
+When only stdin is a terminal (output piped), sync prints the preview before asking `[a]ll, [c]hoose, [q]uit`; `c` asks `[Y/n/q]` about each group and `q` at any prompt writes nothing. For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. `--only` and `--skip` are mutually exclusive. Without terminal input, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
 
 To add a skill from an existing component, add its name to that component's `names` array in `gap.toml`. For another source, add an entry to `global/skills.json`. Then follow [the merge and publish steps](#step-2-merge-the-change).
 
@@ -183,18 +185,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 gap sync
 ```
 
-It prints each file it wrote:
-
-```text
-~/.claude/rules/global-agent-policy.md
-~/.pi/agent/APPEND_SYSTEM.md
-~/.omp/agent/APPEND_SYSTEM.md
-~/.codex/gap/global-agent-policy.md
-~/.cursor/rules/global-agent-policy.mdc
-~/.empryo/EMPRYO.md
-~/.omp/agent/commands/state-docs.md
-~/.claude/commands/state-docs.md
-```
+It reports each file it wrote using the [terminal or plain-text format](#choose-what-syncs).
 
 Policy files are the shared rules. Each top-level `global/commands/*.md` is a slash-command prompt, copied unchanged as a whole file to OMP and Claude Code. See [how sync handles existing files](#step-4-answer-if-gap-sync-asks-about-a-file).
 
