@@ -62,6 +62,17 @@ func TestSyncPickerPreview(t *testing.T) {
 	}
 }
 
+func TestDumbTerminalSkipsPicker(t *testing.T) {
+	for term, want := range map[string]bool{"xterm-256color": true, "": true, "dumb": false} {
+		if got := usesPicker(term, true, true); got != want {
+			t.Fatalf("usesPicker(%q) = %v, want %v", term, got, want)
+		}
+	}
+	if usesPicker("xterm", true, false) || usesPicker("xterm", false, true) {
+		t.Fatal("picker needs a terminal on stdin and stdout")
+	}
+}
+
 func selectionFixture(t *testing.T) string {
 	t.Helper()
 	home, repo, project, remote := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()

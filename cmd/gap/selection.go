@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"slices"
@@ -178,12 +179,21 @@ func skippedIDs(groups []syncGroup, sel map[string]bool) []string {
 
 // pickReady and pickGroups are the full-screen picker boundary. Tests replace them.
 var (
-	pickReady  = func() bool { return isTerminal(os.Stdin) && isTerminal(os.Stdout) }
+	pickReady  = func() bool { return usesPicker(os.Getenv("TERM"), isTerminal(os.Stdin), isTerminal(os.Stdout)) }
 	pickGroups = huhPick
 )
 
-// huhPick shows every group as a checked option. Enter syncs the checked groups; ctrl+c or an empty pick cancels.
+// usesPicker keeps dumb terminals on the line prompt, where end of input cancels. huh's accessible mode reads it as confirm.
+func usesPicker(term string, stdin, stdout bool) bool {
+	return term != "dumb" && stdin && stdout
+}
+
+// huhPick shows every group as a checked option. Only enter syncs the checked groups; ctrl+c, a signal, or an empty pick cancels.
 func huhPick(groups []syncGroup, sel map[string]bool) (map[string]bool, error) {
+	return runPicker(groups, sel, os.Stdin, os.Stdout)
+}
+
+func runPicker(groups []syncGroup, sel map[string]bool, in io.Reader, out io.Writer) (map[string]bool, error) {
 	width := 0
 	for _, g := range groups {
 		width = max(width, len(g.ID))
@@ -199,19 +209,25 @@ func huhPick(groups []syncGroup, sel map[string]bool) (map[string]bool, error) {
 		Options(opts...).
 		Height(len(groups) + 2).
 		Value(&chosen)
-	err := huh.NewForm(huh.NewGroup(field)).
+	form := huh.NewForm(huh.NewGroup(field)).
 		WithShowHelp(false).
-		WithOutput(os.Stdout).
-		Run()
-	if errors.Is(err, huh.ErrUserAborted) || (err == nil && len(chosen) == 0) {
+		WithOutput(out)
+	if in != os.Stdin {
+		form = form.WithInput(in)
+	}
+	err := form.Run()
+	if errors.Is(err, huh.ErrUserAborted) {
 		return nil, errSyncCancelled
 	}
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]bool{}
-	for _, g := range groups {
-		out[g.ID] = slices.Contains(chosen, g.ID)
+	if form.State != huh.StateCompleted || len(chosen) == 0 {
+		return nil, errSyncCancelled
 	}
-	return out, nil
+	picked := map[string]bool{}
+	for _, g := range groups {
+		picked[g.ID] = slices.Contains(chosen, g.ID)
+	}
+	return picked, nil
 }

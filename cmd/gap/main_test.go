@@ -32,6 +32,9 @@ func TestMain(m *testing.M) {
 		fmt.Print(h)
 		os.Exit(0)
 	}
+	if os.Getenv("GAP_TEST_PICKER") != "" {
+		pickerHelper()
+	}
 	docsDir = "/repo/global/docs/agents"
 	os.Exit(m.Run())
 }

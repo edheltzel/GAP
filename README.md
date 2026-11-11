@@ -84,7 +84,7 @@ With no terminal to ask in, sync lists the drifted skills, including a foreign l
 
 ### Choose what syncs
 
-`gap sync` groups its work as `policy` (policy and commands), each component id in the effective distro, and `manifest` (`global/skills.json`, when it lists any source). With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Ctrl+c or submitting with no groups checked prints `Nothing synced.` and writes nothing.
+`gap sync` groups its work as `policy` (policy and commands), each component id in the effective distro, and `manifest` (`global/skills.json`, when it lists any source). With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Only enter syncs: ctrl+c, a termination signal, or submitting with no groups checked writes nothing. A `TERM=dumb` terminal gets the line prompt below instead.
 
 After selection, terminal output shows a framed plan, phase headers, progress lines, and a final result. Written paths use `~` for your home directory. Piped output keeps the plain preview and progress lines, for example:
 
