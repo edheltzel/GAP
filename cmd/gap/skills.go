@@ -89,7 +89,7 @@ func installSkills(repoRoot, home string, entries []manifestEntry) bool {
 			ok = false
 		} else {
 			for _, name := range missing {
-				fmt.Println(filepath.Join(home, ".agents", "skills", name))
+				newReport(os.Stdout).wrote(filepath.Join(home, ".agents", "skills", name))
 			}
 		}
 		for i, name := range migrate {
@@ -380,7 +380,7 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 			if !drifted {
 				continue
 			}
-			fmt.Printf("Skill drifted from its source or is incomplete: %s\n", name)
+			newReport(os.Stdout).warn("Skill drifted from its source or is incomplete: "+name, name, "drifted from its source or incomplete")
 			if !tty {
 				ok = false
 				continue

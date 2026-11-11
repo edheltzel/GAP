@@ -75,9 +75,10 @@ func syncCmd() *cobra.Command {
 		Use:   "sync",
 		Short: "Preview, then publish the policy and commands, install component and manifest skills, check skills for drift",
 		Long: `sync prints what it will touch, grouped as policy, each component in gap.toml,
-and manifest (global/skills.json). On a terminal it asks [a]ll, [c]hoose, or [q]uit
-before writing anything. --only, --skip, or --yes skip the question. Without a
-terminal every group syncs unless a flag leaves it out.`,
+and manifest (global/skills.json). On a terminal it opens a picker with every group
+checked: space toggles a group, enter syncs, ctrl+c quits before anything is written.
+--only, --skip, or --yes skip the picker. Without a terminal every group syncs unless
+a flag leaves it out.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return finish(syncAll(opts))

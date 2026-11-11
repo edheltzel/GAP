@@ -736,9 +736,14 @@ func componentEntries(home, projectRoot string, d distro, pins map[string]lockEn
 			return nil, err
 		}
 		if c.Install != "" {
+			out := newReport(os.Stdout)
+			out.section(id, "run its installer"+pinLabel(pins[id]))
+			start := time.Now()
 			if err := runComponentCommand(dir, c.Install); err != nil {
+				out.result(false, id+" installer failed")
 				return nil, fmt.Errorf("component %s install: %w", id, err)
 			}
+			out.result(true, fmt.Sprintf("%s installer finished in %s", id, time.Since(start).Round(100*time.Millisecond)))
 		}
 		entries = append(entries, selectedEntries(c, dir, projectRoot)...)
 	}
