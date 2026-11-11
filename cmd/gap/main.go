@@ -820,7 +820,10 @@ func stdinLine() string {
 	if stdin.file != os.Stdin {
 		stdin.file, stdin.reader = os.Stdin, bufio.NewReader(os.Stdin)
 	}
-	line, _ := stdin.reader.ReadString('\n')
+	line, err := stdin.reader.ReadString('\n')
+	if err != nil {
+		return ""
+	}
 	return line
 }
 

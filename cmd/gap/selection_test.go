@@ -161,6 +161,63 @@ func TestSyncSelection(t *testing.T) {
 	}
 }
 
+func TestSyncSelectionRequiresSubmittedLine(t *testing.T) {
+	for _, tc := range []struct {
+		name, input     string
+		policy, install bool
+	}{
+		{"empty EOF", "", false, false},
+		{"space EOF", " ", false, false},
+		{"all EOF", "a", false, false},
+		{"first group empty EOF", "c\n", false, false},
+		{"first group space EOF", "c\n ", false, false},
+		{"first group yes EOF", "c\ny", false, false},
+		{"last group space EOF", "c\ny\n ", false, false},
+		{"last group yes EOF", "c\ny\ny", false, false},
+		{"submitted default", "\n", true, true},
+		{"submitted all", "a\n", true, true},
+		{"submitted groups", "c\nn\ny\n", false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := selectionFixture(t)
+			t.Setenv("TERM", "dumb")
+			answers(t, true)
+			confirmLine = stdinLine
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := os.Stdin
+			os.Stdin = r
+			t.Cleanup(func() { os.Stdin = old; r.Close() })
+			if _, err := w.WriteString(tc.input); err != nil {
+				w.Close()
+				t.Fatal(err)
+			}
+			w.Close()
+			var code int
+			stdout, stderr := captureStd(t, func() { code = run([]string{"sync"}) })
+			if code != 0 || stderr != "" {
+				t.Fatalf("exit %d; stdout %q stderr %q", code, stdout, stderr)
+			}
+			policy := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
+			install := filepath.Join(home, "install.log")
+			if exists(policy) != tc.policy || exists(install) != tc.install {
+				t.Fatalf("policy=%v install=%v, want %v %v", exists(policy), exists(install), tc.policy, tc.install)
+			}
+			if !tc.policy && !tc.install {
+				if !strings.Contains(stdout, "Nothing synced.") {
+					t.Fatalf("missing cancellation result: %q", stdout)
+				}
+				entries, err := os.ReadDir(home)
+				if err != nil || len(entries) != 0 {
+					t.Fatalf("cancelled sync wrote to home: %v, %v", entries, err)
+				}
+			}
+		})
+	}
+}
+
 func TestStdinLineKeepsBufferedAnswers(t *testing.T) {
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -169,11 +226,11 @@ func TestStdinLineKeepsBufferedAnswers(t *testing.T) {
 	old := os.Stdin
 	os.Stdin = r
 	t.Cleanup(func() { os.Stdin = old; r.Close() })
-	if _, err := w.WriteString("c\nn\ny\n"); err != nil {
+	if _, err := w.WriteString("c\nn\ny\ny"); err != nil {
 		t.Fatal(err)
 	}
 	w.Close()
-	for _, want := range []string{"c\n", "n\n", "y\n", ""} {
+	for _, want := range []string{"c\n", "n\n", "y\n", "", ""} {
 		if got := stdinLine(); got != want {
 			t.Fatalf("stdinLine = %q, want %q", got, want)
 		}
