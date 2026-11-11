@@ -1,11 +1,66 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestSyncPinnedCommitPreview(t *testing.T) {
+	const commit = "af85e07bf83baee26ffb79daa425eb84356b35b4"
+	for _, tc := range []struct {
+		name, ref, commit, label string
+	}{
+		{"commit ref", commit, commit, " @ " + commit + " (af85e07)"},
+		{"branch ref", "master", commit, " @ master (af85e07)"},
+		{"unpinned", "master", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			groups := syncGroups(distro{Components: map[string]component{"owned": {}}}, map[string]lockEntryM1{"owned": {Ref: tc.ref, Commit: tc.commit}}, nil, "", 6, 0)
+			stdout, stderr := captureStd(t, func() {
+				printPreview(groups, map[string]bool{"policy": true, "owned": true})
+			})
+			want := "gap sync will:\n  policy  publish AGENTS.md to 6 harness files\n  owned   nothing to install" + tc.label + "\n"
+			if stdout != want || stderr != "" {
+				t.Fatalf("preview = %q, stderr = %q; want %q", stdout, stderr, want)
+			}
+		})
+	}
+}
+
+func TestSyncPickerPreview(t *testing.T) {
+	for _, cancel := range []bool{false, true} {
+		t.Run(map[bool]string{false: "selected plan", true: "cancelled"}[cancel], func(t *testing.T) {
+			answers(t, true)
+			oldReady, oldPick := pickReady, pickGroups
+			pickReady = func() bool { return true }
+			pickGroups = func(_ []syncGroup, _ map[string]bool) (map[string]bool, error) {
+				if cancel {
+					return nil, errSyncCancelled
+				}
+				return map[string]bool{"policy": false, "owned": true}, nil
+			}
+			t.Cleanup(func() { pickReady, pickGroups = oldReady, oldPick })
+			var sel map[string]bool
+			var err error
+			stdout, stderr := captureStd(t, func() {
+				sel, err = chooseGroups([]syncGroup{{"policy", "publish policy"}, {"owned", "run installer"}}, nil, nil, false)
+			})
+			if cancel {
+				if !errors.Is(err, errSyncCancelled) || sel != nil || stdout != "" || stderr != "" {
+					t.Fatalf("cancel = %v, %v; stdout %q stderr %q", sel, err, stdout, stderr)
+				}
+				return
+			}
+			want := "gap sync will:\n  policy  publish policy  (skipped)\n  owned   run installer\n"
+			if err != nil || sel["policy"] || !sel["owned"] || stdout != want || stderr != "" {
+				t.Fatalf("selection = %v, %v; stdout %q stderr %q; want %q", sel, err, stdout, stderr, want)
+			}
+		})
+	}
+}
 
 func selectionFixture(t *testing.T) string {
 	t.Helper()

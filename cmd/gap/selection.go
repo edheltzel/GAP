@@ -38,9 +38,6 @@ func pinLabel(pin lockEntryM1) string {
 		return ""
 	}
 	short := pin.Commit[:min(7, len(pin.Commit))]
-	if pin.Ref == pin.Commit {
-		return " @ " + short
-	}
 	return fmt.Sprintf(" @ %s (%s)", pin.Ref, short)
 }
 
@@ -121,7 +118,12 @@ func chooseGroups(groups []syncGroup, only, skip []string, yes bool) (map[string
 		return sel, nil
 	}
 	if pickReady() {
-		return pickGroups(groups, sel)
+		sel, err := pickGroups(groups, sel)
+		if err != nil {
+			return nil, err
+		}
+		printPreview(groups, sel)
+		return sel, nil
 	}
 	printPreview(groups, sel)
 	fmt.Print("Sync all of it? [a]ll, [c]hoose, [q]uit [a] ")
@@ -191,12 +193,15 @@ func huhPick(groups []syncGroup, sel map[string]bool) (map[string]bool, error) {
 		opts[i] = huh.NewOption(fmt.Sprintf("%-*s  %s", width, g.ID, g.Summary), g.ID).Selected(sel[g.ID])
 	}
 	var chosen []string
-	err := huh.NewMultiSelect[string]().
+	field := huh.NewMultiSelect[string]().
 		Title("gap sync").
 		Description("Pick what to sync. space toggles, enter syncs, ctrl+c quits.").
 		Options(opts...).
 		Height(len(groups) + 2).
-		Value(&chosen).
+		Value(&chosen)
+	err := huh.NewForm(huh.NewGroup(field)).
+		WithShowHelp(false).
+		WithOutput(os.Stdout).
 		Run()
 	if errors.Is(err, huh.ErrUserAborted) || (err == nil && len(chosen) == 0) {
 		return nil, errSyncCancelled

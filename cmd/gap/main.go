@@ -175,7 +175,7 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	if len(entries) > 0 && skillsOK && driftOK {
-		out.result(true, "every skill matches its source")
+		out.result(true, "skill installation and drift review complete")
 	}
 	if advice := empryoPinAdvice(home); advice != "" {
 		fmt.Println(advice)
