@@ -85,8 +85,37 @@ import '../styles/landing/landing.css';
           </article>
         </div>
       </section>
+      <section id="utilities" aria-labelledby="utilities-title">
+        <div class="sec-eye"><b>§ 02</b> Utilities</div>
+        <h2 id="utilities-title">Add any utility. <span>Straight from GitHub.</span></h2>
+        <p class="lead">
+          A repo with a <code>gap-utility.toml</code> is a utility. Add it the way you add a lazy.nvim plugin:
+          <code>gap add owner/repo</code>.
+        </p>
+        <div class="cards">
+          <article class="card">
+            <div class="n"><span>Add</span><i>01</i></div>
+            <h3>gap add owner/repo</h3>
+            <p>Pins the repo in your own lock and installs its skills, commands, and install hook.</p>
+          </article>
+          <article class="card">
+            <div class="n"><span>Update</span><i>02</i></div>
+            <h3>gap update</h3>
+            <p>Moves each pin to the newest commit and keeps any skill you edited. <code>gap sync</code> never moves one.</p>
+          </article>
+          <article class="card">
+            <div class="n"><span>Remove</span><i>03</i></div>
+            <h3>gap remove &lt;id&gt;</h3>
+            <p>Runs its uninstall hook and moves its files to a backup folder, so nothing is lost.</p>
+          </article>
+        </div>
+        <div class="cta">
+          <a class="btn" href="/docs/#add-a-utility">Add a utility</a>
+          <a class="ghost" href="/docs/#publish-a-utility">Publish your own</a>
+        </div>
+      </section>
       <section id="safe" aria-labelledby="safe-title">
-        <div class="sec-eye"><b>§ 02</b> Guarantees</div>
+        <div class="sec-eye"><b>§ 03</b> Guarantees</div>
         <h2 id="safe-title">Quiet by default. <span>Nothing moves on its own.</span></h2>
         <div class="rows">
           <div>
@@ -94,6 +123,13 @@ import '../styles/landing/landing.css';
             <p>
               <b>Sync never moves a skill pin.</b> Only <code>gap pin &lt;id&gt;@&lt;ref&gt;</code> changes
               <code>gap.lock</code>.
+            </p>
+          </div>
+          <div>
+            <span>Hooks</span>
+            <p>
+              <b>A utility's hook asks before it runs.</b> List a repo or <code>owner/*</code> under
+              <code>[trust]</code> to stop the questions.
             </p>
           </div>
           <div>

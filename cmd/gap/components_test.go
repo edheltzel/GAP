@@ -791,6 +791,42 @@ func TestProjectSkillLoadsOnlyWhenMatched(t *testing.T) {
 	}
 }
 
+func TestComponentFromManifest(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	repo := t.TempDir()
+	remote := filepath.Join(t.TempDir(), "remote")
+	writeUtilityRepo(t, remote, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n[hooks]\ninstall = \"touch \\\"$HOME/installed\\\"\"\ndoctor = \"true\"\n")
+	commit, tree := commitAll(t, remote)
+	lock := "schema = \"2\"\n\n[components.util]\nref = \"master\"\ncommit = \"" + commit + "\"\ntree = \"" + tree + "\"\n"
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n\n[components.util]\nrepo = \""+remote+"\"\nref = \"master\"\n")
+	write(t, filepath.Join(repo, "gap.lock"), lock)
+	entries, err := loadTestComponents(repo, home, repo)
+	if err != nil || len(entries) != 1 || len(entries[0].Skills) != 1 || entries[0].Skills[0] != "util-skill" {
+		t.Fatalf("entries: %+v %v", entries, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "installed")); err != nil {
+		t.Fatalf("manifest install hook did not run: %v", err)
+	}
+	d, _, err := effectivePins(repo, home, repo, "")
+	if err != nil || d.Components["util"].Doctor != "true" || !d.Components["util"].Manifest {
+		t.Fatalf("effective: %+v %v", d.Components["util"], err)
+	}
+
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n\n[components.util]\nrepo = \""+remote+"\"\nref = \"master\"\ninstall = \"true\"\n")
+	if _, err := loadTestComponents(repo, home, repo); err == nil || !strings.Contains(err.Error(), utilityManifestName) {
+		t.Fatalf("spec install beside a manifest: %v", err)
+	}
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n\n[components.util]\nrepo = \""+remote+"\"\nref = \"master\"\nnames = [\"other\"]\n")
+	if _, err := loadTestComponents(repo, home, repo); err == nil || !strings.Contains(err.Error(), "does not declare") {
+		t.Fatalf("names outside the manifest: %v", err)
+	}
+}
+
 func loadTestComponents(repoRoot, home, projectRoot string) ([]manifestEntry, error) {
 	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
 	if err != nil {
@@ -800,5 +836,6 @@ func loadTestComponents(repoRoot, home, projectRoot string) ([]manifestEntry, er
 	if err != nil {
 		return nil, err
 	}
-	return componentEntries(home, projectRoot, d, pins)
+	entries, _, err := componentEntries(home, projectRoot, d, pins)
+	return entries, err
 }

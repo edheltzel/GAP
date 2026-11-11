@@ -25,8 +25,8 @@ func applyOverrides(d distro, home, distroRoot, projectRoot, profile string) (di
 		}
 		paths = append(paths, path)
 	}
-	for _, path := range paths {
-		next, err := mergeOverride(d, path)
+	for i, path := range paths {
+		next, err := mergeOverride(d, path, i == 0)
 		if err != nil {
 			return distro{}, err
 		}
@@ -34,7 +34,7 @@ func applyOverrides(d distro, home, distroRoot, projectRoot, profile string) (di
 	}
 	if profile == "" && d.Profile == "crew" {
 		var err error
-		d, err = mergeOverride(d, filepath.Join(distroRoot, "profiles", "crew.toml"))
+		d, err = mergeOverride(d, filepath.Join(distroRoot, "profiles", "crew.toml"), false)
 		if err != nil {
 			return distro{}, err
 		}
@@ -48,7 +48,8 @@ func applyOverrides(d distro, home, distroRoot, projectRoot, profile string) (di
 }
 
 // mergeOverride reads one override file. A missing file returns the distro unchanged.
-func mergeOverride(d distro, path string) (distro, error) {
+// Only the user file (user true) may add a component: a table with repo whose id the distro does not use.
+func mergeOverride(d distro, path string, user bool) (distro, error) {
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return d, nil
@@ -76,6 +77,22 @@ func mergeOverride(d distro, path string) (distro, error) {
 			continue
 		}
 		c, found := d.Components[id]
+		_, adds := table["repo"]
+		if adds && found && !c.User {
+			return distro{}, fmt.Errorf("%s: %s is already a distro component; pick another id, or change it with enabled, ref, or skills", path, id)
+		}
+		if adds && !found {
+			if !user {
+				return distro{}, fmt.Errorf("%s: only ~/.config/gap/gap.toml can add a utility (%s)", path, id)
+			}
+			added, err := parseComponent(id, table)
+			if err != nil {
+				return distro{}, fmt.Errorf("%s: %w", path, err)
+			}
+			added.User = true
+			d.Components[id] = added
+			continue
+		}
 		if !found {
 			continue
 		}
@@ -91,7 +108,7 @@ func mergeOverride(d distro, path string) (distro, error) {
 				if len(name) > 0 && name[0] == 0 {
 					continue
 				}
-				if !slices.Contains(c.Skills, name) {
+				if c.Named && !slices.Contains(c.Skills, name) {
 					return distro{}, fmt.Errorf("%s: skill %s is not in component %s", path, name, id)
 				}
 				spec, ok := value.(map[string]any)

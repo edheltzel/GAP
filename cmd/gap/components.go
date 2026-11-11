@@ -29,6 +29,13 @@ type component struct {
 	Install     string
 	Disabled    bool
 	RefOverride bool
+	Named       bool
+	User        bool
+	Manifest    bool
+	Update      string
+	Uninstall   string
+	Commands    []string
+	Store       string
 }
 
 // skillSpec is one skill's load level. WhenFiles names the repo files that make a
@@ -83,33 +90,79 @@ func readDistro(repoRoot string) (distro, error) {
 		if !ok {
 			return distro{}, fmt.Errorf("gap.toml: component %s must be a table", id)
 		}
-		c := component{ID: id}
-		c.Repo, _ = table["repo"].(string)
-		c.Ref, _ = table["ref"].(string)
-		c.Doctor, _ = table["doctor"].(string)
-		c.Install, _ = table["install"].(string)
-		if c.Repo == "" || c.Ref == "" {
-			return distro{}, fmt.Errorf("gap.toml: component %s needs nonempty string repo and ref", id)
-		}
-		c.Skills, c.SkillSet, err = componentSkills(table)
+		c, err := parseComponent(id, table)
 		if err != nil {
-			return distro{}, fmt.Errorf("gap.toml: component %s: %w", id, err)
+			return distro{}, fmt.Errorf("gap.toml: %w", err)
 		}
-		sort.Strings(c.Skills)
 		d.Components[id] = c
 	}
 	return d, nil
 }
 
-// componentSkills reads names plus an optional [components.<id>.skills] table.
-// names is the install list. The skills table only sets a load level for a name already in it.
-func componentSkills(table map[string]any) ([]string, map[string]skillSpec, error) {
-	raw, ok := table["names"]
-	if !ok {
-		return nil, nil, fmt.Errorf("names must be a string array")
+func parseComponent(id string, table map[string]any) (component, error) {
+	c := component{ID: id}
+	c.Repo, _ = table["repo"].(string)
+	c.Ref, _ = table["ref"].(string)
+	c.Doctor, _ = table["doctor"].(string)
+	c.Install, _ = table["install"].(string)
+	if c.Repo == "" || c.Ref == "" {
+		return component{}, fmt.Errorf("component %s needs nonempty string repo and ref", id)
 	}
+	var err error
+	c.Skills, c.SkillSet, err = componentSkills(table)
+	if err != nil {
+		return component{}, fmt.Errorf("component %s: %w", id, err)
+	}
+	_, c.Named = table["names"]
+	sort.Strings(c.Skills)
+	return c, nil
+}
+
+// applyManifest fills a component's skills, commands, and hooks from gap-utility.toml in its pinned store.
+// names in the spec narrows the manifest's skills. A store with no manifest keeps the spec's own fields.
+func applyManifest(c component, store string) (component, error) {
+	if c.Manifest {
+		return c, nil
+	}
+	if !hasUtilityManifest(store) {
+		if !c.Named {
+			return component{}, fmt.Errorf("component %s: no names in its spec and no %s in its repo", c.ID, utilityManifestName)
+		}
+		return c, nil
+	}
+	if c.Install != "" || c.Doctor != "" {
+		return component{}, fmt.Errorf("component %s: install and doctor belong in the repo's %s, not in its spec", c.ID, utilityManifestName)
+	}
+	m, err := readUtilityManifest(store)
+	if err != nil {
+		return component{}, fmt.Errorf("component %s: %w", c.ID, err)
+	}
+	if c.Named {
+		for _, name := range c.Skills {
+			if !slices.Contains(m.Skills, name) {
+				return component{}, fmt.Errorf("component %s: names lists %s, which its %s does not declare", c.ID, name, utilityManifestName)
+			}
+		}
+	} else {
+		c.Skills = m.Skills
+	}
+	for name := range c.SkillSet {
+		if !slices.Contains(c.Skills, name) {
+			return component{}, fmt.Errorf("component %s: skill %s is not one of its skills", c.ID, name)
+		}
+	}
+	c.Manifest = true
+	c.Commands = m.Commands
+	c.Install, c.Update, c.Uninstall, c.Doctor = m.Hooks.Install, m.Hooks.Update, m.Hooks.Uninstall, m.Hooks.Doctor
+	return c, nil
+}
+
+// componentSkills reads an optional names list plus an optional [components.<id>.skills] table.
+// names narrows the manifest's skills. The skills table only sets a load level for one of them.
+func componentSkills(table map[string]any) ([]string, map[string]skillSpec, error) {
+	raw, named := table["names"]
 	list, ok := raw.([]string)
-	if !ok {
+	if named && !ok {
 		return nil, nil, fmt.Errorf("names must be a string array")
 	}
 	seen := map[string]bool{}
@@ -154,7 +207,7 @@ func componentSkills(table map[string]any) ([]string, map[string]skillSpec, erro
 				return nil, nil, fmt.Errorf("skill %s when.files must be a string array", name)
 			}
 		}
-		if !seen[name] {
+		if named && !seen[name] {
 			return nil, nil, fmt.Errorf("skill %s is not in names", name)
 		}
 		set[name] = s
@@ -223,6 +276,9 @@ func lockFor(d distro, lk lockFile) (map[string]lockEntryM1, error) {
 		e, ok := lk.Components[id]
 		if !ok {
 			c := d.Components[id]
+			if c.User {
+				return nil, fmt.Errorf("utility %s is not pinned; run `gap update %s`", id, id)
+			}
 			return nil, fmt.Errorf("component %s is not pinned; run `gap pin %s@%s`", id, id, c.Ref)
 		}
 		out[id] = e
@@ -246,6 +302,10 @@ func cloneURL(repo string) (string, error) {
 		return "", fmt.Errorf("component repo must be github.com/owner/repo, a file:// URL, or an absolute path: %s", repo)
 	}
 	return "https://github.com/" + owner + ".git", nil
+}
+
+func userConfigDir(home string) string {
+	return filepath.Join(home, ".config", "gap")
 }
 
 func storePath(home, id, commit string) string {
@@ -429,9 +489,38 @@ func effectivePins(repoRoot, home, projectRoot, profile string) (distro, lockFil
 	if err != nil {
 		return distro{}, lockFile{}, err
 	}
+	userLk, err := readLock(userConfigDir(home))
+	if err != nil {
+		return distro{}, lockFile{}, fmt.Errorf("%s: %w", filepath.Join(userConfigDir(home), "gap.lock"), err)
+	}
 	for id, c := range d.Components {
-		if pin, exists := lk.Components[id]; exists && c.RefOverride && c.Ref != pin.Ref {
+		if !c.User {
+			continue
+		}
+		delete(lk.Components, id)
+		if pin, ok := userLk.Components[id]; ok {
+			if pin.Ref != c.Ref {
+				return distro{}, lockFile{}, fmt.Errorf("utility %s requests ref %s but the user lock pins %s; run `gap update %s`", id, c.Ref, pin.Ref, id)
+			}
+			c.RefOverride = false
+			d.Components[id] = c
+			lk.Components[id] = pin
+		}
+	}
+	for id, c := range d.Components {
+		if pin, exists := lk.Components[id]; exists && c.RefOverride && c.Ref != pin.Ref && !c.User {
 			return distro{}, lockFile{}, fmt.Errorf("component %s requests ref %s but gap.lock pins %s; run `gap pin %s@%s`", id, c.Ref, pin.Ref, id, c.Ref)
+		}
+		pin, pinned := lk.Components[id]
+		if !pinned {
+			continue
+		}
+		dir := storePath(home, id, pin.Commit)
+		if state, err := storeState(dir, pin.Tree); err != nil || state != storeOK {
+			continue
+		}
+		if d.Components[id], err = applyManifest(c, dir); err != nil {
+			return distro{}, lockFile{}, err
 		}
 	}
 	return d, lk, nil
@@ -587,6 +676,9 @@ func restoreAll(id string) error {
 		if err != nil {
 			return err
 		}
+		if c, err = applyManifest(c, dir); err != nil {
+			return err
+		}
 		for _, entry := range selectedEntries(c, dir, projectRoot) {
 			target := entryHome(home, entry)
 			for _, name := range entry.Skills {
@@ -622,7 +714,7 @@ func pinComponent(spec string) error {
 	}
 	c, found := d.Components[id]
 	if !found {
-		return fmt.Errorf("component %s is not in gap.toml", id)
+		return fmt.Errorf("component %s is not in gap.toml; move a utility added with gap add using `gap update %s`", id, id)
 	}
 	url, err := cloneURL(c.Repo)
 	if err != nil {
@@ -636,31 +728,34 @@ func pinComponent(spec string) error {
 	if err != nil {
 		return err
 	}
-	tree := ""
-	if prev, ok := lk.Components[id]; ok && prev.Commit == commit && isHexLen(prev.Tree, 40) {
-		tree = prev.Tree
+	pin, err := pinCommit(home, c, ref, commit, lk.Components[id])
+	if err != nil {
+		return err
 	}
-	if tree == "" {
-		probe := lockEntryM1{Ref: ref, Commit: commit, Tree: strings.Repeat("0", 40)}
-		dir, err := fetchCommit(home, c, probe)
-		if err != nil {
-			return err
-		}
-		tree, err = git(dir, "rev-parse", "HEAD^{tree}")
-		if err != nil || !isHexLen(tree, 40) {
-			os.RemoveAll(dir)
-			return fmt.Errorf("component %s: no tree for %s", id, commit)
-		}
-		if err := placeStore(dir, storePath(home, id, commit)); err != nil {
-			os.RemoveAll(dir)
-			return err
-		}
-	}
-	if lk.Components == nil {
-		lk.Components = map[string]lockEntryM1{}
-	}
-	lk.Components[id] = lockEntryM1{Ref: ref, Commit: commit, Tree: tree}
+	lk.Components[id] = pin
 	return writeLock(repoRoot, lk)
+}
+
+// pinCommit returns the lock entry for commit, fetching it into the store when prev does not already name its tree.
+func pinCommit(home string, c component, ref, commit string, prev lockEntryM1) (lockEntryM1, error) {
+	if prev.Commit == commit && isHexLen(prev.Tree, 40) {
+		return lockEntryM1{Ref: ref, Commit: commit, Tree: prev.Tree}, nil
+	}
+	probe := lockEntryM1{Ref: ref, Commit: commit, Tree: strings.Repeat("0", 40)}
+	dir, err := fetchCommit(home, c, probe)
+	if err != nil {
+		return lockEntryM1{}, err
+	}
+	tree, err := git(dir, "rev-parse", "HEAD^{tree}")
+	if err != nil || !isHexLen(tree, 40) {
+		os.RemoveAll(dir)
+		return lockEntryM1{}, fmt.Errorf("component %s: no tree for %s", c.ID, commit)
+	}
+	if err := placeStore(dir, storePath(home, c.ID, commit)); err != nil {
+		os.RemoveAll(dir)
+		return lockEntryM1{}, err
+	}
+	return lockEntryM1{Ref: ref, Commit: commit, Tree: tree}, nil
 }
 
 func gapHomes() (home, repoRoot string, err error) {
@@ -727,27 +822,55 @@ func fetchCommit(home string, c component, l lockEntryM1) (string, error) {
 }
 
 // componentEntries turns pinned components into manifest entries installed from the store.
-func componentEntries(home, projectRoot string, d distro, pins map[string]lockEntryM1) ([]manifestEntry, error) {
+// componentEntries turns pinned components into manifest entries installed from the store.
+// It resolves each component's manifest into d, runs an install or update hook once per pin, and reports false when a hook was not approved.
+func componentEntries(home, projectRoot string, d distro, pins map[string]lockEntryM1) ([]manifestEntry, bool, error) {
+	gate, err := newHookGate(home)
+	if err != nil {
+		return nil, false, err
+	}
 	var entries []manifestEntry
+	ok := true
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
 		dir, err := ensureStore(home, c, pins[id])
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
-		if c.Install != "" {
-			out := newReport(os.Stdout)
-			out.section(id, "run its installer"+pinLabel(pins[id]))
-			start := time.Now()
-			if err := runComponentCommand(dir, c.Install); err != nil {
-				out.result(false, id+" installer failed")
-				return nil, fmt.Errorf("component %s install: %w", id, err)
+		if c, err = applyManifest(c, dir); err != nil {
+			return nil, false, err
+		}
+		c.Store = dir
+		d.Components[id] = c
+		state := gate.state.Components[id]
+		hook, command := installHook(c, state)
+		if command != "" && state.Installed != pins[id].Commit {
+			if !gate.approve(c, hook, command) {
+				ok = false
+			} else {
+				out := newReport(os.Stdout)
+				out.section(id, "run its "+hook+" hook"+pinLabel(pins[id]))
+				start := time.Now()
+				if err := runComponentCommand(dir, command); err != nil {
+					out.result(false, id+" "+hook+" hook failed")
+					if werr := gate.save(home); werr != nil {
+						return nil, false, werr
+					}
+					return nil, false, fmt.Errorf("component %s %s: %w", id, hook, err)
+				}
+				out.result(true, fmt.Sprintf("%s %s hook finished in %s", id, hook, time.Since(start).Round(100*time.Millisecond)))
+				state = gate.state.Components[id]
+				state.Installed = pins[id].Commit
+				gate.state.Components[id] = state
+				gate.dirty = true
 			}
-			out.result(true, fmt.Sprintf("%s installer finished in %s", id, time.Since(start).Round(100*time.Millisecond)))
 		}
 		entries = append(entries, selectedEntries(c, dir, projectRoot)...)
 	}
-	return entries, nil
+	if err := gate.save(home); err != nil {
+		return nil, false, err
+	}
+	return entries, ok, nil
 }
 
 func selectedEntries(c component, store, projectRoot string) []manifestEntry {

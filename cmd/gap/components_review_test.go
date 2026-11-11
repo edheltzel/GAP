@@ -103,7 +103,6 @@ func TestComponentInputTypes(t *testing.T) {
 		{"distro ref type", "schema = \"2\"\n[components.bad]\n" + strings.Replace(distroFields, "ref = \"master\"", "ref = [\"master\"]", 1), "ref", false},
 		{"distro names type", "schema = \"2\"\n[components.bad]\n" + strings.Replace(distroFields, "names = [\"do-todo\"]", "names = \"do-todo\"", 1), "names", false},
 		{"distro names table", "schema = \"2\"\n[components.bad]\n" + strings.Replace(distroFields, "names = [\"do-todo\"]", "[components.bad.names]\ndo-todo = \"always\"", 1), "names", false},
-		{"distro names missing", "schema = \"2\"\n[components.bad]\nrepo = \"github.com/owner/repo\"\nref = \"master\"\n", "names", false},
 		{"lock schema type", "schema = [\"2\"]\n", "schema", true},
 		{"lock schema missing", "[components.bad]\n" + lockFields, "schema", true},
 		{"lock components type", "schema = \"2\"\ncomponents = \"bad\"\n", "components", true},

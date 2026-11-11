@@ -1,0 +1,243 @@
+package main
+
+import (
+	"bytes"
+	"errors"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+type utilityEnv struct {
+	home, repo, project, remote string
+	tty                         bool
+	answers                     []string
+}
+
+func newUtilityEnv(t *testing.T, manifest string) *utilityEnv {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	e := &utilityEnv{home: t.TempDir(), repo: t.TempDir(), project: t.TempDir(), remote: filepath.Join(t.TempDir(), "remote")}
+	t.Setenv("HOME", e.home)
+	t.Setenv("XDG_STATE_HOME", "")
+	write(t, filepath.Join(e.repo, "global", "AGENTS.md"), "policy\n")
+	write(t, filepath.Join(e.repo, "gap.toml"), "schema = \"2\"\n")
+	old := sourceRootFor
+	sourceRootFor = e.repo
+	oldReady, oldLine := termReady, confirmLine
+	t.Cleanup(func() { sourceRootFor, termReady, confirmLine = old, oldReady, oldLine })
+	termReady = func() bool { return e.tty }
+	confirmLine = func() string {
+		if len(e.answers) == 0 {
+			t.Fatal("unexpected prompt")
+		}
+		a := e.answers[0]
+		e.answers = e.answers[1:]
+		return a + "\n"
+	}
+	t.Chdir(e.project)
+	writeUtilityRepo(t, e.remote, manifest)
+	commitAll(t, e.remote)
+	return e
+}
+
+func (e *utilityEnv) exists(rel string) bool {
+	_, err := os.Stat(filepath.Join(e.home, rel))
+	return err == nil
+}
+
+func quietStdout(t *testing.T) {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	done := make(chan struct{})
+	go func() { io.Copy(io.Discard, r); close(done) }()
+	t.Cleanup(func() { w.Close(); <-done; os.Stdout = old })
+}
+
+const hookManifest = "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\ncommands = [\"commands/util-cmd.md\"]\n[hooks]\ninstall = \"touch \\\"$HOME/installed\\\"\"\nuninstall = \"touch \\\"$HOME/uninstalled\\\"\"\n"
+
+func TestUtilityAdd(t *testing.T) {
+	e := newUtilityEnv(t, hookManifest)
+	quietStdout(t)
+	if err := addUtility("github.com/", ""); err == nil {
+		t.Fatal("bad spec accepted")
+	}
+	if err := addUtility(e.remote, ""); !errors.Is(err, errSkipped) {
+		t.Fatalf("untrusted add with no terminal: %v", err)
+	}
+	if e.exists("installed") {
+		t.Fatal("unapproved install hook ran")
+	}
+	config := readString(t, userConfigFile(e.home))
+	if !strings.Contains(config, "[components.remote]") || !strings.Contains(config, "ref = \"master\"") {
+		t.Fatalf("user config = %q", config)
+	}
+	lk, err := readLock(userConfigDir(e.home))
+	if err != nil || lk.Components["remote"].Commit == "" {
+		t.Fatalf("user lock = %+v %v", lk, err)
+	}
+	if _, err := os.Stat(filepath.Join(e.repo, "gap.lock")); !os.IsNotExist(err) {
+		t.Fatal("add wrote the distro lock")
+	}
+	for _, rel := range []string{".agents/skills/util-skill/SKILL.md", ".claude/skills/util-skill/SKILL.md", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md"} {
+		if !e.exists(rel) {
+			t.Fatalf("missing %s", rel)
+		}
+	}
+	if err := addUtility(e.remote, ""); err == nil || !strings.Contains(err.Error(), "already added") {
+		t.Fatalf("second add: %v", err)
+	}
+	e.tty, e.answers = true, []string{"y"}
+	if err := updateUtilities("remote"); err != nil {
+		t.Fatalf("approved update: %v", err)
+	}
+	if !e.exists("installed") {
+		t.Fatal("approved install hook did not run")
+	}
+}
+
+func TestUtilityUpdate(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	quietStdout(t)
+	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
+	if err := addUtility(e.remote, "util"); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := readLock(userConfigDir(e.home))
+	write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: v2\n---\n")
+	write(t, filepath.Join(e.remote, utilityManifestName), "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n[hooks]\ninstall = \"touch \\\"$HOME/installed\\\"\"\nupdate = \"touch \\\"$HOME/updated\\\"\"\n")
+	commit, _ := commitAll(t, e.remote)
+	if err := updateUtilities(""); err != nil {
+		t.Fatal(err)
+	}
+	second, _ := readLock(userConfigDir(e.home))
+	if second.Components["util"].Commit != commit || first.Components["util"].Commit == commit {
+		t.Fatalf("pin did not move: %+v -> %+v", first, second)
+	}
+	if !strings.Contains(readString(t, filepath.Join(e.home, ".agents", "skills", "util-skill", "SKILL.md")), "v2") {
+		t.Fatal("update did not install the new skill")
+	}
+	if !e.exists("installed") || e.exists("updated") {
+		t.Fatal("first hook run after an add with no hook must be install")
+	}
+	if err := updateUtilities("nope"); err == nil {
+		t.Fatal("unknown id updated")
+	}
+	write(t, filepath.Join(e.repo, "gap.toml"), "schema = \"2\"\n\n[components.distro]\nrepo = \""+e.remote+"\"\nref = \"master\"\n")
+	if err := updateUtilities("distro"); err == nil || !strings.Contains(err.Error(), "gap pin") {
+		t.Fatalf("distro update: %v", err)
+	}
+}
+
+func TestUtilityList(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	quietStdout(t)
+	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
+	if err := addUtility(e.remote, "util"); err != nil {
+		t.Fatal(err)
+	}
+	r, w, _ := os.Pipe()
+	old := os.Stdout
+	os.Stdout = w
+	err := listUtilities()
+	w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	if err != nil || !strings.Contains(buf.String(), "util") || !strings.Contains(buf.String(), "user") || !strings.Contains(buf.String(), "trusted") {
+		t.Fatalf("list: %v\n%s", err, buf.String())
+	}
+}
+
+func TestUtilityRemove(t *testing.T) {
+	e := newUtilityEnv(t, hookManifest)
+	quietStdout(t)
+	write(t, userConfigFile(e.home), "[components.keep]\nenabled = false\n")
+	e.tty, e.answers = true, []string{"y"}
+	if err := addUtility(e.remote, "util"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(e.home, ".agents", "skills", "shared-skill", "SKILL.md"), "distro\n")
+	state, _ := readState(e.home)
+	owned := state.Components["util"]
+	owned.Skills = append(owned.Skills, "shared-skill")
+	state.Components["util"] = owned
+	if err := writeState(e.home, state); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(e.repo, "global", "skills.json"), "[{\"source\": \"x/y\", \"skills\": [\"shared-skill\"]}]\n")
+	edited := filepath.Join(e.home, ".claude", "skills", "util-skill", "SKILL.md")
+	write(t, edited, "my edit\n")
+	e.answers = []string{"y"}
+	if err := removeUtility("util"); err != nil {
+		t.Fatal(err)
+	}
+	if !e.exists("uninstalled") {
+		t.Fatal("uninstall hook did not run")
+	}
+	for _, rel := range []string{".agents/skills/util-skill", ".claude/skills/util-skill", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md"} {
+		if e.exists(rel) {
+			t.Fatalf("%s left behind", rel)
+		}
+	}
+	backups, _ := filepath.Glob(filepath.Join(e.home, ".gap", "backups", "*", ".claude", "skills", "util-skill", "SKILL.md"))
+	if len(backups) != 1 || readString(t, backups[0]) != "my edit\n" {
+		t.Fatalf("edited skill backup: %v", backups)
+	}
+	if !e.exists(".agents/skills/shared-skill/SKILL.md") {
+		t.Fatal("remove took a skill another source selects")
+	}
+	config := readString(t, userConfigFile(e.home))
+	if strings.Contains(config, "util") || !strings.Contains(config, "[components.keep]") {
+		t.Fatalf("user config after remove = %q", config)
+	}
+	lk, _ := readLock(userConfigDir(e.home))
+	state, _ = readState(e.home)
+	if _, ok := lk.Components["util"]; ok {
+		t.Fatal("lock entry left")
+	}
+	if _, ok := state.Components["util"]; ok {
+		t.Fatal("state entry left")
+	}
+	if err := removeUtility("util"); err == nil {
+		t.Fatal("second remove succeeded")
+	}
+}
+
+func TestUtilityRemoveWarnsWithoutUninstall(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n[hooks]\ninstall = \"true\"\n")
+	quietStdout(t)
+	e.tty, e.answers = true, []string{"y"}
+	if err := addUtility(e.remote, "util"); err != nil {
+		t.Fatal(err)
+	}
+	r, w, _ := os.Pipe()
+	old := os.Stderr
+	os.Stderr = w
+	err := removeUtility("util")
+	w.Close()
+	os.Stderr = old
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	if err != nil || !strings.Contains(buf.String(), "no uninstall hook") {
+		t.Fatalf("remove: %v\n%s", err, buf.String())
+	}
+}
+
+func TestRemoveTOMLComponent(t *testing.T) {
+	text := "profile = \"x\"\n\n[components.a] # mine\nrepo = \"r\"\n\n[components.a.skills.s]\nload = \"off\"\n\n[components.ab]\nenabled = false\n"
+	got, found := removeTOMLComponent(text, "a")
+	if !found || got != "profile = \"x\"\n\n[components.ab]\nenabled = false\n" {
+		t.Fatalf("got %q %v", got, found)
+	}
+}

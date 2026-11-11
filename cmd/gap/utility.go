@@ -1,0 +1,545 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"text/tabwriter"
+)
+
+// parseUtilitySpec turns owner/repo[@ref], github.com/owner/repo[@ref], or a file:// URL or absolute path into a repo, ref, and default id.
+func parseUtilitySpec(spec string) (repo, ref, id string, err error) {
+	repo = spec
+	if i := strings.LastIndex(spec, "@"); i > 0 {
+		repo, ref = spec[:i], spec[i+1:]
+		if ref == "" {
+			return "", "", "", fmt.Errorf("usage: gap add owner/repo[@ref]")
+		}
+	}
+	switch {
+	case strings.HasPrefix(repo, "file://") || filepath.IsAbs(repo):
+	case strings.HasPrefix(repo, "github.com/"):
+	default:
+		repo = "github.com/" + repo
+	}
+	repo = strings.TrimSuffix(strings.TrimSuffix(repo, "/"), ".git")
+	if _, err := cloneURL(repo); err != nil {
+		return "", "", "", err
+	}
+	id = strings.ToLower(filepath.Base(strings.TrimPrefix(repo, "file://")))
+	return repo, ref, id, nil
+}
+
+// defaultBranch is the branch the remote's HEAD points at.
+func defaultBranch(url string) (string, error) {
+	out, err := git(".", "ls-remote", "--symref", url, "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("reading the default branch of %s: %w", url, err)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if rest, ok := strings.CutPrefix(line, "ref: refs/heads/"); ok {
+			if branch, _, ok := strings.Cut(rest, "\t"); ok {
+				return branch, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("%s has no default branch; pass owner/repo@ref", url)
+}
+
+func validID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, r := range id {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.') {
+			return false
+		}
+	}
+	return id != "." && id != ".."
+}
+
+func userConfigFile(home string) string {
+	return filepath.Join(userConfigDir(home), "gap.toml")
+}
+
+func addUtility(spec, id string) error {
+	home, repoRoot, err := gapHomes()
+	if err != nil {
+		return err
+	}
+	projectRoot, err := invokingProjectRoot()
+	if err != nil {
+		return err
+	}
+	repo, ref, defaultID, err := parseUtilitySpec(spec)
+	if err != nil {
+		return err
+	}
+	if id == "" {
+		id = defaultID
+	}
+	if !validID(id) {
+		return fmt.Errorf("id %q must use lowercase letters, digits, dot, dash, or underscore; pass --id", id)
+	}
+	d, _, err := effectivePins(repoRoot, home, projectRoot, "")
+	if err != nil {
+		return err
+	}
+	if c, taken := d.Components[id]; taken {
+		if c.User {
+			return fmt.Errorf("utility %s is already added; run gap update %s", id, id)
+		}
+		return fmt.Errorf("%s is already a distro component; pass --id to add this repo under another id", id)
+	}
+	url, err := cloneURL(repo)
+	if err != nil {
+		return err
+	}
+	if ref == "" {
+		if ref, err = defaultBranch(url); err != nil {
+			return err
+		}
+	}
+	commit, err := resolveRef(url, ref)
+	if err != nil {
+		return err
+	}
+	c := component{ID: id, Repo: repo, Ref: ref, User: true}
+	pin, err := pinCommit(home, c, ref, commit, lockEntryM1{})
+	if err != nil {
+		return err
+	}
+	m, err := readUtilityManifest(storePath(home, id, commit))
+	if err != nil {
+		return fmt.Errorf("%s: %w", repo, err)
+	}
+	out := newReport(os.Stdout)
+	out.section(id, describeUtility(m)+pinLabel(pin))
+	config := userConfigFile(home)
+	text, err := readOptional(config)
+	if err != nil {
+		return err
+	}
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	if text != "" {
+		text += "\n"
+	}
+	text += fmt.Sprintf("[components.%s]\nrepo = %q\nref = %q\n", tomlKey(id), repo, ref)
+	if err := writeAtomic(config, text); err != nil {
+		return err
+	}
+	if err := setUserPin(home, id, pin); err != nil {
+		return err
+	}
+	return installUtility(home, repoRoot, projectRoot, id, "")
+}
+
+func describeUtility(m utilityManifest) string {
+	var parts []string
+	if len(m.Skills) > 0 {
+		parts = append(parts, plural(len(m.Skills), "skill"))
+	}
+	if len(m.Commands) > 0 {
+		parts = append(parts, plural(len(m.Commands), "command"))
+	}
+	var hooks []string
+	for _, h := range [][2]string{{"install", m.Hooks.Install}, {"update", m.Hooks.Update}, {"uninstall", m.Hooks.Uninstall}, {"doctor", m.Hooks.Doctor}} {
+		if h[1] != "" {
+			hooks = append(hooks, h[0])
+		}
+	}
+	if len(hooks) > 0 {
+		parts = append(parts, "hooks: "+strings.Join(hooks, ", "))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func readOptional(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	return string(b), err
+}
+
+func setUserPin(home, id string, pin lockEntryM1) error {
+	lk, err := readLock(userConfigDir(home))
+	if err != nil {
+		return err
+	}
+	lk.Components[id] = pin
+	return writeLock(userConfigDir(home), lk)
+}
+
+// installUtility syncs one component: its hook, its skills, its commands, and the ownership record.
+// prevStore, when set, is the store of the pin being replaced: a skill copy that still matches it moves to the new pin.
+func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
+	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
+	if err != nil {
+		return err
+	}
+	c, ok := d.Components[id]
+	if !ok {
+		return fmt.Errorf("utility %s is not in %s", id, userConfigFile(home))
+	}
+	d.Components = map[string]component{id: c}
+	pins, err := lockFor(d, lk)
+	if err != nil {
+		return err
+	}
+	entries, hooksOK, err := componentEntries(home, projectRoot, d, pins)
+	if err != nil {
+		return err
+	}
+	ledgerPath := filepath.Join(home, ".gap", "published.json")
+	ledger, err := readLedger(ledgerPath)
+	if err != nil {
+		return err
+	}
+	owned, commandsOK, err := publishComponentCommands(repoRoot, home, d, ledger, ledgerPath)
+	if err != nil {
+		return err
+	}
+	skillsOK := true
+	if prevStore != "" && prevStore != d.Components[id].Store {
+		for _, entry := range entries {
+			target := entryHome(home, entry)
+			for _, name := range entry.Skills {
+				if !installed(target, name) || skillDriftCount(entry.Path, target, name) == 0 {
+					continue
+				}
+				if skillDriftCount(prevStore, target, name) > 0 {
+					fmt.Fprintf(os.Stderr, "%s: your edited copy of %s was kept; gap restore %s takes the new version\n", id, name, id)
+					skillsOK = false
+					continue
+				}
+				if replaced, err := replaceSkill("", repoRoot, target, entry, name); err != nil || !replaced {
+					fmt.Fprintf(os.Stderr, "Updating %s: %v\n", name, err)
+					skillsOK = false
+				}
+			}
+		}
+	}
+	skillsOK = installSkills(repoRoot, home, entries) && skillsOK
+	if err := recordOwnership(home, projectRoot, d, owned); err != nil {
+		return err
+	}
+	if !hooksOK || !commandsOK || !skillsOK {
+		return errSkipped
+	}
+	return nil
+}
+
+func updateUtilities(id string) error {
+	home, repoRoot, err := gapHomes()
+	if err != nil {
+		return err
+	}
+	projectRoot, err := invokingProjectRoot()
+	if err != nil {
+		return err
+	}
+	d, err := readDistro(repoRoot)
+	if err != nil {
+		return err
+	}
+	if d, err = applyOverrides(d, home, repoRoot, projectRoot, ""); err != nil {
+		return err
+	}
+	lk, err := readLock(userConfigDir(home))
+	if err != nil {
+		return err
+	}
+	var ids []string
+	for _, cid := range sortedIDs(d.Components) {
+		if d.Components[cid].User && (id == "" || cid == id) {
+			ids = append(ids, cid)
+		}
+	}
+	if id != "" && len(ids) == 0 {
+		if _, distroID := d.Components[id]; distroID {
+			return fmt.Errorf("%s is a distro component; move its pin with gap pin %s@<ref>", id, id)
+		}
+		return fmt.Errorf("utility %s is not added; run gap add owner/repo", id)
+	}
+	out := newReport(os.Stdout)
+	failed := false
+	for _, cid := range ids {
+		c := d.Components[cid]
+		url, err := cloneURL(c.Repo)
+		if err != nil {
+			return err
+		}
+		commit, err := resolveRef(url, c.Ref)
+		if err != nil {
+			return err
+		}
+		prev, pinned := lk.Components[cid]
+		prevStore := ""
+		if pinned {
+			prevStore = storePath(home, cid, prev.Commit)
+		}
+		if pinned && prev.Commit == commit && prev.Ref == c.Ref {
+			out.result(true, cid+" is up to date"+pinLabel(prev))
+		} else {
+			pin, err := pinCommit(home, c, c.Ref, commit, prev)
+			if err != nil {
+				return err
+			}
+			if _, err := readUtilityManifest(storePath(home, cid, commit)); err != nil {
+				return fmt.Errorf("%s at %s: %w", cid, commit[:7], err)
+			}
+			lk.Components[cid] = pin
+			if err := writeLock(userConfigDir(home), lk); err != nil {
+				return err
+			}
+			out.result(true, cid+" pinned"+pinLabel(pin))
+		}
+		if err := installUtility(home, repoRoot, projectRoot, cid, prevStore); err != nil {
+			if !errors.Is(err, errSkipped) {
+				return err
+			}
+			failed = true
+		}
+	}
+	if failed {
+		return errSkipped
+	}
+	return nil
+}
+
+func listUtilities() error {
+	home, repoRoot, err := gapHomes()
+	if err != nil {
+		return err
+	}
+	projectRoot, err := invokingProjectRoot()
+	if err != nil {
+		return err
+	}
+	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
+	if err != nil {
+		return err
+	}
+	trust, err := trustList(home)
+	if err != nil {
+		return err
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tSOURCE\tREPO\tREF\tCOMMIT\tHOOKS")
+	for _, id := range sortedIDs(d.Components) {
+		c := d.Components[id]
+		source, hooks := "distro", "run"
+		if c.User {
+			source, hooks = "user", "ask"
+			if isTrusted(c.Repo, trust) {
+				hooks = "trusted"
+			}
+		}
+		commit := "unpinned"
+		if pin, ok := lk.Components[id]; ok {
+			commit = pin.Commit[:7]
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", id, source, repoIdentity(c.Repo), c.Ref, commit, hooks)
+	}
+	return w.Flush()
+}
+
+// removeTOMLComponent drops [components.<id>] and its subtables from a TOML text, leaving every other line as it was.
+func removeTOMLComponent(text, id string) (string, bool) {
+	head := "[components." + tomlKey(id)
+	var kept []string
+	dropping, found := false, false
+	for _, line := range strings.SplitAfter(text, "\n") {
+		trim := strings.TrimSpace(stripComment(line))
+		if strings.HasPrefix(trim, "[") {
+			dropping = trim == head+"]" || strings.HasPrefix(trim, head+".")
+			found = found || dropping
+		}
+		if !dropping {
+			kept = append(kept, line)
+		}
+	}
+	out := strings.Join(kept, "")
+	for strings.HasSuffix(out, "\n\n") {
+		out = strings.TrimSuffix(out, "\n")
+	}
+	return out, found
+}
+
+func removeUtility(id string) error {
+	home, repoRoot, err := gapHomes()
+	if err != nil {
+		return err
+	}
+	projectRoot, err := invokingProjectRoot()
+	if err != nil {
+		return err
+	}
+	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
+	if err != nil {
+		return err
+	}
+	c, ok := d.Components[id]
+	if !ok || !c.User {
+		if ok {
+			return fmt.Errorf("%s is a distro component; set enabled = false under [components.%s] in %s to leave it out", id, id, userConfigFile(home))
+		}
+		return fmt.Errorf("utility %s is not added", id)
+	}
+	gate, err := newHookGate(home)
+	if err != nil {
+		return err
+	}
+	out := newReport(os.Stdout)
+	if pin, pinned := lk.Components[id]; pinned {
+		dir, err := ensureStore(home, c, pin)
+		if err != nil {
+			return err
+		}
+		if c, err = applyManifest(c, dir); err != nil {
+			return err
+		}
+		c.Store = dir
+		if c.Uninstall != "" {
+			if !gate.approve(c, "uninstall", c.Uninstall) {
+				gate.save(home)
+				return fmt.Errorf("%s: uninstall hook not approved; nothing removed", id)
+			}
+			if err := runComponentCommand(dir, c.Uninstall); err != nil {
+				gate.save(home)
+				return fmt.Errorf("%s uninstall hook failed; nothing removed: %w", id, err)
+			}
+			out.result(true, id+" uninstall hook finished")
+		} else if c.Install != "" && !gate.trusted(c) {
+			fmt.Fprintf(os.Stderr, "%s has an install hook but no uninstall hook; gap cannot undo what its installer did.\n", id)
+		}
+	}
+	entry := gate.state.Components[id]
+	shared := map[string]bool{}
+	for oid, other := range d.Components {
+		if oid != id {
+			for _, name := range other.Skills {
+				shared[name] = true
+			}
+		}
+	}
+	if extra, err := readManifest(repoRoot); err == nil {
+		for _, e := range extra {
+			for _, name := range e.Skills {
+				shared[name] = true
+			}
+		}
+	}
+	backup := backupPath(home, home)
+	var edited []string
+	moved := 0
+	moveOut := func(path string, changed bool) error {
+		if _, err := os.Lstat(path); err != nil {
+			return nil
+		}
+		rel, err := filepath.Rel(home, path)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			return fmt.Errorf("refusing to remove %s: outside home", path)
+		}
+		dest := filepath.Join(backup, rel)
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return err
+		}
+		if err := os.Rename(path, dest); err != nil {
+			return err
+		}
+		moved++
+		if changed {
+			edited = append(edited, dest)
+		}
+		return nil
+	}
+	for _, name := range entry.Skills {
+		if shared[name] {
+			fmt.Printf("Kept %s: another component or global/skills.json also selects it\n", name)
+			continue
+		}
+		changed := c.Store == "" || skillDriftCount(c.Store, home, name) > 0
+		for _, dir := range skillDirs(home, name) {
+			if err := moveOut(dir, changed); err != nil {
+				return err
+			}
+		}
+		if err := restoreSkillLock(skillLockSnap{path: skillLockPath(home), name: name, hadFile: fileExists(skillLockPath(home))}); err != nil {
+			return err
+		}
+	}
+	ledgerPath := filepath.Join(home, ".gap", "published.json")
+	ledger, err := readLedger(ledgerPath)
+	if err != nil {
+		return err
+	}
+	for _, path := range entry.Commands {
+		changed := true
+		if c.Store != "" {
+			for _, rel := range c.Commands {
+				if filepath.Base(rel) == filepath.Base(path) {
+					want, _ := os.ReadFile(filepath.Join(c.Store, filepath.FromSlash(rel)))
+					got, _ := os.ReadFile(path)
+					changed = string(want) != string(got)
+				}
+			}
+		}
+		if err := moveOut(path, changed); err != nil {
+			return err
+		}
+		delete(ledger, path)
+	}
+	if err := writeLedger(ledgerPath, ledger); err != nil {
+		return err
+	}
+	config := userConfigFile(home)
+	text, err := readOptional(config)
+	if err != nil {
+		return err
+	}
+	if next, found := removeTOMLComponent(text, id); found {
+		if err := writeAtomic(config, next); err != nil {
+			return err
+		}
+	}
+	userLk, err := readLock(userConfigDir(home))
+	if err != nil {
+		return err
+	}
+	if _, pinned := userLk.Components[id]; pinned {
+		delete(userLk.Components, id)
+		if err := writeLock(userConfigDir(home), userLk); err != nil {
+			return err
+		}
+	}
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	delete(state.Components, id)
+	if err := writeState(home, state); err != nil {
+		return err
+	}
+	slices.Sort(edited)
+	for _, path := range edited {
+		fmt.Printf("Kept your edited copy at %s\n", path)
+	}
+	if moved > 0 {
+		out.result(true, fmt.Sprintf("%s removed; its files moved to %s", id, backup))
+	} else {
+		out.result(true, id+" removed")
+	}
+	return nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}

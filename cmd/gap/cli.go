@@ -40,7 +40,9 @@ curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/instal
 after cmd/gap changes.
 Component skills install from the pinned store with no Node. Skills in
 global/skills.json that are not pinned still install through skills.sh, which needs Node (npx).
-sync never moves pins. pin is the only command that writes gap.lock.`,
+sync never moves pins. pin is the only command that writes gap.lock.
+add, update, and remove manage utilities you add yourself: a GitHub repo with a
+gap-utility.toml, recorded in ~/.config/gap/gap.toml and pinned in ~/.config/gap/gap.lock.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -48,7 +50,7 @@ sync never moves pins. pin is the only command that writes gap.lock.`,
 			return cmd.Help()
 		},
 	}
-	root.AddCommand(syncCmd(), statusCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand())
+	root.AddCommand(syncCmd(), statusCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), updateCmd(), removeCmd(), listCmd())
 	return root
 }
 
@@ -132,6 +134,55 @@ func doctorCmd() *cobra.Command {
 		Short: "Run each component's doctor and report which harnesses are present",
 		Args:  cobra.NoArgs,
 		RunE:  func(cmd *cobra.Command, _ []string) error { return finish(doctorAll()) },
+	}
+}
+
+func addCmd() *cobra.Command {
+	var id string
+	cmd := &cobra.Command{
+		Use:   "add <owner/repo[@ref]>",
+		Short: "Add a utility: pin a repo with a gap-utility.toml and install it",
+		Long: `add reads the repo's gap-utility.toml, records the repo in ~/.config/gap/gap.toml,
+pins it in ~/.config/gap/gap.lock, and installs its skills, commands, and install hook.
+The ref defaults to the repo's default branch. A hook asks before it runs unless the
+repo is listed under [trust] repos in ~/.config/gap/gap.toml.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error { return finish(addUtility(args[0], id)) },
+	}
+	cmd.Flags().StringVar(&id, "id", "", "id to add the utility under (default: the repo name, lowercased)")
+	return cmd
+}
+
+func updateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update [id]",
+		Short: "Move a utility's pin to the newest commit on its ref, then install it",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id := ""
+			if len(args) == 1 {
+				id = args[0]
+			}
+			return finish(updateUtilities(id))
+		},
+	}
+}
+
+func removeCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove <id>",
+		Short: "Run a utility's uninstall hook, move its files to ~/.gap/backups, and drop it",
+		Args:  cobra.ExactArgs(1),
+		RunE:  func(cmd *cobra.Command, args []string) error { return finish(removeUtility(args[0])) },
+	}
+}
+
+func listCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List every component and utility with its source, pin, and hook trust",
+		Args:  cobra.NoArgs,
+		RunE:  func(cmd *cobra.Command, _ []string) error { return finish(listUtilities()) },
 	}
 }
 
