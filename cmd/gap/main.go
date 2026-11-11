@@ -815,7 +815,8 @@ var stdin struct {
 	reader *bufio.Reader
 }
 
-// stdinLine reads one line through a single reader per os.Stdin, so a pasted burst of answers is not dropped between prompts.
+// stdinLine shares a reader per os.Stdin so pasted answers survive between prompts.
+// A read without a terminating newline returns no answer, so EOF cannot submit a partial confirmation.
 func stdinLine() string {
 	if stdin.file != os.Stdin {
 		stdin.file, stdin.reader = os.Stdin, bufio.NewReader(os.Stdin)

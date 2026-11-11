@@ -15,7 +15,7 @@ GAP is one set of rules that every coding agent on your machine follows. You, or
 
 ## Before you start
 
-- Go 1.25 or newer (`go version`)
+- The Go version required by [go.mod](go.mod), or newer (`go version`)
 - Go's bin folder on your `PATH`: `$(go env GOPATH)/bin`, or `GOBIN` if you set it
 
 ## Install `gap`
@@ -31,7 +31,7 @@ That one line does four things:
 3. It builds `gap` with `go install ./cmd/gap` and puts the binary in Go's bin folder.
 4. It checks whether your shell can find that folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it.
 
-It needs Go 1.25 or newer and git. Installation writes the source checkout and Go binary. `gap sync` publishes the policy and installs the selected components and skills.
+Installation also needs git. It writes the source checkout and Go binary. `gap sync` publishes the policy and installs the selected components and skills.
 
 Already have the repo checked out? From its root, `sh scripts/install.sh` builds that copy instead of cloning, including when stdin is redirected. Keep that checkout too.
 
@@ -96,7 +96,9 @@ gap sync will:
   manifest   15 skills from 12 sources in global/skills.json (skills.sh, needs npx)
 ```
 
-When only stdin is a terminal (output piped), sync prints the preview before asking `[a]ll, [c]hoose, [q]uit`; `c` asks `[Y/n/q]` about each group and `q` at any prompt writes nothing. For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. `--only` and `--skip` are mutually exclusive. Without terminal input, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
+With terminal input and either `TERM=dumb` or piped output, sync prints the preview before asking `[a]ll, [c]hoose, [q]uit`; `c` asks `[Y/n/q]` about each group. Press enter to submit each answer. An empty submitted line means all at the first prompt and yes at each group prompt. Entering `q`, choosing no groups, or reaching end of input (EOF), even after typing a partial answer, prints `Nothing synced.`, writes nothing, and exits `0`.
+
+For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. `--only` and `--skip` are mutually exclusive. Without terminal input, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
 
 To add a skill from an existing component, add its name to that component's `names` array in `gap.toml`. For another source, add an entry to `global/skills.json`. Then follow [the merge and publish steps](#step-2-merge-the-change).
 
