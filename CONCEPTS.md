@@ -43,7 +43,7 @@ The step that copies the current GAP policy into the files each harness already 
 A skill selected by a component, through its `gap-utility.toml` or its `names` in `gap.toml`, or by `global/skills.json`. See [Manage skills](README.md#manage-skills) for installation and drift handling.
 
 ### Utility
-A repo that ships skills, commands, or its own tooling and describes them in a manifest, the way a lazy.nvim plugin describes itself. A utility is installed, updated, and removed through `gap`. The distro's components are utilities too.
+A repo that ships skills, commands, or its own tooling and describes them in a manifest, the way a lazy.nvim plugin describes itself. The distro's components are utilities too. User utilities have their own [lifecycle](README.md#add-a-utility).
 *Avoid:* package, plugin
 
 ### Manifest
@@ -56,7 +56,7 @@ A shell command a utility's manifest runs at install, update, uninstall, or doct
 `~/.config/gap/gap.lock`: the pins for utilities added with `gap add`. It is the user's own, like `lazy-lock.json`. It is not the distro's `gap.lock`.
 
 ### Trust
-A `[trust]` entry in `~/.config/gap/gap.toml` that lets a repo, or every repo of an owner, run its hooks without asking. Without it, GAP asks each time a hook runs.
+Permission for a user utility to run hooks without approval for each execution. See [Hooks and trust](README.md#hooks-and-trust) for configuration and approval rules.
 
 ## Decisions
 

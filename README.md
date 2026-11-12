@@ -53,7 +53,7 @@ gap sync
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
 | `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
 | `gap restore [id]` | Back up and replace missing or drifted component skills at the locked commit, reusing a verified store copy |
-| `gap pin <id>@<ref>` | Resolve a branch, tag, or commit and write it to `gap.lock`. The only command that moves a pin |
+| `gap pin <id>@<ref>` | Resolve a distro component's branch, tag, or commit and write it to the distro's `gap.lock` |
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
 | `gap add <owner/repo[@ref]> [--id <id>]` | Add a utility: pin a repo that ships a `gap-utility.toml` and install it. See [Add a utility](#add-a-utility) |
 | `gap update [id]` | Move a utility's pin to the newest commit on its ref, then install it. Omit the id to update every utility you added |
@@ -66,7 +66,7 @@ Use `gap --help` or `gap <command> --help` for usage and flags. Status and docto
 
 ## Manage skills
 
-`gap.toml` selects the pinned [component skills](#components), including Do-Skills. `global/skills.json` selects additional skills by source. In that manifest, `"source": "."` means a skill in this repo's `skills/` folder; any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
+The distro's `gap.toml` and your `~/.config/gap/gap.toml` select pinned [components](#components). Their skill lists and load levels are described under [Load levels](#load-levels). `global/skills.json` selects additional skills by source. In that manifest, `"source": "."` means a skill in this repo's `skills/` folder; any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
 
 ```json
 [
@@ -84,7 +84,7 @@ Sync checks installed managed skills against their selected source. Component sk
 - `t` takes the source. Sync backs up both destinations under `~/.gap/backups/`, then reinstalls. A failed install restores the previous destinations.
 - `s` skips it for now. Sync exits `1`.
 
-With no terminal to ask in, sync lists the drifted skills, including a foreign lock that was not migrated, changes none of them, and exits `1`. Skills selected by neither `gap.toml` nor `global/skills.json` are never touched.
+With no terminal to ask in, sync lists the drifted skills, including a foreign lock that was not migrated, changes none of them, and exits `1`. Skills outside the selected components and `global/skills.json` are never touched.
 
 ### Choose what syncs
 
@@ -123,7 +123,7 @@ names = ["do-commit", "do-todo"]
 
 `gap pin do-skills@master` writes the requested ref, resolved commit, and tree to `gap.lock`. If a branch and tag share a name, use `refs/heads/<name>` or `refs/tags/<name>` to choose one. Machine sync fetches the locked commit into `~/.gap/store/<id>/<commit>/`, checks its tree against the lock, and installs the selected skills as described above. Sync never moves a pin. A component missing from `gap.lock` stops the sync and names the `gap pin` command to run. `gap.toml` and `gap.lock` pass the same merge gate as `global/`.
 
-The distro includes Do-Skills, Forge, Echo, and Recall. Forge supplies `forge-interview`. Echo and Recall have empty skill lists: machine sync runs their `install` commands from their verified stores, and those installers own their skills and runtime prerequisites. An install hook runs once per pinned commit, not on every sync; `~/.gap/state.json` records the commit it last ran for. Gap copies no skills from them and never installs a harness.
+The distro includes Do-Skills, Forge, Echo, and Recall. Forge supplies `forge-interview`. Echo and Recall have empty skill lists: machine sync runs their `install` commands from their verified stores, and those installers own their skills and runtime prerequisites. Hook timing and state are described under [Hooks and trust](#hooks-and-trust). Gap copies no skills from them and never installs a harness.
 
 `gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing pins, missing or changed stores, and failed doctors produce exit `1`; doctor does not fetch missing components.
 
@@ -161,7 +161,7 @@ load = "project"
 files = ["astro.config.*", "apps/site/astro.config.*"]
 ```
 
-Overrides never write `gap.lock`. If an overridden `ref` differs from the locked ref, the command stops and names the `gap pin <id>@<ref>` command needed to change the pin.
+Overrides never write either lock. If an overridden `ref` differs from the locked ref, the command stops: use `gap pin <id>@<ref>` for a distro component, or [`gap update <id>`](#add-a-utility) for a user utility.
 
 ### Project setup
 
@@ -195,11 +195,11 @@ ref = "master"
 | See what is added | `gap list` | One line per component: id, `distro` or `user`, repo, ref, commit, and whether its hooks run, ask, or are trusted |
 | Remove | `gap remove <id>` | Runs the `uninstall` hook, moves the skills and commands GAP placed for it into one `~/.gap/backups/<time>/` folder, and drops its config entry, pin, and record. An edited copy is named in the output |
 
-GAP removes only the files it recorded for that utility in `~/.gap/state.json`. If a utility has an `install` hook and no `uninstall` hook, `gap remove` warns that it cannot undo what the installer did. A failing `uninstall` hook stops `gap remove` before anything moves.
+GAP removes only the files it recorded for that utility in `~/.gap/state.json`. If an untrusted utility has an `install` hook and no `uninstall` hook, `gap remove` warns that it cannot undo what the installer did. A failing or unapproved `uninstall` hook stops `gap remove` before anything moves.
 
 ### Hooks and trust
 
-A utility's hooks are shell commands from someone else's repo, so GAP shows the command and asks `[y/N]` whenever it needs to run one. Approval applies to that execution. With no terminal, an untrusted hook is skipped and the command exits `1`; skills and commands still install. Successful install and update hooks are recorded in `~/.gap/state.json` so the same pin does not run again.
+A utility's hooks are shell commands from someone else's repo, so GAP shows the command and asks `[y/N]` whenever it needs to run one. Approval applies to that execution. With no terminal, an untrusted hook is skipped and the command exits `1`. During add, update, or sync, skills and commands still install when a hook is skipped. Successful install and update hooks are recorded in `~/.gap/state.json` so repeating the same pin skips the hook. The hook choice on a pin change is defined in the [manifest reference](#publish-a-utility).
 
 To stop the questions for a repo or an owner you trust, the way you trust a Homebrew tap, list it in your config:
 
@@ -233,9 +233,9 @@ uninstall = "./scripts/uninstall.sh"
 | `name` | yes | Display name |
 | `description` | no | One line about the utility |
 | `skills` | no | Skill names. Each needs a `<name>/SKILL.md` folder in the repo, such as `skills/<name>/SKILL.md`. GAP copies them into `~/.agents/skills` and `~/.claude/skills` |
-| `commands` | no | Repo paths of `.md` command files. GAP copies each, unchanged, into `~/.claude/commands` and `~/.omp/agent/commands` |
-| `hooks.install` | no | Runs once per pinned commit after GAP fetches it |
-| `hooks.update` | no | Runs instead of `install` when `gap update` or `gap sync` moves to a new pin after a first install |
+| `commands` | no | Repo paths of `.md` command files. GAP copies each by basename, unchanged, into `~/.claude/commands` and `~/.omp/agent/commands` |
+| `hooks.install` | no | Runs on the first installation and on later pin changes when `update` is absent |
+| `hooks.update` | no | Replaces `install` when installing a different pin after a first successful installation |
 | `hooks.uninstall` | no | Runs on `gap remove` before GAP moves its files. It must undo everything `install` did outside the skill and command files |
 | `hooks.doctor` | no | Runs on `gap doctor` |
 
@@ -319,7 +319,7 @@ Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP r
 
 ## Skill catalog
 
-GAP keeps no skill source. [Do-Skills](https://github.com/edheltzel/Do-Skills#readme) supplies the `do-*` and marketing skills, pinned in `gap.toml` and `gap.lock`; its README holds the catalog and the human docs for each skill. External skills are listed in `global/skills.json`.
+GAP keeps no skill source. [Do-Skills](https://github.com/edheltzel/Do-Skills#readme) supplies the `do-*` and marketing skills, pinned in `gap.toml` and `gap.lock`; its README holds the catalog and the human docs for each skill. See [Manage skills](#manage-skills) for the other sources GAP selects.
 
 ## Reference
 
