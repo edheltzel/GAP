@@ -472,19 +472,33 @@ func removeUtility(id string) error {
 			return err
 		}
 		c.Store = dir
-		if c.Uninstall != "" {
-			if !gate.approve(c, "uninstall", c.Uninstall) {
+	}
+	entry := gate.state.Components[id]
+	if entry.Installed != "" {
+		pin, err := pinCommit(home, c, entry.Installed, entry.Installed, lk.Components[id])
+		if err != nil {
+			return err
+		}
+		dir, err := ensureStore(home, c, pin)
+		if err != nil {
+			return err
+		}
+		manifest, err := readUtilityManifest(dir)
+		if err != nil {
+			return err
+		}
+		if manifest.Hooks.Uninstall != "" {
+			if !gate.approve(c, "uninstall", manifest.Hooks.Uninstall) {
 				return fmt.Errorf("%s: uninstall hook not approved; nothing removed", id)
 			}
-			if err := runComponentCommand(dir, c.Uninstall); err != nil {
+			if err := runComponentCommand(dir, manifest.Hooks.Uninstall); err != nil {
 				return fmt.Errorf("%s uninstall hook failed; nothing removed: %w", id, err)
 			}
 			out.result(true, id+" uninstall hook finished")
-		} else if c.Install != "" && !gate.trusted(c) {
+		} else if manifest.Hooks.Install != "" && !gate.trusted(c) {
 			fmt.Fprintf(os.Stderr, "%s has an install hook but no uninstall hook; gap cannot undo what its installer did.\n", id)
 		}
 	}
-	entry := gate.state.Components[id]
 	shared := map[string]bool{}
 	sharedSkillOwners := map[string][]string{}
 	sharedCommands := map[string]bool{}

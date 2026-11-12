@@ -33,7 +33,6 @@ type component struct {
 	User        bool
 	Manifest    bool
 	Update      string
-	Uninstall   string
 	Commands    []string
 	Store       string
 }
@@ -159,7 +158,7 @@ func applyManifest(c component, store string) (component, error) {
 	}
 	c.Manifest = true
 	c.Commands = m.Commands
-	c.Install, c.Update, c.Uninstall, c.Doctor = m.Hooks.Install, m.Hooks.Update, m.Hooks.Uninstall, m.Hooks.Doctor
+	c.Install, c.Update, c.Doctor = m.Hooks.Install, m.Hooks.Update, m.Hooks.Doctor
 	return c, nil
 }
 

@@ -11,6 +11,96 @@ import (
 
 const declarativeUtility = "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\ncommands = [\"commands/util-cmd.md\"]\n"
 
+func TestUtilityRemovalUsesInstalledHook(t *testing.T) {
+	for _, outcome := range []string{"declined", "failed", "successful"} {
+		t.Run(outcome, func(t *testing.T) {
+			manifest := func(version, update string) string {
+				return declarativeUtility + fmt.Sprintf("[hooks]\ninstall = %q\nupdate = %q\nuninstall = %q\n",
+					"printf "+version+" > \"$HOME/installed-"+version+"\"", update,
+					"mv \"$HOME/installed-"+version+"\" \"$HOME/removed-"+version+"\"")
+			}
+			e := newUtilityEnv(t, manifest("v1", "true"))
+			quietStdout(t)
+			e.tty, e.answers = true, []string{"y"}
+			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+				t.Fatal("initial install failed")
+			}
+			update := "mv \"$HOME/installed-v1\" \"$HOME/installed-v2\" && printf v2 > \"$HOME/installed-v2\""
+			if outcome == "failed" {
+				update = "exit 1"
+			}
+			write(t, filepath.Join(e.remote, utilityManifestName), manifest("v2", update))
+			write(t, filepath.Join(e.remote, "commands", "util-cmd.md"), "v2 command\n")
+			commit, _ := commitAll(t, e.remote)
+			e.answers = []string{"y"}
+			wantCode, installed := 0, "v2"
+			if outcome != "successful" {
+				wantCode, installed = 1, "v1"
+			}
+			if outcome == "declined" {
+				e.answers = []string{"n"}
+			}
+			if code := run([]string{"update", "util"}); code != wantCode {
+				t.Fatalf("update exited %d, want %d", code, wantCode)
+			}
+			lock, err := readLock(userConfigDir(e.home))
+			if err != nil || lock.Components["util"].Commit != commit {
+				t.Fatalf("desired pin did not advance: %+v, %v", lock, err)
+			}
+			e.answers = []string{"y"}
+			if run([]string{"remove", "util"}) != 0 {
+				t.Fatal("removal did not clean up the installed hook version")
+			}
+			if got := readString(t, filepath.Join(e.home, "removed-"+installed)); got != installed {
+				t.Fatalf("removed hook side effect = %q, want %q", got, installed)
+			}
+			if e.exists("installed-v1") || e.exists("installed-v2") {
+				t.Fatal("installed hook side effect remains")
+			}
+			for _, rel := range []string{".agents/skills/util-skill", ".claude/skills/util-skill", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md"} {
+				if e.exists(rel) {
+					t.Fatalf("removal left %s", rel)
+				}
+			}
+			if outcome == "declined" {
+				backups, err := filepath.Glob(filepath.Join(e.home, ".gap", "backups", "*", ".claude", "commands", "util-cmd.md"))
+				if err != nil || len(backups) != 1 || readString(t, backups[0]) != "v2 command\n" {
+					t.Fatalf("desired command backup = %v, %v", backups, err)
+				}
+			}
+			if _, remains := readConfigComponents(t, userConfigFile(e.home))["util"]; remains {
+				t.Fatal("removal left the utility registered")
+			}
+		})
+	}
+}
+
+func TestUtilityRemovalWithoutInstalledHook(t *testing.T) {
+	for _, outcome := range []string{"declined", "failed"} {
+		t.Run(outcome, func(t *testing.T) {
+			manifest := hookManifest
+			if outcome == "failed" {
+				manifest = declarativeUtility + "[hooks]\ninstall = \"exit 1\"\nuninstall = \"touch \\\"$HOME/uninstalled\\\"\"\n"
+			}
+			e := newUtilityEnv(t, manifest)
+			quietStdout(t)
+			if outcome == "failed" {
+				e.tty, e.answers = true, []string{"y"}
+			}
+			if run([]string{"add", e.remote, "--id", "util"}) != 1 {
+				t.Fatal("initial installation should fail or skip its hook")
+			}
+			e.tty = true
+			if run([]string{"remove", "util"}) != 0 {
+				t.Fatal("removal should not need an uninstall hook for an uninstalled utility")
+			}
+			if e.exists("uninstalled") {
+				t.Fatal("uninstall hook ran without a successful installation")
+			}
+		})
+	}
+}
+
 func TestUtilityReviewCommandContainment(t *testing.T) {
 	for _, directory := range []bool{false, true} {
 		t.Run(fmt.Sprint(directory), func(t *testing.T) {
