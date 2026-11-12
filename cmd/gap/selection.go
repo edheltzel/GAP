@@ -3,10 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"slices"
 	"strings"
+
+	"charm.land/huh/v2"
 )
 
 // errSyncCancelled means the user quit the sync picker before anything was written.
@@ -29,6 +32,14 @@ func plural(n int, word string) string {
 		return fmt.Sprintf("%d %s", n, word)
 	}
 	return fmt.Sprintf("%d %ss", n, word)
+}
+
+func pinLabel(pin lockEntryM1) string {
+	if pin.Commit == "" {
+		return ""
+	}
+	short := pin.Commit[:min(7, len(pin.Commit))]
+	return fmt.Sprintf(" @ %s (%s)", pin.Ref, short)
 }
 
 func syncGroups(d distro, pins map[string]lockEntryM1, manifest []manifestEntry, projectRoot string, harnesses, commands int) []syncGroup {
@@ -55,10 +66,7 @@ func syncGroups(d distro, pins map[string]lockEntryM1, manifest []manifestEntry,
 		if len(parts) == 0 {
 			parts = append(parts, "nothing to install")
 		}
-		summary := strings.Join(parts, ", ")
-		if pin := pins[id]; pin.Commit != "" {
-			summary += fmt.Sprintf(" @ %s (%s)", pin.Ref, pin.Commit[:min(7, len(pin.Commit))])
-		}
+		summary := strings.Join(parts, ", ") + pinLabel(pins[id])
 		groups = append(groups, syncGroup{id, summary})
 	}
 	if len(manifest) > 0 {
@@ -73,6 +81,10 @@ func syncGroups(d distro, pins map[string]lockEntryM1, manifest []manifestEntry,
 
 func printPreview(groups []syncGroup, sel map[string]bool) {
 	r := newReport(os.Stdout)
+	if r.tty {
+		r.preview(groups, sel)
+		return
+	}
 	r.heading("gap sync will:")
 	width := 0
 	for _, g := range groups {
@@ -102,10 +114,19 @@ func chooseGroups(groups []syncGroup, only, skip []string, yes bool) (map[string
 	for _, id := range ids {
 		sel[id] = (len(only) == 0 || slices.Contains(only, id)) && !slices.Contains(skip, id)
 	}
-	printPreview(groups, sel)
 	if yes || len(only) > 0 || len(skip) > 0 || !termReady() {
+		printPreview(groups, sel)
 		return sel, nil
 	}
+	if pickReady() {
+		sel, err := pickGroups(groups, sel)
+		if err != nil {
+			return nil, err
+		}
+		printPreview(groups, sel)
+		return sel, nil
+	}
+	printPreview(groups, sel)
 	fmt.Print("Sync all of it? [a]ll, [c]hoose, [q]uit [a] ")
 	line := confirmLine()
 	if line == "" {
@@ -154,4 +175,59 @@ func skippedIDs(groups []syncGroup, sel map[string]bool) []string {
 		}
 	}
 	return out
+}
+
+// pickReady and pickGroups are the full-screen picker boundary. Tests replace them.
+var (
+	pickReady  = func() bool { return usesPicker(os.Getenv("TERM"), isTerminal(os.Stdin), isTerminal(os.Stdout)) }
+	pickGroups = huhPick
+)
+
+// usesPicker keeps dumb terminals on the line prompt, where end of input cancels. huh's accessible mode reads it as confirm.
+func usesPicker(term string, stdin, stdout bool) bool {
+	return term != "dumb" && stdin && stdout
+}
+
+// huhPick shows every group as a checked option. Only enter syncs the checked groups; ctrl+c, a signal, or an empty pick cancels.
+func huhPick(groups []syncGroup, sel map[string]bool) (map[string]bool, error) {
+	return runPicker(groups, sel, os.Stdin, os.Stdout)
+}
+
+func runPicker(groups []syncGroup, sel map[string]bool, in io.Reader, out io.Writer) (map[string]bool, error) {
+	width := 0
+	for _, g := range groups {
+		width = max(width, len(g.ID))
+	}
+	opts := make([]huh.Option[string], len(groups))
+	for i, g := range groups {
+		opts[i] = huh.NewOption(fmt.Sprintf("%-*s  %s", width, g.ID, g.Summary), g.ID).Selected(sel[g.ID])
+	}
+	var chosen []string
+	field := huh.NewMultiSelect[string]().
+		Title("gap sync").
+		Description("Pick what to sync. space toggles, enter syncs, ctrl+c quits.").
+		Options(opts...).
+		Height(len(groups) + 2).
+		Value(&chosen)
+	form := huh.NewForm(huh.NewGroup(field)).
+		WithShowHelp(false).
+		WithOutput(out)
+	if in != os.Stdin {
+		form = form.WithInput(in)
+	}
+	err := form.Run()
+	if errors.Is(err, huh.ErrUserAborted) {
+		return nil, errSyncCancelled
+	}
+	if err != nil {
+		return nil, err
+	}
+	if form.State != huh.StateCompleted || len(chosen) == 0 {
+		return nil, errSyncCancelled
+	}
+	picked := map[string]bool{}
+	for _, g := range groups {
+		picked[g.ID] = slices.Contains(chosen, g.ID)
+	}
+	return picked, nil
 }

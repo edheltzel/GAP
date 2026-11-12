@@ -114,8 +114,10 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 
+	out := newReport(os.Stdout)
 	skipped, ok := false, true
 	if sel["policy"] {
+		out.section("policy", groups[0].Summary)
 		codexWrote := false
 		for _, c := range dests {
 			wrote, err := publishPolicy(string(raw), c.dest, c.cursor, ledger, ledgerPath, true, home)
@@ -164,19 +166,37 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	entries = append(entries, componentSet...)
+	if len(entries) > 0 {
+		out.section("skills", "install missing skills, then check drift")
+	}
 	skillsOK := installSkills(repoRoot, home, entries)
 	driftOK, err := checkDrift(repoRoot, home, entries)
 	if err != nil {
 		return err
 	}
+	if len(entries) > 0 && skillsOK && driftOK {
+		out.result(true, "skill installation and drift review complete")
+	}
 	if advice := empryoPinAdvice(home); advice != "" {
 		fmt.Println(advice)
 	}
-	if left := skippedIDs(groups, sel); len(left) > 0 {
+	if left := skippedIDs(groups, sel); len(left) > 0 && out.tty {
+		out.println()
+		out.printf("  %s %s\n", out.tone("○", colorDim), out.tone("skipped this run: "+strings.Join(left, ", "), colorDim))
+		out.printf("    %s\n", out.tone("set enabled = false under [components.<id>] in ~/.config/gap/gap.toml to skip it every time", colorDim))
+	} else if len(left) > 0 {
 		fmt.Printf("Skipped this run: %s. To leave a component out of every sync, set enabled = false under [components.<id>] in ~/.config/gap/gap.toml.\n", strings.Join(left, ", "))
 	}
 	if !ok || skipped || !skillsOK || !driftOK {
+		if out.tty {
+			out.println()
+			out.result(false, "Sync finished with items left over. Run gap status for detail.")
+		}
 		return errSkipped
+	}
+	if out.tty {
+		out.println()
+		out.result(true, "Sync complete.")
 	}
 	return nil
 }
@@ -795,12 +815,16 @@ var stdin struct {
 	reader *bufio.Reader
 }
 
-// stdinLine reads one line through a single reader per os.Stdin, so a pasted burst of answers is not dropped between prompts.
+// stdinLine shares a reader per os.Stdin so pasted answers survive between prompts.
+// A read without a terminating newline returns no answer, so EOF cannot submit a partial confirmation.
 func stdinLine() string {
 	if stdin.file != os.Stdin {
 		stdin.file, stdin.reader = os.Stdin, bufio.NewReader(os.Stdin)
 	}
-	line, _ := stdin.reader.ReadString('\n')
+	line, err := stdin.reader.ReadString('\n')
+	if err != nil {
+		return ""
+	}
 	return line
 }
 
@@ -1222,7 +1246,7 @@ func commitPublish(dest, text, body string, ledger map[string]string, ledgerFile
 	if err := pruneRecovery(recoveryDir(dest, backupRoot)); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: pruning recovery copies at %s: %v\n", recoveryDir(dest, backupRoot), err)
 	}
-	fmt.Println(dest)
+	newReport(os.Stdout).wrote(dest)
 	return true, nil
 }
 
@@ -1273,7 +1297,7 @@ func publish(payload, dest string, ledger map[string]string, ledgerFile string, 
 	if err := writeLedger(ledgerFile, ledger); err != nil {
 		return false, err
 	}
-	fmt.Println(dest)
+	newReport(os.Stdout).wrote(dest)
 	return true, nil
 }
 
@@ -1390,7 +1414,7 @@ func ensureGapHook(codexDir, policyPath, backupRoot string) (bool, error) {
 	if err := writeAtomic(hooksPath, next); err != nil {
 		return false, err
 	}
-	fmt.Println(hooksPath)
+	newReport(os.Stdout).wrote(hooksPath)
 	fmt.Println(trustLine)
 	return true, nil
 }
@@ -1455,7 +1479,7 @@ func cleanupLegacyCodex(codexDir, policyPath, payload string, ledger map[string]
 		return false, err
 	}
 	fmt.Println("Backed up to " + backup)
-	fmt.Println(dest)
+	newReport(os.Stdout).wrote(dest)
 	return true, nil
 }
 

@@ -4,22 +4,28 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
+	"github.com/charmbracelet/x/term"
 )
 
-// report renders status and doctor output. Color is applied only when the
-// destination is a terminal, so piped output and the test capture stay plain
-// text and the substrings those tests match are unchanged.
+// report renders sync, status, and doctor output. Color is applied only when the
+// destination is a terminal, so piped output stays plain text.
 type report struct {
-	out io.Writer
-	tty bool
+	out   io.Writer
+	tty   bool
+	width int
 }
 
 func newReport(w io.Writer) *report {
 	f, ok := w.(*os.File)
-	return &report{out: w, tty: ok && isTerminal(f)}
+	r := &report{out: w, tty: ok && isTerminal(f)}
+	if r.tty {
+		r.width, _, _ = term.GetSize(f.Fd())
+	}
+	return r
 }
 
 func isTerminal(f *os.File) bool {
@@ -39,8 +45,98 @@ func (r *report) tone(text, hex string) string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(hex)).Render(text)
 }
 
+const (
+	colorAccent = "#7D56F4"
+	colorOK     = "#04B575"
+	colorWarn   = "#FFB86C"
+	colorBad    = "#FF5F87"
+	colorDim    = "#767676"
+)
+
 func (r *report) heading(text string) {
-	r.println(r.tone(text, "#7D56F4"))
+	r.println(r.tone(text, colorAccent))
+}
+
+func (r *report) bold(text, hex string) string {
+	if !r.tty {
+		return text
+	}
+	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(hex)).Render(text)
+}
+
+// section opens one sync phase on a terminal. Piped output gets nothing, so scripts see the same lines as before.
+func (r *report) section(title, detail string) {
+	if !r.tty {
+		return
+	}
+	r.printf("\n%s %s  %s\n", r.tone("▍", colorAccent), r.bold(title, colorAccent), r.tone(detail, colorDim))
+}
+
+// wrote reports a written path: the bare path when piped, a checked home-relative path on a terminal.
+func (r *report) wrote(path string) {
+	if !r.tty {
+		r.println(path)
+		return
+	}
+	r.printf("  %s %s\n", r.tone("✓", colorOK), r.tone(tildePath(path), colorDim))
+}
+
+// result prints a terminal-only outcome line for a phase.
+func (r *report) result(ok bool, text string) {
+	if !r.tty {
+		return
+	}
+	mark, hex := "✓", colorOK
+	if !ok {
+		mark, hex = "✗", colorBad
+	}
+	r.printf("  %s %s\n", r.tone(mark, hex), text)
+}
+
+// warn prints plain on a pipe and as a flagged line on a terminal.
+func (r *report) warn(plain, name, detail string) {
+	if !r.tty {
+		r.println(plain)
+		return
+	}
+	r.printf("  %s %s  %s\n", r.tone("!", colorWarn), r.tone(name, colorWarn), r.tone(detail, colorDim))
+}
+
+func tildePath(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || !strings.HasPrefix(p, home+string(os.PathSeparator)) {
+		return p
+	}
+	return "~" + p[len(home):]
+}
+
+// preview draws the sync plan as a framed panel on a terminal.
+func (r *report) preview(groups []syncGroup, sel map[string]bool) {
+	width := 0
+	for _, g := range groups {
+		width = max(width, len(g.ID))
+	}
+	lines := make([]string, 0, len(groups))
+	for _, g := range groups {
+		body, pin, _ := strings.Cut(g.Summary, " @ ")
+		id := fmt.Sprintf("%-*s", width, g.ID)
+		if !sel[g.ID] {
+			lines = append(lines, r.tone("○ "+id+"  "+body+"  skipped", colorDim))
+			continue
+		}
+		line := r.tone("●", colorAccent) + " " + r.bold(id, colorAccent) + "  " + body
+		if pin != "" {
+			line += "  " + r.tone(pin, colorDim)
+		}
+		lines = append(lines, line)
+	}
+	title := r.bold("gap sync", colorAccent) + r.tone("  will publish and install", colorDim)
+	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(colorAccent)).Padding(0, 1)
+	content := title + "\n\n" + strings.Join(lines, "\n")
+	if r.width > box.GetHorizontalFrameSize() {
+		box = box.Width(min(r.width, lipgloss.Width(content)+box.GetHorizontalFrameSize()))
+	}
+	r.println(box.Render(content))
 }
 
 // next lists the commands that move the report forward. Empty does nothing.

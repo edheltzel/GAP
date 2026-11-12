@@ -15,7 +15,7 @@ GAP is one set of rules that every coding agent on your machine follows. You, or
 
 ## Before you start
 
-- Go 1.25 or newer (`go version`)
+- The Go version required by [go.mod](go.mod), or newer (`go version`)
 - Go's bin folder on your `PATH`: `$(go env GOPATH)/bin`, or `GOBIN` if you set it
 
 ## Install `gap`
@@ -31,7 +31,7 @@ That one line does four things:
 3. It builds `gap` with `go install ./cmd/gap` and puts the binary in Go's bin folder.
 4. It checks whether your shell can find that folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it.
 
-It needs Go 1.25 or newer and git. Installation writes the source checkout and Go binary. `gap sync` publishes the policy and installs the selected components and skills.
+Installation also needs git. It writes the source checkout and Go binary. `gap sync` publishes the policy and installs the selected components and skills.
 
 Already have the repo checked out? From its root, `sh scripts/install.sh` builds that copy instead of cloning, including when stdin is redirected. Keep that checkout too.
 
@@ -84,7 +84,9 @@ With no terminal to ask in, sync lists the drifted skills, including a foreign l
 
 ### Choose what syncs
 
-`gap sync` first prints what it will touch, one line per group:
+`gap sync` groups its work as `policy` (policy and commands), each component id in the effective distro, and `manifest` (`global/skills.json`, when it lists any source). With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Only enter syncs: ctrl+c, a termination signal, or submitting with no groups checked writes nothing. A `TERM=dumb` terminal gets the line prompt below instead.
+
+After selection, terminal output shows a framed plan, phase headers, progress lines, and a final result. Written paths use `~` for your home directory. Piped output keeps the plain preview and progress lines, for example:
 
 ```
 gap sync will:
@@ -92,10 +94,11 @@ gap sync will:
   do-skills  66 skills @ master (abc1234)
   echo       run its installer @ v0.13.0 (def5678)
   manifest   15 skills from 12 sources in global/skills.json (skills.sh, needs npx)
-Sync all of it? [a]ll, [c]hoose, [q]uit [a]
 ```
 
-`c` asks `[Y/n/q]` about each group; `q` at any prompt writes nothing. For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. Without a terminal, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
+With terminal input and either `TERM=dumb` or piped output, sync prints the preview before asking `[a]ll, [c]hoose, [q]uit`; `c` asks `[Y/n/q]` about each group. Press enter to submit each answer. An empty submitted line means all at the first prompt and yes at each group prompt. Entering `q`, choosing no groups, or reaching end of input (EOF), even after typing a partial answer, prints `Nothing synced.`, writes nothing, and exits `0`.
+
+For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. `--only` and `--skip` are mutually exclusive. Without terminal input, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
 
 To add a skill from an existing component, add its name to that component's `names` array in `gap.toml`. For another source, add an entry to `global/skills.json`. Then follow [the merge and publish steps](#step-2-merge-the-change).
 
@@ -184,18 +187,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 gap sync
 ```
 
-It prints each file it wrote:
-
-```text
-~/.claude/rules/global-agent-policy.md
-~/.pi/agent/APPEND_SYSTEM.md
-~/.omp/agent/APPEND_SYSTEM.md
-~/.codex/gap/global-agent-policy.md
-~/.cursor/rules/global-agent-policy.mdc
-~/.empryo/EMPRYO.md
-~/.omp/agent/commands/state-docs.md
-~/.claude/commands/state-docs.md
-```
+It reports each file it wrote using the [terminal or plain-text format](#choose-what-syncs).
 
 Policy files are the shared rules. Each top-level `global/commands/*.md` is a slash-command prompt, copied unchanged as a whole file to OMP and Claude Code. See [how sync handles existing files](#step-4-answer-if-gap-sync-asks-about-a-file).
 
