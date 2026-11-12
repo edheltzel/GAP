@@ -304,8 +304,12 @@ func updateUtilities(id string) error {
 		}
 		return fmt.Errorf("utility %s is not added; run gap add owner/repo", id)
 	}
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
 	out := newReport(os.Stdout)
-	failed := false
+	baselines := map[string]string{}
 	for _, cid := range ids {
 		c := d.Components[cid]
 		url, err := cloneURL(c.Repo)
@@ -317,9 +321,10 @@ func updateUtilities(id string) error {
 			return err
 		}
 		prev, pinned := lk.Components[cid]
-		prevStore := ""
-		if pinned {
-			prevStore = storePath(home, cid, prev.Commit)
+		if installedCommit := state.Components[cid].Installed; installedCommit != "" {
+			baselines[cid] = storePath(home, cid, installedCommit)
+		} else if pinned {
+			baselines[cid] = storePath(home, cid, prev.Commit)
 		}
 		if pinned && prev.Commit == commit && prev.Ref == c.Ref {
 			out.result(true, cid+" is up to date"+pinLabel(prev))
@@ -337,7 +342,10 @@ func updateUtilities(id string) error {
 			}
 			out.result(true, cid+" pinned"+pinLabel(pin))
 		}
-		if err := installUtility(home, repoRoot, projectRoot, cid, prevStore); err != nil {
+	}
+	failed := false
+	for _, cid := range ids {
+		if err := installUtility(home, repoRoot, projectRoot, cid, baselines[cid]); err != nil {
 			if !errors.Is(err, errSkipped) {
 				return err
 			}

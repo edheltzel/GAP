@@ -153,6 +153,62 @@ func TestUtilityUpdate(t *testing.T) {
 	}
 }
 
+func TestUtilityBulkRefChange(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	quietStdout(t)
+	other := filepath.Join(t.TempDir(), "other")
+	write(t, filepath.Join(other, "skills", "other-skill", "SKILL.md"), "---\nname: other-skill\ndescription: test\n---\n")
+	write(t, filepath.Join(other, utilityManifestName), "schema = \"1\"\nname = \"other\"\nskills = [\"other-skill\"]\n")
+	commitAll(t, other)
+	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\", \""+other+"\"]\n")
+	if err := addUtility(e.remote, "util"); err != nil {
+		t.Fatal(err)
+	}
+	if err := addUtility(other, "other"); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{e.remote, other} {
+		cmd := exec.Command("git", "-C", dir, "branch", "beta")
+		cmd.Env = gitEnv()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("branch: %v\n%s", err, out)
+		}
+	}
+	config := readString(t, userConfigFile(e.home))
+	write(t, userConfigFile(e.home), strings.ReplaceAll(config, "ref = \"master\"", "ref = \"beta\""))
+	if err := updateUtilities(""); err != nil {
+		t.Fatalf("bulk ref change: %v", err)
+	}
+	lk, _ := readLock(userConfigDir(e.home))
+	if lk.Components["util"].Ref != "beta" || lk.Components["other"].Ref != "beta" {
+		t.Fatalf("pins = %+v", lk.Components)
+	}
+}
+
+func TestUtilityUpdateRetryKeepsBaseline(t *testing.T) {
+	gate := "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n[hooks]\ninstall = \"true\"\nupdate = \"test -f \\\"$HOME/ok\\\"\"\n"
+	e := newUtilityEnv(t, gate)
+	quietStdout(t)
+	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
+	if err := addUtility(e.remote, "util"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: v2\n---\n")
+	commitAll(t, e.remote)
+	if err := updateUtilities("util"); err == nil {
+		t.Fatal("failing update hook reported success")
+	}
+	write(t, filepath.Join(e.home, "ok"), "")
+	if err := updateUtilities("util"); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	for _, dir := range []string{".agents", ".claude"} {
+		if !strings.Contains(readString(t, filepath.Join(e.home, dir, "skills", "util-skill", "SKILL.md")), "v2") {
+			t.Fatalf("retry left the old %s skill", dir)
+		}
+	}
+}
+
 func TestUtilityList(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)
