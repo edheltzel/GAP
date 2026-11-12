@@ -40,7 +40,23 @@ The step that copies the current GAP policy into the files each harness already 
 `gap sync` runs this step and manages skills. Publish names only the policy-copying step.
 
 ### Managed skill
-A skill selected by a component's `names` in `gap.toml` or by `global/skills.json`. See [Manage skills](README.md#manage-skills) for installation and drift handling.
+A skill selected by a component, through its `gap-utility.toml` or its `names` in `gap.toml`, or by `global/skills.json`. See [Manage skills](README.md#manage-skills) for installation and drift handling.
+
+### Utility
+A repo that ships skills, commands, or its own tooling and describes them in a manifest, the way a lazy.nvim plugin describes itself. The distro's components are utilities too. User utilities have their own [lifecycle](README.md#add-a-utility).
+*Avoid:* package, plugin
+
+### Manifest
+The `gap-utility.toml` at a utility's repo root that lists its skills, commands, and hooks. See [Publish a utility](README.md#publish-a-utility). Not `global/skills.json`, which selects skills by source.
+
+### Hook
+A shell command a utility's manifest runs at install, update, uninstall, or doctor time. See [Publish a utility](README.md#publish-a-utility) for timing and checkout selection. A hook is not a skill and not a command.
+
+### User lock
+`~/.config/gap/gap.lock`: the pins for utilities added with `gap add`. It is the user's own, like `lazy-lock.json`. It is not the distro's `gap.lock`.
+
+### Trust
+Permission for a user utility to run hooks without approval for each execution. See [Hooks and trust](README.md#hooks-and-trust) for configuration and approval rules.
 
 ## Decisions
 

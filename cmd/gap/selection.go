@@ -60,8 +60,14 @@ func syncGroups(d distro, pins map[string]lockEntryM1, manifest []manifestEntry,
 		if skills > 0 {
 			parts = append(parts, plural(skills, "skill"))
 		}
-		if c.Install != "" {
+		if len(c.Commands) > 0 {
+			parts = append(parts, "publish "+plural(len(c.Commands), "command"))
+		}
+		if c.Install != "" || c.Update != "" {
 			parts = append(parts, "run its installer")
+		}
+		if !c.Manifest && c.Store == "" {
+			parts = append(parts, "fetch utility manifest")
 		}
 		if len(parts) == 0 {
 			parts = append(parts, "nothing to install")

@@ -101,16 +101,16 @@ func doctorAll() error {
 	if err != nil {
 		return err
 	}
+	gate, err := newHookGate(home)
+	if err != nil {
+		return err
+	}
 	out := newReport(os.Stdout)
 	bad := false
 	missing := false
 	var rows [][]string
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
-		if c.Doctor == "" {
-			rows = append(rows, []string{id, "no doctor configured"})
-			continue
-		}
 		pin, pinned := lk.Components[id]
 		if !pinned {
 			rows = append(rows, []string{id, "not pinned; run gap pin " + id + "@" + c.Ref})
@@ -134,12 +134,21 @@ func doctorAll() error {
 			}
 			continue
 		}
+		if c.Doctor == "" {
+			rows = append(rows, []string{id, "no doctor configured"})
+			continue
+		}
+		if !gate.approve(c, "doctor", c.Doctor) {
+			rows = append(rows, []string{id, "doctor hook not approved"})
+			bad = true
+			continue
+		}
 		rows = append(rows, []string{id, c.Doctor})
 		if err := runComponentCommand(dir, c.Doctor); err != nil {
 			fmt.Fprintf(os.Stderr, "%s doctor: %v\n", id, err)
 			bad = true
 		}
-		if id == "echo" {
+		if id == "echo" && !c.User {
 			if err := recordEchoAdapters(home, dir, lk); err != nil {
 				return err
 			}

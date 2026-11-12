@@ -19,6 +19,7 @@ type manifestEntry struct {
 	Skills  []string `json:"skills"`
 	Path    string   `json:"-"`
 	Project string   `json:"-"`
+	Owner   string   `json:"-"`
 }
 
 func readManifest(repoRoot string) ([]manifestEntry, error) {
@@ -465,7 +466,7 @@ func replaceSkill(npx, repoRoot, home string, e manifestEntry, name string) (boo
 			}
 		}
 		if installErr == nil {
-			return true, nil
+			return true, recordOwnership(home, e.Owner, []string{name}, nil, e.Path)
 		}
 	} else {
 		snap := snapshotSkillLock(home, name)
@@ -607,7 +608,7 @@ func findSkillDir(root, sub, name string) string {
 			if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".git") {
 				return filepath.SkipDir
 			}
-			if d.Name() == "SKILL.md" && filepath.Base(filepath.Dir(path)) == name {
+			if d.Name() == "SKILL.md" && d.Type().IsRegular() && filepath.Base(filepath.Dir(path)) == name {
 				found = filepath.Dir(path)
 				return filepath.SkipAll
 			}
@@ -620,16 +621,8 @@ func findSkillDir(root, sub, name string) string {
 	return ""
 }
 
-// localSkillDir finds skills/<scope>/<group>/<name>, or a component checkout that is the skill itself.
 func localSkillDir(repoRoot, name string) string {
-	if _, err := os.Stat(filepath.Join(repoRoot, "SKILL.md")); err == nil && filepath.Base(repoRoot) == name {
-		return repoRoot
-	}
-	matches, _ := filepath.Glob(filepath.Join(repoRoot, "skills", "*", "*", name, "SKILL.md"))
-	if len(matches) != 1 {
-		return findSkillDir(repoRoot, "", name)
-	}
-	return filepath.Dir(matches[0])
+	return findSkillDir(repoRoot, "skills", name)
 }
 
 // entryRoot is the component store when Path is set, otherwise the GAP checkout.

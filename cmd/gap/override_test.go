@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -60,6 +63,46 @@ func TestCrewProfileDropsMachineComponents(t *testing.T) {
 	}
 	if _, kept := got.Components["do-skills"]; !kept {
 		t.Fatal("the crew profile dropped do-skills")
+	}
+}
+
+func TestUserComponent(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	repo := t.TempDir()
+	project := t.TempDir()
+	remote := filepath.Join(t.TempDir(), "remote")
+	writeUtilityRepo(t, remote, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	commit, tree := commitAll(t, remote)
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n")
+	userToml := filepath.Join(home, ".config", "gap", "gap.toml")
+	write(t, userToml, "[components.util]\nrepo = \""+remote+"\"\nref = \"master\"\n")
+	if _, err := loadTestComponents(repo, home, project); err == nil || !strings.Contains(err.Error(), "gap update util") {
+		t.Fatalf("missing user pin: %v", err)
+	}
+	if err := writeLock(userConfigDir(home), lockFile{Components: map[string]lockEntryM1{"util": {Ref: "master", Commit: commit, Tree: tree}}}); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := loadTestComponents(repo, home, project)
+	if err != nil || len(entries) != 1 || entries[0].Skills[0] != "util-skill" {
+		t.Fatalf("user component: %+v %v", entries, err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "gap.lock")); !os.IsNotExist(err) {
+		t.Fatalf("distro lock written: %v", err)
+	}
+
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n\n[components.util]\nrepo = \""+remote+"\"\nref = \"master\"\nnames = [\"util-skill\"]\n")
+	if _, err := loadTestComponents(repo, home, project); err == nil || !strings.Contains(err.Error(), "already a distro component") {
+		t.Fatalf("collision: %v", err)
+	}
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n")
+	write(t, filepath.Join(project, ".gap", "gap.toml"), "[components.other]\nrepo = \""+remote+"\"\nref = \"master\"\n")
+	if _, err := loadTestComponents(repo, home, project); err == nil || !strings.Contains(err.Error(), "only ~/.config/gap/gap.toml") {
+		t.Fatalf("project add: %v", err)
 	}
 }
 

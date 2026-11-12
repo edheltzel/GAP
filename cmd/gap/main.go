@@ -108,6 +108,13 @@ func syncAll(opts syncOptions) error {
 	if opts.RemoveLegacy && !sel["policy"] {
 		return errors.New("--remove-codex-legacy needs the policy group")
 	}
+	maps.DeleteFunc(d.Components, func(id string, _ component) bool { return !sel[id] })
+	if err := prepareComponentSources(home, d, pins); err != nil {
+		return err
+	}
+	if err := checkCommandOwners(repoRoot, home, d); err != nil {
+		return err
+	}
 	ledgerPath := filepath.Join(home, ".gap", "published.json")
 	ledger, err := readLedger(ledgerPath)
 	if err != nil {
@@ -160,18 +167,26 @@ func syncAll(opts syncOptions) error {
 	if sel["manifest"] {
 		entries = manifest
 	}
-	maps.DeleteFunc(d.Components, func(id string, _ component) bool { return !sel[id] })
-	componentSet, err := componentEntries(home, projectRoot, d, pins)
+	componentSet, hooksOK, err := componentEntries(home, projectRoot, d, pins)
 	if err != nil {
 		return err
 	}
+	skipped = skipped || !hooksOK
 	entries = append(entries, componentSet...)
+	ownedCommands, commandsOK, err := publishComponentCommands(repoRoot, home, d, ledger, ledgerPath)
+	if err != nil {
+		return err
+	}
+	skipped = skipped || !commandsOK
 	if len(entries) > 0 {
 		out.section("skills", "install missing skills, then check drift")
 	}
 	skillsOK := installSkills(repoRoot, home, entries)
 	driftOK, err := checkDrift(repoRoot, home, entries)
 	if err != nil {
+		return err
+	}
+	if err := recordDeclarativeInstalls(home, projectRoot, d, ownedCommands); err != nil {
 		return err
 	}
 	if len(entries) > 0 && skillsOK && driftOK {
@@ -203,8 +218,8 @@ func syncAll(opts syncOptions) error {
 
 // commandCount is the number of top-level global/commands/*.md files publishCommands writes.
 func commandCount(repoRoot string) int {
-	matches, _ := filepath.Glob(filepath.Join(repoRoot, "global", "commands", "*.md"))
-	return len(matches)
+	names, _ := globalCommandNames(repoRoot)
+	return len(names)
 }
 
 // empryoPins is the skill set GAP recommends for Empryo's skills.autoLoad. Pinned skills load in full into every prompt.
@@ -245,28 +260,20 @@ func policyDests(home, codexPolicy string) []policyDest {
 }
 
 func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath string) (bool, error) {
-	dir := filepath.Join(repoRoot, "global", "commands")
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return true, nil
+	if err := checkCommandOwners(repoRoot, home, distro{}); err != nil {
+		return false, err
 	}
+	names, err := globalCommandNames(repoRoot)
 	if err != nil {
 		return false, err
 	}
 	ok := true
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".md") {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(dir, name))
+	for _, name := range names {
+		b, err := os.ReadFile(filepath.Join(repoRoot, "global", "commands", name))
 		if err != nil {
 			return false, err
 		}
-		for _, dest := range []string{
-			filepath.Join(home, ".omp", "agent", "commands", name),
-			filepath.Join(home, ".claude", "commands", name),
-		} {
+		for _, dest := range commandDests(home, name) {
 			wrote, err := publish(string(b), dest, ledger, ledgerPath, true, home)
 			if err != nil {
 				return false, err
@@ -277,6 +284,134 @@ func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath
 		}
 	}
 	return ok, nil
+}
+
+func globalCommandNames(repoRoot string) ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(repoRoot, "global", "commands"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+			names = append(names, entry.Name())
+		}
+	}
+	return names, nil
+}
+
+func commandDests(home, name string) []string {
+	return []string{
+		filepath.Join(home, ".omp", "agent", "commands", name),
+		filepath.Join(home, ".claude", "commands", name),
+	}
+}
+
+// publishComponentCommands publishes each component's manifest commands like global/commands and returns the paths it owns per id.
+// Two sources that publish the same command name is an error.
+func publishComponentCommands(repoRoot, home string, d distro, ledger map[string]string, ledgerPath string) (map[string][]string, bool, error) {
+	if err := checkCommandOwners(repoRoot, home, d); err != nil {
+		return nil, false, err
+	}
+	owned := map[string][]string{}
+	ok := true
+	for _, id := range sortedIDs(d.Components) {
+		c := d.Components[id]
+		if len(c.Commands) == 0 {
+			continue
+		}
+		for _, rel := range c.Commands {
+			name := filepath.Base(rel)
+			b, err := readUtilityFile(c.Store, rel)
+			if err != nil {
+				return nil, false, err
+			}
+			for _, dest := range commandDests(home, name) {
+				if cur, err := os.ReadFile(dest); err == nil && string(cur) == string(b) && ledger[dest] == digest(string(b)) {
+					if err := recordOwnership(home, id, nil, []string{dest}, ""); err != nil {
+						return nil, false, err
+					}
+					owned[id] = append(owned[id], dest)
+					continue
+				}
+				wrote, err := publish(string(b), dest, ledger, ledgerPath, true, home)
+				if err != nil {
+					return nil, false, err
+				}
+				if !wrote {
+					ok = false
+					continue
+				}
+				if err := recordOwnership(home, id, nil, []string{dest}, ""); err != nil {
+					return nil, false, err
+				}
+				owned[id] = append(owned[id], dest)
+			}
+		}
+	}
+	return owned, ok, nil
+}
+
+func checkCommandOwners(repoRoot, home string, selected distro) error {
+	d, lk, err := registeredPins(repoRoot, home)
+	if err != nil {
+		return err
+	}
+	for id := range selected.Components {
+		delete(d.Components, id)
+	}
+	if err := loadLocalManifests(home, d, lk); err != nil {
+		return err
+	}
+	for id, c := range selected.Components {
+		d.Components[id] = c
+	}
+	owners := map[string]string{}
+	claim := func(name, id string) error {
+		if prev, exists := owners[name]; exists && prev != id {
+			return fmt.Errorf("command %s is published by both %s and %s", name, prev, id)
+		}
+		owners[name] = id
+		return nil
+	}
+	globals, err := globalCommandNames(repoRoot)
+	if err != nil {
+		return err
+	}
+	for _, name := range globals {
+		owners[name] = "global/commands"
+	}
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	for _, id := range sortedIDs(d.Components) {
+		if c := d.Components[id]; c.User && !c.Manifest {
+			return fmt.Errorf("cannot determine %s command ownership; run gap update %s before publishing commands", id, id)
+		}
+		seen := map[string]bool{}
+		for _, rel := range d.Components[id].Commands {
+			name := filepath.Base(rel)
+			if seen[name] {
+				return fmt.Errorf("component %s publishes command %s twice", id, name)
+			}
+			seen[name] = true
+			if err := claim(name, id); err != nil {
+				return err
+			}
+		}
+	}
+	for id, entry := range state.Components {
+		for _, path := range entry.Commands {
+			if err := claim(filepath.Base(path), id); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // sourceRootFor tests. Empty means the compile-time checkout.

@@ -18,7 +18,7 @@ func TestSyncPinnedCommitPreview(t *testing.T) {
 		{"unpinned", "master", "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			groups := syncGroups(distro{Components: map[string]component{"owned": {}}}, map[string]lockEntryM1{"owned": {Ref: tc.ref, Commit: tc.commit}}, nil, "", 6, 0)
+			groups := syncGroups(distro{Components: map[string]component{"owned": {Named: true, Store: "verified"}}}, map[string]lockEntryM1{"owned": {Ref: tc.ref, Commit: tc.commit}}, nil, "", 6, 0)
 			stdout, stderr := captureStd(t, func() {
 				printPreview(groups, map[string]bool{"policy": true, "owned": true})
 			})

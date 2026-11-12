@@ -10,6 +10,69 @@ import (
 	"testing"
 )
 
+func TestComponentCommandSync(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	repo, project := t.TempDir(), t.TempDir()
+	remote := filepath.Join(t.TempDir(), "remote")
+	writeUtilityRepo(t, remote, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\ncommands = [\"commands/util-cmd.md\"]\n")
+	commit, tree := commitAll(t, remote)
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n")
+	write(t, filepath.Join(userConfigDir(home), "gap.toml"), "[components.util]\nrepo = \""+remote+"\"\nref = \"master\"\n")
+	if err := writeLock(userConfigDir(home), lockFile{Components: map[string]lockEntryM1{"util": {Ref: "master", Commit: commit, Tree: tree}}}); err != nil {
+		t.Fatal(err)
+	}
+	d, lk, err := effectivePins(repo, home, project, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pins, err := lockFor(d, lk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, _, err := componentEntries(home, project, d, pins)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !installSkills(repo, home, entries) {
+		t.Fatal("skill installation failed")
+	}
+	ledgerPath := filepath.Join(home, ".gap", "published.json")
+	ledger, err := readLedger(ledgerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned, ok, err := publishComponentCommands(repo, home, d, ledger, ledgerPath)
+	if err != nil || !ok {
+		t.Fatalf("publish: %v %v", ok, err)
+	}
+	for _, dest := range commandDests(home, "util-cmd.md") {
+		if got := readString(t, dest); got != "Run the utility.\n" {
+			t.Fatalf("%s = %q", dest, got)
+		}
+	}
+	if err := recordDeclarativeInstalls(home, project, d, owned); err != nil {
+		t.Fatal(err)
+	}
+	state, err := readState(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := state.Components["util"]
+	if len(got.Commands) != 2 || len(got.Skills) != 1 || got.Skills[0] != "util-skill" {
+		t.Fatalf("ownership = %+v", got)
+	}
+
+	write(t, filepath.Join(repo, "global", "commands", "util-cmd.md"), "global\n")
+	if _, _, err := publishComponentCommands(repo, home, d, ledger, ledgerPath); err == nil || !strings.Contains(err.Error(), "published by both") {
+		t.Fatalf("clash: %v", err)
+	}
+}
+
 func TestCommandSync(t *testing.T) {
 	const command = "---\nargument-hint: [path]\n---\nRead $ARGUMENTS and [rules](docs/agents/dox.md)."
 	for _, tc := range []struct {

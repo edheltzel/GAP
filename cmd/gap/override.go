@@ -11,6 +11,19 @@ import (
 // Later wins: ~/.config/gap/gap.toml, then <repo>/.gap/gap.toml. A missing file changes nothing.
 // Scalars replace. A skill's load replaces. enabled = false drops the component.
 func applyOverrides(d distro, home, distroRoot, projectRoot, profile string) (distro, error) {
+	d, err := mergeOverrides(d, home, distroRoot, projectRoot, profile)
+	if err != nil {
+		return distro{}, err
+	}
+	for id, c := range d.Components {
+		if c.Disabled {
+			delete(d.Components, id)
+		}
+	}
+	return d, nil
+}
+
+func mergeOverrides(d distro, home, distroRoot, projectRoot, profile string) (distro, error) {
 	paths := []string{
 		filepath.Join(home, ".config", "gap", "gap.toml"),
 		filepath.Join(projectRoot, ".gap", "gap.toml"),
@@ -25,8 +38,8 @@ func applyOverrides(d distro, home, distroRoot, projectRoot, profile string) (di
 		}
 		paths = append(paths, path)
 	}
-	for _, path := range paths {
-		next, err := mergeOverride(d, path)
+	for i, path := range paths {
+		next, err := mergeOverride(d, path, i == 0)
 		if err != nil {
 			return distro{}, err
 		}
@@ -34,21 +47,17 @@ func applyOverrides(d distro, home, distroRoot, projectRoot, profile string) (di
 	}
 	if profile == "" && d.Profile == "crew" {
 		var err error
-		d, err = mergeOverride(d, filepath.Join(distroRoot, "profiles", "crew.toml"))
+		d, err = mergeOverride(d, filepath.Join(distroRoot, "profiles", "crew.toml"), false)
 		if err != nil {
 			return distro{}, err
-		}
-	}
-	for id, c := range d.Components {
-		if c.Disabled {
-			delete(d.Components, id)
 		}
 	}
 	return d, nil
 }
 
 // mergeOverride reads one override file. A missing file returns the distro unchanged.
-func mergeOverride(d distro, path string) (distro, error) {
+// Only the user file (user true) may add a component: a table with repo whose id the distro does not use.
+func mergeOverride(d distro, path string, user bool) (distro, error) {
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return d, nil
@@ -76,6 +85,21 @@ func mergeOverride(d distro, path string) (distro, error) {
 			continue
 		}
 		c, found := d.Components[id]
+		_, adds := table["repo"]
+		if adds && found && !c.User {
+			return distro{}, fmt.Errorf("%s: %s is already a distro component; pick another id, or change it with enabled, ref, or skills", path, id)
+		}
+		if adds && !found {
+			if !user {
+				return distro{}, fmt.Errorf("%s: only ~/.config/gap/gap.toml can add a utility (%s)", path, id)
+			}
+			c, err = parseComponent(id, table)
+			if err != nil {
+				return distro{}, fmt.Errorf("%s: %w", path, err)
+			}
+			c.User = true
+			found = true
+		}
 		if !found {
 			continue
 		}
@@ -91,7 +115,7 @@ func mergeOverride(d distro, path string) (distro, error) {
 				if len(name) > 0 && name[0] == 0 {
 					continue
 				}
-				if !slices.Contains(c.Skills, name) {
+				if c.Named && !slices.Contains(c.Skills, name) {
 					return distro{}, fmt.Errorf("%s: skill %s is not in component %s", path, name, id)
 				}
 				spec, ok := value.(map[string]any)
@@ -122,7 +146,21 @@ func mergeOverride(d distro, path string) (distro, error) {
 				c.SkillSet[name] = s
 			}
 		}
+		if err := validateUtilityLoads(c); err != nil {
+			return distro{}, fmt.Errorf("%s: %w", path, err)
+		}
 		d.Components[id] = c
 	}
 	return d, nil
+}
+
+func validateUtilityLoads(c component) error {
+	if c.User {
+		for name, spec := range c.SkillSet {
+			if spec.Load == "project" {
+				return fmt.Errorf("utility %s: skill %s cannot use project load; user utilities install under home", c.ID, name)
+			}
+		}
+	}
+	return nil
 }
