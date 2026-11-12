@@ -340,3 +340,226 @@ func TestUtilityReviewUserLoadBoundary(t *testing.T) {
 		})
 	}
 }
+
+func TestUtilityReviewSkillContainment(t *testing.T) {
+	for _, kind := range []string{"ancestor", "skill file"} {
+		t.Run(kind, func(t *testing.T) {
+			e := newUtilityEnv(t, "schema = \"1\"\nname = \"private\"\nskills = [\"internal\"]\n")
+			quietStdout(t)
+			outside := filepath.Join(e.home, ".empryo")
+			write(t, filepath.Join(outside, "skills", "internal", "SKILL.md"), "private skill\n")
+			write(t, filepath.Join(outside, "skills", "internal", "notes.md"), "private notes\n")
+			if kind == "ancestor" {
+				if err := os.Symlink(outside, filepath.Join(e.remote, "skills", "link")); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := os.MkdirAll(filepath.Join(e.remote, "skills", "internal"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(filepath.Join(outside, "skills", "internal", "SKILL.md"), filepath.Join(e.remote, "skills", "internal", "SKILL.md")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			commitAll(t, e.remote)
+			if _, err := readUtilityManifest(e.remote); err == nil {
+				t.Error("manifest accepted a skill outside its checkout")
+			}
+			if run([]string{"add", e.remote, "--id", "private"}) != 1 {
+				t.Error("add accepted an external skill")
+			}
+			for _, path := range skillDirs(e.home, "internal") {
+				if exists(path) {
+					t.Errorf("external skill was copied into %s", path)
+				}
+			}
+		})
+	}
+}
+
+func TestUtilityReviewLiteralGlobalCommands(t *testing.T) {
+	for _, tc := range []struct{ kind, checkout string }{{"command", "GAP[1]"}, {"directory", "GAP[1]"}, {"directory", "GAP"}} {
+		t.Run(tc.kind+"/"+tc.checkout, func(t *testing.T) {
+			e := newUtilityEnv(t, declarativeUtility)
+			quietStdout(t)
+			repo := filepath.Join(e.repo, tc.checkout)
+			write(t, filepath.Join(repo, "global", "AGENTS.md"), "policy\n")
+			write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n")
+			sourceRootFor = repo
+			path := filepath.Join(repo, "global", "commands", "util-cmd.md")
+			if tc.kind == "directory" {
+				if err := os.MkdirAll(path, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if commandCount(repo) != 0 {
+					t.Error("preview counted a directory as a command")
+				}
+				if run([]string{"add", e.remote, "--id", "util"}) != 0 || run([]string{"remove", "util"}) != 0 {
+					t.Fatal("a directory incorrectly reserved a command name")
+				}
+				for _, dest := range commandDests(e.home, "util-cmd.md") {
+					if exists(dest) {
+						t.Error("a directory prevented removal of a utility command")
+					}
+				}
+				return
+			}
+			write(t, path, "global command\n")
+			ledgerPath := filepath.Join(e.home, ".gap", "published.json")
+			if ok, err := publishCommands(repo, e.home, map[string]string{}, ledgerPath); err != nil || !ok {
+				t.Fatalf("global publication failed: %v", err)
+			}
+			if commandCount(repo) != 1 {
+				t.Error("preview omitted a literal checkout's command")
+			}
+			if run([]string{"add", e.remote, "--id", "util"}) != 1 {
+				t.Error("global command collision was accepted")
+			}
+			for _, dest := range commandDests(e.home, "util-cmd.md") {
+				if readString(t, dest) != "global command\n" {
+					t.Error("global command was overwritten")
+				}
+			}
+		})
+	}
+}
+
+func TestUtilityReviewSharedOwnership(t *testing.T) {
+	for _, order := range [][]string{{"a", "b"}, {"b", "a"}} {
+		t.Run(strings.Join(order, " then "), func(t *testing.T) {
+			e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+			quietStdout(t)
+			for _, id := range []string{"a", "b"} {
+				if run([]string{"add", e.remote, "--id", id}) != 0 {
+					t.Fatalf("add %s failed", id)
+				}
+			}
+			if run([]string{"remove", order[0]}) != 0 {
+				t.Fatal("first removal failed")
+			}
+			for _, path := range skillDirs(e.home, "util-skill") {
+				if !exists(path) {
+					t.Error("first removal took a shared skill")
+				}
+			}
+			if run([]string{"remove", order[1]}) != 0 {
+				t.Fatal("last removal failed")
+			}
+			for _, path := range skillDirs(e.home, "util-skill") {
+				if exists(path) {
+					t.Error("last removal orphaned a shared skill")
+				}
+			}
+		})
+	}
+}
+
+func TestUtilityReviewSharedCommandOwnership(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\ncommands = [\"commands/util-cmd.md\"]\n")
+	quietStdout(t)
+	if run([]string{"add", e.remote, "--id", "a"}) != 0 {
+		t.Fatal("first add failed")
+	}
+	if run([]string{"add", e.remote, "--id", "b"}) != 1 {
+		t.Fatal("command collision was accepted")
+	}
+	lk, err := readLock(userConfigDir(e.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, userConfigFile(e.home), readString(t, userConfigFile(e.home))+fmt.Sprintf("\n[components.b]\nrepo = %q\nref = \"master\"\n", e.remote))
+	if err := setUserPin(e.home, "b", lk.Components["a"]); err != nil {
+		t.Fatal(err)
+	}
+	if run([]string{"remove", "a"}) != 0 {
+		t.Fatal("first removal failed")
+	}
+	for _, path := range commandDests(e.home, "util-cmd.md") {
+		if !exists(path) {
+			t.Error("first removal took a shared command")
+		}
+	}
+	if run([]string{"remove", "b"}) != 0 {
+		t.Fatal("last removal failed")
+	}
+	for _, path := range commandDests(e.home, "util-cmd.md") {
+		if exists(path) {
+			t.Error("last removal orphaned a shared command")
+		}
+	}
+}
+
+func TestUtilityReviewExistingOverrideIdentity(t *testing.T) {
+	for _, declaration := range []string{
+		"[components.tools]\nenabled = false\n",
+		"[components . \"tools\"]\nenabled = false\n",
+		"components.tools.enabled = false\n",
+	} {
+		t.Run(declaration, func(t *testing.T) {
+			e := newUtilityEnv(t, declarativeUtility)
+			quietStdout(t)
+			write(t, userConfigFile(e.home), declaration)
+			if run([]string{"add", e.remote, "--id", "tools"}) != 1 {
+				t.Error("add accepted an existing configuration identity")
+			}
+			if got := readString(t, userConfigFile(e.home)); got != declaration {
+				t.Error("refused add modified the existing configuration")
+			}
+			if _, err := parseTOML(readString(t, userConfigFile(e.home))); err != nil {
+				t.Fatalf("add corrupted TOML: %v", err)
+			}
+		})
+	}
+}
+
+func TestUtilityReviewProjectUpdateRef(t *testing.T) {
+	for _, disabled := range []bool{false, true} {
+		t.Run(fmt.Sprint(disabled), func(t *testing.T) {
+			e := newUtilityEnv(t, declarativeUtility)
+			quietStdout(t)
+			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+				t.Fatal("add failed")
+			}
+			write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: beta\n---\n")
+			commit, _ := commitAll(t, e.remote)
+			if _, err := git(e.remote, "branch", "beta", commit); err != nil {
+				t.Fatal(err)
+			}
+			write(t, filepath.Join(e.project, ".gap", "gap.toml"), fmt.Sprintf("[components.util]\nref = \"beta\"\nenabled = %t\n", !disabled))
+			if run([]string{"update", "util"}) != 0 {
+				t.Error("update failed under a project ref override")
+			}
+			lk, err := readLock(userConfigDir(e.home))
+			if err != nil || lk.Components["util"].Ref != "beta" || lk.Components["util"].Commit != commit {
+				t.Fatalf("update did not honor the effective ref: %+v, %v", lk, err)
+			}
+		})
+	}
+}
+
+func TestUtilityReviewRemovalStatErrors(t *testing.T) {
+	for _, rel := range []string{".agents/skills", ".omp/agent/commands"} {
+		t.Run(rel, func(t *testing.T) {
+			e := newUtilityEnv(t, declarativeUtility)
+			quietStdout(t)
+			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+				t.Fatal("add failed")
+			}
+			beforeConfig := readString(t, userConfigFile(e.home))
+			beforeState := readString(t, statePath(e.home))
+			path := filepath.Join(e.home, filepath.FromSlash(rel))
+			if err := os.Rename(path, path+"-saved"); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(filepath.Base(path), path); err != nil {
+				t.Fatal(err)
+			}
+			if run([]string{"remove", "util"}) != 1 {
+				t.Error("remove swallowed a filesystem error")
+			}
+			if readString(t, userConfigFile(e.home)) != beforeConfig || readString(t, statePath(e.home)) != beforeState {
+				t.Error("failed removal dropped its registration or ownership")
+			}
+		})
+	}
+}

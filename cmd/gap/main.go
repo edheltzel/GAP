@@ -218,8 +218,8 @@ func syncAll(opts syncOptions) error {
 
 // commandCount is the number of top-level global/commands/*.md files publishCommands writes.
 func commandCount(repoRoot string) int {
-	matches, _ := filepath.Glob(filepath.Join(repoRoot, "global", "commands", "*.md"))
-	return len(matches)
+	names, _ := globalCommandNames(repoRoot)
+	return len(names)
 }
 
 // empryoPins is the skill set GAP recommends for Empryo's skills.autoLoad. Pinned skills load in full into every prompt.
@@ -263,21 +263,13 @@ func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath
 	if err := checkCommandOwners(repoRoot, home, distro{}); err != nil {
 		return false, err
 	}
-	dir := filepath.Join(repoRoot, "global", "commands")
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return true, nil
-	}
+	names, err := globalCommandNames(repoRoot)
 	if err != nil {
 		return false, err
 	}
 	ok := true
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".md") {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(dir, name))
+	for _, name := range names {
+		b, err := os.ReadFile(filepath.Join(repoRoot, "global", "commands", name))
 		if err != nil {
 			return false, err
 		}
@@ -292,6 +284,23 @@ func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath
 		}
 	}
 	return ok, nil
+}
+
+func globalCommandNames(repoRoot string) ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(repoRoot, "global", "commands"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+			names = append(names, entry.Name())
+		}
+	}
+	return names, nil
 }
 
 func commandDests(home, name string) []string {
@@ -368,12 +377,12 @@ func checkCommandOwners(repoRoot, home string, selected distro) error {
 		owners[name] = id
 		return nil
 	}
-	globals, err := filepath.Glob(filepath.Join(repoRoot, "global", "commands", "*.md"))
+	globals, err := globalCommandNames(repoRoot)
 	if err != nil {
 		return err
 	}
-	for _, path := range globals {
-		owners[filepath.Base(path)] = "global/commands"
+	for _, name := range globals {
+		owners[name] = "global/commands"
 	}
 	state, err := readState(home)
 	if err != nil {

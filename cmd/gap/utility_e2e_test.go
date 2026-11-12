@@ -165,11 +165,15 @@ func TestUtilityLifecycle(t *testing.T) {
 	if len(backups) != 1 || readString(t, backups[0]) != "my edit\n" {
 		t.Fatalf("edited copy backup: %v", backups)
 	}
-	if text := readString(t, config); strings.Contains(text, "components.util") {
-		t.Fatalf("spec left after remove:\n%s", text)
+	if components := readConfigComponents(t, config); components["util"] != nil {
+		t.Fatalf("registration left after remove: %+v", components["util"])
 	}
-	if text := readString(t, filepath.Join(home, ".config", "gap", "gap.lock")); strings.Contains(text, "util") {
-		t.Fatalf("pin left after remove:\n%s", text)
+	lk, err := readLock(userConfigDir(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pin, remains := lk.Components["util"]; remains {
+		t.Fatalf("pin left after remove: %+v", pin)
 	}
 	gap(0, "sync", "--yes")
 	for _, rel := range owned {

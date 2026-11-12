@@ -94,6 +94,20 @@ func addUtility(spec, id string) error {
 		}
 		return fmt.Errorf("%s is already a distro component; pass --id to add this repo under another id", id)
 	}
+	config := userConfigFile(home)
+	text, err := readOptional(config)
+	if err != nil {
+		return err
+	}
+	doc, err := parseTOML(text)
+	if err != nil {
+		return err
+	}
+	if components, ok := doc["components"].(map[string]any); ok {
+		if _, exists := components[id]; exists {
+			return fmt.Errorf("%s already declares components.%s; pass --id to use another id", config, tomlKey(id))
+		}
+	}
 	url, err := cloneURL(repo)
 	if err != nil {
 		return err
@@ -125,11 +139,6 @@ func addUtility(spec, id string) error {
 	}
 	out := newReport(os.Stdout)
 	out.section(id, describeUtility(m)+pinLabel(pin))
-	config := userConfigFile(home)
-	text, err := readOptional(config)
-	if err != nil {
-		return err
-	}
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
@@ -137,6 +146,9 @@ func addUtility(spec, id string) error {
 		text += "\n"
 	}
 	text += fmt.Sprintf("[components.%s]\nrepo = %q\nref = %q\n", tomlKey(id), repo, ref)
+	if _, err := parseTOML(text); err != nil {
+		return fmt.Errorf("adding %s to %s: %w", id, config, err)
+	}
 	if err := writeAtomic(config, text); err != nil {
 		return err
 	}
@@ -268,7 +280,11 @@ func updateUtilities(id string) error {
 	if err != nil {
 		return err
 	}
-	d, _, err := registeredPins(repoRoot, home)
+	d, err := readDistro(repoRoot)
+	if err != nil {
+		return err
+	}
+	d, err = mergeOverrides(d, home, repoRoot, projectRoot, "")
 	if err != nil {
 		return err
 	}
@@ -470,26 +486,30 @@ func removeUtility(id string) error {
 	}
 	entry := gate.state.Components[id]
 	shared := map[string]bool{}
+	sharedSkillOwners := map[string][]string{}
 	sharedCommands := map[string]bool{}
+	sharedCommandOwners := map[string][]string{}
 	for oid, other := range gate.state.Components {
 		if oid != id {
 			for _, name := range other.Skills {
 				shared[name] = true
+				sharedSkillOwners[name] = append(sharedSkillOwners[name], oid)
 			}
 			for _, path := range other.Commands {
 				sharedCommands[path] = true
+				sharedCommandOwners[path] = append(sharedCommandOwners[path], oid)
 			}
 		}
 	}
 	if err := loadLocalManifests(home, d, lk); err != nil {
 		return err
 	}
-	globals, err := filepath.Glob(filepath.Join(repoRoot, "global", "commands", "*.md"))
+	globals, err := globalCommandNames(repoRoot)
 	if err != nil {
 		return err
 	}
-	for _, path := range globals {
-		for _, dest := range commandDests(home, filepath.Base(path)) {
+	for _, name := range globals {
+		for _, dest := range commandDests(home, name) {
 			sharedCommands[dest] = true
 		}
 	}
@@ -497,10 +517,12 @@ func removeUtility(id string) error {
 		if oid != id {
 			for _, name := range other.Skills {
 				shared[name] = true
+				sharedSkillOwners[name] = append(sharedSkillOwners[name], oid)
 			}
 			for _, rel := range other.Commands {
 				for _, path := range commandDests(home, filepath.Base(rel)) {
 					sharedCommands[path] = true
+					sharedCommandOwners[path] = append(sharedCommandOwners[path], oid)
 				}
 			}
 		}
@@ -517,7 +539,10 @@ func removeUtility(id string) error {
 	moved := 0
 	moveOut := func(path string, changed bool) error {
 		if _, err := os.Lstat(path); err != nil {
-			return nil
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
 		}
 		rel, err := filepath.Rel(home, path)
 		if err != nil || strings.HasPrefix(rel, "..") {
@@ -538,6 +563,11 @@ func removeUtility(id string) error {
 	}
 	for _, name := range entry.Skills {
 		if shared[name] {
+			for _, owner := range sharedSkillOwners[name] {
+				if err := recordOwnership(home, owner, []string{name}, nil); err != nil {
+					return err
+				}
+			}
 			fmt.Printf("Kept %s: another component or global/skills.json also selects it\n", name)
 			continue
 		}
@@ -558,6 +588,11 @@ func removeUtility(id string) error {
 	}
 	for _, path := range entry.Commands {
 		if sharedCommands[path] {
+			for _, owner := range sharedCommandOwners[path] {
+				if err := recordOwnership(home, owner, nil, []string{path}); err != nil {
+					return err
+				}
+			}
 			fmt.Printf("Kept %s: another source also owns it\n", path)
 			continue
 		}

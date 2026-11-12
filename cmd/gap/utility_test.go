@@ -66,6 +66,19 @@ func quietStdout(t *testing.T) {
 
 const hookManifest = "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\ncommands = [\"commands/util-cmd.md\"]\n[hooks]\ninstall = \"touch \\\"$HOME/installed\\\"\"\nuninstall = \"touch \\\"$HOME/uninstalled\\\"\"\n"
 
+func readConfigComponents(t *testing.T, path string) map[string]any {
+	t.Helper()
+	doc, err := parseTOML(readString(t, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	components, ok := doc["components"].(map[string]any)
+	if _, exists := doc["components"]; exists && !ok {
+		t.Fatalf("components must be a table in %s", path)
+	}
+	return components
+}
+
 func TestUtilityAdd(t *testing.T) {
 	e := newUtilityEnv(t, hookManifest)
 	quietStdout(t)
@@ -78,12 +91,13 @@ func TestUtilityAdd(t *testing.T) {
 	if e.exists("installed") {
 		t.Fatal("unapproved install hook ran")
 	}
-	config := readString(t, userConfigFile(e.home))
-	if !strings.Contains(config, "[components.remote]") || !strings.Contains(config, "ref = \"master\"") {
-		t.Fatalf("user config = %q", config)
+	components := readConfigComponents(t, userConfigFile(e.home))
+	config, _ := components["remote"].(map[string]any)
+	if config["repo"] != e.remote || config["ref"] != "master" {
+		t.Fatalf("user registration = %+v", config)
 	}
 	lk, err := readLock(userConfigDir(e.home))
-	if err != nil || lk.Components["remote"].Commit == "" {
+	if err != nil || lk.Components["remote"].Ref != "master" || lk.Components["remote"].Commit == "" {
 		t.Fatalf("user lock = %+v %v", lk, err)
 	}
 	if _, err := os.Stat(filepath.Join(e.repo, "gap.lock")); !os.IsNotExist(err) {
@@ -197,9 +211,10 @@ func TestUtilityRemove(t *testing.T) {
 	if !e.exists(".agents/skills/shared-skill/SKILL.md") {
 		t.Fatal("remove took a skill another source selects")
 	}
-	config := readString(t, userConfigFile(e.home))
-	if strings.Contains(config, "util") || !strings.Contains(config, "[components.keep]") {
-		t.Fatalf("user config after remove = %q", config)
+	components := readConfigComponents(t, userConfigFile(e.home))
+	keep, _ := components["keep"].(map[string]any)
+	if _, remains := components["util"]; remains || keep["enabled"] != false {
+		t.Fatalf("user registrations after remove = %+v", components)
 	}
 	lk, _ := readLock(userConfigDir(e.home))
 	state, _ = readState(e.home)
@@ -237,7 +252,13 @@ func TestUtilityRemoveWarnsWithoutUninstall(t *testing.T) {
 func TestRemoveTOMLComponent(t *testing.T) {
 	text := "profile = \"x\"\n\n[components.a] # mine\nrepo = \"r\"\n\n[components.a.skills.s]\nload = \"off\"\n\n[components.ab]\nenabled = false\n"
 	got, found := removeTOMLComponent(text, "a")
-	if !found || got != "profile = \"x\"\n\n[components.ab]\nenabled = false\n" {
-		t.Fatalf("got %q %v", got, found)
+	doc, err := parseTOML(got)
+	if !found || err != nil || doc["profile"] != "x" {
+		t.Fatalf("removed configuration: %q, found=%v, error=%v", got, found, err)
+	}
+	components, _ := doc["components"].(map[string]any)
+	keep, _ := components["ab"].(map[string]any)
+	if _, remains := components["a"]; remains || keep["enabled"] != false {
+		t.Fatalf("component identities after removal: %+v", components)
 	}
 }

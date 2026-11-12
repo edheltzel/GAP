@@ -11,6 +11,19 @@ import (
 // Later wins: ~/.config/gap/gap.toml, then <repo>/.gap/gap.toml. A missing file changes nothing.
 // Scalars replace. A skill's load replaces. enabled = false drops the component.
 func applyOverrides(d distro, home, distroRoot, projectRoot, profile string) (distro, error) {
+	d, err := mergeOverrides(d, home, distroRoot, projectRoot, profile)
+	if err != nil {
+		return distro{}, err
+	}
+	for id, c := range d.Components {
+		if c.Disabled {
+			delete(d.Components, id)
+		}
+	}
+	return d, nil
+}
+
+func mergeOverrides(d distro, home, distroRoot, projectRoot, profile string) (distro, error) {
 	paths := []string{
 		filepath.Join(home, ".config", "gap", "gap.toml"),
 		filepath.Join(projectRoot, ".gap", "gap.toml"),
@@ -37,11 +50,6 @@ func applyOverrides(d distro, home, distroRoot, projectRoot, profile string) (di
 		d, err = mergeOverride(d, filepath.Join(distroRoot, "profiles", "crew.toml"), false)
 		if err != nil {
 			return distro{}, err
-		}
-	}
-	for id, c := range d.Components {
-		if c.Disabled {
-			delete(d.Components, id)
 		}
 	}
 	return d, nil
