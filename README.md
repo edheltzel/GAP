@@ -44,14 +44,18 @@ gap sync
 
 `gap` publishes the checkout it was built from, so it runs from any folder. Run the curl command again after `cmd/gap` changes. To skip installing, run `go run ./cmd/gap sync` from a checkout.
 
-To uninstall, there is no `gap uninstall` yet:
+To uninstall, there is no `gap uninstall` yet. Do these steps in order: steps 1 and 3 need the records in `~/.gap/`, so trash it last.
 
 Use the Codex home used for publication: `<codex-home>` below means the absolute `CODEX_HOME` value, or `~/.codex` when empty or unset.
 
-1. If `<codex-home>/AGENTS.md` still holds an old unmarked GAP policy prefix, follow [Set up Codex](#set-up-codex-once-per-machine) to run `gap sync --remove-codex-legacy` first. Keep the policy file, both trusted GAP hooks, and `~/.gap/published.json` until that cleanup succeeds. Preserve unrelated rules in `AGENTS.md`.
-2. Delete the text between `<!-- gap:begin -->` and `<!-- gap:end -->`, markers included, in each file listed in [Where each agent reads the policy](#where-each-agent-reads-the-policy), and in `<codex-home>/AGENTS.md` if it has a GAP block. Use `<codex-home>/gap/global-agent-policy.md` for the Codex policy. Delete a file that held only that block.
-3. Remove only the GAP SessionStart and SubagentStart hooks that print that policy from `<codex-home>/hooks.json`, and each published `global/commands/*.md` from `~/.claude/commands/` and `~/.omp/agent/commands/`.
-4. Trash the installed `gap` binary: `$(go env GOBIN)/gap` if `GOBIN` was nonempty at installation, otherwise `$(go env GOPATH)/bin/gap`. Use the location from that installation if your Go settings have since changed. Copy out any saved files you want from `~/.gap/backups/` and `~/.gap/recovery/`, then trash `~/.gap/`; those folders are not a complete replacement history. Installed skills stay in `~/.agents/skills` and `~/.claude/skills` until you remove them.
+1. Run `gap list`, then `gap remove <id>` for each utility. This runs each utility's uninstall hook and removes its skills and commands. Without `~/.gap/state.json`, `gap remove` cannot find what a utility installed.
+2. If `<codex-home>/AGENTS.md` still holds an old unmarked GAP policy prefix, follow [Set up Codex](#set-up-codex-once-per-machine) to run `gap sync --remove-codex-legacy` first. Keep the policy file, both trusted GAP hooks, and `~/.gap/published.json` until that cleanup succeeds. Preserve unrelated rules in `AGENTS.md`.
+3. For each file listed in [Where each agent reads the policy](#where-each-agent-reads-the-policy), and `<codex-home>/AGENTS.md`:
+   - If it has `<!-- gap:begin -->` and `<!-- gap:end -->`, delete that text, markers included. Delete a file that held only that block.
+   - If it has no markers, an older `gap` may have written the whole file. `~/.gap/published.json` maps each path gap wrote to the SHA-256 of what it wrote; when `shasum -a 256 <file>` matches that entry, the file is gap's, so delete it or put back the copy under `~/.gap/backups/`. A file that does not match holds your own rules; leave it.
+   - Use `<codex-home>/gap/global-agent-policy.md` for the Codex policy.
+4. Remove only the GAP SessionStart and SubagentStart hooks that print that policy from `<codex-home>/hooks.json`, and each published `global/commands/*.md` from `~/.claude/commands/` and `~/.omp/agent/commands/`.
+5. Trash the installed `gap` binary: `$(go env GOBIN)/gap` if `GOBIN` was nonempty at installation, otherwise `$(go env GOPATH)/bin/gap`. Use the location from that installation if your Go settings have since changed. Copy out any saved files you want from `~/.gap/backups/` and `~/.gap/recovery/`, then trash `~/.gap/`; those folders are not a complete replacement history. Distro skills stay in `~/.agents/skills` and `~/.claude/skills` until you remove them.
 
 ## Commands
 
