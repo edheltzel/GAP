@@ -186,29 +186,82 @@ func TestUtilityBulkRefChange(t *testing.T) {
 }
 
 func TestUtilityBulkUpdateRepairsLaterCache(t *testing.T) {
-	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\ncommands = [\"commands/util-cmd.md\"]\n")
-	quietStdout(t)
-	other := filepath.Join(t.TempDir(), "other")
-	write(t, filepath.Join(other, "skills", "other-skill", "SKILL.md"), "---\nname: other-skill\ndescription: test\n---\n")
-	write(t, filepath.Join(other, "commands", "other-cmd.md"), "Other.\n")
-	write(t, filepath.Join(other, utilityManifestName), "schema = \"1\"\nname = \"other\"\nskills = [\"other-skill\"]\ncommands = [\"commands/other-cmd.md\"]\n")
-	commitAll(t, other)
-	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\", \""+other+"\"]\n")
-	if err := addUtility(e.remote, "a"); err != nil {
-		t.Fatal(err)
-	}
-	if err := addUtility(other, "b"); err != nil {
-		t.Fatal(err)
-	}
-	lk, _ := readLock(userConfigDir(e.home))
-	if err := os.RemoveAll(storePath(e.home, "b", lk.Components["b"].Commit)); err != nil {
-		t.Fatal(err)
-	}
-	if err := updateUtilities(""); err != nil {
-		t.Fatalf("bulk update with a missing later cache: %v", err)
-	}
-	if _, err := os.Stat(storePath(e.home, "b", lk.Components["b"].Commit)); err != nil {
-		t.Fatalf("cache not repaired: %v", err)
+	for _, disabledBy := range []string{"enabled", "user", "project"} {
+		for _, cache := range []string{"missing", "corrupt"} {
+			for _, command := range []string{"bulk", "named"} {
+				t.Run(disabledBy+"/"+cache+"/"+command, func(t *testing.T) {
+					e := newUtilityEnv(t, declarativeUtility)
+					quietStdout(t)
+					other := filepath.Join(t.TempDir(), "other")
+					const skill = "---\nname: other-skill\ndescription: test\n---\n"
+					const manifest = "schema = \"1\"\nname = \"other\"\nskills = [\"other-skill\"]\ncommands = [\"commands/other-cmd.md\"]\n"
+					write(t, filepath.Join(other, "skills", "other-skill", "SKILL.md"), skill)
+					write(t, filepath.Join(other, "commands", "other-cmd.md"), "Other.\n")
+					write(t, filepath.Join(other, utilityManifestName), manifest)
+					commitAll(t, other)
+					if run([]string{"add", e.remote, "--id", "a"}) != 0 || run([]string{"add", other, "--id", "b"}) != 0 {
+						t.Fatal("initial installation failed")
+					}
+					switch disabledBy {
+					case "user":
+						config := userConfigFile(e.home)
+						write(t, config, strings.Replace(readString(t, config), "[components.b]\n", "[components.b]\nenabled = false\n", 1))
+					case "project":
+						write(t, filepath.Join(e.project, ".gap", "gap.toml"), "[components.b]\nenabled = false\n")
+					}
+					destinations := append(skillDirs(e.home, "other-skill"), commandDests(e.home, "other-cmd.md")...)
+					for _, dest := range destinations {
+						if err := os.RemoveAll(dest); err != nil {
+							t.Fatal(err)
+						}
+					}
+					lk, err := readLock(userConfigDir(e.home))
+					if err != nil {
+						t.Fatal(err)
+					}
+					store := storePath(e.home, "b", lk.Components["b"].Commit)
+					if cache == "missing" {
+						if err := os.RemoveAll(store); err != nil {
+							t.Fatal(err)
+						}
+					} else {
+						write(t, filepath.Join(store, utilityManifestName), "corrupt cache\n")
+					}
+					args := []string{"update"}
+					if command == "named" {
+						args = append(args, "b")
+					}
+					if code := run(args); code != 0 {
+						t.Fatalf("update exited %d", code)
+					}
+					for rel, want := range map[string]string{
+						utilityManifestName:           manifest,
+						"skills/other-skill/SKILL.md": skill,
+						"commands/other-cmd.md":       "Other.\n",
+					} {
+						if got := readString(t, filepath.Join(store, rel)); got != want {
+							t.Errorf("repaired cache %s = %q, want %q", rel, got, want)
+						}
+					}
+					for _, dest := range destinations {
+						if disabledBy != "enabled" {
+							if _, err := os.Lstat(dest); !errors.Is(err, os.ErrNotExist) {
+								t.Errorf("disabled utility installed %s: %v", dest, err)
+							}
+							continue
+						}
+						want := "Other.\n"
+						if filepath.Base(dest) == "other-skill" {
+							dest = filepath.Join(dest, "SKILL.md")
+							want = skill
+						}
+						if got := readString(t, dest); got != want {
+							t.Errorf("installed %s = %q, want %q", dest, got, want)
+						}
+					}
+				})
+			}
+		}
 	}
 }
 

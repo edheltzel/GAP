@@ -344,17 +344,11 @@ func updateUtilities(id string) error {
 			out.result(true, cid+" pinned"+pinLabel(pin))
 		}
 	}
-	all, allLk, err := effectivePins(repoRoot, home, projectRoot, "")
-	if err != nil {
-		return err
-	}
 	requested := distro{Components: map[string]component{}}
 	for _, cid := range ids {
-		if c, ok := all.Components[cid]; ok {
-			requested.Components[cid] = c
-		}
+		requested.Components[cid] = d.Components[cid]
 	}
-	requestedPins, err := lockFor(requested, allLk)
+	requestedPins, err := lockFor(requested, lk)
 	if err != nil {
 		return err
 	}
