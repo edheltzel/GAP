@@ -794,10 +794,15 @@ func pinComponent(spec string) error {
 	return writeLock(repoRoot, lk)
 }
 
-// pinCommit returns the lock entry for commit, fetching it into the store when prev does not already name its tree.
 func pinCommit(home string, c component, ref, commit string, prev lockEntryM1) (lockEntryM1, error) {
 	if prev.Commit == commit && isHexLen(prev.Tree, 40) {
 		return lockEntryM1{Ref: ref, Commit: commit, Tree: prev.Tree}, nil
+	}
+	dest := storePath(home, c.ID, commit)
+	if tree, err := git(dest, "rev-parse", "--verify", commit+"^{tree}"); err == nil && isHexLen(tree, 40) {
+		if got, err := worktreeID(dest); err == nil && got == tree {
+			return lockEntryM1{Ref: ref, Commit: commit, Tree: tree}, nil
+		}
 	}
 	probe := lockEntryM1{Ref: ref, Commit: commit, Tree: strings.Repeat("0", 40)}
 	dir, err := fetchCommit(home, c, probe)
@@ -809,7 +814,7 @@ func pinCommit(home string, c component, ref, commit string, prev lockEntryM1) (
 		os.RemoveAll(dir)
 		return lockEntryM1{}, fmt.Errorf("component %s: no tree for %s", c.ID, commit)
 	}
-	if err := placeStore(dir, storePath(home, c.ID, commit)); err != nil {
+	if err := placeStore(dir, dest); err != nil {
 		os.RemoveAll(dir)
 		return lockEntryM1{}, err
 	}

@@ -89,6 +89,9 @@ func TestUtilityDeclarativeRemovalVersion(t *testing.T) {
 					}
 				}
 			}
+			if err := os.Rename(e.remote, e.remote+"-offline"); err != nil {
+				t.Fatal(err)
+			}
 			e.answers = []string{"y"}
 			if run([]string{"remove", "util"}) != 0 {
 				t.Fatal("removal failed")
@@ -186,6 +189,9 @@ func TestUtilityRemovalUsesInstalledHook(t *testing.T) {
 			if err != nil || lock.Components["util"].Commit != commit {
 				t.Fatalf("desired pin did not advance: %+v, %v", lock, err)
 			}
+			if err := os.Rename(e.remote, e.remote+"-offline"); err != nil {
+				t.Fatal(err)
+			}
 			e.answers = []string{"y"}
 			if run([]string{"remove", "util"}) != 0 {
 				t.Fatal("removal did not clean up the installed hook version")
@@ -206,6 +212,70 @@ func TestUtilityRemovalUsesInstalledHook(t *testing.T) {
 				if err != nil || len(backups) != 1 || readString(t, backups[0]) != "v2 command\n" {
 					t.Fatalf("desired command backup = %v, %v", backups, err)
 				}
+			}
+			if _, remains := readConfigComponents(t, userConfigFile(e.home))["util"]; remains {
+				t.Fatal("removal left the utility registered")
+			}
+		})
+	}
+}
+
+func TestUtilityRemovalRecoversUnverifiedInstalledCache(t *testing.T) {
+	for _, cache := range []string{"edited", "recommitted", "missing"} {
+		t.Run(cache, func(t *testing.T) {
+			manifest := declarativeUtility + "[hooks]\nuninstall = \"touch \\\"$HOME/removed-v1\\\"\"\n"
+			e := newUtilityEnv(t, manifest)
+			quietStdout(t)
+			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+				t.Fatal("initial installation failed")
+			}
+			state, err := readState(e.home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			store := storePath(e.home, "util", state.Components["util"].Installed)
+			write(t, filepath.Join(e.remote, utilityManifestName), manifest+"update = \"true\"\n")
+			commitAll(t, e.remote)
+			if run([]string{"update", "util"}) != 1 {
+				t.Fatal("unapproved update should leave the previous version installed")
+			}
+			if cache == "missing" {
+				if err := os.Rename(store, store+"-missing"); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				write(t, filepath.Join(store, utilityManifestName), declarativeUtility+"[hooks]\nuninstall = \"touch \\\"$HOME/unverified-uninstall\\\"\"\n")
+				if cache == "recommitted" {
+					commitAll(t, store)
+				}
+			}
+			if err := os.Rename(e.remote, e.remote+"-offline"); err != nil {
+				t.Fatal(err)
+			}
+			beforeConfig := readConfigComponents(t, userConfigFile(e.home))
+			beforeState, err := readState(e.home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.tty, e.answers = true, []string{"y"}
+			if run([]string{"remove", "util"}) != 1 {
+				t.Fatal("removal accepted an unverified installed cache without a remote")
+			}
+			afterState, err := readState(e.home)
+			if err != nil || !reflect.DeepEqual(beforeState, afterState) || !reflect.DeepEqual(beforeConfig, readConfigComponents(t, userConfigFile(e.home))) {
+				t.Fatalf("failed removal changed registration or ownership: %v", err)
+			}
+			if e.exists("removed-v1") || e.exists("unverified-uninstall") {
+				t.Fatal("removal ran a hook before verifying the installed cache")
+			}
+			if err := os.Rename(e.remote+"-offline", e.remote); err != nil {
+				t.Fatal(err)
+			}
+			if run([]string{"remove", "util"}) != 0 {
+				t.Fatal("removal did not recover the installed version from the remote")
+			}
+			if !e.exists("removed-v1") || e.exists("unverified-uninstall") {
+				t.Fatal("removal did not use the verified installed version's hook")
 			}
 			if _, remains := readConfigComponents(t, userConfigFile(e.home))["util"]; remains {
 				t.Fatal("removal left the utility registered")
