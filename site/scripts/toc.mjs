@@ -23,7 +23,7 @@ try {
     const middleOfCommands = async () => {
       await page.evaluate(() => {
         const y = (id) => scrollY + document.getElementById(id).getBoundingClientRect().top;
-        window.scrollTo(0, (y('commands') + y('manage-skills')) / 2);
+        window.scrollTo(0, (y('commands') + y('change-the-policy')) / 2);
       });
       await expectSection('commands');
     };
@@ -45,7 +45,7 @@ try {
     });
     await expectSection('manage-skills');
     await page.setViewportSize({ width: viewport.width, height: 390 });
-    await expectSection('commands');
+    await expectSection('set-up-empryo-once-per-machine');
     await page.setViewportSize(viewport);
     if (viewport.width < 1280) {
       await page.locator('[data-nb-mobile-toc-select]').selectOption('manage-skills');

@@ -4,7 +4,7 @@
 
 Close the two items the env provisioner plan named and M3, M5, and M6 left unfinished. `gap init` writes one Recall breadcrumb for the project it provisions, and `gap doctor` records which Echo adapters are installed into `~/.gap/state.json`. The breadcrumb goes through `recall`. The adapter list needs one new flag in Echo, because nothing Echo exposes today returns it.
 
-Status, 2026-11-05: U1, U2, and U3 landed in GAP with PR #100. U2's real pin is still open; see the [components reference](../../README.md#components) for the pinned Echo's reporting limits and [Todo](#todo) for the release dependency.
+Status, 2026-11-05: U1, U2, and U3 landed in GAP with PR #100. U2's real pin is still open; see the [project setup and doctor contract](../../cmd/gap/AGENTS.md#project-setup-and-doctor) for the pinned Echo's reporting limits and [Todo](#todo) for the release dependency.
 
 ## Redteam, 2026-10-22
 
@@ -14,7 +14,7 @@ Held:
 
 - Idempotency needs a project-scoped search of the full breadcrumb history. A recent-record limit of 1,000 still loses the setup note after 1,000 newer entries. Recall's `search` filters by project and table before limiting matches, so a quoted phrase query can find the setup note regardless of its age. Search previews truncate at 100 characters; use the returned breadcrumb record header to detect a match.
 - A missing `recall` stays a notice. Init has already written its files by then, and failing the command over an optional memory tool punishes a machine that never installed one.
-- Replace Echo's prior report after a successful read, rather than appending history. The [components reference](../../README.md#components) owns ledger updates and skipped-report behavior.
+- Replace Echo's prior report after a successful read, rather than appending history. The [project setup and doctor contract](../../cmd/gap/AGENTS.md#project-setup-and-doctor) owns ledger updates and skipped-report behavior.
 
 Rejected:
 
@@ -44,7 +44,7 @@ Open, and accepted: the flag does not exist in the pinned Echo (`f8001264`, v0.1
 
 - Depends on: U1
 - Files: `cmd/gap/provision.go`, `cmd/gap/doctor.go`, `cmd/gap/doctor_test.go`
-- Change: implement the [Echo adapter reporting contract](../../README.md#components) in `gap doctor`. Read adapter names, one per line, from `scripts/install.sh --list-installed` in the verified pinned store. Do not parse `--check` output, source `install.sh`, or reimplement Echo's checks.
+- Change: implement the [Echo adapter reporting contract](../../cmd/gap/AGENTS.md#project-setup-and-doctor) in `gap doctor`. Read adapter names, one per line, from `scripts/install.sh --list-installed` in the verified pinned store. Do not parse `--check` output, source `install.sh`, or reimplement Echo's checks.
 - Blocked on: Echo. `scripts/install.sh` needs a `--list-installed` branch beside `--check` that runs the ten `*_installed` functions, prints each installed name, and exits 0 before `warn_if_linked_worktree`. Gap cannot pin that until Echo tags it. This unit's test uses a fixture script, so it does not wait on the tag. The real pin does.
 - Done when: after a successful Echo adapter report, `~/.gap/state.json` lists exactly the adapters whose checks returned installed, and a later successful report with a different set replaces the list.
 - Verify: `go test -count=1 -run 'TestDoctorRecordsAdapters|TestDoctorLedgerReplaces|TestDoctorLedgerNoFlag' ./cmd/gap`. The first two point the echo store at a fixture script that prints two adapter names and exits 0, then read `state.json` back and compare the names and the commit. The third points it at a script that exits 2, and asserts there is no echo entry and the run still finishes.
@@ -53,8 +53,8 @@ Open, and accepted: the flag does not exist in the pinned Echo (`f8001264`, v0.1
 
 - Depends on: U2
 - Files: `README.md`, `cmd/gap/AGENTS.md`
-- Change: keep user-facing behavior in README's [project setup](../../README.md#project-setup) and [components](../../README.md#components) sections. Reduce the stale Local Contracts copy to pointers to those owners.
-- Done when: README describes setup breadcrumbs, Echo adapter reporting, and their limits, with pointers from `cmd/gap/AGENTS.md`.
+- Change: keep common usage in README's [project setup](../../README.md#project-setup) and [components](../../README.md#components) sections, with pointers to the full [project setup and doctor contract](../../cmd/gap/AGENTS.md#project-setup-and-doctor).
+- Done when: README summarizes setup breadcrumbs and Echo adapter reporting, with their limits owned by `cmd/gap/AGENTS.md`.
 - Verify: re-read those sections against `provision.go`, `init.go`, and `doctor.go`; `go test -count=1 ./cmd/gap` remains the behavioral check.
 
 ## Out of scope
