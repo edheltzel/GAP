@@ -148,7 +148,7 @@ func doctorAll() error {
 			fmt.Fprintf(os.Stderr, "%s doctor: %v\n", id, err)
 			bad = true
 		}
-		if id == "echo" {
+		if id == "echo" && !c.User {
 			if err := recordEchoAdapters(home, dir, lk); err != nil {
 				return err
 			}

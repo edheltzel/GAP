@@ -458,6 +458,15 @@ func removeUtility(id string) error {
 			return fmt.Errorf("utility %s: configuration still declares it; nothing removed", id)
 		}
 	}
+	if err := loadLocalManifests(home, d, lk); err != nil {
+		return err
+	}
+	for _, oid := range sortedIDs(d.Components) {
+		other := d.Components[oid]
+		if oid != id && other.Store == "" && (other.User || !other.Named) {
+			return fmt.Errorf("cannot determine %s selections; run gap sync before removing %s; nothing removed", oid, id)
+		}
+	}
 	gate, err := newHookGate(home)
 	if err != nil {
 		return err
@@ -514,9 +523,6 @@ func removeUtility(id string) error {
 				sharedCommandOwners[path] = append(sharedCommandOwners[path], oid)
 			}
 		}
-	}
-	if err := loadLocalManifests(home, d, lk); err != nil {
-		return err
 	}
 	globals, err := globalCommandNames(repoRoot)
 	if err != nil {

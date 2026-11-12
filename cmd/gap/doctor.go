@@ -60,7 +60,8 @@ func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[
 			continue
 		}
 		entry := state.Components[id]
-		if entry.Installed == "" && c.Install == "" && len(commands[id]) == 2*len(c.Commands) {
+		_, command := installHook(c, entry)
+		if command == "" && len(commands[id]) == 2*len(c.Commands) {
 			complete := true
 			for _, selected := range selectedEntries(c, c.Store, projectRoot) {
 				for _, name := range selected.Skills {

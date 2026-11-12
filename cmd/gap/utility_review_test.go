@@ -11,6 +11,145 @@ import (
 
 const declarativeUtility = "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\ncommands = [\"commands/util-cmd.md\"]\n"
 
+func TestUtilityDoctorDoesNotProbeUserEcho(t *testing.T) {
+	for _, trusted := range []bool{false, true} {
+		t.Run(fmt.Sprint(trusted), func(t *testing.T) {
+			manifest := fmt.Sprintf("schema = \"1\"\nname = \"custom echo\"\n[hooks]\ndoctor = %q\n", "touch \"$HOME/approved-doctor\"")
+			e := newUtilityEnv(t, manifest)
+			quietStdout(t)
+			write(t, filepath.Join(e.remote, "scripts", "install.sh"), "#!/bin/sh\ntouch \"$HOME/undisclosed-probe\"\nprintf 'codex\\n'\n")
+			if err := os.Chmod(filepath.Join(e.remote, "scripts", "install.sh"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			commitAll(t, e.remote)
+			if trusted {
+				write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
+			}
+			if run([]string{"add", e.remote, "--id", "echo"}) != 0 {
+				t.Fatal("adding custom Echo failed")
+			}
+			e.tty, e.answers = true, []string{"y"}
+			if run([]string{"doctor"}) != 0 || !e.exists("approved-doctor") {
+				t.Fatal("the declared doctor hook did not run")
+			}
+			if e.exists("undisclosed-probe") {
+				t.Fatal("doctor ran an undeclared adapter probe for a user utility")
+			}
+		})
+	}
+}
+
+func TestUtilityDeclarativeRemovalVersion(t *testing.T) {
+	for _, outcome := range []string{"declarative", "declined", "failed", "updated"} {
+		t.Run(outcome, func(t *testing.T) {
+			manifest := func(version, update string) string {
+				text := declarativeUtility + fmt.Sprintf("[hooks]\nuninstall = %q\n", "touch \"$HOME/removed-"+version+"\"")
+				if update != "" {
+					text += fmt.Sprintf("update = %q\n", update)
+				}
+				return text
+			}
+			e := newUtilityEnv(t, manifest("v1", ""))
+			quietStdout(t)
+			first, err := git(e.remote, "rev-parse", "HEAD")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+				t.Fatal("initial declarative installation failed")
+			}
+			update := ""
+			if outcome == "declined" || outcome == "updated" {
+				update = "true"
+			} else if outcome == "failed" {
+				update = "exit 1"
+			}
+			write(t, filepath.Join(e.remote, utilityManifestName), manifest("v2", update))
+			write(t, filepath.Join(e.remote, "commands", "util-cmd.md"), "v2 command\n")
+			second, _ := commitAll(t, e.remote)
+			e.tty, e.answers = true, []string{"y"}
+			wantCode, installed, wantCommit := 0, "v2", second
+			if outcome == "declined" || outcome == "failed" {
+				wantCode, installed, wantCommit = 1, "v1", first
+			}
+			if outcome == "declined" {
+				e.answers = []string{"n"}
+			}
+			if code := run([]string{"update", "util"}); code != wantCode {
+				t.Fatalf("update exited %d, want %d", code, wantCode)
+			}
+			state, err := readState(e.home)
+			if err != nil || state.Components["util"].Installed != wantCommit {
+				t.Errorf("installed commit = %+v, want %s: %v", state.Components["util"], wantCommit, err)
+			}
+			if wantCode == 0 {
+				for _, path := range commandDests(e.home, "util-cmd.md") {
+					if got := readString(t, path); got != "v2 command\n" {
+						t.Fatalf("installed command = %q", got)
+					}
+				}
+			}
+			e.answers = []string{"y"}
+			if run([]string{"remove", "util"}) != 0 {
+				t.Fatal("removal failed")
+			}
+			if !e.exists("removed-" + installed) {
+				t.Fatalf("removal did not use the %s uninstall hook", installed)
+			}
+		})
+	}
+}
+
+func TestUtilityRemovalRejectsUnresolvedSharing(t *testing.T) {
+	for _, source := range []string{"missing", "changed", "unpinned"} {
+		t.Run(source, func(t *testing.T) {
+			manifest := fmt.Sprintf("schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n[hooks]\nuninstall = %q\n", "touch \"$HOME/uninstall-ran\"")
+			e := newUtilityEnv(t, manifest)
+			quietStdout(t)
+			write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
+			for _, id := range []string{"a", "b"} {
+				if run([]string{"add", e.remote, "--id", id}) != 0 {
+					t.Fatalf("add %s failed", id)
+				}
+			}
+			lk, err := readLock(userConfigDir(e.home))
+			if err != nil {
+				t.Fatal(err)
+			}
+			store := storePath(e.home, "b", lk.Components["b"].Commit)
+			switch source {
+			case "missing":
+				if err := os.RemoveAll(store); err != nil {
+					t.Fatal(err)
+				}
+			case "changed":
+				write(t, filepath.Join(store, "skills", "util-skill", "SKILL.md"), "changed cache\n")
+			case "unpinned":
+				delete(lk.Components, "b")
+				if err := writeLock(userConfigDir(e.home), lk); err != nil {
+					t.Fatal(err)
+				}
+			}
+			beforeConfig := readString(t, userConfigFile(e.home))
+			beforeState := readString(t, statePath(e.home))
+			if run([]string{"remove", "a"}) != 1 {
+				t.Error("removal accepted unresolved sharing")
+			}
+			if e.exists("uninstall-ran") {
+				t.Error("uninstall ran before resolving remaining selections")
+			}
+			for _, path := range skillDirs(e.home, "util-skill") {
+				if !exists(path) {
+					t.Error("removal took a remaining utility's shared skill")
+				}
+			}
+			if readString(t, userConfigFile(e.home)) != beforeConfig || readString(t, statePath(e.home)) != beforeState {
+				t.Error("unresolved removal changed registration or ownership")
+			}
+		})
+	}
+}
+
 func TestUtilityRemovalUsesInstalledHook(t *testing.T) {
 	for _, outcome := range []string{"declined", "failed", "successful"} {
 		t.Run(outcome, func(t *testing.T) {
