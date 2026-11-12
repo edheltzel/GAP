@@ -110,7 +110,9 @@ For a direct skills.sh install that does not use `gap.lock`, run `npx skills add
 
 ### Components
 
-A component is a repo pinned to one commit that supplies skills, commands, or its own installer and doctor. [`gap.toml`](gap.toml) selects the distro's components; [`gap.lock`](gap.lock) records the exact commits and trees. A component whose repo ships a [`gap-utility.toml`](#publish-a-utility) describes its own skills, commands, and hooks, so its entry needs only `repo` and `ref`; keeping `install` or `doctor` in that entry is refused. A repo without one lists its skills in `names` and may set `install` and `doctor` commands in its entry:
+A component is a repo pinned to one commit that supplies skills, commands, or its own installer and doctor. [`gap.toml`](gap.toml) selects the distro's components; [`gap.lock`](gap.lock) records the exact commits and trees. A component whose pinned commit includes a [`gap-utility.toml`](#publish-a-utility) describes its own skills, commands, and hooks, so its entry needs only `repo` and `ref`; keeping `install` or `doctor` in that entry is refused. A distro component whose pinned commit lacks one lists its skills in `names` and may set `install` and `doctor` commands in its entry.
+
+The distro can narrow a manifest's skill list as described under [Load levels](#load-levels). For example:
 
 ```toml
 # gap.toml

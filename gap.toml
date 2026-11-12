@@ -4,7 +4,6 @@ name   = "edheltzel/GAP"
 [components.forge]
 repo   = "github.com/edheltzel/Forge"
 ref    = "master"
-names  = ["forge-interview"]
 
 [components.echo]
 repo    = "github.com/edheltzel/Echo"
@@ -17,10 +16,7 @@ names   = []
 [components.recall]
 repo    = "github.com/edheltzel/Recall"
 ref     = "main"
-doctor  = "recall doctor"
-install = "./packaging/install.sh"
-# Recall owns do-recall-* and installs them itself. Gap runs its doctor and does not copy them.
-names   = []
+# Recall owns do-recall-* and installs them itself through its gap-utility.toml hooks.
 
 [components.do-skills]
 repo  = "github.com/edheltzel/Do-Skills"
