@@ -11,6 +11,139 @@ import (
 
 const declarativeUtility = "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\ncommands = [\"commands/util-cmd.md\"]\n"
 
+func TestUtilitySkillBaseline(t *testing.T) {
+	for _, outcome := range []string{"declined", "publication-failed", "partial"} {
+		t.Run(outcome, func(t *testing.T) {
+			manifest := declarativeUtility + "[hooks]\ninstall = \"true\"\nupdate = \"touch \\\"$HOME/update-ran\\\"\"\n"
+			if outcome == "partial" {
+				manifest = "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\", \"other-skill\"]\n"
+			}
+			e := newUtilityEnv(t, manifest)
+			quietStdout(t)
+			if outcome == "partial" {
+				write(t, filepath.Join(e.remote, "skills", "other-skill", "SKILL.md"), "other skill\n")
+				commitAll(t, e.remote)
+			}
+			e.tty, e.answers = true, []string{"y"}
+			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+				t.Fatal("initial installation failed")
+			}
+			original := readString(t, filepath.Join(e.home, ".agents", "skills", "util-skill", "SKILL.md"))
+			write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "version Q\n")
+			commitAll(t, e.remote)
+			ledgerPath := filepath.Join(e.home, ".gap", "published.json")
+			var ledger string
+			if outcome == "publication-failed" {
+				ledger = readString(t, ledgerPath)
+				if err := os.Remove(ledgerPath); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Mkdir(ledgerPath, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				e.answers = []string{"y"}
+			} else {
+				e.tty = false
+			}
+			if outcome == "partial" {
+				write(t, filepath.Join(e.home, ".claude", "skills", "other-skill", "SKILL.md"), "user edit\n")
+				write(t, userConfigFile(e.home), readString(t, userConfigFile(e.home))+fmt.Sprintf("\n[trust]\nrepos = [%q]\n", e.remote))
+			}
+			if run([]string{"update", "util"}) != 1 {
+				t.Fatal("incomplete update reported success")
+			}
+			want := "version Q\n"
+			if outcome == "publication-failed" {
+				want = original
+				if !e.exists("update-ran") {
+					t.Fatal("publication failure did not follow a completed hook")
+				}
+				if err := os.Remove(ledgerPath); err != nil {
+					t.Fatal(err)
+				}
+				write(t, ledgerPath, ledger)
+			}
+			for _, dir := range skillDirs(e.home, "util-skill") {
+				if got := readString(t, filepath.Join(dir, "SKILL.md")); got != want {
+					t.Fatalf("intermediate skill = %q, want %q", got, want)
+				}
+			}
+			if outcome != "partial" {
+				write(t, userConfigFile(e.home), readString(t, userConfigFile(e.home))+fmt.Sprintf("\n[trust]\nrepos = [%q]\n", e.remote))
+			}
+			if outcome != "publication-failed" {
+				want = "version R\n"
+				write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), want)
+				commitAll(t, e.remote)
+			} else {
+				want = "version Q\n"
+			}
+			e.tty = false
+			wantCode := 0
+			if outcome == "partial" {
+				wantCode = 1
+			}
+			if code := run([]string{"update", "util"}); code != wantCode {
+				t.Errorf("retry exited %d, want %d", code, wantCode)
+			}
+			for _, dir := range skillDirs(e.home, "util-skill") {
+				if got := readString(t, filepath.Join(dir, "SKILL.md")); got != want {
+					t.Errorf("retry skill = %q, want %q", got, want)
+				}
+			}
+			if outcome == "partial" && readString(t, filepath.Join(e.home, ".claude", "skills", "other-skill", "SKILL.md")) != "user edit\n" {
+				t.Error("retry overwrote an edited sibling skill")
+			}
+		})
+	}
+}
+
+func TestUtilityCommandOwnersRequireManifests(t *testing.T) {
+	for _, source := range []string{"missing", "changed", "unpinned"} {
+		t.Run(source, func(t *testing.T) {
+			e := newUtilityEnv(t, declarativeUtility+"[hooks]\ninstall = \"exit 1\"\n")
+			quietStdout(t)
+			e.tty, e.answers = true, []string{"y"}
+			if run([]string{"add", e.remote, "--id", "a"}) != 1 {
+				t.Fatal("failing install reported success")
+			}
+			lk, err := readLock(userConfigDir(e.home))
+			if err != nil {
+				t.Fatal(err)
+			}
+			store := storePath(e.home, "a", lk.Components["a"].Commit)
+			switch source {
+			case "missing":
+				if err := os.RemoveAll(store); err != nil {
+					t.Fatal(err)
+				}
+			case "changed":
+				write(t, filepath.Join(store, utilityManifestName), "changed cache\n")
+			case "unpinned":
+				delete(lk.Components, "a")
+				if err := writeLock(userConfigDir(e.home), lk); err != nil {
+					t.Fatal(err)
+				}
+			}
+			other := filepath.Join(t.TempDir(), "other")
+			writeUtilityRepo(t, other, declarativeUtility)
+			commitAll(t, other)
+			e.tty = false
+			if run([]string{"add", other, "--id", "b"}) != 1 {
+				t.Error("add accepted unresolved command ownership")
+			}
+			if _, registered := readConfigComponents(t, userConfigFile(e.home))["b"]; registered {
+				t.Error("rejected add registered the conflicting utility")
+			}
+			for _, dest := range commandDests(e.home, "util-cmd.md") {
+				if exists(dest) {
+					t.Error("rejected add published a conflicting command")
+				}
+			}
+		})
+	}
+}
+
 func TestUtilityDoctorDoesNotProbeUserEcho(t *testing.T) {
 	for _, trusted := range []bool{false, true} {
 		t.Run(fmt.Sprint(trusted), func(t *testing.T) {

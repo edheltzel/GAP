@@ -331,7 +331,7 @@ func publishComponentCommands(repoRoot, home string, d distro, ledger map[string
 			}
 			for _, dest := range commandDests(home, name) {
 				if cur, err := os.ReadFile(dest); err == nil && string(cur) == string(b) && ledger[dest] == digest(string(b)) {
-					if err := recordOwnership(home, id, nil, []string{dest}); err != nil {
+					if err := recordOwnership(home, id, nil, []string{dest}, ""); err != nil {
 						return nil, false, err
 					}
 					owned[id] = append(owned[id], dest)
@@ -345,7 +345,7 @@ func publishComponentCommands(repoRoot, home string, d distro, ledger map[string
 					ok = false
 					continue
 				}
-				if err := recordOwnership(home, id, nil, []string{dest}); err != nil {
+				if err := recordOwnership(home, id, nil, []string{dest}, ""); err != nil {
 					return nil, false, err
 				}
 				owned[id] = append(owned[id], dest)
@@ -389,6 +389,9 @@ func checkCommandOwners(repoRoot, home string, selected distro) error {
 		return err
 	}
 	for _, id := range sortedIDs(d.Components) {
+		if c := d.Components[id]; c.User && !c.Manifest {
+			return fmt.Errorf("cannot determine %s command ownership; run gap update %s before publishing commands", id, id)
+		}
 		seen := map[string]bool{}
 		for _, rel := range d.Components[id].Commands {
 			name := filepath.Base(rel)

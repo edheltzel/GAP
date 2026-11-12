@@ -466,7 +466,7 @@ func replaceSkill(npx, repoRoot, home string, e manifestEntry, name string) (boo
 			}
 		}
 		if installErr == nil {
-			return true, recordOwnership(home, e.Owner, []string{name}, nil)
+			return true, recordOwnership(home, e.Owner, []string{name}, nil, e.Path)
 		}
 	} else {
 		snap := snapshotSkillLock(home, name)

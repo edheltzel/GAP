@@ -196,7 +196,6 @@ func setUserPin(home, id string, pin lockEntryM1) error {
 }
 
 // installUtility syncs one component: its hook, its skills, its commands, and the ownership record.
-// prevStore, when set, is the store of the pin being replaced: a skill copy that still matches it moves to the new pin.
 func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
 	if err != nil {
@@ -235,25 +234,27 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 	if err != nil {
 		return err
 	}
-	if prevStore != "" && prevStore != d.Components[id].Store {
-		for _, entry := range entries {
-			target := entryHome(home, entry)
-			for _, name := range entry.Skills {
-				if !slices.Contains(state.Components[id].Skills, name) {
-					continue
-				}
-				if !installed(target, name) || skillDriftCount(entry.Path, target, name) == 0 {
-					continue
-				}
-				if skillDriftCount(prevStore, target, name) > 0 {
-					fmt.Fprintf(os.Stderr, "%s: your edited copy of %s was kept; gap restore %s takes the new version\n", id, name, id)
-					skillsOK = false
-					continue
-				}
-				if replaced, err := replaceSkill("", repoRoot, target, entry, name); err != nil || !replaced {
-					fmt.Fprintf(os.Stderr, "Updating %s: %v\n", name, err)
-					skillsOK = false
-				}
+	for _, entry := range entries {
+		target := entryHome(home, entry)
+		for _, name := range entry.Skills {
+			baseline := prevStore
+			if commit := state.Components[id].SkillCopies[name]; commit != "" {
+				baseline = storePath(home, id, commit)
+			}
+			if baseline == "" || baseline == entry.Path || !slices.Contains(state.Components[id].Skills, name) {
+				continue
+			}
+			if !installed(target, name) || skillDriftCount(entry.Path, target, name) == 0 {
+				continue
+			}
+			if skillDriftCount(baseline, target, name) > 0 {
+				fmt.Fprintf(os.Stderr, "%s: your edited copy of %s was kept; gap restore %s takes the new version\n", id, name, id)
+				skillsOK = false
+				continue
+			}
+			if replaced, err := replaceSkill("", repoRoot, target, entry, name); err != nil || !replaced {
+				fmt.Fprintf(os.Stderr, "Updating %s: %v\n", name, err)
+				skillsOK = false
 			}
 		}
 	}
@@ -592,7 +593,7 @@ func removeUtility(id string) error {
 	for _, name := range entry.Skills {
 		if shared[name] {
 			for _, owner := range sharedSkillOwners[name] {
-				if err := recordOwnership(home, owner, []string{name}, nil); err != nil {
+				if err := recordOwnership(home, owner, []string{name}, nil, ""); err != nil {
 					return err
 				}
 			}
@@ -617,7 +618,7 @@ func removeUtility(id string) error {
 	for _, path := range entry.Commands {
 		if sharedCommands[path] {
 			for _, owner := range sharedCommandOwners[path] {
-				if err := recordOwnership(home, owner, nil, []string{path}); err != nil {
+				if err := recordOwnership(home, owner, nil, []string{path}, ""); err != nil {
 					return err
 				}
 			}
