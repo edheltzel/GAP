@@ -191,11 +191,11 @@ ref = "master"
 | Step | Command | What happens |
 | --- | --- | --- |
 | Install from the lock | `gap sync` | Installs every utility at its pinned commit, like the distro components. Sync never moves a pin |
-| Update | `gap update [id]` | Moves every requested pin to the newest commit on its effective ref before installing any utility. A skill copy you did not edit moves to the new version; an edited copy is kept and `gap restore <id>` takes the new one. Hook timing follows the [manifest reference](#publish-a-utility) |
+| Update | `gap update [id]` | Moves every requested pin to the newest commit on its effective ref before installing enabled utilities. A skill copy you did not edit moves to the new version; an edited copy is kept and `gap restore <id>` takes the new one. Hook timing follows the [manifest reference](#publish-a-utility) |
 | See what is added | `gap list` | One line per component: id, `distro` or `user`, repo, ref, commit, and whether its hooks run, ask, or are trusted |
 | Remove | `gap remove <id>` | Runs the `uninstall` hook, moves the skills and commands GAP placed for it into one `~/.gap/backups/<time>/` folder, and drops its config entry, pin, and record. An edited copy is named in the output |
 
-Update compares each skill with its last copied version, tracked separately from hook completion in `~/.gap/state.json`. If an update hook fails, fix its cause and rerun `gap update [id]`: installation retries even when the pin is already current.
+Before installing any utility, update verifies every requested source checkout, including disabled utilities, and rebuilds missing or corrupt caches even when the pin is already current. Update compares each skill with its last copied version, tracked separately from hook completion in `~/.gap/state.json`. If an update hook fails, fix its cause and rerun `gap update [id]`: installation retries even when the pin is already current.
 
 GAP removes only the files it recorded for that utility in `~/.gap/state.json`, keeping files another source still selects. If it cannot determine remaining component selections from verified local checkouts, removal stops before running the uninstall hook; run `gap sync` before retrying. If a successfully installed, untrusted utility has an `install` hook and no `uninstall` hook, `gap remove` warns that it cannot undo what the installer did. A failing or unapproved `uninstall` hook stops `gap remove` before anything moves.
 
