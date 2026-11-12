@@ -3,6 +3,7 @@ import { mount } from "@cloudflare/nimbus-docs/client";
 const BAND_TOP = 0.1;
 const BAND_BOTTOM = 0.3;
 const SUPPRESS_MS = 1000;
+const SCROLL_EPSILON = 1;
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -72,7 +73,7 @@ function initMobileToc(root: HTMLElement): () => void {
     let active = "_top";
     for (const { slug, el } of headings) {
       const rect = el.getBoundingClientRect();
-      if (rect.top > bandBottom) break;
+      if (rect.top > bandBottom + SCROLL_EPSILON) break;
       active = slug;
       if (rect.bottom >= bandTop) break;
     }

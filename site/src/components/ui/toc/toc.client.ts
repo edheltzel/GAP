@@ -2,6 +2,7 @@ import { mount } from "@cloudflare/nimbus-docs/client";
 
 const READING_BAND = 0.25;
 const BOTTOM_EPSILON = 2;
+const SCROLL_EPSILON = 1;
 const REVEAL_PADDING = 12;
 
 function initToc(root: HTMLElement): () => void {
@@ -180,7 +181,7 @@ function initToc(root: HTMLElement): () => void {
     );
     let nextIndex = 0;
     for (const o of observed) {
-      if (o.el.getBoundingClientRect().top <= bandBottom) nextIndex = o.index;
+      if (o.el.getBoundingClientRect().top <= bandBottom + SCROLL_EPSILON) nextIndex = o.index;
       else break;
     }
     observedIndex = nextIndex;
