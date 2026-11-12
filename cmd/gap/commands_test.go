@@ -63,7 +63,7 @@ func TestComponentCommandSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := state.Components["util"]
-	if len(got.Commands) != 2 || len(got.Skills) != 1 || got.Skills[0] != "util-skill" {
+	if len(got.Commands) != len(commandDests(home, "")) || len(got.Skills) != 1 || got.Skills[0] != "util-skill" {
 		t.Fatalf("ownership = %+v", got)
 	}
 
@@ -167,7 +167,7 @@ func TestCommandSync(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, dir := range []string{".omp/agent/commands", ".claude/commands"} {
+				for _, dir := range []string{".omp/agent/commands", ".claude/commands", ".pi/agent/prompts"} {
 					entries, err := os.ReadDir(filepath.Join(home, dir))
 					if err != nil || len(entries) != 2 {
 						t.Fatalf("expected only two top-level commands in %s: %v, %v", dir, entries, err)

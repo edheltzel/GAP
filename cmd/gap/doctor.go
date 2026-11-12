@@ -76,7 +76,7 @@ func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[
 			}
 		}
 		_, command := installHook(c, entry)
-		if command == "" && len(commands[id]) == 2*len(c.Commands) && complete {
+		if command == "" && len(commands[id]) == len(commandDests(home, ""))*len(c.Commands) && complete {
 			entry.Installed = filepath.Base(c.Store)
 		}
 		state.Components[id] = entry

@@ -335,7 +335,7 @@ func TestUtilityRemovalUsesInstalledHook(t *testing.T) {
 			if e.exists("installed-v1") || e.exists("installed-v2") {
 				t.Fatal("installed hook side effect remains")
 			}
-			for _, rel := range []string{".agents/skills/util-skill", ".claude/skills/util-skill", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md"} {
+			for _, rel := range []string{".agents/skills/util-skill", ".claude/skills/util-skill", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md", ".pi/agent/prompts/util-cmd.md"} {
 				if e.exists(rel) {
 					t.Fatalf("removal left %s", rel)
 				}
