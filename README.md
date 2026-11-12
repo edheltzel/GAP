@@ -15,6 +15,7 @@ GAP is one set of rules that every coding agent on your machine follows. You, or
 
 ## Before you start
 
+- macOS or Linux. `gap` builds on Windows, but its harness paths and tests are not checked there.
 - The Go version required by [go.mod](go.mod), or newer (`go version`)
 - Go's bin folder on your `PATH`: `$(go env GOPATH)/bin`, or `GOBIN` if you set it
 
@@ -42,6 +43,12 @@ gap sync
 ```
 
 `gap` publishes the checkout it was built from, so it runs from any folder. Run the curl command again after `cmd/gap` changes. To skip installing, run `go run ./cmd/gap sync` from a checkout.
+
+To uninstall, there is no `gap uninstall` yet:
+
+1. Delete the text between `<!-- gap:begin -->` and `<!-- gap:end -->`, markers included, in each file listed in [Where each agent reads the policy](#where-each-agent-reads-the-policy). Delete a file that held only that block.
+2. Remove the GAP SessionStart and SubagentStart entries from `~/.codex/hooks.json`, and each published `global/commands/*.md` from `~/.claude/commands/` and `~/.omp/agent/commands/`.
+3. Trash `$(go env GOPATH)/bin/gap` and `~/.gap/`. `~/.gap/backups/` and `~/.gap/recovery/` hold every file sync replaced, so copy out anything you want first. Installed skills stay in `~/.agents/skills` and `~/.claude/skills` until you remove them.
 
 ## Commands
 
@@ -74,7 +81,7 @@ The distro's `gap.toml` and your `~/.config/gap/gap.toml` select pinned [compone
 ]
 ```
 
-`gap sync` copies selected component skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Component skill installation, drift repair, and restore do not use Node or `npx`. Project skills use the same two paths under the invoking project instead of the home directory; see [load levels](#load-levels).
+`gap sync` copies selected component skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Harnesses that read neither folder get no skills from GAP; the policy still reaches them. Component skill installation, drift repair, and restore do not use Node or `npx`. Project skills use the same two paths under the invoking project instead of the home directory; see [load levels](#load-levels).
 
 Additional skills in `global/skills.json` still install through skills.sh (`npx -y skills add <source> -g -y -a claude-code -a codex -s <name>`, repeating `-s` for each missing skill). They use the home-directory destinations above, with a Claude link managed by skills.sh, and require Node. If such an installation is needed but `npx` is unavailable, sync still publishes the policy, skips that installation, and exits `1`.
 
@@ -273,7 +280,7 @@ It reports each file it wrote using the [terminal or plain-text format](#choose-
 
 Policy files are the shared rules. Each top-level `global/commands/*.md` is a slash-command prompt, copied unchanged as a whole file to OMP and Claude Code. See [how sync handles existing files](#step-4-answer-if-gap-sync-asks-about-a-file).
 
-The bundled [`/state-docs`](global/commands/state-docs.md) prompt writes project maps under `docs/state`. See the prompt for arguments and local Nessa docs requirements.
+The bundled [`/state-docs`](global/commands/state-docs.md) prompt writes project maps under `docs/state`. It follows the skill in a local clone of [nessa-docs](https://github.com/nessalabs/nessa-docs), found through `NESSA_DOCS`; see the prompt for arguments.
 
 Each is a regular file, not a symlink. Start a new session in any agent to load the new rules.
 
@@ -281,8 +288,8 @@ Each is a regular file, not a symlink. Start a new session in any agent to load 
 
 `gap sync` asks before it appends the policy to a foreign file without a complete GAP marker pair, or replaces a foreign command file or a symlink. An empty file without a matching ledger entry also needs confirmation.
 
-1. Type `y`. For a policy file, sync copies it under `~/.gap/backups/` and appends the policy between `<!-- gap:begin -->` and `<!-- gap:end -->`. The rest of the file stays, so the harness keeps loading it. For a command file, sync backs up the old contents and replaces them. For a symlink, sync retains the link and writes a regular file. If that replace stops before the move, the empty recovery folder is removed. In those replacement cases, the harness stops loading the old file. The backup keeps the bytes only.
-2. Later policy syncs replace only that block and do not ask again. When the live file already equals the publish, sync leaves it in place. Otherwise it moves the previous file or symlink under `~/.gap/recovery/<dest-id>/<timestamp>/` (`<dest-id>` is the destination path relative to `$HOME`) and prints that path. If the destination is on another filesystem, the previous file is copied with its mode, fsync'd, and verified, then the live destination is re-checked and only then removed. A destination that changes or disappears during that copy is refused, and the rest of the sync continues. Recovery stays out of harness rule directories. Leftover `.<filename>.gap-recovery-*` directories next to a managed destination are moved into `~/.gap/recovery/<dest-id>/` and the new path is printed. A failed move prints a warning and leaves the folder in place. GAP keeps the 3 newest regular copies per destination. A displaced user symlink is kept and is never pruned. A moved leftover `.<filename>.gap-recovery-*` folder is never pruned. A prune failure prints a warning and does not fail the sync. Concurrent edits, including writes through an already open file, are kept in that recovery copy; if those bytes are no longer in the live file, sync prints a warning with the recovery path. Installation refuses to overwrite a file created during publication and names the recovery path. On failure, sync restores the previous file if the destination is still absent; otherwise both versions remain available, and a failed restore is printed with that path. Existing regular files keep their access permissions. Command files stay whole-file copies of `global/commands/`.
+1. Type `y`. For a policy file, sync copies it under `~/.gap/backups/` and appends the policy between `<!-- gap:begin -->` and `<!-- gap:end -->`. The rest of the file stays, so the harness keeps loading it. For a command file, sync backs up the old contents and replaces them. For a symlink, sync moves the link under `~/.gap/recovery/` and writes a regular file in its place. In both replacement cases the harness stops loading the old file; the backup keeps its bytes only.
+2. Later policy syncs replace only that block and do not ask again. Before any replacement, sync moves the previous file under `~/.gap/recovery/<dest-id>/<timestamp>/` and prints that path; it keeps the 3 newest copies per destination. An edit made while sync runs survives in that copy, and sync warns with the path. Existing files keep their permissions. The full recovery rules are step 5 of the [sync contract](cmd/gap/AGENTS.md#sync-steps).
 3. Rules you want every harness to follow still belong in `global/AGENTS.md`. Text outside the policy markers stays in that file. Command edits belong in the matching source under `global/commands/`.
 
 Any other answer leaves that file alone. With no terminal to ask in, such as an agent's shell, sync prints `Refusing to replace foreign file`, skips that file, publishes the rest, and exits `1`. Run `gap sync` yourself in a terminal to answer.
@@ -319,7 +326,7 @@ Look for `~/.claude/rules/global-agent-policy.md` in the global rules list. If i
 
 Empryo reads `~/.empryo/EMPRYO.md`, which already holds SoulStack's block. The first `gap sync` asks once to append the GAP block there, so run it from a terminal and type `y`. SoulStack's block and anything else in the file stay as they are.
 
-Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP recommends three: `do-todo` (the policy tracks tasks every turn), `do-commit` and `but-axi` (the GitButler flow). Everything else loads by name when a task needs it. Until your pins match, `gap sync` prints the exact `settings` call. Ask an agent inside Empryo to run it. gap never writes Empryo's config.
+Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP recommends three: `do-todo` (the policy tracks tasks every turn), `do-commit` and `but-axi` (the GitButler flow). Everything else loads by name when a task needs it. Until your pins match, `gap sync` prints the exact `settings` call. Ask an agent inside Empryo to run it. gap never changes Empryo's settings; it only writes its block in `EMPRYO.md`.
 
 `gap sync` also warns when `~/.empryo/skills/<name>` differs from a managed skill. Empryo loads that copy first, so the managed one never runs there.
 

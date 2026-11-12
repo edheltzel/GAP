@@ -66,7 +66,33 @@ Human in the loop. A person takes part before an automated step does something c
 GAP's [foreign-file confirmation](README.md#step-4-answer-if-gap-sync-asks-about-a-file) is one such step.
 *Avoid:* human-in-the-loop
 
+## Distro
+
+The distro is this repo's `gap.toml` and `gap.lock`. It names components; overrides and profiles change what one machine or project takes from it.
+
+### Component
+A repo the distro selects in `gap.toml`, with its skill `names` and optional `install` and `doctor` commands. A component is installed from its pin, never from a moving branch.
+
+### Pin
+The exact commit a component installs, recorded in `gap.lock`. Only `gap pin <id>@<ref>` moves it. A ref is the branch or tag the pin was resolved from; the pin is the commit.
+
+### Store
+`~/.gap/store/<id>/<commit>`: a verified checkout of one pin. Skills are copied from the store, and a store whose files no longer match the pin is not used.
+
+### Drift
+An installed skill that differs from its source. `gap status` reports it, `gap restore` repairs it, and `gap sync` asks before replacing it.
+
+### Load level
+How one component skill installs: `listed` or `always` in the home folders, `project` only in a matching project, `command` or `off` not at all.
+
+### Override
+A later `gap.toml`, in `~/.config/gap/` or a project's `.gap/`, that can disable a component or change its ref or a skill's load level. It never writes `gap.lock`.
+
+### Profile
+A named override shipped in `profiles/`. `crew` writes project files only, for cloud agents.
+
 ## Flagged ambiguities
 
 - "ADE" has also been expanded as AI/Agent Development Environment. This file uses Agentic Development Environment.
 - A product name is not a harness, a model, and a provider at once. Say which one you mean.
+- "Command" here means a harness slash command. A `gap` subcommand such as `gap sync` is a CLI command; name it in code.
