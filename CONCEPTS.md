@@ -66,7 +66,33 @@ Human in the loop. A person takes part before an automated step does something c
 GAP's [foreign-file confirmation](README.md#step-4-answer-if-gap-sync-asks-about-a-file) is one such step.
 *Avoid:* human-in-the-loop
 
+## Distro
+
+The distro is this repo's `gap.toml` and `gap.lock`. It names components; overrides and profiles change what one machine or project takes from it.
+
+### Component
+A pinned repo supplying skills, commands, or tooling, selected by the distro or added as a user utility. See [Components](README.md#components) for declarations.
+
+### Pin
+The exact commit a component installs, recorded in the distro's `gap.lock` or the [user lock](#user-lock). A ref is a branch, tag, or commit used to resolve the pin. Pin-changing commands are listed in [Commands](README.md#commands).
+
+### Store
+`~/.gap/store/<id>/<commit>`: a verified checkout of one pin. Skills are copied from the store, and a store whose files no longer match the pin is not used.
+
+### Drift
+An installed skill that differs from its source. For selected component skills, `gap status` reports drift and `gap restore` repairs it. Use `gap sync` to review and repair drift in additional skills from `global/skills.json`; sync asks before replacing drifted skills from either source.
+
+### Load level
+How one component skill installs: `listed` or `always` in the home folders, `project` only in a matching project, `command` or `off` not at all.
+
+### Override
+A later `gap.toml`, in `~/.config/gap/` or a project's `.gap/`, that can disable a component or change its ref or a skill's load level. It never writes `gap.lock`.
+
+### Profile
+A named override shipped in `profiles/`. `crew` writes project files only, for cloud agents.
+
 ## Flagged ambiguities
 
 - "ADE" has also been expanded as AI/Agent Development Environment. This file uses Agentic Development Environment.
 - A product name is not a harness, a model, and a provider at once. Say which one you mean.
+- "Command" here means a harness slash command. A `gap` subcommand such as `gap sync` is a CLI command; name it in code.
