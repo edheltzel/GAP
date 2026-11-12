@@ -32,7 +32,7 @@ Finish the two behaviors the env provisioner plan promised and left undone. When
 ## Decisions
 
 - One breadcrumb per project, matched by a quoted phrase through `recall search` with project and breadcrumb-table filters. Search covers the complete history before limiting matches, so newer notes cannot hide the setup note. Include records marked as duplicates and detect a returned record independently of its truncated preview.
-- Adapter report replacement and skipped-report behavior follow the [components reference](../../README.md#components).
+- Adapter report replacement and skipped-report behavior follow the [project setup and doctor contract](../../cmd/gap/AGENTS.md#project-setup-and-doctor).
 - A missing `recall` is a notice, not a failure.
 
 ## Open questions
