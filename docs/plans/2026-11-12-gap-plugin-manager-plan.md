@@ -17,7 +17,7 @@ Missing:
 | Gap | Today |
 | --- | --- |
 | Uninstall | Utilities have `gap remove`; nothing for `gap` itself |
-| Per-harness delivery | Skills go to `~/.agents/skills` and `~/.claude/skills`; commands to Claude and OMP only |
+| Per-harness delivery | Skills go to `~/.agents/skills` and `~/.claude/skills`; commands follow the [supported harness destinations](../../README.md#where-each-agent-reads-the-policy) |
 | MCP servers and harness settings | Not handled; Echo's installer does its own |
 | Install without Go | The installer builds from source; manifest skills need `npx` |
 | Discovery | No catalog or search |

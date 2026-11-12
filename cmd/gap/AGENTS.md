@@ -54,7 +54,7 @@ Do not add a destination nothing reads. Grok loads the Claude file when Claude c
 ## Work Guidance
 
 - The required Go version is declared in [go.mod](../../go.mod). `gap.toml` and `gap.lock` use the TOML subset in `toml.go` (no TOML library). Dependencies are declared in [go.mod](../../go.mod). See [Manage skills](../../README.md#manage-skills) for installation requirements.
-- Add a destination in `main.go` only when that harness loads the path.
+- For harness destination changes, follow the [root edit rules](../../AGENTS.md#edit).
 - Tests run against throwaway homes. They must not touch the real `$HOME`.
 
 ## Verification

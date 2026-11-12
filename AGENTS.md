@@ -28,7 +28,7 @@ After a shared markdown change is merged and pulled, run `gap sync`. Sync refuse
 ## Edit
 
 - Change a shared rule in `global/`, then sync. Do not paste the rule into a harness home by hand.
-- Add a harness destination in `cmd/gap/main.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
+- Add a harness destination in `cmd/gap/harness.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
 - A utility describes itself with a `gap-utility.toml` in its own repo; a user adds one with `gap add` into `~/.config/gap/`, never into this repo's `gap.toml`. Contract: [Publish a utility](README.md#publish-a-utility).
 - Skill source lives in its component repo, not here. Change a `do-*` skill in Do-Skills, then move the pin with `gap pin do-skills@master`. Installation selection is in [Manage skills](README.md#manage-skills).
 - `docs/solutions/` holds documented solutions to past problems, by category, with YAML frontmatter (`module`, `tags`, `problem_type`). `CONCEPTS.md` is the shared domain vocabulary. Relevant when implementing or debugging in a documented area, or when a domain word is unclear.
