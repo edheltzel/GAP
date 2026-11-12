@@ -12,7 +12,7 @@ Anyone can make a GitHub repo installable, updatable, checkable, and removable t
 - `gap sync`: installs exactly what the distro lock and the user lock say. Sync never moves a pin.
 - `gap remove id`: runs the `uninstall` hook, deletes the skills and commands GAP copied for that utility, backs up locally edited copies under `~/.gap/backups/` first, and drops the spec and lock entry. When the utility has an `install` hook but no `uninstall` hook, it warns that GAP cannot undo the hook.
 - `gap list`: shows each utility with its source (distro or user), pin, and trust state.
-- Hook approval: GAP shows hook commands and asks before the first run on `gap add`. It asks again, with the diff, when a new pin changes a hook. With no terminal, an unapproved hook is skipped and the run exits `1`.
+- Hook approval follows the [Hooks and trust](../../README.md#hooks-and-trust) contract.
 - A trust setting in the user config, per `owner/repo` or per owner (`owner/*`). A trusted utility installs and updates with no hook prompts or warnings, the way a trusted Homebrew tap does.
 - Do-Skills, Echo, Recall, and Forge each ship their own manifest. The distro `gap.toml` shrinks to the repos it adds plus its selections (such as `do-astro`'s `load = "project"`). Distro and user utilities share one code path.
 - User docs in `README.md` (published at `/docs/`): an "Add a utility" section covering `gap add`, `update`, `remove`, `list`, the user lock, hook approval, and trust. Rewrite Components and Manage skills for the manifest model, and update the Commands list.

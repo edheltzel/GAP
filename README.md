@@ -88,7 +88,7 @@ With no terminal to ask in, sync lists the drifted skills, including a foreign l
 
 ### Choose what syncs
 
-`gap sync` groups its work as `policy` (policy and commands), each component id in the effective distro, and `manifest` (`global/skills.json`, when it lists any source). With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Only enter syncs: ctrl+c, a termination signal, or submitting with no groups checked writes nothing. A `TERM=dumb` terminal gets the line prompt below instead.
+`gap sync` groups its work as `policy` (policy and global commands), each enabled component id (distro or user), and `manifest` (`global/skills.json`, when it lists any source). A utility's commands belong to its component group. With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Only enter syncs: ctrl+c, a termination signal, or submitting with no groups checked writes nothing. A `TERM=dumb` terminal gets the line prompt below instead.
 
 After selection, terminal output shows a framed plan, phase headers, progress lines, and a final result. Written paths use `~` for your home directory. Piped output keeps the plain preview and progress lines, for example:
 
@@ -110,7 +110,7 @@ For a direct skills.sh install that does not use `gap.lock`, run `npx skills add
 
 ### Components
 
-A component is a repo pinned to one commit that supplies skills, commands, or its own installer and doctor. [`gap.toml`](gap.toml) selects the distro's components; [`gap.lock`](gap.lock) records the exact commits and trees. A component whose repo ships a [`gap-utility.toml`](#publish-a-utility) describes its own skills, commands, and hooks, so its entry needs only `repo` and `ref`. A repo without one lists its skills in `names` and may set `install` and `doctor` commands in its entry:
+A component is a repo pinned to one commit that supplies skills, commands, or its own installer and doctor. [`gap.toml`](gap.toml) selects the distro's components; [`gap.lock`](gap.lock) records the exact commits and trees. A component whose repo ships a [`gap-utility.toml`](#publish-a-utility) describes its own skills, commands, and hooks, so its entry needs only `repo` and `ref`; keeping `install` or `doctor` in that entry is refused. A repo without one lists its skills in `names` and may set `install` and `doctor` commands in its entry:
 
 ```toml
 # gap.toml
@@ -191,15 +191,15 @@ ref = "master"
 | Step | Command | What happens |
 | --- | --- | --- |
 | Install from the lock | `gap sync` | Installs every utility at its pinned commit, like the distro components. Sync never moves a pin |
-| Update | `gap update [id]` | Moves the pin to the newest commit on the ref and installs it. A skill copy you did not edit moves to the new version; an edited copy is kept and `gap restore <id>` takes the new one. Runs the `update` hook, or `install` when there is none |
+| Update | `gap update [id]` | Moves the pin to the newest commit on the ref and installs it. A skill copy you did not edit moves to the new version; an edited copy is kept and `gap restore <id>` takes the new one. Hook timing follows the [manifest reference](#publish-a-utility) |
 | See what is added | `gap list` | One line per component: id, `distro` or `user`, repo, ref, commit, and whether its hooks run, ask, or are trusted |
 | Remove | `gap remove <id>` | Runs the `uninstall` hook, moves the skills and commands GAP placed for it into one `~/.gap/backups/<time>/` folder, and drops its config entry, pin, and record. An edited copy is named in the output |
 
-GAP removes only the files it recorded for that utility in `~/.gap/state.json`. If an untrusted utility has an `install` hook and no `uninstall` hook, `gap remove` warns that it cannot undo what the installer did. A failing or unapproved `uninstall` hook stops `gap remove` before anything moves.
+GAP removes only the files it recorded for that utility in `~/.gap/state.json`, keeping files another source still selects. If it cannot determine remaining component selections from verified local checkouts, removal stops before running the uninstall hook; run `gap sync` before retrying. If a successfully installed, untrusted utility has an `install` hook and no `uninstall` hook, `gap remove` warns that it cannot undo what the installer did. A failing or unapproved `uninstall` hook stops `gap remove` before anything moves.
 
 ### Hooks and trust
 
-A utility's hooks are shell commands from someone else's repo, so GAP shows the command and asks `[y/N]` whenever it needs to run one. Approval applies to that execution. With no terminal, an untrusted hook is skipped and the command exits `1`. During add, update, or sync, skills and commands still install when a hook is skipped. Successful install and update hooks are recorded in `~/.gap/state.json` so repeating the same pin skips the hook. The hook choice on a pin change is defined in the [manifest reference](#publish-a-utility).
+A utility's hooks are shell commands from someone else's repo, so GAP shows the command and asks `[y/N]` whenever it needs to run one. Approval applies to that execution. With no terminal, an untrusted hook is skipped and the command exits `1`. During add, update, or sync, skills and commands still install when a hook is skipped. Successful install and update hooks, and completed installations needing no hook, are recorded in `~/.gap/state.json` so repeating the same pin skips the hook. The hook choice on a pin change is defined in the [manifest reference](#publish-a-utility).
 
 To stop the questions for a repo or an owner you trust, the way you trust a Homebrew tap, list it in your config:
 
@@ -236,10 +236,10 @@ uninstall = "./scripts/uninstall.sh"
 | `commands` | no | Repo paths of `.md` command files. GAP copies each by basename, unchanged, into `~/.claude/commands` and `~/.omp/agent/commands` |
 | `hooks.install` | no | Runs on the first installation and on later pin changes when `update` is absent |
 | `hooks.update` | no | Replaces `install` when installing a different pin after a first successful installation |
-| `hooks.uninstall` | no | Runs on `gap remove` before GAP moves its files. It must undo everything `install` did outside the skill and command files |
+| `hooks.uninstall` | no | Runs on `gap remove` from the last successfully installed version, before GAP moves its files; skipped if no installation succeeded. It must undo the effects of `install` and `update` outside GAP's skill and command files |
 | `hooks.doctor` | no | Runs on `gap doctor` |
 
-A manifest needs at least one skill, command, or hook. Unknown keys are refused, so a typo fails at `gap add` instead of being ignored. Hooks run with `sh -c` from the pinned checkout in `~/.gap/store/<id>/<commit>/`; treat that folder as read-only. Exit `0` is success. Any other exit fails that utility, makes the command exit `1`, and leaves the hook to run again next time. Two utilities, or a utility and `global/commands/`, that publish the same command name stop the sync.
+A manifest needs at least one skill, command, or hook. Unknown keys are refused, so a typo fails at `gap add` instead of being ignored. Hooks run with `sh -c` from the verified checkout for that version in `~/.gap/store/<id>/<commit>/`; treat that folder as read-only. Exit `0` is success. Any other exit fails that utility, makes the command exit `1`, and leaves the hook to run again next time. Command basenames must be unique within a utility and across registered components and `global/commands/`. Names of previously copied commands remain reserved until the owning utility is removed.
 
 ## Change the policy
 

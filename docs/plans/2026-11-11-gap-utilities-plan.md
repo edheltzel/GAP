@@ -14,7 +14,7 @@ These settle the requirements' open questions where they are implementation deta
 - A component spec is still `[components.<id>]` with `repo` and `ref`. `install`, `doctor`, and `names` come from the manifest. An optional `names` in a spec still narrows the skill list, and `[components.<id>.skills.<name>]` still sets load levels.
 - User utilities: `~/.config/gap/gap.toml` may declare new `[components.<id>]` tables, and an id that collides with a distro id is an error. They are pinned in `~/.config/gap/gap.lock`, which uses the same schema as `gap.lock`.
 - Trust: a `[trust]` table in `~/.config/gap/gap.toml` with `repos = ["owner/repo", "owner/*"]`.
-- Approvals and ownership: `~/.gap/state.json` records, per id, the approved hook digest, the last commit the install hook ran for, and every skill directory and command file GAP copied. This extends the existing ledger in `cmd/gap/doctor.go`.
+- Approvals and ownership follow [Hooks and trust](../../README.md#hooks-and-trust) and [Add a utility](../../README.md#add-a-utility). State storage extends the existing ledger in `cmd/gap/doctor.go`.
 - `global/skills.json` stays as it is, out of scope here.
 - The author guide is a README section, so there is no new published page.
 
@@ -44,7 +44,7 @@ These settle the requirements' open questions where they are implementation deta
 ### U4. Hook approval and trust
 - Depends on: U2, U3
 - Files: `cmd/gap/trust.go` (new), `cmd/gap/trust_test.go` (new), `cmd/gap/doctor.go`, `cmd/gap/components.go`
-- Change: a hook that exits nonzero fails that component and makes the run exit `1`; a failed install does not record its commit, so the next sync retries it. Before any hook runs, `approveHook(id, repo, hook, command)` checks `[trust]` (an exact `owner/repo` or `owner/*` match), then the approved digest in `~/.gap/state.json`. Otherwise, on a terminal, it prints the command (and a diff against the last approved one) and asks `[y/N]`. With no terminal, it skips the hook and marks the run failed (exit `1`). The install hook runs only when the pinned commit differs from the last installed commit, so a second sync runs nothing.
+- Change: gate hook execution in `trust.go` using the [Hooks and trust](../../README.md#hooks-and-trust) contract and hook timing from [Publish a utility](../../README.md#publish-a-utility).
 - Done when: untrusted plus changed prompts; with no TTY it skips and exits 1; `owner/*` never prompts; an unchanged pin runs no hook.
 - Verify: `go test ./cmd/gap -run TestHookTrust`
 

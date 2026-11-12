@@ -50,7 +50,7 @@ A repo that ships skills, commands, or its own tooling and describes them in a m
 The `gap-utility.toml` at a utility's repo root that lists its skills, commands, and hooks. See [Publish a utility](README.md#publish-a-utility). Not `global/skills.json`, which selects skills by source.
 
 ### Hook
-A shell command a utility's manifest runs at install, update, uninstall, or doctor time, from the pinned checkout. A hook is not a skill and not a command.
+A shell command a utility's manifest runs at install, update, uninstall, or doctor time. See [Publish a utility](README.md#publish-a-utility) for timing and checkout selection. A hook is not a skill and not a command.
 
 ### User lock
 `~/.config/gap/gap.lock`: the pins for utilities added with `gap add`. It is the user's own, like `lazy-lock.json`. It is not the distro's `gap.lock`.
