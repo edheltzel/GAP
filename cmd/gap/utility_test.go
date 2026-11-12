@@ -185,6 +185,33 @@ func TestUtilityBulkRefChange(t *testing.T) {
 	}
 }
 
+func TestUtilityBulkUpdateRepairsLaterCache(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\ncommands = [\"commands/util-cmd.md\"]\n")
+	quietStdout(t)
+	other := filepath.Join(t.TempDir(), "other")
+	write(t, filepath.Join(other, "skills", "other-skill", "SKILL.md"), "---\nname: other-skill\ndescription: test\n---\n")
+	write(t, filepath.Join(other, "commands", "other-cmd.md"), "Other.\n")
+	write(t, filepath.Join(other, utilityManifestName), "schema = \"1\"\nname = \"other\"\nskills = [\"other-skill\"]\ncommands = [\"commands/other-cmd.md\"]\n")
+	commitAll(t, other)
+	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\", \""+other+"\"]\n")
+	if err := addUtility(e.remote, "a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := addUtility(other, "b"); err != nil {
+		t.Fatal(err)
+	}
+	lk, _ := readLock(userConfigDir(e.home))
+	if err := os.RemoveAll(storePath(e.home, "b", lk.Components["b"].Commit)); err != nil {
+		t.Fatal(err)
+	}
+	if err := updateUtilities(""); err != nil {
+		t.Fatalf("bulk update with a missing later cache: %v", err)
+	}
+	if _, err := os.Stat(storePath(e.home, "b", lk.Components["b"].Commit)); err != nil {
+		t.Fatalf("cache not repaired: %v", err)
+	}
+}
+
 func TestUtilityUpdateRetryKeepsBaseline(t *testing.T) {
 	gate := "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n[hooks]\ninstall = \"true\"\nupdate = \"test -f \\\"$HOME/ok\\\"\"\n"
 	e := newUtilityEnv(t, gate)
