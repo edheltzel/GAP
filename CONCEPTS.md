@@ -71,10 +71,10 @@ GAP's [foreign-file confirmation](README.md#step-4-answer-if-gap-sync-asks-about
 The distro is this repo's `gap.toml` and `gap.lock`. It names components; overrides and profiles change what one machine or project takes from it.
 
 ### Component
-A repo the distro selects in `gap.toml`, with its skill `names` and optional `install` and `doctor` commands. A component is installed from its pin, never from a moving branch.
+A pinned repo supplying skills, commands, or tooling, selected by the distro or added as a user utility. See [Components](README.md#components) for declarations.
 
 ### Pin
-The exact commit a component installs, recorded in `gap.lock`. Only `gap pin <id>@<ref>` moves it. A ref is the branch or tag the pin was resolved from; the pin is the commit.
+The exact commit a component installs, recorded in the distro's `gap.lock` or the [user lock](#user-lock). A ref is a branch, tag, or commit used to resolve the pin. Pin-changing commands are listed in [Commands](README.md#commands).
 
 ### Store
 `~/.gap/store/<id>/<commit>`: a verified checkout of one pin. Skills are copied from the store, and a store whose files no longer match the pin is not used.

@@ -1,6 +1,6 @@
 # GAP as a plugin manager for agent harnesses
 
-Date: 2026-11-12. Base: master `3d191c66`. Status: approved by Ed 2026-11-12; work starts after PR #114 (`feat/gap-utilities`) merges.
+Date: 2026-11-12. Planning base: master `3d191c66`. Status: approved by Ed 2026-11-12; prerequisite PR #114 (`feat/gap-utilities`) merged as `fbebb517`.
 
 ## Goal
 
@@ -10,13 +10,13 @@ Make GAP install, update, and remove one plugin (a utility) so it reaches every 
 
 On master: pinned components (`gap.toml`, `gap.lock`, `gap pin`), a verified store, skill install with drift checks and restore, user and project overrides, profiles, `gap doctor`.
 
+PR #114 also shipped the [utility lifecycle](../../README.md#add-a-utility), [plugin manifest](../../README.md#publish-a-utility), and [hook trust](../../README.md#hooks-and-trust).
+
 Missing:
 
 | Gap | Today |
 | --- | --- |
-| Add, update, remove, list | On `feat/gap-utilities`, in No Mistakes review (13 findings, including a symlink escape) |
-| Plugin manifest and hook trust | Same branch (`gap-utility.toml`, `trust.go`) |
-| Uninstall | Same branch for utilities; nothing for `gap` itself |
+| Uninstall | Utilities have `gap remove`; nothing for `gap` itself |
 | Per-harness delivery | Skills go to `~/.agents/skills` and `~/.claude/skills`; commands to Claude and OMP only |
 | MCP servers and harness settings | Not handled; Echo's installer does its own |
 | Install without Go | The installer builds from source; manifest skills need `npx` |
@@ -24,7 +24,7 @@ Missing:
 
 ## Steps
 
-1. Merge `feat/gap-utilities` after its review findings are fixed. Owner: GAP API tab.
+1. Completed: merge `feat/gap-utilities` (PR #114, `fbebb517`). Owner: GAP API tab.
 2. Reorder the README after step 1: Change the policy before Manage skills, Components before the first `gap.toml` example. Move the edge-case detail in Project setup and the Echo pin note into `cmd/gap/AGENTS.md`. Done after step 1 because those sections overlap the utilities branch.
 3. Harness adapter table in `cmd/gap`: for each harness, where skills, commands, MCP servers, and hooks go. Drive skill and command delivery from it. Start with Codex, Cursor, Pi, and Empryo commands.
 4. MCP entries in `gap-utility.toml`, written through the adapter table with the same ledger, backup, and refusal rules as policy files.
