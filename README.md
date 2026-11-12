@@ -46,9 +46,12 @@ gap sync
 
 To uninstall, there is no `gap uninstall` yet:
 
-1. Delete the text between `<!-- gap:begin -->` and `<!-- gap:end -->`, markers included, in each file listed in [Where each agent reads the policy](#where-each-agent-reads-the-policy). Delete a file that held only that block.
-2. Remove the GAP SessionStart and SubagentStart entries from `~/.codex/hooks.json`, and each published `global/commands/*.md` from `~/.claude/commands/` and `~/.omp/agent/commands/`.
-3. Trash `$(go env GOPATH)/bin/gap` and `~/.gap/`. `~/.gap/backups/` and `~/.gap/recovery/` hold every file sync replaced, so copy out anything you want first. Installed skills stay in `~/.agents/skills` and `~/.claude/skills` until you remove them.
+Use the Codex home used for publication: `<codex-home>` below means the absolute `CODEX_HOME` value, or `~/.codex` when empty or unset.
+
+1. If `<codex-home>/AGENTS.md` still holds an old unmarked GAP policy prefix, follow [Set up Codex](#set-up-codex-once-per-machine) to run `gap sync --remove-codex-legacy` first. Keep the policy file, both trusted GAP hooks, and `~/.gap/published.json` until that cleanup succeeds. Preserve unrelated rules in `AGENTS.md`.
+2. Delete the text between `<!-- gap:begin -->` and `<!-- gap:end -->`, markers included, in each file listed in [Where each agent reads the policy](#where-each-agent-reads-the-policy), and in `<codex-home>/AGENTS.md` if it has a GAP block. Use `<codex-home>/gap/global-agent-policy.md` for the Codex policy. Delete a file that held only that block.
+3. Remove only the GAP SessionStart and SubagentStart hooks that print that policy from `<codex-home>/hooks.json`, and each published `global/commands/*.md` from `~/.claude/commands/` and `~/.omp/agent/commands/`.
+4. Trash the installed `gap` binary: `$(go env GOBIN)/gap` if `GOBIN` was nonempty at installation, otherwise `$(go env GOPATH)/bin/gap`. Use the location from that installation if your Go settings have since changed. Copy out any saved files you want from `~/.gap/backups/` and `~/.gap/recovery/`, then trash `~/.gap/`; those folders are not a complete replacement history. Installed skills stay in `~/.agents/skills` and `~/.claude/skills` until you remove them.
 
 ## Commands
 
@@ -57,9 +60,9 @@ To uninstall, there is no `gap uninstall` yet:
 | `gap sync` | Preview what will sync, ask on a terminal, then publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift. See [Choose what syncs](#choose-what-syncs) |
 | `gap sync --skip <groups>` / `--only <groups>` / `--yes` | Leave groups out, sync only some, or sync without asking. Groups: `policy`, `manifest`, or a component id |
 | `gap sync --profile crew` | Prepare project files for cloud agents without fetching components or writing to the home directory |
-| `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from `~/.codex/AGENTS.md` |
-| `gap status` | Show each component's pin, its store copy, and skill drift. Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
-| `gap restore [id]` | Back up and replace missing or drifted component skills at the locked commit, reusing a verified store copy |
+| `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from Codex home's `AGENTS.md`; see [Set up Codex](#set-up-codex-once-per-machine) |
+| `gap status` | Show each component's pin, its store copy, and drift in its selected skills. Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
+| `gap restore [id]` | Back up and replace selected missing or drifted component skills at the locked commit, reusing a verified store copy |
 | `gap pin <id>@<ref>` | Resolve a distro component's branch, tag, or commit and write it to the distro's `gap.lock` |
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
 | `gap add <owner/repo[@ref]> [--id <id>]` | Add a utility: pin a repo that ships a `gap-utility.toml` and install it. See [Add a utility](#add-a-utility) |
@@ -140,7 +143,7 @@ Doctor also asks Echo's verified pinned store for `scripts/install.sh --list-ins
 
 `gap status` checks component source checkouts and selected component skills, using the locked ref when pinned. It does not check Recall's memory database or additional manifest skills. `store=missing` means the checkout is absent, `store=changed` means its source files differ from the pin, and `store=unpinned` means `gap.lock` has no entry. For these states, it prints the matching repair command. Ignored, untracked build output does not change the result; tracked edits, deletions, and mode changes still do. Skill drift is checked only when the source checkout matches the lock; an unreadable checkout reports an error.
 
-Status and `gap restore [id]` use the same overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
+Status and `gap restore [id]` use the same component overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
 
 ### Load levels
 
@@ -288,13 +291,15 @@ Each is a regular file, not a symlink. Start a new session in any agent to load 
 
 `gap sync` asks before it appends the policy to a foreign file without a complete GAP marker pair, or replaces a foreign command file or a symlink. An empty file without a matching ledger entry also needs confirmation.
 
-1. Type `y`. For a policy file, sync copies it under `~/.gap/backups/` and appends the policy between `<!-- gap:begin -->` and `<!-- gap:end -->`. The rest of the file stays, so the harness keeps loading it. For a command file, sync backs up the old contents and replaces them. For a symlink, sync moves the link under `~/.gap/recovery/` and writes a regular file in its place. In both replacement cases the harness stops loading the old file; the backup keeps its bytes only.
-2. Later policy syncs replace only that block and do not ask again. Before any replacement, sync moves the previous file under `~/.gap/recovery/<dest-id>/<timestamp>/` and prints that path; it keeps the 3 newest copies per destination. An edit made while sync runs survives in that copy, and sync warns with the path. Existing files keep their permissions. The full recovery rules are step 5 of the [sync contract](cmd/gap/AGENTS.md#sync-steps).
+1. Type `y`. For a foreign regular policy file, sync copies it under `~/.gap/backups/` and appends the policy between `<!-- gap:begin -->` and `<!-- gap:end -->`. The rest of the file stays, so the harness keeps loading it. For a foreign command file, sync copies the old contents under `~/.gap/backups/` and replaces them. A policy symlink moves under `~/.gap/recovery/`; a command symlink moves under `~/.gap/backups/`. Sync writes a regular file in the link's place, so the harness loads the new file.
+2. Later policy syncs replace only that block and do not ask again. An unchanged policy file stays in place. Before replacing a changed policy file, sync moves the previous file under `~/.gap/recovery/<dest-id>/<timestamp>/` and prints that path; it keeps the 3 newest regular copies per destination and never prunes displaced symlinks. A concurrent edit retained only in that copy triggers a warning with the path. Existing regular policy files keep their permissions. Routine updates to managed command files replace their contents without saving the previous version. The full recovery rules are step 5 of the [sync contract](cmd/gap/AGENTS.md#sync-steps).
 3. Rules you want every harness to follow still belong in `global/AGENTS.md`. Text outside the policy markers stays in that file. Command edits belong in the matching source under `global/commands/`.
 
 Any other answer leaves that file alone. With no terminal to ask in, such as an agent's shell, sync prints `Refusing to replace foreign file`, skips that file, publishes the rest, and exits `1`. Run `gap sync` yourself in a terminal to answer.
 
 ## Set up Codex (once per machine)
+
+The paths below use the default Codex home, `~/.codex`. Substitute the absolute `CODEX_HOME` value if set. An empty `CODEX_HOME` counts as unset; a relative path is refused.
 
 Codex has no rules folder. The first `gap sync` adds two hooks to `~/.codex/hooks.json`, SessionStart and SubagentStart. They print `~/.codex/gap/global-agent-policy.md` into every Codex session and subagent.
 
@@ -309,8 +314,6 @@ Codex has no rules folder. The first `gap sync` adds two hooks to `~/.codex/hook
    ```
 
    The flag refuses unless both hooks were already in `hooks.json` before that run. On a clean machine it reports that there's nothing to strip.
-
-GAP uses `~/.codex` unless you set `CODEX_HOME`. An empty `CODEX_HOME` counts as unset. A relative path is refused.
 
 ## Check Grok (once per machine)
 
@@ -343,7 +346,7 @@ GAP keeps no skill source. [Do-Skills](https://github.com/edheltzel/Do-Skills#re
 | Claude | `~/.claude/rules/global-agent-policy.md` |
 | Pi | `~/.pi/agent/APPEND_SYSTEM.md` |
 | OMP | `~/.omp/agent/APPEND_SYSTEM.md` |
-| Codex | `~/.codex/gap/global-agent-policy.md`, printed by the SessionStart and SubagentStart hooks |
+| Codex | `~/.codex/gap/global-agent-policy.md` (`$CODEX_HOME/gap/global-agent-policy.md` when nonempty), printed by the SessionStart and SubagentStart hooks |
 | Cursor | `~/.cursor/rules/global-agent-policy.mdc` |
 | Empryo | `~/.empryo/EMPRYO.md`, beside the SoulStack block. The first sync asks once, so run it from a terminal. |
 | Grok | No file of its own. It reads the Claude copy. |

@@ -80,7 +80,7 @@ The exact commit a component installs, recorded in `gap.lock`. Only `gap pin <id
 `~/.gap/store/<id>/<commit>`: a verified checkout of one pin. Skills are copied from the store, and a store whose files no longer match the pin is not used.
 
 ### Drift
-An installed skill that differs from its source. `gap status` reports it, `gap restore` repairs it, and `gap sync` asks before replacing it.
+An installed skill that differs from its source. For selected component skills, `gap status` reports drift and `gap restore` repairs it. Use `gap sync` to review and repair drift in additional skills from `global/skills.json`; sync asks before replacing drifted skills from either source.
 
 ### Load level
 How one component skill installs: `listed` or `always` in the home folders, `project` only in a matching project, `command` or `off` not at all.
