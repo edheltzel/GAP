@@ -14,7 +14,7 @@ Anyone can make a GitHub repo installable, updatable, checkable, and removable t
 - `gap list`: shows each utility with its source (distro or user), pin, and trust state.
 - Hook approval follows the [Hooks and trust](../../README.md#hooks-and-trust) contract.
 - A trust setting in the user config, per `owner/repo` or per owner (`owner/*`). A trusted utility installs and updates with no hook prompts or warnings, the way a trusted Homebrew tap does.
-- Do-Skills, Echo, Recall, and Forge each ship their own manifest. The distro `gap.toml` shrinks to the repos it adds plus its selections (such as `do-astro`'s `load = "project"`). Distro and user utilities share one code path.
+- Distro migration follows the [acceptance criteria below](#success). Distro and user utilities share the manifest loading path.
 - User docs in `README.md` (published at `/docs/`): an "Add a utility" section covering `gap add`, `update`, `remove`, `list`, the user lock, hook approval, and trust. Rewrite Components and Manage skills for the manifest model, and update the Commands list.
 - Author docs in `README.md`: a "Publish a utility" section with the full manifest reference (every field, hooks and their exit codes, what `uninstall` must undo) and one minimal example manifest that an author can copy.
 - `CONCEPTS.md` (published at `/docs/concepts/`): Utility, Manifest, Hook, User lock, and Trust terms. Update Managed skill to match.
@@ -38,7 +38,9 @@ Anyone can make a GitHub repo installable, updatable, checkable, and removable t
 - `gap remove` on a utility with `install` and no `uninstall` prints the warning.
 - Following only the README "Publish a utility" section, someone new to GAP can write a manifest for a fixture repo that `gap add` accepts on the first try.
 - `/docs/` and `/docs/concepts/` on the built site show the new sections and terms. The landing page shows the `gap add` example. From `site/`, `npm run build`, `npm run typecheck`, and `npm run links` pass, and no old anchor breaks.
-- The distro `gap.toml` has no hand-written `install`, `doctor`, or `names` for Do-Skills, Echo, Recall, or Forge, and `gap sync` and `gap doctor` give the same result as before the migration.
+- Forge, Recall, and Do-Skills are pinned to commits with `gap-utility.toml`. Forge and Recall have no hand-written `install`, `doctor`, or `names` in the distro `gap.toml`. Do-Skills keeps `names` to select its subset and retains `do-astro`'s load setting.
+- Echo stays at `v0.13.0` with its spec fields until a tagged release contains the manifest. Keep the spec fallback and its tests until Echo migrates.
+- `gap status` lists the same 70 skills with `drift=0` before and after migration, `gap doctor` reads Recall's doctor from its manifest, and `go test ./...` passes.
 
 ## Constraints
 

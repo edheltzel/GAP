@@ -4,14 +4,14 @@ Requirements: `docs/plans/2026-11-11-gap-utilities-requirements.md`.
 
 ## Outcome
 
-Any GitHub repo that ships a manifest can be added, updated, synced, listed, and removed through `gap`, the way a lazy.nvim plugin is. Hooks need approval unless the repo or its owner is trusted. Do-Skills, Echo, Recall, and Forge use the same manifest path. README, CONCEPTS, contributor docs, and the website describe it.
+Any GitHub repo that ships a manifest can be added, updated, synced, listed, and removed through `gap`, the way a lazy.nvim plugin is. Hooks need approval unless the repo or its owner is trusted. The distro migration is staged in [U11](#u11-distro-migration). README, CONCEPTS, contributor docs, and the website describe it.
 
 ## Choices made here (HOW)
 
 These settle the requirements' open questions where they are implementation detail. Each can be revised before U1 starts.
 
 - Manifest: `gap-utility.toml` at the utility repo root, parsed by `cmd/gap/toml.go`. Fields: `schema = "1"`, `name`, `description`, `skills` (names under `skills/`), `commands` (paths of `.md` files), and an optional `[hooks]` table with `install`, `update`, `uninstall`, `doctor`.
-- A component spec is still `[components.<id>]` with `repo` and `ref`. `install`, `doctor`, and `names` come from the manifest. An optional `names` in a spec still narrows the skill list, and `[components.<id>.skills.<name>]` still sets load levels.
+- Component specs follow [Components](../../README.md#components), with skill selection under [Load levels](../../README.md#load-levels).
 - User utilities: `~/.config/gap/gap.toml` may declare new `[components.<id>]` tables, and an id that collides with a distro id is an error. They are pinned in `~/.config/gap/gap.lock`, which uses the same schema as `gap.lock`.
 - Trust: a `[trust]` table in `~/.config/gap/gap.toml` with `repos = ["owner/repo", "owner/*"]`.
 - Approvals and ownership follow [Hooks and trust](../../README.md#hooks-and-trust) and [Add a utility](../../README.md#add-a-utility). State storage extends the existing ledger in `cmd/gap/doctor.go`.
@@ -30,7 +30,7 @@ These settle the requirements' open questions where they are implementation deta
 ### U2. Specs read from the pinned manifest
 - Depends on: U1
 - Files: `cmd/gap/components.go`, `cmd/gap/components_test.go`, `cmd/gap/selection.go`, `cmd/gap/provision.go`
-- Change: `readDistro` no longer requires `names`. While the four distro pins predate their manifests, a spec's `install`, `doctor`, and `names` are still read as a fallback when the pinned store has no `gap-utility.toml`, and U11 deletes that fallback. After the store is verified (`ensureStore`), the component's skills, commands, and hooks load from that store's manifest. `componentEntries`, `syncGroups`, and `doctorAll` read hooks from there. An optional `names` narrows the list and must be a subset.
+- Change: `readDistro` no longer requires `names`. After store verification (`ensureStore`), resolve skills, commands, and hooks under the [component contract](../../README.md#components). `componentEntries`, `syncGroups`, and `doctorAll` use the resolved component. Retain the spec fallback required by the [migration acceptance criteria](2026-11-11-gap-utilities-requirements.md#success).
 - Done when: a fixture component whose manifest lists skills and hooks syncs and doctors without `names`, `install`, or `doctor` in `gap.toml`.
 - Verify: `go test ./cmd/gap -run 'TestComponent|TestDoctor|TestSyncSelection'`
 
@@ -87,14 +87,14 @@ These settle the requirements' open questions where they are implementation deta
 - Depends on: U1
 - Files: `gap-utility.toml` in edheltzel/Do-Skills, edheltzel/Echo, edheltzel/Recall, and edheltzel/Forge (other repos, one PR each)
 - Change: Do-Skills lists its skills. Echo gets `[hooks] install = "scripts/install.sh"` and `doctor = "cli/echo doctor"`. Recall gets `install = "./packaging/install.sh"` and `doctor = "recall doctor"`. Forge lists `forge-interview`. Each repo's tag or branch is merged first.
-- Done when: each repo has the manifest on the ref GAP pins.
+- Done when: each repo has a merged manifest; [U11](#u11-distro-migration) governs which refs the distro can pin.
 - Verify: after U7, for each clone: `HOME=$(mktemp -d) go run ./cmd/gap add file://<clone>` succeeds and `gap list` shows its skills.
 
 ### U11. Distro migration
-- Depends on: U2, U10
+- Depends on: U2, U10 for each component being migrated
 - Files: `gap.toml`, `gap.lock`, `profiles/*.toml` if they name fields that moved
-- Change: drop `install`, `doctor`, and `names` from the four components, keeping `do-astro`'s skills table, and delete the U2 spec fallback with its tests. Move each pin with `gap pin <id>@<ref>` to a commit that has the manifest.
-- Done when: `gap.toml` has only repo, ref, and selections for the four, and `gap sync --yes` plus `gap doctor` on this machine report the same installed skills and doctor results as before (save the output before U11 and diff it after). The installers now run only on a pin change (U4), not on every sync.
+- Change: move the ready pins with `gap pin <id>@<ref>` and remove their migrated spec fields under the [migration acceptance criteria](2026-11-11-gap-utilities-requirements.md#success).
+- Done when: those criteria pass. Hook timing follows [Publish a utility](../../README.md#publish-a-utility).
 - Verify: `go run ./cmd/gap status`, `go run ./cmd/gap doctor`, `go test ./...`
 
 ### U12. User and author docs
@@ -108,7 +108,7 @@ These settle the requirements' open questions where they are implementation deta
 - Depends on: U12
 - Files: `cmd/gap/AGENTS.md`, `AGENTS.md`
 - Change: in `cmd/gap/AGENTS.md`, update Sync steps for manifest loading, the user lock, approvals, the ownership ledger, and remove. In the root `AGENTS.md`, update Publish and Edit wherever they describe components as hand-written in `gap.toml`. Leave `global/AGENTS.md` alone, since no shared rule changes.
-- Done when: no doc still says `install`, `doctor`, or `names` live in the distro `gap.toml`.
+- Done when: contributor docs match the [component contract](../../README.md#components) and [migration acceptance criteria](2026-11-11-gap-utilities-requirements.md#success).
 - Verify: `rg -n 'names\s*=|install\s*=|doctor\s*=' AGENTS.md cmd/gap/AGENTS.md README.md` shows only manifest or example context
 
 ### U14. Website
