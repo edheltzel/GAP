@@ -40,7 +40,7 @@ curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/instal
 after cmd/gap changes.
 Component skills install from the pinned store with no Node. Skills in
 global/skills.json that are not pinned still install through skills.sh, which needs Node (npx).
-sync never moves pins. pin is the only command that writes gap.lock.
+sync never moves pins. pin is the only command that writes the distro's gap.lock.
 add, update, and remove manage utilities you add yourself: a GitHub repo with a
 gap-utility.toml, recorded in ~/.config/gap/gap.toml and pinned in ~/.config/gap/gap.lock.`,
 		SilenceUsage:  true,
