@@ -319,6 +319,10 @@ commands = ["commands/my-command.md"]
 [hooks]
 install = "./scripts/install.sh"
 uninstall = "./scripts/uninstall.sh"
+
+[mcp.my-tools]
+command = ["node", "{store}/mcp/server.js"]
+env = ["LOG_LEVEL=info"]
 ```
 
 | Key | Required | Meaning |
@@ -332,10 +336,13 @@ uninstall = "./scripts/uninstall.sh"
 | `hooks.update` | no | Replaces `install` when installing a different pin after a first successful installation |
 | `hooks.uninstall` | no | Runs on `gap remove` from the last successfully installed version, before GAP moves its files; skipped if no installation succeeded. It must undo the effects of `install` and `update` outside GAP's skill and command files |
 | `hooks.doctor` | no | Runs on `gap doctor` |
+| `mcp.<name>` | no | One MCP server. Set `command` (a string array; `{store}` becomes the pinned checkout path) with optional `env` (`KEY=value` strings), or `url` for an HTTP server. GAP registers it with each harness's own CLI that is installed: `claude mcp add --scope user`, `codex mcp add`, and `pi mcp add`. OMP, Cursor, and Empryo get none yet |
 
-A manifest needs at least one skill, command, or hook. Unknown keys are refused, so a typo fails at `gap add` instead of being ignored. Hooks run with `sh -c` from the verified checkout for that version in `~/.gap/store/<id>/<commit>/`; treat that folder as read-only. Exit `0` is success. Any other exit fails that utility, makes the command exit `1`, and leaves the hook to run again next time. Command basenames must be unique within a utility and across registered components and `global/commands/`. Names of previously copied commands remain reserved until the owning utility is removed.
+A manifest needs at least one skill, command, hook, or MCP server. Unknown keys are refused, so a typo fails at `gap add` instead of being ignored. Hooks run with `sh -c` from the verified checkout for that version in `~/.gap/store/<id>/<commit>/`; treat that folder as read-only. Exit `0` is success. Any other exit fails that utility, makes the command exit `1`, and leaves the hook to run again next time. Command basenames must be unique within a utility and across registered components and `global/commands/`. Names of previously copied commands remain reserved until the owning utility is removed.
 
 Command publication stops if a registered user utility's manifest cannot be resolved from a verified local checkout, even when that utility is disabled or skipped for this run.
+
+MCP servers start code inside your agents, so an untrusted utility's servers need the same approval as its hooks. GAP records each server it registers in `~/.gap/state.json`, re-registers it when the pin moves, and removes it on `gap remove` or when the manifest drops it. A server name you already configured in a harness, or one another utility owns, is left alone and reported, and the command exits `1`.
 
 ## Skill catalog
 

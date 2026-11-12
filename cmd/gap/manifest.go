@@ -22,6 +22,7 @@ type utilityManifest struct {
 	Skills      []string
 	Commands    []string
 	Hooks       utilityHooks
+	MCP         []mcpServer
 }
 
 var errNotUtility = errors.New("not a GAP utility")
@@ -48,7 +49,7 @@ func readUtilityManifest(dir string) (utilityManifest, error) {
 	}
 	for key := range doc {
 		switch key {
-		case "schema", "name", "description", "skills", "commands", "hooks":
+		case "schema", "name", "description", "skills", "commands", "hooks", "mcp":
 		default:
 			if !strings.HasPrefix(key, "\x00") {
 				return fail("unknown key %s", key)
@@ -121,8 +122,11 @@ func readUtilityManifest(dir string) (utilityManifest, error) {
 			}
 		}
 	}
-	if len(m.Skills) == 0 && len(m.Commands) == 0 && m.Hooks == (utilityHooks{}) {
-		return fail("declares no skills, commands, or hooks")
+	if m.MCP, err = manifestMCP(doc); err != nil {
+		return fail("%v", err)
+	}
+	if len(m.Skills) == 0 && len(m.Commands) == 0 && m.Hooks == (utilityHooks{}) && len(m.MCP) == 0 {
+		return fail("declares no skills, commands, hooks, or mcp servers")
 	}
 	return m, nil
 }

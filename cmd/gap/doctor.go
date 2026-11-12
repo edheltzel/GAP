@@ -22,6 +22,7 @@ type stateEntry struct {
 	Skills      []string          `json:"skills,omitempty"`
 	Commands    []string          `json:"commands,omitempty"`
 	SkillCopies map[string]string `json:"skillCopies,omitempty"`
+	MCP         map[string]string `json:"mcp,omitempty"`
 }
 
 func statePath(home string) string {

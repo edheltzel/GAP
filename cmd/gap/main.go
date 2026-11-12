@@ -178,6 +178,11 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	skipped = skipped || !commandsOK
+	mcpOK, err := publishComponentMCP(home, d)
+	if err != nil {
+		return err
+	}
+	skipped = skipped || !mcpOK
 	if len(entries) > 0 {
 		out.section("skills", "install missing skills, then check drift")
 	}

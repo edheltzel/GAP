@@ -175,6 +175,13 @@ func describeUtility(m utilityManifest) string {
 	if len(hooks) > 0 {
 		parts = append(parts, "hooks: "+strings.Join(hooks, ", "))
 	}
+	if len(m.MCP) > 0 {
+		names := make([]string, len(m.MCP))
+		for i, s := range m.MCP {
+			names[i] = s.Name
+		}
+		parts = append(parts, "mcp: "+strings.Join(names, ", "))
+	}
 	return strings.Join(parts, ", ")
 }
 
@@ -258,6 +265,10 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 			}
 		}
 	}
+	mcpOK, err := publishComponentMCP(home, d)
+	if err != nil {
+		return err
+	}
 	skillsOK = installSkills(repoRoot, home, entries) && skillsOK
 	driftOK, err := checkDrift(repoRoot, home, entries)
 	if err != nil {
@@ -266,7 +277,7 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 	if err := recordDeclarativeInstalls(home, projectRoot, d, owned); err != nil {
 		return err
 	}
-	if !hooksOK || !commandsOK || !skillsOK || !driftOK {
+	if !hooksOK || !commandsOK || !mcpOK || !skillsOK || !driftOK {
 		return errSkipped
 	}
 	return nil
@@ -621,6 +632,7 @@ func removeUtility(id string) error {
 			return err
 		}
 	}
+	removeComponentMCP(home, entry)
 	ledgerPath := filepath.Join(home, ".gap", "published.json")
 	ledger, err := readLedger(ledgerPath)
 	if err != nil {
