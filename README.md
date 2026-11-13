@@ -16,8 +16,7 @@ GAP is one set of rules that every coding agent on your machine follows. You, or
 ## Before you start
 
 - macOS or Linux. `gap` builds on Windows, but its harness paths and tests are not checked there.
-- The Go version required by [go.mod](go.mod), or newer (`go version`)
-- Go's bin folder on your `PATH`: `$(go env GOPATH)/bin`, or `GOBIN` if you set it
+- git and curl on your `PATH`. Go is optional; the installer can download a release binary.
 
 ## Install `gap`
 
@@ -25,18 +24,14 @@ GAP is one set of rules that every coding agent on your machine follows. You, or
 curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/install.sh | sh
 ```
 
-That one line does four things:
+`curl` downloads `scripts/install.sh` from the `master` branch of `github.com/edheltzel/GAP`. The script chooses an installation path based on whether `go` is on your `PATH`:
 
-1. `curl` downloads `scripts/install.sh` from the `master` branch of `github.com/edheltzel/GAP`.
-2. The piped script clones that repo into a new checkout under `~/.gap/checkouts/` and keeps it there. Each curl install gets its own checkout, so earlier installs and published documentation links keep their source.
-3. It builds `gap` with `go install ./cmd/gap` and puts the binary in Go's bin folder.
-4. It checks whether your shell can find that folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it.
+- With Go, use the version required by [go.mod](go.mod), or newer. The piped script clones the repo into a new checkout under `~/.gap/checkouts/`, then builds `gap` with `go install ./cmd/gap`. The binary goes in `GOBIN` if set, otherwise `$(go env GOPATH)/bin`. Each curl install keeps its own checkout, so earlier installs and published documentation links keep their source.
+- Without Go, the script downloads the latest release for macOS or Linux on amd64 or arm64. It checks the archive's SHA-256 against `checksums.txt`, stops on a mismatch, and installs the binary to `~/.local/bin`. It also clones `master` into `~/.gap/checkout`, or fast-forwards that checkout on a later install. This path needs tar and either shasum or sha256sum.
 
-Without Go, the script installs a release instead: it downloads the `gap` binary for your system from GitHub releases, checks its sha256 against `checksums.txt` and stops on a mismatch, installs it to `~/.local/bin`, and clones the repo into `~/.gap/checkout`, which that binary publishes from. Rerun the script to update both.
+The script checks whether your shell can find the binary's folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it. Installation writes the binary and source checkout; `gap sync` publishes the policy and installs the selected components and skills.
 
-Installation also needs git. It writes the source checkout and Go binary. `gap sync` publishes the policy and installs the selected components and skills.
-
-Already have the repo checked out? From its root, `sh scripts/install.sh` builds that copy instead of cloning, including when stdin is redirected. Keep that checkout too.
+Already have the repo checked out? With Go available, `sh scripts/install.sh` from its root builds that copy instead of cloning, including when stdin is redirected. Keep that checkout too.
 
 Then publish:
 
@@ -44,7 +39,7 @@ Then publish:
 gap sync
 ```
 
-`gap` publishes the checkout it was built from, so it runs from any folder. Run the curl command again after `cmd/gap` changes. To skip installing, run `go run ./cmd/gap sync` from a checkout.
+`gap` runs from any folder. Source builds use their build checkout while it remains available; release builds and source builds without a usable build path use `~/.gap/checkout`. Keep the checkout: published documentation links point into it. Run the curl command again to update the installation. With Go, you can skip installing and run `go run ./cmd/gap sync` from a checkout.
 
 To uninstall, run:
 
@@ -52,9 +47,11 @@ To uninstall, run:
 gap uninstall
 ```
 
-It previews what it will remove and asks on a terminal (`--yes` skips the question, `--dry-run` only previews). Use the same `CODEX_HOME` you published with. It removes every utility the way `gap remove` does, the MCP servers and commands recorded for components, the GAP block from each policy file, the GAP Codex hooks, published commands that still match `~/.gap/published.json`, and the skills GAP recorded installing. It moves what it removes into one `~/.gap/backups/<time>/` folder. A file GAP did not write stays and is listed. If a step fails, it exits `1` and keeps `~/.gap/state.json` and `~/.gap/published.json`, so you can fix the problem and run it again.
+It previews what it will remove and asks on a terminal (`--yes` skips the question, `--dry-run` only previews). Without a terminal, `--yes` is required. Use the same `CODEX_HOME` you published with. It removes every utility the way [gap remove](#add-a-utility) does, the MCP servers and commands recorded for components, GAP policy blocks, the GAP Codex hooks, and published global commands that still match `~/.gap/published.json`. Text outside policy blocks stays byte for byte; files left with only whitespace or Cursor front matter are removed. An unmarked policy file is removed only when its whole-file SHA-256 matches the ledger. Other policy files and unmatched global commands stay and are listed.
 
-It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkouts/`, your `~/.config/gap/` settings, and the `gap` binary. It prints a `trash` command for the binary. Copy out any saved files you want, then trash `~/.gap/` yourself.
+Skills are removed from both `~/.agents/skills/` and `~/.claude/skills/` when recorded in a component's `skills` or `skillCopies`, or selected by `global/skills.json` with a matching source in the skills.sh lock. An unreadable or malformed skills lock stops discovery before removal. Policy, command, skill, and Codex hook backups go under `~/.gap/backups/<time>/`; utility removals can use separate timestamped folders. After cleanup succeeds, it deletes `~/.gap/store/`, `~/.gap/state.json`, and `~/.gap/published.json`. A failed cleanup exits `1` and keeps the records for a retry.
+
+It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/checkouts/`, your remaining `~/.config/gap/` settings, and the `gap` binary. It prints a `trash` command for the binary. Copy out any saved files you want, then trash `~/.gap/` yourself.
 
 ## Commands
 
@@ -71,7 +68,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkouts/`, your `~/.c
 | `gap add <owner/repo[@ref]> [--id <id>]` | Add a utility: pin a repo that ships a `gap-utility.toml` and install it. See [Add a utility](#add-a-utility) |
 | `gap update [id]` | Update one utility, or every utility you added when the id is omitted. See [Add a utility](#add-a-utility) |
 | `gap remove <id>` | Remove a utility and its recorded installations. See [Add a utility](#add-a-utility) |
-| `gap uninstall [--yes] [--dry-run]` | Preview, then remove everything `gap sync` and `gap add` installed, using GAP's records. Keeps backups, recovery copies, and the binary. See [Install `gap`](#install-gap) |
+| `gap uninstall [--yes] [--dry-run]` | Preview and remove recorded installations. See [Install `gap`](#install-gap) for removal rules and retained files |
 | `gap search [query]` | Search `catalog.toml`, the list of known utilities, by id, tag, or description, and print the `gap add` command for each match. |
 | `gap list` | List every component and utility with its source, ref, pinned commit, and hook trust |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |

@@ -11,7 +11,7 @@
 
 ## Local Contracts
 
-`gap` publishes the checkout it was built from. `sourceRoot` is that compile-time path, so `gap sync` uses it from any directory. Curl installation retains a new checkout under `~/.gap/checkouts/` each time. `sh scripts/install.sh` builds the local checkout regardless of stdin. Both run `go install ./cmd/gap`, check that the shell can find the binary, and require keeping the source checkout. Reinstall after `cmd/gap` changes, after the checkout moves, or after a `-trimpath` build. `go run ./cmd/gap sync` from the repo root uses that checkout without installing.
+Installation, source checkout selection, and update requirements: [Install `gap`](../../README.md#install-gap).
 
 `gap sync` publishes unless the effective profile is `crew`; see [project setup](../../README.md#project-setup). `gap sync --remove-codex-legacy` is valid only for machine publication. Component status and its failure conditions are described in [components](../../README.md#components). `gap restore [id]` reinstalls selected drifted component skills from the lock. Pin commands and their locks: [Commands](../../README.md#commands). `gap -h`, `gap --help`, and `gap help` print styled usage and exit 0. Invoking `gap` without a subcommand prints help and exits 2. An unknown command or extra arguments exit 1. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
 
@@ -43,7 +43,7 @@ Doctor also asks Echo's verified pinned store for `scripts/install.sh --list-ins
 
 ### Uninstall
 
-`gap uninstall` (`uninstall.go`) reads `~/.gap/state.json`, `~/.gap/published.json`, and the skills.sh lock, prints a preview, and asks on a terminal; `--yes` skips the question, `--dry-run` exits 0 after the preview, and no terminal without `--yes` exits 1. `CODEX_HOME` resolves like sync. In order it: runs `removeUtility` for each user utility; removes the MCP servers (`removeComponentMCP`) and commands recorded for every other state entry; for each `policyDests` file plus `<codex-home>/AGENTS.md`, removes the GAP marker block and keeps the rest byte for byte, deletes a file left with only whitespace (or only the Cursor front matter), deletes an unmarked file whose sha256 matches its ledger entry, and leaves anything else; drops only the GAP SessionStart and SubagentStart entries from `<codex-home>/hooks.json` (`removeGapHook`); removes global commands in each `commandDests` folder whose digest matches the ledger; and removes each skill recorded in a component's `skills` or `skillCopies`, or listed in `global/skills.json` with a lock entry from the manifest source. Removed files move into one `~/.gap/backups/<time>/` folder. `~/.gap/store`, `state.json`, and `published.json` are removed only when every step succeeded; any failure exits 1 and keeps them so the command can rerun. Backups, recovery, checkouts, `~/.config/gap/`, and the binary stay; it prints a `trash` command for the binary.
+`uninstall.go` implements the [uninstall contract](../../README.md#install-gap).
 
 ### Publish destinations
 

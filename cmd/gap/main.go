@@ -396,11 +396,8 @@ func checkCommandOwners(repoRoot, home string, selected distro) error {
 	return nil
 }
 
-// sourceRootFor tests. Empty means the compile-time checkout.
 var sourceRootFor string
 
-// sourceRoot is the checkout gap was built from, so `gap sync` publishes that checkout from any directory.
-// ponytail: compile-time path; moving the checkout or building with -trimpath needs a fresh `go install ./cmd/gap`.
 func sourceRoot() (string, error) {
 	if sourceRootFor != "" {
 		return sourceRootFor, nil
