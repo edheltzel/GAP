@@ -81,6 +81,11 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
+	codexPolicy := filepath.Join(codexHome, "gap", "global-agent-policy.md")
+	dests, err := policyDests(home, codexPolicy)
+	if err != nil {
+		return err
+	}
 	docsDir = filepath.Join(repoRoot, "global", "docs", "agents")
 	co, err := readCheckout(repoRoot)
 	if err != nil {
@@ -98,8 +103,6 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
-	codexPolicy := filepath.Join(codexHome, "gap", "global-agent-policy.md")
-	dests := policyDests(home, codexPolicy)
 	groups := syncGroups(d, pins, manifest, projectRoot, len(dests), commandCount(repoRoot))
 	sel, err := chooseGroups(groups, opts.Only, opts.Skip, opts.Yes)
 	if err != nil {
@@ -513,13 +516,7 @@ func ignoredPathBlocks(path string) bool {
 }
 
 func resolveCodexHome(env, home string) (string, error) {
-	if env == "" {
-		return filepath.Join(home, ".codex"), nil
-	}
-	if !filepath.IsAbs(env) {
-		return "", fmt.Errorf("CODEX_HOME must be an absolute path: %s", env)
-	}
-	return env, nil
+	return resolveHarnessHome("CODEX_HOME", env, filepath.Join(home, ".codex"))
 }
 
 const (

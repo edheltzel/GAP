@@ -1,16 +1,23 @@
 package main
 
-import "path/filepath"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
 
-// harness is one agent GAP delivers to. Paths are relative to $HOME. An empty policy is Codex, whose file lives under CODEX_HOME.
+// harness is one agent GAP delivers to. An empty policy is Codex, whose file lives under CODEX_HOME.
 // commands is the folder the harness loads user slash commands from; empty means GAP publishes no commands there.
 // mcp registers servers through the harness's own CLI. Add a path or CLI only after proving the harness loads it.
+// homeEnv names an environment variable that moves the harness home; policy is then relative to that home, which defaults to homeDir under $HOME.
 type harness struct {
 	name     string
 	policy   string
 	cursor   bool
 	commands string
 	mcp      *mcpCLI
+	homeEnv  string
+	homeDir  string
 }
 
 var harnesses = []harness{
@@ -20,6 +27,28 @@ var harnesses = []harness{
 	{name: "codex", mcp: codexMCP},
 	{name: "cursor", policy: ".cursor/rules/global-agent-policy.mdc", cursor: true},
 	{name: "empryo", policy: ".empryo/EMPRYO.md"},
+	{name: "jcode", policy: "prompt-overlay.md", homeEnv: "JCODE_HOME", homeDir: ".jcode"},
+}
+
+// resolveHarnessHome returns the harness home from its environment variable. Empty means unset; a relative value is refused.
+func resolveHarnessHome(name, env, fallback string) (string, error) {
+	if env == "" {
+		return fallback, nil
+	}
+	if !filepath.IsAbs(env) {
+		return "", fmt.Errorf("%s must be an absolute path: %s", name, env)
+	}
+	return env, nil
+}
+
+// harnessHome resolves a harness home from homeEnv. Unlike CODEX_HOME, a set but empty value is refused:
+// jcode reads it as an empty path and loads its files from the working folder.
+func harnessHome(h harness, home string) (string, error) {
+	env, set := os.LookupEnv(h.homeEnv)
+	if set && env == "" {
+		return "", fmt.Errorf("%s is set but empty, so %s would read %s from its working folder; unset it", h.homeEnv, h.name, h.policy)
+	}
+	return resolveHarnessHome(h.homeEnv, env, filepath.Join(home, h.homeDir))
 }
 
 type policyDest struct {
@@ -27,16 +56,23 @@ type policyDest struct {
 	cursor bool
 }
 
-func policyDests(home, codexPolicy string) []policyDest {
+func policyDests(home, codexPolicy string) ([]policyDest, error) {
 	dests := make([]policyDest, 0, len(harnesses))
 	for _, h := range harnesses {
 		dest := codexPolicy
-		if h.policy != "" {
+		switch {
+		case h.homeEnv != "":
+			base, err := harnessHome(h, home)
+			if err != nil {
+				return nil, err
+			}
+			dest = filepath.Join(base, filepath.FromSlash(h.policy))
+		case h.policy != "":
 			dest = filepath.Join(home, filepath.FromSlash(h.policy))
 		}
 		dests = append(dests, policyDest{dest, h.cursor})
 	}
-	return dests
+	return dests, nil
 }
 
 func commandDests(home, name string) []string {

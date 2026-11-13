@@ -2,7 +2,7 @@
 
 GAP is the global agent policy for coding agents. This file is the contract. It is not a Stow package.
 
-The nearest project `AGENTS.md` wins on that project's local contracts. `~/AGENTS.md` is only a pointer here. Do not paste a second full copy there.
+The nearest project `AGENTS.md` wins on that project's local contracts. Do not create `~/AGENTS.md`: harnesses that walk parent folders would load it into every project under home.
 
 ## How this file is loaded
 
@@ -14,6 +14,7 @@ Edit the markdown in this repo, then run `gap sync` (install it once with `go in
 - Codex gets the policy from SessionStart and SubagentStart hooks that print `gap/global-agent-policy.md` in Codex home (`~/.codex`, or `CODEX_HOME`). Old policy text may remain in that `AGENTS.md` until cleanup, so Codex can load the policy twice. Do not add `AGENTS.override.md`.
 - Cursor reads `~/.cursor/rules/global-agent-policy.mdc`.
 - Empryo reads `~/.empryo/EMPRYO.md`. Do not add a second copy elsewhere.
+- jcode reads `~/.jcode/prompt-overlay.md` (`JCODE_HOME` when set).
 - Grok loads `~/.claude/rules/*.md` when Claude compatibility is on. Do not add a second copy.
 
 Pi packaging, themes, and footers stay in `~/.pi/agent/AGENTS.md`. Do not paste them here.

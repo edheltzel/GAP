@@ -23,6 +23,10 @@ const (
 )
 
 func TestMain(m *testing.M) {
+	if err := os.Unsetenv("JCODE_HOME"); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	if dir := os.Getenv("GAP_TEST_CONTENT_HASH"); dir != "" {
 		h, err := contentHash(dir)
 		if err != nil {
@@ -1030,7 +1034,11 @@ const empryoFixture = "user intro\n\n<!-- soulstack:start -->\n# Takeaways\nkeep
 
 func TestEmpryoDestination(t *testing.T) {
 	want := filepath.Join("/h", ".empryo", "EMPRYO.md")
-	for _, d := range policyDests("/h", policyPath) {
+	dests, err := policyDests("/h", policyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range dests {
 		if d.dest == want {
 			if d.cursor {
 				t.Fatal("Empryo must not get the Cursor frontmatter")
@@ -1039,6 +1047,72 @@ func TestEmpryoDestination(t *testing.T) {
 		}
 	}
 	t.Fatalf("policyDests misses %s", want)
+}
+
+func TestJcodeOverlay(t *testing.T) {
+	jcodeDest := func(home string) string {
+		dests, err := policyDests(home, policyPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range dests {
+			if strings.HasSuffix(d.dest, "prompt-overlay.md") {
+				return d.dest
+			}
+		}
+		return ""
+	}
+	unsetEnv(t, "JCODE_HOME")
+	if got := jcodeDest("/h"); got != filepath.Join("/h", ".jcode", "prompt-overlay.md") {
+		t.Fatalf("default dest = %q", got)
+	}
+	t.Setenv("JCODE_HOME", "/opt/jc")
+	if got := jcodeDest("/h"); got != filepath.Join("/opt/jc", "prompt-overlay.md") {
+		t.Fatalf("JCODE_HOME dest = %q", got)
+	}
+	t.Setenv("JCODE_HOME", "rel/jc")
+	if dests, err := policyDests("/h", policyPath); err == nil || !strings.Contains(err.Error(), "JCODE_HOME") || dests != nil {
+		t.Fatalf("relative JCODE_HOME: %v, %v", dests, err)
+	}
+
+	home := t.TempDir()
+	unsetEnv(t, "JCODE_HOME")
+	dest := filepath.Join(home, ".jcode", "prompt-overlay.md")
+	foreign := "my overlay\n\n" + gapMarked("old\n") + "\ntail\n"
+	write(t, dest, foreign)
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	ledger := map[string]string{}
+	if _, err := publishPolicy(source, dest, false, ledger, ledgerFile, true, home); err != nil {
+		t.Fatal(err)
+	}
+	got := readString(t, dest)
+	if !strings.HasPrefix(got, "my overlay\n\n") || !strings.HasSuffix(got, "\ntail\n") || strings.Count(got, "<!-- gap:begin -->") != 1 || strings.Contains(got, "old\n") {
+		t.Fatalf("overlay = %q", got)
+	}
+	info, _ := os.Stat(dest)
+	wrote, err := publishPolicy(source, dest, false, ledger, ledgerFile, true, home)
+	after, _ := os.Stat(dest)
+	if err != nil || wrote && !info.ModTime().Equal(after.ModTime()) || readString(t, dest) != got {
+		t.Fatalf("second publish changed the overlay: %v %v", wrote, err)
+	}
+}
+
+func TestInheritedJcodeHomeIsolation(t *testing.T) {
+	home := t.TempDir()
+	overlay := filepath.Join(home, "prompt-overlay.md")
+	write(t, overlay, "user overlay\n")
+	bin, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(bin, "-test.run=^TestSyncContinuesAfterPolicyChanged$", "-test.count=1")
+	cmd.Env = append(os.Environ(), "JCODE_HOME="+home)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("publication test: %v\n%s", err, out)
+	}
+	if got := readString(t, overlay); got != "user overlay\n" {
+		t.Fatalf("inherited JCODE_HOME overlay changed: %q", got)
+	}
 }
 
 func TestEmpryoSpliceKeepsSoulStack(t *testing.T) {
@@ -1697,7 +1771,11 @@ func TestEmpryoForeignRefusedWithoutTerminal(t *testing.T) {
 	t.Cleanup(func() { termReady = old })
 	ledgerFile := filepath.Join(home, ".gap", "published.json")
 	ledger := map[string]string{}
-	for _, d := range policyDests(home, codex) {
+	dests, err := policyDests(home, codex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range dests {
 		wrote, err := publishPolicy(source, d.dest, d.cursor, ledger, ledgerFile, true, home)
 		if err != nil {
 			t.Fatal(err)
@@ -2146,7 +2224,10 @@ func TestCopyFallbackDoesNotRemoveDestEditedDuringCopy(t *testing.T) {
 func TestSyncContinuesAfterPolicyChanged(t *testing.T) {
 	home := t.TempDir()
 	codex := filepath.Join(home, ".codex", "gap", "global-agent-policy.md")
-	dests := policyDests(home, codex)
+	dests, err := policyDests(home, codex)
+	if err != nil {
+		t.Fatal(err)
+	}
 	refused := dests[0].dest
 	for _, d := range dests {
 		write(t, d.dest, gapMarked("old\n"))

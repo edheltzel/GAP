@@ -711,12 +711,57 @@ func TestEmpryoShadowWarning(t *testing.T) {
 			if tc.shadow != "" {
 				put(t, shadow, tc.shadow)
 			}
-			got := empryoShadow(home, tc.skill)
-			if (got != "") != tc.warn {
+			unsetEnv(t, "JCODE_HOME")
+			warnings := shadowWarnings(home, tc.skill)
+			got := strings.Join(warnings, "\n")
+			if (got != "") != tc.warn || len(warnings) > 1 {
 				t.Fatalf("warning = %q, want warn %v", got, tc.warn)
 			}
 			if tc.warn && (!strings.Contains(got, shadow) || !strings.Contains(got, filepath.Join(home, ".agents", "skills", tc.skill))) {
 				t.Fatalf("warning must name both paths: %q", got)
+			}
+		})
+	}
+}
+
+func TestShadowJcode(t *testing.T) {
+	put := func(t *testing.T, dir, body string) {
+		t.Helper()
+		write(t, filepath.Join(dir, "SKILL.md"), body)
+	}
+	for _, tc := range []struct {
+		name, shadow string
+		env          bool
+		warn         bool
+	}{
+		{"missing", "", false, false},
+		{"matching", "same\n", false, false},
+		{"differing", "edited\n", false, true},
+		{"differing under JCODE_HOME", "edited\n", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			put(t, filepath.Join(home, ".agents", "skills", "do-todo"), "same\n")
+			base := filepath.Join(home, ".jcode")
+			unsetEnv(t, "JCODE_HOME")
+			if tc.env {
+				base = filepath.Join(t.TempDir(), "jc")
+				t.Setenv("JCODE_HOME", base)
+				put(t, filepath.Join(home, ".jcode", "skills", "do-todo"), "ignored\n")
+			}
+			shadow := filepath.Join(base, "skills", "do-todo")
+			if tc.shadow != "" {
+				put(t, shadow, tc.shadow)
+			}
+			got := shadowWarnings(home, "do-todo")
+			if (len(got) == 1) != tc.warn || len(got) > 1 {
+				t.Fatalf("warnings = %q, want warn %v", got, tc.warn)
+			}
+			if tc.warn {
+				want := "jcode skill copy " + shadow + " differs from the managed " + filepath.Join(home, ".agents", "skills", "do-todo")
+				if got[0] != want {
+					t.Fatalf("warning = %q, want %q", got[0], want)
+				}
 			}
 		})
 	}

@@ -180,6 +180,10 @@ func planUninstall() (*uninstallPlan, error) {
 	}
 	p := &uninstallPlan{home: home, codexHome: codexHome, userIDs: map[string]bool{}}
 	p.codexPolicy = filepath.Join(codexHome, "gap", "global-agent-policy.md")
+	dests, err := policyDests(home, p.codexPolicy)
+	if err != nil {
+		return nil, err
+	}
 	d, _, err := registeredPins(repoRoot, home)
 	if err != nil {
 		return nil, err
@@ -197,7 +201,7 @@ func planUninstall() (*uninstallPlan, error) {
 		return nil, err
 	}
 	seen := map[string]bool{}
-	for _, dest := range append(policyDests(home, p.codexPolicy), policyDest{dest: filepath.Join(codexHome, "AGENTS.md")}) {
+	for _, dest := range append(dests, policyDest{dest: filepath.Join(codexHome, "AGENTS.md")}) {
 		if !seen[dest.dest] {
 			seen[dest.dest] = true
 			p.policies = append(p.policies, policyTarget{dest.dest, dest.cursor})

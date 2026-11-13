@@ -6,6 +6,6 @@ Keep these out of `Config/global/AGENTS.md` and its depth docs unless the captai
 - Per-repo product contracts (those live in the repo AGENTS/DOX tree)
 - Factory routing, crewmate charters, and merge authority (Atlas / captain)
 - Spending money, publishing releases, or merging without an explicit go
-- Inventing a second global file at `~/AGENTS.md` (home stays a thin pointer)
+- Inventing a second global file at `~/AGENTS.md`
 
 Harness-specific install notes belong under that harness's config, with a pointer back here for shared rules.

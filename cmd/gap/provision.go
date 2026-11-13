@@ -158,7 +158,7 @@ func doctorAll() error {
 		out.doctorTable(rows)
 	}
 	var harnesses [][]string
-	for _, harness := range []string{"claude", "omp", "pi", "codex", "cursor", "empryo", "grok"} {
+	for _, harness := range []string{"claude", "omp", "pi", "codex", "cursor", "empryo", "jcode", "grok"} {
 		if path, err := exec.LookPath(harness); err == nil {
 			harnesses = append(harnesses, []string{harness, "present (" + path + ")"})
 		} else {
