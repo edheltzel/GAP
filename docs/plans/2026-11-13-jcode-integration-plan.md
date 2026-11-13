@@ -4,7 +4,7 @@ Scope: U1-U4 ship in this change; U5-U6 are machine steps after merge.
 
 ## Outcome
 
-`gap sync` writes the GAP policy between the GAP markers in jcode's prompt overlay (`$JCODE_HOME/prompt-overlay.md`, else `~/.jcode/prompt-overlay.md`). The sync warns once per managed skill whose `~/.jcode/skills/<name>` copy differs. `~/AGENTS.md` is gone, and no GAP doc calls it a pointer.
+`gap sync` writes the GAP policy between the GAP markers in jcode's prompt overlay (`$JCODE_HOME/prompt-overlay.md`, or `~/.jcode/prompt-overlay.md` when unset). A set but empty or relative `JCODE_HOME` is refused. The sync warns once per managed skill whose `~/.jcode/skills/<name>` copy differs. `~/AGENTS.md` is gone, and no GAP doc calls it a pointer.
 
 ## Findings that shape the plan
 
@@ -18,15 +18,15 @@ Scope: U1-U4 ship in this change; U5-U6 are machine steps after merge.
 
 ### U1. jcode policy destination
 - Depends on: none
-- Files: `cmd/gap/harness.go`, `cmd/gap/main.go`, `cmd/gap/main_test.go`
-- Change: add `{name: "jcode", policy: ".jcode/prompt-overlay.md"}` to `harnesses`, plus a `homeEnv` field that names `JCODE_HOME`. `policyDests` resolves `homeEnv` the way Codex resolves `CODEX_HOME`: an empty value means unset, and a relative value is refused with the same error shape (reuse the `resolveCodexHome` rules through a shared helper). The overlay uses the plain markdown splice, so the marker, ledger, foreign-file, and backup rules apply unchanged.
-- Done when: sync writes the block to `~/.jcode/prompt-overlay.md`, or to `$JCODE_HOME/prompt-overlay.md` when that is set. Text outside the markers stays byte for byte, and a second sync writes nothing.
-- Verify: `go test ./cmd/gap -run 'TestJcodeOverlay|TestResolveCodexHome|TestSplice'`. The new `TestJcodeOverlay` covers the default path, `JCODE_HOME`, an empty `JCODE_HOME`, a relative `JCODE_HOME` (refused), foreign text preserved, and the second-sync no-op.
+- Files: `cmd/gap/harness.go`, `cmd/gap/harness_test.go`, `cmd/gap/main.go`, `cmd/gap/main_test.go`
+- Change: add `{name: "jcode", policy: "prompt-overlay.md", homeEnv: "JCODE_HOME", homeDir: ".jcode"}` to `harnesses`. `policyDests` uses `~/.jcode` when `JCODE_HOME` is unset and accepts an absolute override. Refuse a set but empty `JCODE_HOME` with an "unset it" message, because jcode reads it as its working folder. Empty `CODEX_HOME` still means unset. Both overrides refuse relative values through the shared home resolver. The overlay uses the plain markdown splice, so the marker, ledger, foreign-file, and backup rules apply unchanged.
+- Done when: sync writes the block to `~/.jcode/prompt-overlay.md` when `JCODE_HOME` is unset, or to `$JCODE_HOME/prompt-overlay.md` when it is nonempty and absolute. Empty or relative values fail before publishing. Text outside the markers stays byte for byte, and a second sync writes nothing.
+- Verify: `go test ./cmd/gap -run 'TestJcodeHomeEmptyRefused|TestJcodeOverlay|TestResolveCodexHome|TestSplice'`. `TestJcodeHomeEmptyRefused` covers unset versus set but empty `JCODE_HOME`, the "unset it" message, destination-resolution failure, and unchanged empty `CODEX_HOME` behavior. `TestJcodeOverlay` covers the default path, an absolute `JCODE_HOME`, a relative `JCODE_HOME` (refused), foreign text preserved, and the second-sync no-op.
 
 ### U2. jcode shadow warning
 - Depends on: none
 - Files: `cmd/gap/skills.go`, `cmd/gap/skills_test.go`
-- Change: generalize `empryoShadow(home, name)` into `shadowWarnings(home, name) []string` over a table of `{label, dir}` pairs. Empryo uses `~/.empryo/skills` and keeps its `empryo` skill exception; jcode uses `$JCODE_HOME/skills`, else `~/.jcode/skills`. `checkDrift`'s deferred loop prints each warning. The wording for jcode states only that both copies exist and differ, because jcode's copy precedence is unverified.
+- Change: generalize `empryoShadow(home, name)` into `shadowWarnings(home, name) []string` over a table of `{label, dir}` pairs. Empryo uses `~/.empryo/skills` and keeps its `empryo` skill exception; jcode uses `$JCODE_HOME/skills`, or `~/.jcode/skills` when unset. `checkDrift`'s deferred loop prints each warning. The wording for jcode states only that both copies exist and differ, because jcode's copy precedence is unverified.
 - Done when: a differing `~/.jcode/skills/<name>` prints exactly one line naming both paths, a matching or missing copy prints nothing, and the exit code is unchanged.
 - Verify: `go test ./cmd/gap -run 'TestShadow'`
 
@@ -41,7 +41,7 @@ Scope: U1-U4 ship in this change; U5-U6 are machine steps after merge.
 - Depends on: U1, U2
 - Files: `AGENTS.md`, `cmd/gap/AGENTS.md`, `README.md`, `global/AGENTS.md`, `global/docs/agents/out-of-scope.md`
 - Change:
-  - Root `AGENTS.md` Publish list: add `~/.jcode/prompt-overlay.md` (or `JCODE_HOME`, with the same empty and relative rules as Codex).
+  - Root `AGENTS.md` Publish list: add `~/.jcode/prompt-overlay.md` (or absolute `JCODE_HOME`). State that set but empty `JCODE_HOME` is refused with an "unset it" message, while empty `CODEX_HOME` means unset; both refuse relative values.
   - `cmd/gap/AGENTS.md`: add the destination line, and add the jcode shadow to the drift-check step next to Empryo's.
   - `README.md`: add a jcode row to the destination table.
   - `global/AGENTS.md`, "How this file is loaded": add "jcode reads `~/.jcode/prompt-overlay.md`." Replace "`~/AGENTS.md` is only a pointer here. Do not paste a second full copy there." with "Do not create `~/AGENTS.md`; harnesses that walk parent folders would load it into every project under home."
