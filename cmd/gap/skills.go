@@ -884,7 +884,7 @@ func shadowWarnings(home, name string) []string {
 	}
 	if base, err := harnessHome(harnessNamed("jcode"), home); err == nil {
 		if shadow := filepath.Join(base, "skills", name); differs(shadow, managed) {
-			out = append(out, fmt.Sprintf("jcode loads both %s and the managed %s, and the copies differ", shadow, managed))
+			out = append(out, fmt.Sprintf("jcode skill copy %s differs from the managed %s", shadow, managed))
 		}
 	}
 	return out

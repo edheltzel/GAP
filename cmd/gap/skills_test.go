@@ -757,8 +757,11 @@ func TestShadowJcode(t *testing.T) {
 			if (len(got) == 1) != tc.warn || len(got) > 1 {
 				t.Fatalf("warnings = %q, want warn %v", got, tc.warn)
 			}
-			if tc.warn && (!strings.Contains(got[0], shadow) || !strings.Contains(got[0], filepath.Join(home, ".agents", "skills", "do-todo"))) {
-				t.Fatalf("warning must name both paths: %q", got[0])
+			if tc.warn {
+				want := "jcode skill copy " + shadow + " differs from the managed " + filepath.Join(home, ".agents", "skills", "do-todo")
+				if got[0] != want {
+					t.Fatalf("warning = %q, want %q", got[0], want)
+				}
 			}
 		})
 	}
