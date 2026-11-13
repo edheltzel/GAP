@@ -27,6 +27,36 @@ type mcpCLI struct {
 	add        func(s mcpServer) []string
 	remove     func(name string) []string
 	exists     func(home, target, name string) (bool, error)
+	list       func(home, target string) (map[string]bool, error)
+}
+
+// mcpInventory answers presence checks for one run. A harness with a list command is listed once per target and kept current after each add and remove.
+type mcpInventory map[string]map[string]bool
+
+func (inv mcpInventory) has(home string, cli *mcpCLI, target, name string) (bool, error) {
+	if cli.list == nil {
+		return cli.exists(home, target, name)
+	}
+	key := cli.bin + "\x00" + target
+	names, ok := inv[key]
+	if !ok {
+		var err error
+		if names, err = cli.list(home, target); err != nil {
+			return false, err
+		}
+		inv[key] = names
+	}
+	return names[name], nil
+}
+
+func (inv mcpInventory) set(cli *mcpCLI, target, name string, present bool) {
+	if names, ok := inv[cli.bin+"\x00"+target]; ok {
+		names[name] = present
+	}
+}
+
+func (inv mcpInventory) forget(cli *mcpCLI, target string) {
+	delete(inv, cli.bin+"\x00"+target)
 }
 
 func manifestMCP(doc map[string]any) ([]mcpServer, error) {
@@ -165,24 +195,23 @@ var codexMCP = &mcpCLI{
 		return stdioArgs([]string{"mcp", "add", s.Name}, "--env", s)
 	},
 	remove: func(name string) []string { return []string{"mcp", "remove", name} },
-	exists: func(home, target, name string) (bool, error) {
+	list: func(home, target string) (map[string]bool, error) {
 		cmd := mcpCommand(home, "CODEX_HOME", target, "codex", []string{"mcp", "list", "--json"})
 		out, err := cmd.Output()
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		var servers []struct {
 			Name string `json:"name"`
 		}
 		if err := json.Unmarshal(out, &servers); err != nil {
-			return false, err
+			return nil, err
 		}
+		names := map[string]bool{}
 		for _, server := range servers {
-			if server.Name == name {
-				return true, nil
-			}
+			names[server.Name] = true
 		}
-		return false, nil
+		return names, nil
 	},
 }
 
@@ -227,7 +256,7 @@ func runMCP(home string, cli *mcpCLI, target string, args []string) error {
 	return nil
 }
 
-func removeMCP(home string, h harness, target, name string) error {
+func removeMCP(home string, inv mcpInventory, h harness, target, name string) error {
 	if h.mcp == nil {
 		return fmt.Errorf("%s has no mcp CLI", h.name)
 	}
@@ -237,11 +266,16 @@ func removeMCP(home string, h harness, target, name string) error {
 	if _, err := exec.LookPath(h.mcp.bin); err != nil {
 		return err
 	}
-	exists, err := h.mcp.exists(home, target, name)
+	exists, err := inv.has(home, h.mcp, target, name)
 	if err != nil || !exists {
 		return err
 	}
-	return runMCP(home, h.mcp, target, h.mcp.remove(name))
+	if err := runMCP(home, h.mcp, target, h.mcp.remove(name)); err != nil {
+		inv.forget(h.mcp, target)
+		return err
+	}
+	inv.set(h.mcp, target, name, false)
+	return nil
 }
 
 func mcpKey(h harness, name string) string { return h.name + ":" + name }
@@ -280,6 +314,7 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 		}
 	}
 	failed := map[string]bool{}
+	inv := mcpInventory{}
 	out := newReport(os.Stdout)
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
@@ -327,7 +362,7 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 					failed[id] = true
 					continue
 				}
-				exists, err := h.mcp.exists(home, target, s.Name)
+				exists, err := inv.has(home, h.mcp, target, s.Name)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "%s: %v\n", id, err)
 					failed[id] = true
@@ -378,7 +413,7 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 		for _, key := range stale {
 			hname, name, _ := strings.Cut(key, ":")
 			h := harnessNamed(hname)
-			if err := removeMCP(home, h, entry.MCP[key].Target, name); err != nil {
+			if err := removeMCP(home, inv, h, entry.MCP[key].Target, name); err != nil {
 				fmt.Fprintf(os.Stderr, "%s: %v\n", id, err)
 				failed[id] = true
 				continue
@@ -392,7 +427,7 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 		}
 		for _, j := range jobs {
 			if j.owns {
-				if err := removeMCP(home, j.h, j.target, j.s.Name); err != nil {
+				if err := removeMCP(home, inv, j.h, j.target, j.s.Name); err != nil {
 					fmt.Fprintf(os.Stderr, "%s: %v\n", id, err)
 					failed[id] = true
 					continue
@@ -404,10 +439,11 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 				return nil, err
 			}
 			addErr := runMCP(home, j.h.mcp, j.target, j.h.mcp.add(j.s))
+			inv.forget(j.h.mcp, j.target)
 			if addErr != nil {
 				fmt.Fprintf(os.Stderr, "%s: %v\n", id, addErr)
 				failed[id] = true
-				exists, checkErr := j.h.mcp.exists(home, j.target, j.s.Name)
+				exists, checkErr := inv.has(home, j.h.mcp, j.target, j.s.Name)
 				if checkErr != nil {
 					fmt.Fprintf(os.Stderr, "%s: %v\n", id, checkErr)
 					j.sum = ""
@@ -444,6 +480,7 @@ func removeComponentMCP(home, id string) error {
 		return err
 	}
 	entry := state.Components[id]
+	inv := mcpInventory{}
 	ok := true
 	keys := make([]string, 0, len(entry.MCP))
 	for key := range entry.MCP {
@@ -453,7 +490,7 @@ func removeComponentMCP(home, id string) error {
 	for _, key := range keys {
 		hname, name, _ := strings.Cut(key, ":")
 		h := harnessNamed(hname)
-		if err := removeMCP(home, h, entry.MCP[key].Target, name); err != nil {
+		if err := removeMCP(home, inv, h, entry.MCP[key].Target, name); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			ok = false
 			continue

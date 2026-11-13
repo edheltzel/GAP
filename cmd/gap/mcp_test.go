@@ -129,6 +129,10 @@ func TestMCPCLIProcess(t *testing.T) {
 	}
 	action := args[1]
 	if action == "list" {
+		if f, err := os.OpenFile(filepath.Join(home, "mcp-list.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+			fmt.Fprintln(f, bin)
+			f.Close()
+		}
 		servers := []map[string]string{}
 		for name := range config.Servers {
 			servers = append(servers, map[string]string{"name": name})
@@ -817,5 +821,59 @@ func TestUtilityMCPUnreadableConfig(t *testing.T) {
 				t.Fatalf("failed inspection recorded an installation: %+v", entry)
 			}
 		})
+	}
+}
+
+func TestUtilityMCPUninstallHookRunsOnce(t *testing.T) {
+	manifest := "schema = \"1\"\nname = \"util\"\n[hooks]\ninstall = \"true\"\nuninstall = \"test ! -f \\\"$HOME/uninstalled\\\" && touch \\\"$HOME/uninstalled\\\"\"\n[mcp.util-mcp]\ncommand = [\"{store}/server.sh\"]\n"
+	e := newUtilityEnv(t, manifest)
+	t.Setenv("PATH", fakeMCPBins(t)+string(os.PathListSeparator)+"/bin"+string(os.PathListSeparator)+"/usr/bin")
+	quietStdout(t)
+	write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
+	if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+		t.Fatalf("add exit %d", code)
+	}
+	flag := filepath.Join(e.home, "fail-codex-remove-before")
+	write(t, flag, "")
+	if code := run([]string{"remove", "util"}); code == 0 {
+		t.Fatal("removal with a failing mcp server succeeded")
+	}
+	if !e.exists("uninstalled") {
+		t.Fatal("uninstall hook did not run")
+	}
+	if err := os.Remove(flag); err != nil {
+		t.Fatal(err)
+	}
+	mcpLog(t, e.home)
+	if code := run([]string{"remove", "util"}); code != 0 {
+		t.Fatalf("retry exit %d: the uninstall hook ran twice", code)
+	}
+	if got := mcpLog(t, e.home); !slices.Equal(got, []string{"codex mcp remove util-mcp"}) {
+		t.Fatalf("retry mcp calls = %v", got)
+	}
+}
+
+func TestUtilityMCPListsCodexOncePerRun(t *testing.T) {
+	two := "schema = \"1\"\nname = \"util\"\n[mcp.one]\ncommand = [\"{store}/one.sh\"]\n[mcp.two]\ncommand = [\"{store}/two.sh\"]\n"
+	e := newUtilityEnv(t, two)
+	fakeMCPBins(t)
+	quietStdout(t)
+	write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
+	lists := func() int {
+		b, _ := os.ReadFile(filepath.Join(e.home, "mcp-list.log"))
+		os.Remove(filepath.Join(e.home, "mcp-list.log"))
+		return strings.Count(string(b), "codex\n")
+	}
+	if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+		t.Fatalf("add exit %d", code)
+	}
+	if n := lists(); n != 1 {
+		t.Fatalf("add listed codex %d times, want 1", n)
+	}
+	if code := run([]string{"remove", "util"}); code != 0 {
+		t.Fatalf("remove exit %d", code)
+	}
+	if n := lists(); n != 1 {
+		t.Fatalf("remove listed codex %d times, want 1", n)
 	}
 }

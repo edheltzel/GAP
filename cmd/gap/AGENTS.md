@@ -33,7 +33,7 @@ The setup breadcrumb contract, including the crew exception, and the Echo adapte
 
 ### MCP servers
 
-`mcp.go` implements the [MCP manifest and lifecycle contract](../../README.md#publish-a-utility) through the `mcp` field of `harnesses`. `stateEntry.MCP` maps `<harness>:<name>` to a `mcpRegistration` containing the expanded server's digest and absolute configuration target. Presence checks read `mcpServers` from `.claude.json` or `mcp.json` under that target, or run `codex mcp list --json` with that target as `CODEX_HOME`.
+`mcp.go` implements the [MCP manifest and lifecycle contract](../../README.md#publish-a-utility) through the `mcp` field of `harnesses`. `stateEntry.MCP` maps `<harness>:<name>` to a `mcpRegistration` containing the expanded server's digest and absolute configuration target. Presence checks read `mcpServers` from `.claude.json` or `mcp.json` under that target, or run `codex mcp list --json` with that target as `CODEX_HOME`. One run lists Codex servers once per target with `codex mcp list --json` and keeps that inventory current after each add and remove, because each list call also checks every configured server's auth. `gap remove` records a finished uninstall hook (clears `Installed`) before MCP cleanup, so a retry after an MCP failure does not run the hook again.
 
 ### Project setup and doctor
 

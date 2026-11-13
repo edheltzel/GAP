@@ -535,6 +535,9 @@ func removeUtility(id string) error {
 				return fmt.Errorf("%s uninstall hook failed; nothing removed: %w", id, err)
 			}
 			out.result(true, id+" uninstall hook finished")
+			if err := markUninstalled(home, id); err != nil {
+				return err
+			}
 		} else if manifest.Hooks.Install != "" && !gate.trusted(c) {
 			fmt.Fprintf(os.Stderr, "%s has an install hook but no uninstall hook; gap cannot undo what its installer did.\n", id)
 		}
@@ -702,6 +705,18 @@ func removeUtility(id string) error {
 		out.result(true, id+" removed")
 	}
 	return nil
+}
+
+// markUninstalled records that a utility's uninstall hook has run, so a retry after a later failure does not run it again.
+func markUninstalled(home, id string) error {
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	entry := state.Components[id]
+	entry.Installed = ""
+	state.Components[id] = entry
+	return writeState(home, state)
 }
 
 func fileExists(path string) bool {
