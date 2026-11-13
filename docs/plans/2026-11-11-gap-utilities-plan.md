@@ -10,7 +10,7 @@ Any GitHub repo that ships a manifest can be added, updated, synced, listed, and
 
 These settle the requirements' open questions where they are implementation detail. Each can be revised before U1 starts.
 
-- Manifest: `gap-utility.toml` at the utility repo root, parsed by `cmd/gap/toml.go`. Fields: `schema = "1"`, `name`, `description`, `skills` (names under `skills/`), `commands` (paths of `.md` files), and an optional `[hooks]` table with `install`, `update`, `uninstall`, `doctor`.
+- Manifest: `gap-utility.toml` at the utility repo root, parsed by `cmd/gap/toml.go`. Fields follow [Publish a utility](../../README.md#publish-a-utility).
 - Component specs follow [Components](../../README.md#components), with skill selection under [Load levels](../../README.md#load-levels).
 - User utilities: `~/.config/gap/gap.toml` may declare new `[components.<id>]` tables, and an id that collides with a distro id is an error. They are pinned in `~/.config/gap/gap.lock`, which uses the same schema as `gap.lock`.
 - Trust: a `[trust]` table in `~/.config/gap/gap.toml` with `repos = ["owner/repo", "owner/*"]`.
@@ -23,7 +23,7 @@ These settle the requirements' open questions where they are implementation deta
 ### U1. Manifest reader
 - Depends on: none
 - Files: `cmd/gap/manifest.go` (new), `cmd/gap/manifest_test.go` (new)
-- Change: `readUtilityManifest(dir)` parses `gap-utility.toml` into `{Name, Description, Skills, Commands, Hooks}`. It rejects an unknown schema, a missing or duplicate skill, a missing `skills/<name>/SKILL.md`, a command path outside the repo or not ending `.md`, and an unknown hook key. A repo with no manifest returns a clear "not a GAP utility" error.
+- Change: `readUtilityManifest(dir)` parses the [utility manifest](../../README.md#publish-a-utility). It rejects an unknown schema, a missing or duplicate skill, a missing `skills/<name>/SKILL.md`, a command path outside the repo or not ending `.md`, and an unknown hook key. A repo with no manifest returns a clear "not a GAP utility" error.
 - Done when: valid, minimal, and malformed fixtures produce the expected struct or error.
 - Verify: `go test ./cmd/gap -run TestUtilityManifest`
 
