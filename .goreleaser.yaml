@@ -1,0 +1,42 @@
+version: 2
+
+project_name: gap
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: gap
+    main: ./cmd/gap
+    binary: gap
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: gap
+    ids:
+      - gap
+    formats:
+      - tar.gz
+    name_template: "gap_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+
+release:
+  github:
+    owner: edheltzel
+    name: GAP

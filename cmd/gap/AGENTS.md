@@ -11,7 +11,7 @@
 
 ## Local Contracts
 
-`gap` publishes the checkout it was built from. `sourceRoot` is that compile-time path, so `gap sync` uses it from any directory. Curl installation retains a new checkout under `~/.gap/checkouts/` each time. `sh scripts/install.sh` builds the local checkout regardless of stdin. Both run `go install ./cmd/gap`, check that the shell can find the binary, and require keeping the source checkout. Reinstall after `cmd/gap` changes, after the checkout moves, or after a `-trimpath` build. `go run ./cmd/gap sync` from the repo root uses that checkout without installing.
+Installation, source checkout selection, and update requirements: [Install `gap`](../../README.md#install-gap).
 
 `gap sync` publishes unless the effective profile is `crew`; see [project setup](../../README.md#project-setup). `gap sync --remove-codex-legacy` is valid only for machine publication. Component status and its failure conditions are described in [components](../../README.md#components). `gap restore [id]` reinstalls selected drifted component skills from the lock. Pin commands and their locks: [Commands](../../README.md#commands). `gap -h`, `gap --help`, and `gap help` print styled usage and exit 0. Invoking `gap` without a subcommand prints help and exits 2. An unknown command or extra arguments exit 1. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
 
@@ -40,6 +40,10 @@ The setup breadcrumb contract, including the crew exception, and the Echo adapte
 Run `gap init --adopt [dir]` for an existing project, or `gap init [dir]` for a new one; `dir` defaults to the current directory. Both create `.gap/gap.toml` only when absent, using `profile = "project"` and the directory name as the slug. Existing configuration must parse and contain a non-empty string `slug`; init reports an error before project writes otherwise. Init appends a short policy pointer to an unmarked `AGENTS.md`, preserving its existing text. With `--adopt`, an existing `AGENTS.md` stays byte-identical, including an empty file. A missing `AGENTS.md` is created in either mode, and a file containing either GAP marker stays unchanged. Non-regular `AGENTS.md` files are refused. `--adopt` also lists existing agent, Forge, task, and stack files. Successful project setup checks Recall through its CLI and adds `gap provisioned <slug>` using the persisted slug, unless a matching breadcrumb already exists anywhere in that project's history. Project-file provisioning failures add no breadcrumb; keeping an adopted or marked file still reaches the Recall check. Missing Recall prints a notice and succeeds. A failed Recall search or add reports an error and makes init exit `1`; project files already written stay in place for a retry. GAP never writes Recall's database directly. Crew setup, including a later init on a project with persisted `profile = "crew"`, never calls Recall. Init does not run the Forge interview.
 
 Doctor also asks Echo's verified pinned store for `scripts/install.sh --list-installed`. A successful report replaces Echo's adapter list and store commit in `~/.gap/state.json`, preserving other component entries. The current Echo pin lacks this optional flag: doctor prints `echo reported nothing; no adapters recorded` and leaves the ledger unchanged. This skipped report does not itself fail doctor. Wait for a supporting Echo tag before changing the pin. GAP records only reported names and does not install or remove adapters.
+
+### Uninstall
+
+`uninstall.go` implements the [uninstall contract](../../README.md#install-gap).
 
 ### Publish destinations
 

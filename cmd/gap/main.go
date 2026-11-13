@@ -396,22 +396,19 @@ func checkCommandOwners(repoRoot, home string, selected distro) error {
 	return nil
 }
 
-// sourceRootFor tests. Empty means the compile-time checkout.
 var sourceRootFor string
 
-// sourceRoot is the checkout gap was built from, so `gap sync` publishes that checkout from any directory.
-// ponytail: compile-time path; moving the checkout or building with -trimpath needs a fresh `go install ./cmd/gap`.
 func sourceRoot() (string, error) {
 	if sourceRootFor != "" {
 		return sourceRootFor, nil
 	}
 	_, file, _, ok := runtime.Caller(0)
 	if !ok || !filepath.IsAbs(file) {
-		return "", errors.New("gap was built without its source path; run go install ./cmd/gap from the GAP checkout")
+		return checkoutRoot()
 	}
 	root := filepath.Dir(filepath.Dir(filepath.Dir(file)))
 	if _, err := os.Stat(filepath.Join(root, "global", "AGENTS.md")); err != nil {
-		return "", fmt.Errorf("gap was built from %s, which has no global/AGENTS.md; run go install ./cmd/gap from the GAP checkout", root)
+		return checkoutRoot()
 	}
 	return root, nil
 }
@@ -645,21 +642,104 @@ func insertGapHook(text, policyPath string) (string, hookResult) {
 func hasGapHook(groups []any, matcher, command string) bool {
 	for _, g := range groups {
 		group, ok := g.(map[string]any)
-		if !ok {
-			continue
-		}
-		if m, has := group["matcher"]; (matcher == "" && has) || (matcher != "" && m != matcher) {
+		if !ok || !gapMatcher(group, matcher) {
 			continue
 		}
 		list, _ := group["hooks"].([]any)
 		for _, h := range list {
-			hook, ok := h.(map[string]any)
-			if ok && hook["type"] == "command" && hook["command"] == command && isZero(hook["additionalContextLimit"]) && hook["async"] != true {
+			if isGapHookEntry(h, command) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// gapMatcher reports whether a hook group carries the matcher insertGapHook writes for its event.
+func gapMatcher(group map[string]any, matcher string) bool {
+	m, has := group["matcher"]
+	return !((matcher == "" && has) || (matcher != "" && m != matcher))
+}
+
+// isGapHookEntry reports whether one hook entry is the command hook insertGapHook writes.
+func isGapHookEntry(h any, command string) bool {
+	hook, ok := h.(map[string]any)
+	return ok && hook["type"] == "command" && hook["command"] == command && isZero(hook["additionalContextLimit"]) && hook["async"] != true
+}
+
+// removeGapHook is the inverse of insertGapHook: it drops only the GAP hook from each gapEvents event.
+// A group left with no hooks and an event left with no groups are dropped. empty reports that nothing but an empty hooks table remains.
+func removeGapHook(text, policyPath string) (out string, empty bool, res hookResult) {
+	dec := json.NewDecoder(strings.NewReader(text))
+	dec.UseNumber()
+	var root any
+	if dec.Decode(&root) != nil {
+		return "", false, hookMalformed
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return "", false, hookMalformed
+	}
+	doc, ok := root.(map[string]any)
+	if !ok {
+		return "", false, hookMalformed
+	}
+	hooks, ok := doc["hooks"].(map[string]any)
+	if !ok {
+		return "", false, hookMalformed
+	}
+	command := hookCommand(policyPath)
+	changed := false
+	for _, e := range gapEvents {
+		current, exists := hooks[e.event]
+		if !exists {
+			continue
+		}
+		groups, isList := current.([]any)
+		if !isList {
+			return "", false, hookMalformed
+		}
+		var kept []any
+		for _, g := range groups {
+			group, ok := g.(map[string]any)
+			if !ok || !gapMatcher(group, e.matcher) {
+				kept = append(kept, g)
+				continue
+			}
+			list, _ := group["hooks"].([]any)
+			var rest []any
+			for _, h := range list {
+				if isGapHookEntry(h, command) {
+					changed = true
+					continue
+				}
+				rest = append(rest, h)
+			}
+			if len(rest) == len(list) {
+				kept = append(kept, g)
+				continue
+			}
+			if len(rest) > 0 {
+				group["hooks"] = rest
+				kept = append(kept, group)
+			}
+		}
+		if len(kept) == 0 {
+			delete(hooks, e.event)
+		} else {
+			hooks[e.event] = kept
+		}
+	}
+	if !changed {
+		return "", false, hookPresent
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if enc.Encode(doc) != nil {
+		return "", false, hookMalformed
+	}
+	return buf.String(), len(hooks) == 0 && len(doc) == 1, hookChanged
 }
 
 func isZero(v any) bool {
