@@ -1,6 +1,6 @@
 # jcode-integration
 
-Requirements: `docs/plans/2026-11-11-jcode-integration-requirements.md`.
+Scope: U1-U4 ship in this change; U5-U6 are machine steps after merge.
 
 ## Outcome
 
@@ -11,7 +11,7 @@ Requirements: `docs/plans/2026-11-11-jcode-integration-requirements.md`.
 - `~/AGENTS.md` is not a pointer. It is a byte-identical copy of `~/.pi/agent/AGENTS.md` (Pi packaging, theme, footer, plus a SoulStack block), dated 2026-10-04.
 - Empryo loads `~/AGENTS.md` as a global instruction file, so its text appears in every Empryo prompt today. The same SoulStack block is already in `~/.empryo/EMPRYO.md`, so Empryo gets it twice now.
 - Pi and OMP walk parent directories for `AGENTS.md`. For a project under `$HOME`, `~/AGENTS.md` is a second copy of Pi's own file.
-- Removing `~/AGENTS.md` therefore drops nothing unique: Pi keeps `~/.pi/agent/AGENTS.md`, Empryo keeps `EMPRYO.md`, and jcode gets the policy from the overlay. That answers the requirements' open question.
+- Removing `~/AGENTS.md` therefore drops nothing unique: Pi keeps `~/.pi/agent/AGENTS.md`, Empryo keeps `EMPRYO.md`, and jcode gets the policy from the overlay.
 - jcode is not installed on this machine right now: there is no `jcode` on PATH or in `/Applications`, and the newest `~/.jcode` log is from 2026-11-06. `~/.jcode/skills` holds 53 entries and `~/.jcode/config.toml` exists.
 
 ## Implementation Units
@@ -26,14 +26,14 @@ Requirements: `docs/plans/2026-11-11-jcode-integration-requirements.md`.
 ### U2. jcode shadow warning
 - Depends on: none
 - Files: `cmd/gap/skills.go`, `cmd/gap/skills_test.go`
-- Change: generalize `empryoShadow(home, name)` into `shadowWarnings(home, name) []string` over a table of `{label, dir}` pairs. Empryo uses `~/.empryo/skills` and keeps its `empryo` skill exception; jcode uses `$JCODE_HOME/skills`, else `~/.jcode/skills`. `checkDrift`'s deferred loop prints each warning. The wording for jcode states only that both copies exist and differ, because the requirements leave it unverified which copy jcode prefers.
+- Change: generalize `empryoShadow(home, name)` into `shadowWarnings(home, name) []string` over a table of `{label, dir}` pairs. Empryo uses `~/.empryo/skills` and keeps its `empryo` skill exception; jcode uses `$JCODE_HOME/skills`, else `~/.jcode/skills`. `checkDrift`'s deferred loop prints each warning. The wording for jcode states only that both copies exist and differ, because jcode's copy precedence is unverified.
 - Done when: a differing `~/.jcode/skills/<name>` prints exactly one line naming both paths, a matching or missing copy prints nothing, and the exit code is unchanged.
 - Verify: `go test ./cmd/gap -run 'TestShadow'`
 
 ### U3. Doctor lists jcode
 - Depends on: U1
 - Files: `cmd/gap/provision.go`
-- Change: add `jcode` to the harness presence list at `provision.go:161`, so `gap doctor` shows `jcode: present` or `missing`.
+- Change: add `jcode` to the harness presence list at `provision.go:161`, so `gap doctor` shows `jcode: present` or `absent`.
 - Done when: `gap doctor` prints a `jcode:` row.
 - Verify: `go run ./cmd/gap doctor | grep '^jcode:'`
 

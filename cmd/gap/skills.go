@@ -873,7 +873,7 @@ func skillDirs(home, name string) []string {
 }
 
 // shadowWarnings reports harness-only skill copies that differ from the managed copy. gap never writes them.
-// Empryo looks in ~/.empryo/skills first, so its copy wins. jcode also loads ~/.jcode/skills; which copy wins there is unverified.
+// Empryo's harness copy wins; jcode's copy precedence is unverified.
 func shadowWarnings(home, name string) []string {
 	managed := skillDirs(home, name)[0]
 	var out []string

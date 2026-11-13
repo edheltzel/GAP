@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-// harness is one agent GAP delivers to. Paths are relative to $HOME. An empty policy is Codex, whose file lives under CODEX_HOME.
+// harness is one agent GAP delivers to. An empty policy is Codex, whose file lives under CODEX_HOME.
 // commands is the folder the harness loads user slash commands from; empty means GAP publishes no commands there.
 // mcp registers servers through the harness's own CLI. Add a path or CLI only after proving the harness loads it.
 // homeEnv names an environment variable that moves the harness home; policy is then relative to that home, which defaults to homeDir under $HOME.

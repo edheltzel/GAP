@@ -47,7 +47,7 @@ To uninstall, run:
 gap uninstall
 ```
 
-It previews what it will remove and asks on a terminal (`--yes` skips the question, `--dry-run` only previews). Without a terminal, `--yes` is required. Use the same `CODEX_HOME` you published with. It removes every utility the way [gap remove](#add-a-utility) does, the MCP servers and commands recorded for components, GAP policy blocks, the GAP Codex hooks, and published global commands that still match `~/.gap/published.json`. Text outside marked policy blocks stays byte for byte; files left with only whitespace or Cursor front matter are removed. An unmarked policy file is removed when its whole-file SHA-256 matches the ledger. A ledger-verified prefix, including a legacy Codex GAP prefix, is stripped while preserving the text after it; the file is removed if only whitespace remains. Other policy files and unmatched global commands stay and are listed.
+It previews what it will remove and asks on a terminal (`--yes` skips the question, `--dry-run` only previews). Without a terminal, `--yes` is required. Use the same `CODEX_HOME` and `JCODE_HOME` you published with. It removes every utility the way [gap remove](#add-a-utility) does, the MCP servers and commands recorded for components, GAP policy blocks, the GAP Codex hooks, and published global commands that still match `~/.gap/published.json`. Text outside marked policy blocks stays byte for byte; files left with only whitespace or Cursor front matter are removed. An unmarked policy file is removed when its whole-file SHA-256 matches the ledger. A ledger-verified prefix, including a legacy Codex GAP prefix, is stripped while preserving the text after it; the file is removed if only whitespace remains. Other policy files and unmatched global commands stay and are listed.
 
 Skills are removed from both `~/.agents/skills/` and `~/.claude/skills/` when recorded in a component's `skills` or `skillCopies`, or selected by `global/skills.json` with a matching source in the skills.sh lock. An unreadable or malformed skills lock stops discovery before removal. Policy, command, skill, and Codex hook backups go under `~/.gap/backups/<time>/`; utility removals can use separate timestamped folders. Before removing utilities, GAP saves their skill and command ownership in `~/.gap/state.json` so cleanup can resume after an interruption. After cleanup succeeds, it deletes `~/.gap/store/`, `~/.gap/state.json`, and `~/.gap/published.json`. A failed cleanup exits `1` and keeps the records for a retry.
 
@@ -150,7 +150,7 @@ Empryo reads `~/.empryo/EMPRYO.md`, which already holds SoulStack's block. The f
 
 Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP recommends three: `do-todo` (the policy tracks tasks every turn), `do-commit` and `but-axi` (the GitButler flow). Everything else loads by name when a task needs it. Until your pins match, `gap sync` prints the exact `settings` call. Ask an agent inside Empryo to run it. gap never changes Empryo's settings; it only writes its block in `EMPRYO.md`.
 
-`gap sync` also warns when `~/.empryo/skills/<name>` differs from a managed skill. Empryo loads that copy first, so the managed one never runs there. It warns the same way for `~/.jcode/skills/<name>`, which jcode loads beside `~/.agents/skills`.
+`gap sync` also warns when `~/.empryo/skills/<name>` differs from a managed skill. Empryo loads that copy first, so the managed one never runs there. For jcode's additional skill-copy warning and its home override, see the [drift-check contract](cmd/gap/AGENTS.md#sync-steps).
 
 ## Manage skills
 
@@ -239,7 +239,7 @@ After selection, terminal output shows a framed plan, phase headers, progress li
 
 ```
 gap sync will:
-  policy     publish AGENTS.md to 6 harness files and 1 command
+  policy     publish AGENTS.md to 7 harness files and 1 command
   do-skills  66 skills @ master (abc1234)
   echo       run its installer @ v0.13.0 (def5678)
   manifest   15 skills from 12 sources in global/skills.json (skills.sh, needs npx)
@@ -364,7 +364,7 @@ GAP keeps no skill source. [Do-Skills](https://github.com/edheltzel/Do-Skills#re
 | Codex | `~/.codex/gap/global-agent-policy.md` (`$CODEX_HOME/gap/global-agent-policy.md` when nonempty), printed by the SessionStart and SubagentStart hooks | none |
 | Cursor | `~/.cursor/rules/global-agent-policy.mdc` | none |
 | Empryo | `~/.empryo/EMPRYO.md`, beside the SoulStack block. The first sync asks once, so run it from a terminal. | none |
-| jcode | `~/.jcode/prompt-overlay.md` (`$JCODE_HOME/prompt-overlay.md` when nonempty) | none |
+| jcode | `~/.jcode/prompt-overlay.md` (`$JCODE_HOME/prompt-overlay.md` when nonempty; must be absolute) | none |
 | Grok | No file of its own. It reads the Claude copy. | none |
 
 ### How sync tells its own files apart
