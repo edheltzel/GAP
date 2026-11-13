@@ -32,7 +32,7 @@ That one line does four things:
 3. It builds `gap` with `go install ./cmd/gap` and puts the binary in Go's bin folder.
 4. It checks whether your shell can find that folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it.
 
-Without Go, or with `GAP_VERSION=<tag>` set, the script installs a release instead: it downloads the `gap` binary for your system from GitHub releases, checks its sha256 against `checksums.txt` and stops on a mismatch, installs it to `~/.local/bin` (or `$GAP_BIN_DIR`), and clones the repo into `~/.gap/checkout`, which that binary publishes from. Rerun the script to update both.
+Without Go, the script installs a release instead: it downloads the `gap` binary for your system from GitHub releases, checks its sha256 against `checksums.txt` and stops on a mismatch, installs it to `~/.local/bin`, and clones the repo into `~/.gap/checkout`, which that binary publishes from. Rerun the script to update both.
 
 Installation also needs git. It writes the source checkout and Go binary. `gap sync` publishes the policy and installs the selected components and skills.
 
@@ -72,7 +72,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkouts/`, your `~/.c
 | `gap update [id]` | Update one utility, or every utility you added when the id is omitted. See [Add a utility](#add-a-utility) |
 | `gap remove <id>` | Remove a utility and its recorded installations. See [Add a utility](#add-a-utility) |
 | `gap uninstall [--yes] [--dry-run]` | Preview, then remove everything `gap sync` and `gap add` installed, using GAP's records. Keeps backups, recovery copies, and the binary. See [Install `gap`](#install-gap) |
-| `gap search [query]` | Search `catalog.toml`, the list of known utilities, by id, tag, or description, and print the `gap add` command for each match. Marks utilities already added |
+| `gap search [query]` | Search `catalog.toml`, the list of known utilities, by id, tag, or description, and print the `gap add` command for each match. |
 | `gap list` | List every component and utility with its source, ref, pinned commit, and hook trust |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `go test ./...` | Run the self-test against throwaway folders |

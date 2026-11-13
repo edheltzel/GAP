@@ -1,11 +1,8 @@
 #!/bin/sh
 # Install gap and say whether the shell can find it.
-# With Go on PATH and no GAP_VERSION or GAP_RELEASE_URL, build from a checkout (this one, or a fresh clone when piped).
-# Otherwise download a release binary, verify its sha256, and keep a checkout at $GAP_HOME/checkout (~/.gap/checkout) for gap to publish.
-# GAP_VERSION pins a release tag, GAP_BIN_DIR picks the binary folder (~/.local/bin), GAP_RELEASE_URL and GAP_REPO_URL override the download and clone sources.
 set -eu
 
-repo="${GAP_REPO_URL:-https://github.com/edheltzel/GAP.git}"
+repo="https://github.com/edheltzel/GAP.git"
 
 need() {
 	if ! command -v "$1" >/dev/null 2>&1; then
@@ -57,13 +54,7 @@ install_release() {
 		exit 1
 		;;
 	esac
-	if [ -n "${GAP_RELEASE_URL:-}" ]; then
-		base="$GAP_RELEASE_URL"
-	elif [ -n "${GAP_VERSION:-}" ]; then
-		base="https://github.com/edheltzel/GAP/releases/download/$GAP_VERSION"
-	else
-		base="https://github.com/edheltzel/GAP/releases/latest/download"
-	fi
+	base="https://github.com/edheltzel/GAP/releases/latest/download"
 	archive="gap_${os}_${arch}.tar.gz"
 	tmp="$(mktemp -d)"
 	trap 'rm -rf "$tmp"' EXIT
@@ -87,7 +78,7 @@ install_release() {
 		exit 1
 	fi
 
-	gap_home="${GAP_HOME:-$HOME/.gap}"
+	gap_home="$HOME/.gap"
 	checkout="$gap_home/checkout"
 	if [ -d "$checkout/.git" ]; then
 		branch="$(git -C "$checkout" symbolic-ref --short HEAD 2>/dev/null || true)"
@@ -106,7 +97,7 @@ install_release() {
 	fi
 	git -C "$checkout" remote set-head origin master >/dev/null
 
-	bin="${GAP_BIN_DIR:-$HOME/.local/bin}"
+	bin="$HOME/.local/bin"
 	mkdir -p "$bin"
 	cp "$tmp/x/gap" "$bin/.gap.$$"
 	chmod 755 "$bin/.gap.$$"
@@ -117,7 +108,7 @@ install_release() {
 	path_hint "$bin"
 }
 
-if [ -n "${GAP_VERSION:-}" ] || [ -n "${GAP_RELEASE_URL:-}" ] || ! command -v go >/dev/null 2>&1; then
+if ! command -v go >/dev/null 2>&1; then
 	install_release
 	exit 0
 fi

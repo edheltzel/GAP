@@ -90,3 +90,10 @@ func TestInstallerRetainsSourcesAndHonorsLocalInvocation(t *testing.T) {
 		})
 	}
 }
+
+func TestInstallerReleaseWithoutGo(t *testing.T) {
+	cmd := exec.Command("sh", "../../scripts/install_test.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("release installer: %v\n%s", err, out)
+	}
+}

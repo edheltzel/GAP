@@ -93,40 +93,16 @@ func validCatalogRepo(repo string) error {
 	return nil
 }
 
-// searchCatalog returns the entries matching query case-insensitively: id matches first, then tag, then description.
-// Ties keep id order. An empty query returns every entry.
 func searchCatalog(entries []catalogEntry, query string) []catalogEntry {
 	q := strings.ToLower(strings.TrimSpace(query))
-	type hit struct {
-		rank  int
-		entry catalogEntry
-	}
-	var hits []hit
+	var matches []catalogEntry
 	for _, e := range entries {
-		rank := -1
-		switch {
-		case q == "" || strings.Contains(strings.ToLower(e.ID), q):
-			rank = 0
-		case tagMatches(e.Tags, q):
-			rank = 1
-		case strings.Contains(strings.ToLower(e.Description), q):
-			rank = 2
-		}
-		if rank >= 0 {
-			hits = append(hits, hit{rank, e})
+		if q == "" || strings.Contains(strings.ToLower(e.ID), q) || tagMatches(e.Tags, q) || strings.Contains(strings.ToLower(e.Description), q) {
+			matches = append(matches, e)
 		}
 	}
-	sort.SliceStable(hits, func(i, j int) bool {
-		if hits[i].rank != hits[j].rank {
-			return hits[i].rank < hits[j].rank
-		}
-		return hits[i].entry.ID < hits[j].entry.ID
-	})
-	out := make([]catalogEntry, len(hits))
-	for i, h := range hits {
-		out[i] = h.entry
-	}
-	return out
+	sort.Slice(matches, func(i, j int) bool { return matches[i].ID < matches[j].ID })
+	return matches
 }
 
 func tagMatches(tags []string, q string) bool {
@@ -146,46 +122,12 @@ func addCommand(e catalogEntry) string {
 	return "gap add " + e.Repo
 }
 
-// installedSet holds the ids in ~/.gap/state.json and the ids and repos of components in ~/.config/gap/gap.toml.
-func installedSet(home string) (ids, repos map[string]bool, err error) {
-	ids, repos = map[string]bool{}, map[string]bool{}
-	state, err := readState(home)
-	if err != nil {
-		return nil, nil, err
-	}
-	for id := range state.Components {
-		ids[id] = true
-	}
-	text, err := readOptional(userConfigFile(home))
-	if err != nil {
-		return nil, nil, err
-	}
-	doc, err := parseTOML(text)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w", userConfigFile(home), err)
-	}
-	comps, _ := doc["components"].(map[string]any)
-	for id, v := range comps {
-		t, _ := v.(map[string]any)
-		if repo, ok := t["repo"].(string); ok {
-			ids[id] = true
-			repos[repoIdentity(repo)] = true
-		}
-	}
-	return ids, repos, nil
-}
-
 // runSearch prints the catalog entries matching args. It exits 0 with matches and 1 with none or on error.
 func runSearch(args []string) int {
 	return searchTo(os.Stdout, os.Stderr, strings.Join(args, " "))
 }
 
 func searchTo(stdout, stderr io.Writer, query string) int {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		fmt.Fprintln(stderr, "gap search:", err)
-		return 1
-	}
 	root, err := sourceRoot()
 	if err != nil {
 		fmt.Fprintln(stderr, "gap search:", err)
@@ -201,11 +143,6 @@ func searchTo(stdout, stderr io.Writer, query string) int {
 		fmt.Fprintln(stderr, "gap search:", err)
 		return 1
 	}
-	ids, repos, err := installedSet(home)
-	if err != nil {
-		fmt.Fprintln(stderr, "gap search:", err)
-		return 1
-	}
 	matches := searchCatalog(entries, query)
 	if len(matches) == 0 {
 		fmt.Fprintf(stderr, "No utility matches %q.\n", query)
@@ -214,25 +151,14 @@ func searchTo(stdout, stderr io.Writer, query string) int {
 	out := newReport(stdout)
 	rows := make([][]string, 0, len(matches))
 	for _, e := range matches {
-		status := "-"
-		if ids[e.ID] || repos[repoIdentity(e.Repo)] {
-			status = "installed"
-		}
-		rows = append(rows, []string{e.ID, status, e.Description, strings.Join(e.Tags, ", "), addCommand(e)})
+		rows = append(rows, []string{e.ID, e.Description, strings.Join(e.Tags, ", "), addCommand(e)})
 	}
 	if !out.tty {
 		for _, row := range rows {
-			out.printf("%s %s - %s\n  %s\n", row[0], row[1], row[2], row[4])
+			out.printf("%s - %s\n  %s\n", row[0], row[1], row[3])
 		}
 		return 0
 	}
-	for _, row := range rows {
-		hex := colorDim
-		if row[1] == "installed" {
-			hex = colorOK
-		}
-		row[1] = out.tone(row[1], hex)
-	}
-	out.table([]string{"id", "status", "description", "tags", "add"}, rows)
+	out.table([]string{"id", "description", "tags", "add"}, rows)
 	return 0
 }

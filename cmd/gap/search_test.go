@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -51,7 +52,7 @@ func TestSearchCatalogRejectsBadEntries(t *testing.T) {
 	}
 }
 
-func TestSearchCatalogRanksIDThenTagThenDescription(t *testing.T) {
+func TestSearchCatalogMatchesFieldsInIDOrder(t *testing.T) {
 	entries := []catalogEntry{
 		{ID: "zeta", Description: "Stores MEMORY on disk"},
 		{ID: "alpha", Description: "unrelated", Tags: []string{"Memory"}},
@@ -63,7 +64,7 @@ func TestSearchCatalogRanksIDThenTagThenDescription(t *testing.T) {
 	for _, e := range searchCatalog(entries, "MEMORY") {
 		got = append(got, e.ID)
 	}
-	if strings.Join(got, ",") != "memory-x,alpha,beta,zeta" {
+	if strings.Join(got, ",") != "alpha,beta,memory-x,zeta" {
 		t.Fatalf("order = %v", got)
 	}
 	if all := searchCatalog(entries, "  "); len(all) != len(entries) || all[0].ID != "alpha" {
@@ -74,11 +75,11 @@ func TestSearchCatalogRanksIDThenTagThenDescription(t *testing.T) {
 	}
 }
 
-func TestSearchMarksInstalledAndStaysPlainWhenPiped(t *testing.T) {
+func TestSearchIgnoresLocalStateAndStaysPlainWhenPiped(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	write(t, filepath.Join(home, ".gap", "state.json"), `{"components":{"echo":{"commit":"x","adapters":[]}}}`)
-	write(t, filepath.Join(home, ".config", "gap", "gap.toml"), "[components.mem]\nrepo = \"github.com/EdHeltzel/Recall\"\nref = \"main\"\n")
+	write(t, filepath.Join(home, ".gap", "state.json"), `not json`)
+	write(t, filepath.Join(home, ".config", "gap", "gap.toml"), "not toml [")
 	var stdout, stderr bytes.Buffer
 	if code := searchTo(&stdout, &stderr, ""); code != 0 {
 		t.Fatalf("code = %d stderr = %s", code, stderr.String())
@@ -88,10 +89,10 @@ func TestSearchMarksInstalledAndStaysPlainWhenPiped(t *testing.T) {
 		t.Fatalf("piped output is styled:\n%s", out)
 	}
 	for _, want := range []string{
-		"echo installed - ",
-		"recall installed - ",
-		"forge - - ",
-		"do-skills - - ",
+		"echo - ",
+		"recall - ",
+		"forge - ",
+		"do-skills - ",
 		"  gap add github.com/edheltzel/Forge\n",
 		"  gap add github.com/edheltzel/Do-Skills\n",
 	} {
@@ -103,5 +104,40 @@ func TestSearchMarksInstalledAndStaysPlainWhenPiped(t *testing.T) {
 	stderr.Reset()
 	if code := searchTo(&stdout, &stderr, "no-such-utility"); code != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "No utility matches") {
 		t.Fatalf("no match: code = %d stdout = %q stderr = %q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestSyncIgnoresCatalogChanges(t *testing.T) {
+	for _, kind := range []string{"tracked", "staged", "deleted", "untracked", "ignored"} {
+		t.Run(kind, func(t *testing.T) {
+			e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\n")
+			quietStdout(t)
+			catalog := filepath.Join(e.repo, "catalog.toml")
+			if kind == "tracked" || kind == "staged" || kind == "deleted" {
+				write(t, catalog, "original catalog\n")
+			}
+			if kind == "ignored" {
+				write(t, filepath.Join(e.repo, ".gitignore"), "catalog.toml\n")
+			}
+			readyEnvReviewDistro(t, e.repo)
+			if kind == "deleted" {
+				if err := os.Remove(catalog); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				write(t, catalog, "edited catalog\n")
+			}
+			if kind == "staged" {
+				if _, err := git(e.repo, "add", "catalog.toml"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if code := run([]string{"sync", "--yes"}); code != 0 {
+				t.Fatalf("catalog %s blocked sync: exit %d", kind, code)
+			}
+			if !e.exists(".codex/gap/global-agent-policy.md") {
+				t.Fatal("sync did not publish policy")
+			}
+		})
 	}
 }

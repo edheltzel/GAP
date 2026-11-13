@@ -3,11 +3,14 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -199,5 +202,217 @@ func TestRemoveGapHookKeepsOthers(t *testing.T) {
 	only, _ := insertGapHook(`{"hooks":{}}`, policy)
 	if _, empty, _ := removeGapHook(only, policy); !empty {
 		t.Fatal("a hooks file with only GAP hooks should report empty")
+	}
+}
+
+func sharedUninstallEnv(t *testing.T) *utilityEnv {
+	t.Helper()
+	e := newUtilityEnv(t, hookManifest)
+	quietStdout(t)
+	readyEnvReviewDistro(t, e.repo)
+	write(t, filepath.Join(e.repo, "global", "skills.json"), `[{"source":"example/shared","skills":["util-skill"]}]`)
+	commitAll(t, e.repo)
+	if _, err := git(e.repo, "update-ref", "refs/remotes/origin/master", "HEAD"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
+	if code := run([]string{"sync", "--skip", "manifest", "--yes"}); code != 0 {
+		t.Fatalf("sync exit %d", code)
+	}
+	if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+		t.Fatalf("add exit %d", code)
+	}
+	write(t, filepath.Join(e.repo, "global", "commands", "util-cmd.md"), "Run the utility.\n")
+	return e
+}
+
+func TestUninstallRemovesUtilityCopiesRetainedForGlobalSelections(t *testing.T) {
+	for _, retry := range []bool{false, true} {
+		t.Run(map[bool]string{false: "success", true: "retry"}[retry], func(t *testing.T) {
+			e := sharedUninstallEnv(t)
+			if retry {
+				original := renameBackup
+				blocked := filepath.Join(e.home, ".claude", "skills", "util-skill")
+				renameBackup = func(src, dst string) error {
+					if src == blocked {
+						return fs.ErrPermission
+					}
+					return original(src, dst)
+				}
+				t.Cleanup(func() { renameBackup = original })
+				if code := run([]string{"uninstall", "--yes"}); code != 1 {
+					t.Fatalf("blocked cleanup exit %d", code)
+				}
+				state, err := readState(e.home)
+				if err != nil || !slices.Contains(state.Components["util"].Skills, "util-skill") {
+					t.Fatalf("lost pending cleanup: %+v, %v", state, err)
+				}
+				if !e.exists(".gap/published.json") || !e.exists(".gap/store") {
+					t.Fatal("failed uninstall discarded records")
+				}
+				renameBackup = original
+			}
+			if code := run([]string{"uninstall", "--yes"}); code != 0 {
+				t.Fatalf("uninstall exit %d", code)
+			}
+			for _, path := range append(skillDirs(e.home, "util-skill"), commandDests(e.home, "util-cmd.md")...) {
+				if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+					t.Errorf("owned copy remains at %s: %v", path, err)
+				}
+			}
+			if e.exists(".gap/state.json") || e.exists(".gap/published.json") {
+				t.Fatal("successful uninstall kept cleanup records")
+			}
+		})
+	}
+}
+
+func TestUninstallRejectsUnreadableOrMalformedSkillLock(t *testing.T) {
+	for _, kind := range []string{"malformed", "directory"} {
+		t.Run(kind, func(t *testing.T) {
+			e := newUninstallEnv(t)
+			path := skillLockPath(e.home)
+			if kind == "malformed" {
+				write(t, path, "not json")
+			} else if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			before := snapshotTree(t, e.home)
+			if code := run([]string{"uninstall", "--yes"}); code != 1 {
+				t.Fatalf("invalid lock uninstall exit %d", code)
+			}
+			after := snapshotTree(t, e.home)
+			if len(before) != len(after) {
+				t.Fatal("lock discovery failure changed the home")
+			}
+			for name, value := range before {
+				if after[name] != value {
+					t.Fatalf("lock discovery failure changed %s", name)
+				}
+			}
+		})
+	}
+}
+
+func TestDropSkillLockEntryPreservesForeignRecordsAndErrors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", "")
+	path := skillLockPath(home)
+	if err := dropSkillLockEntry(home, "ours"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, path, `{"version":3,"skills":{"ours":{"source":"example/ours"},"foreign":{"custom":true}}}`)
+	if err := dropSkillLockEntry(home, "ours"); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(readString(t, path)), &got); err != nil {
+		t.Fatal(err)
+	}
+	skills := got["skills"].(map[string]any)
+	if _, exists := skills["ours"]; exists || got["version"] != float64(3) || skills["foreign"].(map[string]any)["custom"] != true {
+		t.Fatalf("lock cleanup changed foreign records: %+v", got)
+	}
+	write(t, path, "not json")
+	if err := dropSkillLockEntry(home, "ours"); err == nil || readString(t, path) != "not json" {
+		t.Fatalf("malformed lock was ignored or changed: %v", err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := dropSkillLockEntry(home, "ours"); err == nil {
+		t.Fatal("unreadable lock was ignored")
+	}
+}
+
+func TestMoveToBackupAcrossFilesystems(t *testing.T) {
+	original := renameBackup
+	renameBackup = func(src, dst string) error {
+		return &os.LinkError{Op: "rename", Old: src, New: dst, Err: syscall.EXDEV}
+	}
+	t.Cleanup(func() { renameBackup = original })
+	for _, kind := range []string{"file", "directory", "symlink", "changed during copy"} {
+		t.Run(kind, func(t *testing.T) {
+			home, backup := t.TempDir(), t.TempDir()
+			path := filepath.Join(home, "owned")
+			switch kind {
+			case "directory":
+				write(t, filepath.Join(path, "run"), "owned bytes\n")
+				if err := os.Chmod(filepath.Join(path, "run"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink":
+				write(t, filepath.Join(home, "target"), "foreign bytes\n")
+				if err := os.Symlink("target", path); err != nil {
+					t.Fatal(err)
+				}
+			default:
+				write(t, path, "owned bytes\n")
+			}
+			if kind == "changed during copy" {
+				old := afterCopyWrite
+				afterCopyWrite = func(src, dst string) { write(t, src, "concurrent edit\n") }
+				t.Cleanup(func() { afterCopyWrite = old })
+			}
+			moved, err := moveToBackup(home, backup, path)
+			if kind == "changed during copy" {
+				if err == nil || moved || readString(t, path) != "concurrent edit\n" {
+					t.Fatalf("unverified copy removed the source: %v %v", moved, err)
+				}
+				return
+			}
+			if err != nil || !moved {
+				t.Fatalf("backup: %v %v", moved, err)
+			}
+			if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+				t.Fatalf("source remains: %v", err)
+			}
+			dest := backupTarget(home, backup, path)
+			switch kind {
+			case "symlink":
+				if target, err := os.Readlink(dest); err != nil || target != "target" || readString(t, filepath.Join(home, "target")) != "foreign bytes\n" {
+					t.Fatalf("backup followed or changed the link: %q %v", target, err)
+				}
+			case "directory":
+				file := filepath.Join(dest, "run")
+				info, err := os.Stat(file)
+				if err != nil || info.Mode().Perm() != 0o755 || readString(t, file) != "owned bytes\n" {
+					t.Fatalf("directory backup lost bytes or mode: %v", err)
+				}
+			default:
+				if readString(t, dest) != "owned bytes\n" {
+					t.Fatal("file backup lost bytes")
+				}
+			}
+		})
+	}
+}
+
+func TestUninstallLockCleanupFailureKeepsOwnership(t *testing.T) {
+	e := sharedUninstallEnv(t)
+	original := renameBackup
+	renameBackup = func(src, dst string) error {
+		write(t, skillLockPath(e.home), "invalid lock")
+		return original(src, dst)
+	}
+	t.Cleanup(func() { renameBackup = original })
+	if code := run([]string{"uninstall", "--yes"}); code != 1 {
+		t.Fatalf("lock cleanup failure exit %d", code)
+	}
+	state, err := readState(e.home)
+	if err != nil || !slices.Contains(state.Components["util"].Skills, "util-skill") || !e.exists(".gap/published.json") {
+		t.Fatalf("lock cleanup lost ownership: %+v, %v", state, err)
+	}
+	renameBackup = original
+	write(t, skillLockPath(e.home), `{"skills":{"util-skill":{"source":"example/shared"}}}`)
+	if code := run([]string{"uninstall", "--yes"}); code != 0 {
+		t.Fatalf("retry exit %d", code)
+	}
+	lock, err := readSkillLock(e.home)
+	if err != nil || len(lock) != 0 || e.exists(".gap/state.json") {
+		t.Fatalf("retry left records: %+v, %v", lock, err)
 	}
 }

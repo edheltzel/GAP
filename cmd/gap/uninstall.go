@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -32,14 +33,14 @@ type policyTarget struct {
 
 // uninstallPlan is what gap uninstall found in GAP's records before it writes anything.
 type uninstallPlan struct {
-	home, repoRoot, codexHome, codexPolicy string
-	utilities                              []string
-	userIDs                                map[string]bool
-	state                                  stateFile
-	ledger                                 map[string]string
-	policies                               []policyTarget
-	commands                               []string
-	skills                                 []string
+	home, codexHome, codexPolicy string
+	utilities                    []string
+	userIDs                      map[string]bool
+	state                        stateFile
+	ledger                       map[string]string
+	policies                     []policyTarget
+	commands                     []string
+	skills                       []string
 }
 
 // classifyPolicy decides what uninstall does with one policy file and returns the text that remains after a strip.
@@ -95,6 +96,8 @@ func backupTarget(home, backup, path string) string {
 	return filepath.Join(backup, rel)
 }
 
+var renameBackup = os.Rename
+
 // moveToBackup moves path into the backup folder. A missing path is not an error.
 func moveToBackup(home, backup, path string) (bool, error) {
 	if _, err := os.Lstat(path); err != nil {
@@ -107,16 +110,54 @@ func moveToBackup(home, backup, path string) (bool, error) {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return false, err
 	}
-	return true, os.Rename(path, dest)
+	if err := renameBackup(path, dest); err != nil {
+		if !isCrossDevice(err) {
+			return false, err
+		}
+		if err := copyTree(path, dest); err != nil {
+			os.RemoveAll(dest)
+			return false, err
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // dropSkillLockEntry removes name from the skills.sh lock when the lock records it.
 func dropSkillLockEntry(home, name string) error {
-	snap := snapshotSkillLock(home, name)
-	if !snap.hadSkill {
+	path := skillLockPath(home)
+	b, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
-	return restoreSkillLock(skillLockSnap{path: snap.path, name: name, hadFile: true})
+	if err != nil {
+		return err
+	}
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(b, &root); err != nil {
+		return err
+	}
+	var skills map[string]json.RawMessage
+	if raw, ok := root["skills"]; ok {
+		if err := json.Unmarshal(raw, &skills); err != nil {
+			return err
+		}
+	}
+	if _, ok := skills[name]; !ok {
+		return nil
+	}
+	delete(skills, name)
+	root["skills"], err = json.Marshal(skills)
+	if err != nil {
+		return err
+	}
+	b, err = json.MarshalIndent(root, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeAtomic(path, string(b)+"\n")
 }
 
 // planUninstall reads GAP's records and lists what uninstall would remove. It writes nothing.
@@ -129,7 +170,7 @@ func planUninstall() (*uninstallPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &uninstallPlan{home: home, repoRoot: repoRoot, codexHome: codexHome, userIDs: map[string]bool{}}
+	p := &uninstallPlan{home: home, codexHome: codexHome, userIDs: map[string]bool{}}
 	p.codexPolicy = filepath.Join(codexHome, "gap", "global-agent-policy.md")
 	d, _, err := registeredPins(repoRoot, home)
 	if err != nil {
@@ -179,18 +220,13 @@ func planUninstall() (*uninstallPlan, error) {
 		}
 	}
 	p.commands = slices.Sorted(maps.Keys(commands))
-	p.skills, err = gapSkills(home, repoRoot, p.state, p.userIDs)
+	p.skills, err = gapSkills(home, repoRoot, p.state)
 	return p, err
 }
 
-// gapSkills lists the skills GAP's records say it installed: each non-utility component's recorded skills and copies,
-// and each global/skills.json skill whose skills.sh lock entry names the manifest source.
-func gapSkills(home, repoRoot string, state stateFile, userIDs map[string]bool) ([]string, error) {
+func gapSkills(home, repoRoot string, state stateFile) ([]string, error) {
 	skills := map[string]bool{}
-	for id, entry := range state.Components {
-		if userIDs[id] {
-			continue
-		}
+	for _, entry := range state.Components {
 		for _, name := range entry.Skills {
 			skills[name] = true
 		}
@@ -202,12 +238,14 @@ func gapSkills(home, repoRoot string, state stateFile, userIDs map[string]bool) 
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
-	if lock, err := readSkillLock(home); err == nil {
-		for _, e := range manifest {
-			for _, name := range e.Skills {
-				if l, ok := lock[name]; ok && sameSource(entryRoot(repoRoot, e), e, l) {
-					skills[name] = true
-				}
+	lock, err := readSkillLock(home)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("%s: %w", skillLockPath(home), err)
+	}
+	for _, e := range manifest {
+		for _, name := range e.Skills {
+			if l, ok := lock[name]; ok && sameSource(entryRoot(repoRoot, e), e, l) {
+				skills[name] = true
 			}
 		}
 	}
@@ -342,10 +380,18 @@ func uninstallAll(opts uninstallOptions) error {
 	if err != nil {
 		return err
 	}
-	for _, id := range slices.Sorted(maps.Keys(state.Components)) {
-		if p.userIDs[id] {
-			continue
+	for id, entry := range p.state.Components {
+		if _, exists := state.Components[id]; !exists {
+			state.Components[id] = stateEntry{Skills: entry.Skills, SkillCopies: entry.SkillCopies, Commands: entry.Commands}
 		}
+	}
+	if err := writeState(home, state); err != nil {
+		return err
+	}
+	if failed {
+		return errors.New("gap uninstall did not finish removing utilities; records were kept for a retry")
+	}
+	for _, id := range slices.Sorted(maps.Keys(state.Components)) {
 		entry := state.Components[id]
 		if len(entry.MCP) > 0 {
 			if err := removeComponentMCP(home, id); err != nil {
@@ -451,11 +497,7 @@ func uninstallAll(opts uninstallOptions) error {
 		}
 	}
 
-	skills, err := gapSkills(home, p.repoRoot, state, p.userIDs)
-	if err != nil {
-		fail("%v", err)
-	}
-	for _, name := range skills {
+	for _, name := range p.skills {
 		ok := true
 		for _, dir := range skillDirs(home, name) {
 			if moved, err := moveToBackup(home, backup, dir); err != nil {

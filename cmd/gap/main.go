@@ -450,9 +450,9 @@ func readCheckout(root string) (checkout, error) {
 		return checkout{}, errors.New("refusing to publish: origin/HEAD is not set; run git remote set-head origin --auto")
 	}
 	c := checkout{primary: strings.TrimPrefix(originHead, "origin/")}
-	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/", "skills/", "gap.toml", "gap.lock", "catalog.toml")
-	untracked, untrackedErr := git(root, "ls-files", "--others", "--exclude-standard", "--", "global/", "skills/", "gap.toml", "gap.lock", "catalog.toml")
-	ignored, ignoredErr := git(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", "global/", "skills/", "gap.toml", "gap.lock", "catalog.toml")
+	_, diffErr := git(root, "diff", "--quiet", "refs/remotes/origin/HEAD", "--", "global/", "skills/", "gap.toml", "gap.lock")
+	untracked, untrackedErr := git(root, "ls-files", "--others", "--exclude-standard", "--", "global/", "skills/", "gap.toml", "gap.lock")
+	ignored, ignoredErr := git(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", "global/", "skills/", "gap.toml", "gap.lock")
 	c.unmerged = diffErr != nil || untrackedErr != nil || ignoredErr != nil || untracked != "" || ignoredBlocks(ignored)
 	if c.branch, err = git(root, "rev-parse", "--abbrev-ref", "HEAD"); err != nil {
 		return c, err
@@ -503,7 +503,7 @@ func ignoredBlocks(list string) bool {
 func ignoredPathBlocks(path string) bool {
 	path = filepath.ToSlash(path)
 	switch path {
-	case "global/AGENTS.md", "global/skills.json", "gap.toml", "gap.lock", "catalog.toml":
+	case "global/AGENTS.md", "global/skills.json", "gap.toml", "gap.lock":
 		return true
 	}
 	if filepath.Dir(path) == "global/commands" && strings.HasSuffix(path, ".md") {
