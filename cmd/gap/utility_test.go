@@ -325,7 +325,7 @@ func TestUtilityRemove(t *testing.T) {
 	if err := writeState(e.home, state); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(e.repo, "global", "skills.json"), "[{\"source\": \"x/y\", \"skills\": [\"shared-skill\"]}]\n")
+	write(t, filepath.Join(e.repo, "gap.toml"), "schema = \"2\"\n[components.distro]\nrepo = \"github.com/x/y\"\nref = \"master\"\nnames = [\"shared-skill\"]\n")
 	edited := filepath.Join(e.home, ".claude", "skills", "util-skill", "SKILL.md")
 	write(t, edited, "my edit\n")
 	e.answers = []string{"y"}

@@ -768,7 +768,6 @@ func TestUtilityMCPDeclinedInstallLifecycle(t *testing.T) {
 				}
 			}
 			if command == "sync" {
-				write(t, filepath.Join(e.repo, "global", "skills.json"), "[]\n")
 				commitAll(t, e.repo)
 				for _, args := range [][]string{
 					{"-C", e.repo, "update-ref", "refs/remotes/origin/master", "HEAD"},

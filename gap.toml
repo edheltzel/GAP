@@ -98,3 +98,64 @@ names = [
 load = "project"
 [components.do-skills.skills.do-astro.when]
 files = ["astro.config.*"]
+
+[components.but-axi]
+repo  = "github.com/edheltzel/but-axi"
+ref   = "master"
+names = ["but-axi"]
+
+[components.gitbutler]
+repo  = "github.com/gitbutlerapp/gitbutler"
+ref   = "master"
+names = ["cli-commands", "tui-tests"]
+
+[components.gh-stack]
+repo  = "github.com/github/gh-stack"
+ref   = "main"
+names = ["gh-stack"]
+
+[components.chrome-devtools-axi]
+repo  = "github.com/kunchenguid/chrome-devtools-axi"
+ref   = "main"
+names = ["chrome-devtools-axi"]
+
+[components.gh-axi]
+repo  = "github.com/kunchenguid/gh-axi"
+ref   = "main"
+names = ["gh-axi"]
+
+[components.visual-explainer]
+repo  = "github.com/nicobailon/visual-explainer"
+ref   = "main"
+names = ["visual-explainer"]
+
+[components.herdr]
+repo  = "github.com/ogulcancelik/herdr"
+ref   = "master"
+names = ["herdr"]
+
+[components.dev-skills]
+repo  = "github.com/onsager-ai/dev-skills"
+ref   = "main"
+names = ["codegraph"]
+
+[components.agent-reviews]
+repo  = "github.com/pbakaus/agent-reviews"
+ref   = "main"
+names = ["resolve-agent-reviews", "resolve-human-reviews", "resolve-reviews"]
+
+[components.impeccable]
+repo  = "github.com/pbakaus/impeccable"
+ref   = "main"
+path  = ".agents/skills"
+names = ["impeccable"]
+
+[components.guides]
+repo  = "github.com/plannotator/guides"
+ref   = "main"
+names = ["guided-plan", "guided-review"]
+
+[components.typesafe-ai]
+repo  = "github.com/typesafe-ai/skills"
+ref   = "main"
+names = ["typesafe-ai"]

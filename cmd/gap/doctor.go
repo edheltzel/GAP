@@ -66,7 +66,7 @@ func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[
 		for _, selected := range selectedEntries(c, c.Store, projectRoot) {
 			for _, name := range selected.Skills {
 				target := entryHome(home, selected)
-				matches := installed(target, name) && skillDriftCount(c.Store, target, name) == 0
+				matches := installed(target, name) && entryDriftCount(selected, target, name) == 0
 				complete = matches && complete
 				if matches && selected.Project == "" {
 					if entry.SkillCopies == nil {

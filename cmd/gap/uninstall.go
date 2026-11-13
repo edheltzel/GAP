@@ -232,11 +232,11 @@ func planUninstall() (*uninstallPlan, error) {
 		}
 	}
 	p.commands = slices.Sorted(maps.Keys(commands))
-	p.skills, err = gapSkills(home, repoRoot, p.state)
+	p.skills, err = gapSkills(home, p.state)
 	return p, err
 }
 
-func gapSkills(home, repoRoot string, state stateFile) ([]string, error) {
+func gapSkills(home string, state stateFile) ([]string, error) {
 	skills := map[string]bool{}
 	for _, entry := range state.Components {
 		for _, name := range entry.Skills {
@@ -246,20 +246,8 @@ func gapSkills(home, repoRoot string, state stateFile) ([]string, error) {
 			skills[name] = true
 		}
 	}
-	manifest, err := readManifest(repoRoot)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
-	}
-	lock, err := readSkillLock(home)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if _, err := readSkillLock(home); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%s: %w", skillLockPath(home), err)
-	}
-	for _, e := range manifest {
-		for _, name := range e.Skills {
-			if l, ok := lock[name]; ok && sameSource(entryRoot(repoRoot, e), e, l) {
-				skills[name] = true
-			}
-		}
 	}
 	return slices.Sorted(maps.Keys(skills)), nil
 }

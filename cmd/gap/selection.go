@@ -42,7 +42,7 @@ func pinLabel(pin lockEntryM1) string {
 	return fmt.Sprintf(" @ %s (%s)", pin.Ref, short)
 }
 
-func syncGroups(d distro, pins map[string]lockEntryM1, manifest []manifestEntry, projectRoot string, harnesses, commands int) []syncGroup {
+func syncGroups(d distro, pins map[string]lockEntryM1, projectRoot string, harnesses, commands int) []syncGroup {
 	policy := "publish AGENTS.md to " + plural(harnesses, "harness file")
 	if commands > 0 {
 		policy += " and " + plural(commands, "command")
@@ -74,13 +74,6 @@ func syncGroups(d distro, pins map[string]lockEntryM1, manifest []manifestEntry,
 		}
 		summary := strings.Join(parts, ", ") + pinLabel(pins[id])
 		groups = append(groups, syncGroup{id, summary})
-	}
-	if len(manifest) > 0 {
-		skills := 0
-		for _, e := range manifest {
-			skills += len(e.Skills)
-		}
-		groups = append(groups, syncGroup{"manifest", fmt.Sprintf("%s from %s in global/skills.json (skills.sh, needs npx)", plural(skills, "skill"), plural(len(manifest), "source"))})
 	}
 	return groups
 }

@@ -281,29 +281,11 @@ func TestComponentSyncRestore(t *testing.T) {
 	commit, tree := gitFixture(t, remote, "from-store\n")
 	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\nname = \"edheltzel/GAP\"\n\n[components.do-skills]\nrepo = \""+remote+"\"\nref = \"master\"\nnames = [\"do-todo\"]\n")
 	write(t, filepath.Join(repo, "gap.lock"), "schema = \"2\"\n\n[components.do-skills]\nref = \"master\"\ncommit = \""+commit+"\"\ntree = \""+tree+"\"\n")
-	npx := filepath.Join(t.TempDir(), "npx")
-	write(t, npx, `#!/bin/sh
-src=
-while [ $# -gt 0 ]; do
-  if [ "$1" = add ]; then src=$2; fi
-  if [ "$1" = -s ]; then
-    mkdir -p "$HOME/.agents/skills/$2" "$HOME/.claude/skills/$2"
-    cp "$src/skills/global/core/$2/SKILL.md" "$HOME/.agents/skills/$2/SKILL.md"
-    cp "$src/skills/global/core/$2/SKILL.md" "$HOME/.claude/skills/$2/SKILL.md"
-    chmod 644 "$HOME/.agents/skills/$2/SKILL.md" "$HOME/.claude/skills/$2/SKILL.md"
-  fi
-  shift
-done
-`)
-	if err := os.Chmod(npx, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", filepath.Dir(npx)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	entries, err := loadTestComponents(repo, home, repo)
 	if err != nil || len(entries) != 1 || entries[0].Source != "." || entries[0].Path == "" {
 		t.Fatalf("entries: %+v %v", entries, err)
 	}
-	if !installSkills(repo, home, entries) {
+	if !installSkills(home, entries) {
 		t.Fatal("install")
 	}
 	for _, dest := range skillDirs(home, "do-todo") {
@@ -328,7 +310,7 @@ done
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := replaceSkill(npx, repo, home, manifestEntry{Source: ".", Path: dir}, "do-todo"); err != nil {
+	if _, err := replaceSkill(home, manifestEntry{Source: ".", Path: dir}, "do-todo"); err != nil {
 		t.Fatal(err)
 	}
 	if got := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")); got != agents {
@@ -339,7 +321,7 @@ done
 	}
 	beforeAgents := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md"))
 	beforeClaude := readString(t, filepath.Join(home, ".claude", "skills", "do-todo", "SKILL.md"))
-	if !installSkills(repo, home, entries) {
+	if !installSkills(home, entries) {
 		t.Fatal("second install")
 	}
 	if got := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")); got != beforeAgents {
@@ -459,7 +441,7 @@ func TestGitHubComponentUsesStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	entry := manifestEntry{Source: "edheltzel/Do-Skills", Skills: []string{"do-todo"}, Path: dir}
-	if !installSkills(repo, home, []manifestEntry{entry}) {
+	if !installSkills(home, []manifestEntry{entry}) {
 		t.Fatal("install")
 	}
 	if got := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")); got != "from-store\n" {
@@ -506,80 +488,6 @@ func TestAnnotatedTagPeels(t *testing.T) {
 	}
 }
 
-// componentNpx copies the named skill and writes the lock skills.sh writes for a local directory:
-// source and sourceUrl are the -s install dir, sourceType is local, skillFolderHash is the content hash.
-func componentNpx(argv string) string {
-	return `#!/bin/sh
-printf '%s\n' "$@" >> ` + argv + `
-src=
-while [ $# -gt 0 ]; do
-  if [ "$1" = add ]; then src=$2; fi
-  if [ "$1" = -s ]; then
-    mkdir -p "$HOME/.agents/skills/$2" "$HOME/.claude/skills/$2"
-    cp -Rp "$src/skills/global/core/$2/." "$HOME/.agents/skills/$2/"
-    cp -Rp "$src/skills/global/core/$2/." "$HOME/.claude/skills/$2/"
-    digest=$(GAP_TEST_CONTENT_HASH="$src/skills/global/core/$2" ` + shellQuote(os.Args[0]) + `) || exit 1
-    python3 - "$HOME" "$2" "$src" "$digest" <<'PY'
-import json, os, sys
-home, name, src, digest = sys.argv[1:]
-lock_path = os.path.join(home, ".agents", ".skill-lock.json")
-os.makedirs(os.path.dirname(lock_path), exist_ok=True)
-lock = {"skills": {}}
-if os.path.exists(lock_path):
-    lock = json.load(open(lock_path))
-lock.setdefault("skills", {})[name] = {
-    "source": src, "sourceType": "local", "sourceUrl": src, "skillFolderHash": digest,
-}
-json.dump(lock, open(lock_path, "w"))
-PY
-  fi
-  shift
-done
-`
-}
-
-func TestGitHubStoreLockSecondSync(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not installed")
-	}
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_STATE_HOME", "")
-	repo := t.TempDir()
-	remote := filepath.Join(t.TempDir(), "remote")
-	commit, tree := gitFixture(t, remote, "from-store\n")
-	argv := filepath.Join(t.TempDir(), "argv")
-	npx := filepath.Join(t.TempDir(), "npx")
-	write(t, npx, componentNpx(argv))
-	if err := os.Chmod(npx, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", filepath.Dir(npx)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	store, err := ensureStore(home, component{ID: "do-skills", Repo: remote, Ref: "master", Skills: []string{"do-todo"}}, lockEntryM1{Ref: "master", Commit: commit, Tree: tree})
-	if err != nil {
-		t.Fatal(err)
-	}
-	entry := manifestEntry{Source: "edheltzel/Do-Skills", Skills: []string{"do-todo"}, Path: store}
-	if !installSkills(repo, home, []manifestEntry{entry}) {
-		t.Fatal("first sync")
-	}
-	if _, err := os.Stat(skillLockPath(home)); !os.IsNotExist(err) {
-		t.Fatalf("native install created a legacy lock: %v", err)
-	}
-	if err := os.WriteFile(argv, nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if !installSkills(repo, home, []manifestEntry{entry}) {
-		t.Fatal("second sync")
-	}
-	if calls := readString(t, argv); strings.TrimSpace(calls) != "" {
-		t.Fatalf("second sync called skills.sh:\n%s", calls)
-	}
-	if _, err := os.Stat(skillLockPath(home)); !os.IsNotExist(err) {
-		t.Fatalf("second sync created a legacy lock: %v", err)
-	}
-}
-
 func TestPinMovesStoreIdentity(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
@@ -587,7 +495,6 @@ func TestPinMovesStoreIdentity(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_STATE_HOME", "")
-	repo := t.TempDir()
 	remote := filepath.Join(t.TempDir(), "remote")
 	first, tree := gitFixture(t, remote, "first\n")
 	write(t, filepath.Join(remote, "skills", "global", "core", "do-todo", "SKILL.md"), "second\n")
@@ -621,29 +528,22 @@ func TestPinMovesStoreIdentity(t *testing.T) {
 	}
 	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"do-todo":{"source":"`+old+`","sourceType":"local","sourceUrl":"`+old+`","skillFolderHash":"`+hash+`"}}}`)
 	entry := manifestEntry{Source: "edheltzel/Do-Skills", Skills: []string{"do-todo"}, Path: pinned}
-	if _, foreign := foreignLockEntry(pinned, home, entry, "do-todo"); foreign {
-		t.Fatal("an older commit of the same store is the same identity")
+	if !installSkills(home, []manifestEntry{entry}) || !strings.Contains(readString(t, skillLockPath(home)), "do-todo") {
+		t.Fatal("a copy that differs from the new pin must not be adopted")
 	}
-	argv := filepath.Join(t.TempDir(), "argv")
-	npx := filepath.Join(t.TempDir(), "npx")
-	write(t, npx, componentNpx(argv))
-	if err := os.Chmod(npx, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", filepath.Dir(npx)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	ok, err := checkDrift(repo, home, []manifestEntry{entry})
+	ok, err := checkDrift(home, []manifestEntry{entry})
 	if err != nil || ok {
-		t.Fatalf("drift vs the new store must be ordinary drift, not a foreign lock: ok=%v err=%v", ok, err)
+		t.Fatalf("drift vs the new store must be ordinary drift: ok=%v err=%v", ok, err)
 	}
-	replaced, err := replaceSkill(npx, repo, home, entry, "do-todo")
+	replaced, err := replaceSkill(home, entry, "do-todo")
 	if err != nil || !replaced {
 		t.Fatalf("reinstall: %v %v", replaced, err)
 	}
-	if _, err := os.Stat(argv); !os.IsNotExist(err) {
-		t.Fatalf("native replacement invoked npx: %v", err)
-	}
 	if got := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")); got != "second\n" {
 		t.Fatalf("reinstall body: %q", got)
+	}
+	if strings.Contains(readString(t, skillLockPath(home)), "do-todo") {
+		t.Fatal("take source must drop the skills.sh lock entry")
 	}
 }
 
@@ -671,14 +571,13 @@ func TestCheckoutLockMigrates(t *testing.T) {
 	}
 	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"do-todo":{"source":"`+repo+`","sourceType":"local","sourceUrl":"`+repo+`","skillFolderHash":"`+hash+`"}}}`)
 	entry := manifestEntry{Source: "edheltzel/Do-Skills", Skills: []string{"do-todo"}, Path: store}
-	before := readString(t, skillLockPath(home))
-	if !installSkills(repo, home, []manifestEntry{entry}) {
+	if !installSkills(home, []manifestEntry{entry}) {
 		t.Fatal("adoption install")
 	}
-	if after := readString(t, skillLockPath(home)); after != before {
-		t.Fatal("native adoption modified the legacy lock")
+	if lock, err := readSkillLock(home); err != nil || len(lock) != 0 {
+		t.Fatalf("adoption must drop the skills.sh lock entry: %v %v", lock, err)
 	}
-	if ok, err := checkDrift(repo, home, []manifestEntry{entry}); err != nil || !ok {
+	if ok, err := checkDrift(home, []manifestEntry{entry}); err != nil || !ok {
 		t.Fatalf("matching pinned copies were not adopted: %v %v", ok, err)
 	}
 }
@@ -740,7 +639,6 @@ func TestLocalInstallNeedsNoNode(t *testing.T) {
 	if _, err := exec.LookPath("npx"); err == nil {
 		t.Fatal("npx is still on PATH")
 	}
-	repo := t.TempDir()
 	remote := filepath.Join(t.TempDir(), "remote")
 	commit, tree := gitFixture(t, remote, "from-store\n")
 	store, err := ensureStore(home, component{ID: "do-skills", Repo: remote, Ref: "master", Skills: []string{"do-todo"}}, lockEntryM1{Ref: "master", Commit: commit, Tree: tree})
@@ -748,7 +646,7 @@ func TestLocalInstallNeedsNoNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	entry := manifestEntry{Source: "edheltzel/Do-Skills", Skills: []string{"do-todo"}, Path: store}
-	if !installSkills(repo, home, []manifestEntry{entry}) {
+	if !installSkills(home, []manifestEntry{entry}) {
 		t.Fatal("install without npx")
 	}
 	for _, dir := range skillDirs(home, "do-todo") {
@@ -760,7 +658,7 @@ func TestLocalInstallNeedsNoNode(t *testing.T) {
 		t.Fatalf("native install created a legacy lock: %v", err)
 	}
 	before := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md"))
-	if !installSkills(repo, home, []manifestEntry{entry}) {
+	if !installSkills(home, []manifestEntry{entry}) {
 		t.Fatal("second install")
 	}
 	if got := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")); got != before {

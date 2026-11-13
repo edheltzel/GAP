@@ -16,6 +16,7 @@ func main() {
 	if err := fang.Execute(context.Background(), rootCmd(),
 		fang.WithoutManpage(),
 		fang.WithoutCompletions(),
+		fang.WithColorSchemeFunc(gapColorScheme),
 		fang.WithErrorHandler(func(w io.Writer, _ fang.Styles, err error) {
 			fmt.Fprintln(w, err)
 		}),

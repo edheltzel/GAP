@@ -39,7 +39,7 @@ func TestComponentCommandSync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !installSkills(repo, home, entries) {
+	if !installSkills(home, entries) {
 		t.Fatal("skill installation failed")
 	}
 	ledgerPath := filepath.Join(home, ".gap", "published.json")
@@ -105,7 +105,6 @@ func TestCommandSync(t *testing.T) {
 			write(t, filepath.Join(repo, "go.mod"), readString(t, "../../go.mod"))
 			write(t, filepath.Join(repo, "go.sum"), readString(t, "../../go.sum"))
 			write(t, filepath.Join(repo, "global", "AGENTS.md"), source)
-			write(t, filepath.Join(repo, "global", "skills.json"), "[]\n")
 			write(t, filepath.Join(repo, ".gitignore"), "*.local.md\n*.local.txt\n")
 			commands := filepath.Join(repo, "global", "commands")
 			write(t, filepath.Join(commands, "state-docs.md"), command)

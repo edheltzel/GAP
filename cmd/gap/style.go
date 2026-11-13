@@ -2,20 +2,23 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/charmbracelet/x/term"
 )
 
-// report renders sync, status, and doctor output. Color is applied only when the
-// destination is a terminal, so piped output stays plain text.
+// report renders command output. Layout and color apply only when the destination
+// is a terminal, so piped output stays plain text. plain keeps the terminal layout
+// without color for NO_COLOR and TERM=dumb; light picks the light-background palette.
 type report struct {
 	out   io.Writer
 	tty   bool
+	plain bool
+	light bool
 	width int
 }
 
@@ -24,6 +27,8 @@ func newReport(w io.Writer) *report {
 	r := &report{out: w, tty: ok && isTerminal(f)}
 	if r.tty {
 		r.width, _, _ = term.GetSize(f.Fd())
+		r.plain = plainEnv()
+		r.light = !r.plain && f == os.Stdout && !terminalIsDark()
 	}
 	return r
 }
@@ -37,14 +42,6 @@ func (r *report) println(a ...any) { fmt.Fprintln(r.out, a...) }
 
 func (r *report) printf(format string, a ...any) { fmt.Fprintf(r.out, format, a...) }
 
-// tone colors text on a terminal and returns it unchanged otherwise.
-func (r *report) tone(text, hex string) string {
-	if !r.tty {
-		return text
-	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(hex)).Render(text)
-}
-
 const (
 	colorAccent = "#7D56F4"
 	colorOK     = "#04B575"
@@ -52,6 +49,32 @@ const (
 	colorBad    = "#FF5F87"
 	colorDim    = "#767676"
 )
+
+// hue resolves a color name to the palette for this terminal. Any other hex is used as written.
+func (r *report) hue(hex string) color.Color {
+	p := r.colors()
+	switch hex {
+	case colorAccent:
+		return p.Accent
+	case colorOK:
+		return p.OK
+	case colorWarn:
+		return p.Warn
+	case colorBad:
+		return p.Bad
+	case colorDim:
+		return p.Dim
+	}
+	return lipgloss.Color(hex)
+}
+
+// tone colors text on a terminal and returns it unchanged otherwise.
+func (r *report) tone(text, hex string) string {
+	if !r.tty {
+		return text
+	}
+	return r.style(r.hue(hex)).Render(text)
+}
 
 func (r *report) heading(text string) {
 	r.println(r.tone(text, colorAccent))
@@ -61,7 +84,23 @@ func (r *report) bold(text, hex string) string {
 	if !r.tty {
 		return text
 	}
-	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(hex)).Render(text)
+	return r.strong(r.hue(hex)).Render(text)
+}
+
+// title opens a command's terminal output with its name and a dim detail. Piped output gets nothing.
+func (r *report) title(name, detail string) {
+	if !r.tty {
+		return
+	}
+	r.printf("%s  %s\n\n", r.bold(name, colorAccent), r.tone(detail, colorDim))
+}
+
+// footer prints a dim summary line under a terminal table. Piped output gets nothing.
+func (r *report) footer(text string) {
+	if !r.tty {
+		return
+	}
+	r.println(r.tone(text, colorDim))
 }
 
 // section opens one sync phase on a terminal. Piped output gets nothing, so scripts see the same lines as before.
@@ -140,7 +179,10 @@ func (r *report) preview(groups []syncGroup, sel map[string]bool) {
 		lines = append(lines, line)
 	}
 	title := r.bold("gap sync", colorAccent) + r.tone("  will publish and install", colorDim)
-	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(colorAccent)).Padding(0, 1)
+	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	if !r.plain {
+		box = box.BorderForeground(r.hue(colorAccent))
+	}
 	content := title + "\n\n" + strings.Join(lines, "\n")
 	if r.width > box.GetHorizontalFrameSize() {
 		box = box.Width(min(r.width, lipgloss.Width(content)+box.GetHorizontalFrameSize()))
@@ -163,11 +205,11 @@ func (r *report) statusLine(id, ref, commit, store string) {
 	word := store
 	switch store {
 	case "ok":
-		word = r.tone(store, "#04B575")
+		word = r.tone(store, colorOK)
 	case "missing", "changed", "unpinned":
-		word = r.tone(store, "#FF5F87")
+		word = r.tone(store, colorBad)
 	}
-	r.printf("%s ref=%s commit=%s store=%s\n", r.tone(id, "#7D56F4"), ref, commit, word)
+	r.printf("%s ref=%s commit=%s store=%s\n", r.tone(id, colorAccent), ref, commit, word)
 }
 
 // doctorTable prints "name: detail" lines, as a table on a terminal.
@@ -190,24 +232,4 @@ func (r *report) driftTable(rows [][]string) {
 		return
 	}
 	r.table([]string{"skill", "drift"}, rows)
-}
-
-func (r *report) table(headers []string, rows [][]string) {
-	b := lipgloss.NewStyle().Foreground(lipgloss.Color("#444444"))
-	h := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true)
-	t := table.New().
-		Border(lipgloss.NormalBorder()).
-		BorderStyle(b).
-		BorderTop(false).BorderLeft(false).BorderRight(false).BorderBottom(false).
-		Headers(headers...).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			if row == table.HeaderRow {
-				return h
-			}
-			return lipgloss.NewStyle().PaddingRight(2)
-		})
-	for _, row := range rows {
-		t.Row(row...)
-	}
-	fmt.Fprintln(r.out, t)
 }

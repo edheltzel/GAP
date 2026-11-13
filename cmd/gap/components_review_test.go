@@ -180,16 +180,10 @@ func TestComponentLocalModeRestore(t *testing.T) {
 				if err := writeLock(repo, lockFile{Components: map[string]lockEntryM1{"do-skills": {Ref: "master", Commit: commit, Tree: tree}}}); err != nil {
 					t.Fatal(err)
 				}
-				argv, npx := filepath.Join(t.TempDir(), "argv"), filepath.Join(t.TempDir(), "npx")
-				write(t, npx, componentNpx(argv))
-				if err := os.Chmod(npx, 0o755); err != nil {
-					t.Fatal(err)
-				}
-				t.Setenv("PATH", filepath.Dir(npx)+string(os.PathListSeparator)+os.Getenv("PATH"))
 				sourceRootFor = repo
 				t.Cleanup(func() { sourceRootFor = "" })
 				entries, err := loadTestComponents(repo, home, repo)
-				if err != nil || !installSkills(repo, home, entries) {
+				if err != nil || !installSkills(home, entries) {
 					t.Fatalf("install: %v", err)
 				}
 				for i, dest := range skillDirs(home, "do-todo") {
@@ -208,7 +202,7 @@ func TestComponentLocalModeRestore(t *testing.T) {
 					if !strings.Contains(stdout, "do-todo drift=1") {
 						t.Errorf("mode drift in %s must be counted: %s", dest, stdout)
 					}
-					if ok, err := checkDrift(repo, home, entries); err != nil || ok {
+					if ok, err := checkDrift(home, entries); err != nil || ok {
 						t.Errorf("sync must see mode drift: ok=%v err=%v", ok, err)
 					}
 					args := []string{"restore"}
@@ -234,12 +228,16 @@ func TestComponentLocalModeRestore(t *testing.T) {
 						t.Fatalf("restored body: %q", body)
 					}
 				}
-				if ok, err := checkDrift(repo, home, entries); err != nil || !ok {
+				if ok, err := checkDrift(home, entries); err != nil || !ok {
 					t.Fatalf("restored sync: ok=%v err=%v", ok, err)
 				}
-				write(t, argv, "")
-				if code := run([]string{"restore"}); code != 0 || readString(t, argv) != "" {
-					t.Fatal("clean restore must skip installation")
+				stdout, _ := captureStd(t, func() {
+					if code := run([]string{"restore"}); code != 0 {
+						t.Errorf("clean restore: %d", code)
+					}
+				})
+				if strings.Contains(stdout, "Backed up to") {
+					t.Fatalf("clean restore must skip installation:\n%s", stdout)
 				}
 			})
 		}

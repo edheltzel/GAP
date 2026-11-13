@@ -35,7 +35,7 @@ func parseUtilitySpec(spec string) (repo, ref, id string, err error) {
 
 // defaultBranch is the branch the remote's HEAD points at.
 func defaultBranch(url string) (string, error) {
-	out, err := git(".", "ls-remote", "--symref", url, "HEAD")
+	out, err := spin("Reading the default branch of "+url, func() (string, error) { return git(".", "ls-remote", "--symref", url, "HEAD") })
 	if err != nil {
 		return "", fmt.Errorf("reading the default branch of %s: %w", url, err)
 	}
@@ -266,7 +266,7 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpIn
 				skillsOK = false
 				continue
 			}
-			if replaced, err := replaceSkill("", repoRoot, target, entry, name); err != nil || !replaced {
+			if replaced, err := replaceSkill(target, entry, name); err != nil || !replaced {
 				fmt.Fprintf(os.Stderr, "Updating %s: %v\n", name, err)
 				skillsOK = false
 			}
@@ -276,8 +276,8 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpIn
 	if err != nil {
 		return err
 	}
-	skillsOK = installSkills(repoRoot, home, entries) && skillsOK
-	driftOK, err := checkDrift(repoRoot, home, entries)
+	skillsOK = installSkills(home, entries) && skillsOK
+	driftOK, err := checkDrift(home, entries)
 	if err != nil {
 		return err
 	}
@@ -442,8 +442,7 @@ func listUtilities() error {
 	if err != nil {
 		return err
 	}
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tSOURCE\tREPO\tREF\tCOMMIT\tHOOKS")
+	var rows [][]string
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
 		source, hooks := "distro", "run"
@@ -457,7 +456,23 @@ func listUtilities() error {
 		if pin, ok := lk.Components[id]; ok {
 			commit = pin.Commit[:7]
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", id, source, repoIdentity(c.Repo), c.Ref, commit, hooks)
+		rows = append(rows, []string{id, source, repoIdentity(c.Repo), c.Ref, commit, hooks})
+	}
+	return printList(newReport(os.Stdout), rows)
+}
+
+// printList writes gap list rows: tab-aligned columns when piped, a framed table with a total on a terminal.
+func printList(out *report, rows [][]string) error {
+	if out.tty {
+		out.title("gap list", "components and utilities")
+		out.framed([]string{"id", "source", "repo", "ref", "commit", "hooks"}, rows)
+		out.footer(fmt.Sprintf("%d total", len(rows)))
+		return nil
+	}
+	w := tabwriter.NewWriter(out.out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tSOURCE\tREPO\tREF\tCOMMIT\tHOOKS")
+	for _, row := range rows {
+		fmt.Fprintln(w, strings.Join(row, "\t"))
 	}
 	return w.Flush()
 }
@@ -632,13 +647,6 @@ func removeUtility(id string) error {
 			}
 		}
 	}
-	if extra, err := readManifest(repoRoot); err == nil {
-		for _, e := range extra {
-			for _, name := range e.Skills {
-				shared[name] = true
-			}
-		}
-	}
 	backup := backupPath(home, home)
 	var edited []string
 	moved := 0
@@ -673,7 +681,7 @@ func removeUtility(id string) error {
 					return err
 				}
 			}
-			fmt.Printf("Kept %s: another component or global/skills.json also selects it\n", name)
+			fmt.Printf("Kept %s: another component also selects it\n", name)
 			continue
 		}
 		changed := c.Store == "" || skillDriftCount(c.Store, home, name) > 0

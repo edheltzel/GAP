@@ -278,13 +278,8 @@ func sharedUninstallEnv(t *testing.T) *utilityEnv {
 	e := newUtilityEnv(t, hookManifest)
 	quietStdout(t)
 	readyEnvReviewDistro(t, e.repo)
-	write(t, filepath.Join(e.repo, "global", "skills.json"), `[{"source":"example/shared","skills":["util-skill"]}]`)
-	commitAll(t, e.repo)
-	if _, err := git(e.repo, "update-ref", "refs/remotes/origin/master", "HEAD"); err != nil {
-		t.Fatal(err)
-	}
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if code := run([]string{"sync", "--skip", "manifest", "--yes"}); code != 0 {
+	if code := run([]string{"sync", "--yes"}); code != 0 {
 		t.Fatalf("sync exit %d", code)
 	}
 	if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {

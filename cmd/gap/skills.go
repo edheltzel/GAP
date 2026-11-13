@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,142 +14,98 @@ import (
 	"strings"
 )
 
-// Path, when set, is the directory skills are read from. Source stays the identity used for lock matching.
+// manifestEntry is one component's selected skills. Path is the pinned store they are copied from,
+// SkillPath an optional folder inside it searched first, Source the component's repo identity,
+// Project the project root for project-level skills, and Owner the component id recorded in state.
 type manifestEntry struct {
-	Source  string   `json:"source"`
-	Skills  []string `json:"skills"`
-	Path    string   `json:"-"`
-	Project string   `json:"-"`
-	Owner   string   `json:"-"`
+	Source    string
+	Skills    []string
+	Path      string
+	SkillPath string
+	Project   string
+	Owner     string
 }
 
-func readManifest(repoRoot string) ([]manifestEntry, error) {
-	b, err := os.ReadFile(filepath.Join(repoRoot, "global", "skills.json"))
-	if err != nil {
-		return nil, err
-	}
-	var entries []manifestEntry
-	if err := json.Unmarshal(b, &entries); err != nil {
-		return nil, fmt.Errorf("global/skills.json: %w", err)
-	}
-	return entries, nil
-}
-
-func installSkills(repoRoot, home string, entries []manifestEntry) bool {
-	var npx string
-	var err error
+// installSkills copies each missing skill out of its pinned store and hands unedited
+// skills.sh installs of the same name to their component.
+func installSkills(home string, entries []manifestEntry) bool {
 	ok := true
 	for _, e := range entries {
 		target := entryHome(home, e)
-		if e.Path != "" {
-			for _, name := range e.Skills {
-				exists := false
-				for _, dir := range skillDirs(target, name) {
-					if _, err := os.Lstat(dir); !errors.Is(err, os.ErrNotExist) {
-						exists = true
-					}
-				}
-				if !exists {
-					replaced, err := replaceSkill("", repoRoot, target, e, name)
-					if err != nil || !replaced {
-						fmt.Fprintf(os.Stderr, "Installing %s: %v\n", name, err)
-						ok = false
-					}
-				}
-			}
-			continue
-		}
-		var missing, migrate []string
-		var migrateFrom []lockEntry
 		for _, name := range e.Skills {
 			exists := false
-			for _, dir := range skillDirs(home, name) {
+			for _, dir := range skillDirs(target, name) {
 				if _, err := os.Lstat(dir); !errors.Is(err, os.ErrNotExist) {
 					exists = true
 				}
 			}
 			if !exists {
-				missing = append(missing, name)
+				replaced, err := replaceSkill(target, e, name)
+				if err != nil || !replaced {
+					fmt.Fprintf(os.Stderr, "Installing %s: %v\n", name, err)
+					ok = false
+				}
 				continue
 			}
-			// Only an unedited copy is replaced here. An edit, or a hash we cannot check, waits for drift review.
-			if locked, foreign := foreignLockEntry(entryRoot(repoRoot, e), home, e, name); foreign && copiesMatchLock(home, name, locked) {
-				migrate = append(migrate, name)
-				migrateFrom = append(migrateFrom, locked)
-			}
-		}
-		if len(missing) == 0 && len(migrate) == 0 {
-			continue
-		}
-		if npx == "" {
-			if npx, err = exec.LookPath("npx"); err != nil {
-				fmt.Fprintln(os.Stderr, "Skipping skills: npx not found; install Node to let gap install skills")
-				return false
-			}
-		}
-		if len(missing) > 0 && !skillsAdd(npx, entryRoot(repoRoot, e), home, e, missing) {
-			ok = false
-		} else {
-			for _, name := range missing {
-				newReport(os.Stdout).wrote(filepath.Join(home, ".agents", "skills", name))
-			}
-		}
-		for i, name := range migrate {
-			replaced, err := replaceSkill(npx, entryRoot(repoRoot, e), home, e, name)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				return false
-			}
-			if !replaced {
-				ok = false
-				continue
-			}
-			fmt.Printf("Migrated %s from %s to %s\n", name, lockLabel(migrateFrom[i]), e.Source)
-		}
-	}
-	return ok
-}
-
-func skillsAdd(npx, repoRoot, home string, e manifestEntry, names []string) bool {
-	// Path is the pinned store (or a local checkout). Source is only the lock identity.
-	src := addSource(repoRoot, e)
-	// skills.sh installs into ~/.agents/skills (read by Codex, Cursor, Pi, OMP) and links Claude Code to it.
-	args := []string{"-y", "skills", "add", src, "-g", "-y", "-a", "claude-code", "-a", "codex"}
-	for _, name := range names {
-		args = append(args, "-s", name)
-	}
-	cmd := exec.Command(npx, args...)
-	cmd.Dir = home
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "Skills install failed for %s (%s): %v\n%s", e.Source, strings.Join(names, ", "), err, out)
-		return false
-	}
-	ok := true
-	for _, name := range names {
-		if !installed(home, name) {
-			fmt.Fprintf(os.Stderr, "Skills install incomplete for %s: canonical skill and Claude mirror are required\n", name)
-			ok = false
-			continue
-		}
-		want, _, _, err := skillBaseline(repoRoot, home, e, name)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			ok = false
-			continue
-		}
-		for _, dir := range skillDirs(home, name) {
-			got, err := hashLike(dir, want)
-			if err != nil || got != want {
-				fmt.Fprintf(os.Stderr, "Skills install does not match its source: %s\n", dir)
-				ok = false
+			if e.Project == "" {
+				if err := adoptSkill(home, e, name); err != nil {
+					fmt.Fprintf(os.Stderr, "Migrating %s from skills.sh: %v\n", name, err)
+					ok = false
+				}
 			}
 		}
 	}
 	return ok
 }
 
-// lockEntry is the part of skills.sh's ~/.agents/.skill-lock.json drift needs.
-// Source is owner/repo, a GitHub URL, or the absolute path skills.sh records for a local add.
+// adoptSkill takes over a skill skills.sh installed when both copies match the pinned store.
+// It records the component as owner and drops the skills.sh lock entry so skills.sh stops updating it.
+// An edited copy is left for drift review, and a missing or unreadable lock is not a migration.
+func adoptSkill(home string, e manifestEntry, name string) error {
+	skills, err := readSkillLock(home)
+	if err != nil {
+		return nil
+	}
+	locked, found := skills[name]
+	if !found || entryDriftCount(e, home, name) != 0 {
+		return nil
+	}
+	if err := recordOwnership(home, e.Owner, []string{name}, nil, e.Path); err != nil {
+		return err
+	}
+	if err := dropSkillLockEntry(home, name); err != nil {
+		return err
+	}
+	fmt.Printf("Migrated %s from skills.sh (%s) to %s\n", name, lockLabel(locked), cmp.Or(e.Owner, e.Source))
+	return nil
+}
+
+// skillDriftCount is the number of installed copies of name that differ from its folder in store.
+func skillDriftCount(store, home, name string) int {
+	return entryDriftCount(manifestEntry{Path: store}, home, name)
+}
+
+// entryDriftCount is the number of installed copies of name that differ from the entry's pinned store.
+func entryDriftCount(e manifestEntry, home, name string) int {
+	src := entrySkillDir(e, name)
+	if src == "" {
+		return 1
+	}
+	want, err := treeHash(src)
+	if err != nil {
+		return 1
+	}
+	n := 0
+	for _, dir := range skillDirs(home, name) {
+		got, err := treeHash(dir)
+		if err != nil || got != want {
+			n++
+		}
+	}
+	return n
+}
+
+// lockEntry is the part of a skills.sh ~/.agents/.skill-lock.json entry that migration reports.
 type lockEntry struct {
 	Source          string `json:"source"`
 	SourceType      string `json:"sourceType"`
@@ -178,88 +135,11 @@ func readSkillLock(home string) (map[string]lockEntry, error) {
 	return lock.Skills, nil
 }
 
-// foreignLock reports a parsed lock entry whose source is not the manifest source.
-// A missing or unreadable lock is not a mismatch; external baselines still require a hash.
-func foreignLock(repoRoot, home, source, name string) (lockEntry, bool) {
-	return foreignLockEntry(repoRoot, home, manifestEntry{Source: source}, name)
-}
-
-func foreignLockEntry(repoRoot, home string, e manifestEntry, name string) (lockEntry, bool) {
-	if e.Path != "" {
-		return lockEntry{}, false
-	}
-	skills, err := readSkillLock(home)
-	if err != nil {
-		return lockEntry{}, false
-	}
-	locked, found := skills[name]
-	if !found || sameSource(repoRoot, e, locked) {
-		return lockEntry{}, false
-	}
-	return locked, true
-}
-
 func lockLabel(l lockEntry) string {
 	if l.Source != "" {
 		return l.Source
 	}
 	return l.SourceURL
-}
-
-// sameSource matches a manifest source to a skills.sh lock entry.
-// "." matches the absolute path passed to skills add. owner/repo, a github.com URL, and a subpath are one identity.
-func sameSource(repoRoot string, e manifestEntry, l lockEntry) bool {
-	manifest := e.Source
-	if manifest == "." {
-		p, ok := localLockPath(l)
-		if !ok {
-			return false
-		}
-		root := filepath.Clean(addSource(repoRoot, e))
-		return p == root
-	}
-	wantRepo, wantSub, ok := githubIdentity(manifest)
-	if !ok {
-		return false
-	}
-	gotRepo, gotSub, ok := lockGitHub(l)
-	if !ok || !strings.EqualFold(gotRepo, wantRepo) {
-		return false
-	}
-	if wantSub == "" {
-		return true
-	}
-	sub := skillSubpath(l.SkillPath)
-	if sub == "" {
-		sub = gotSub
-	}
-	return sub == wantSub || strings.HasPrefix(sub, wantSub+"/")
-}
-
-func localLockPath(l lockEntry) (string, bool) {
-	if l.SourceType != "" && l.SourceType != "local" {
-		return "", false
-	}
-	p := l.Source
-	if !filepath.IsAbs(p) {
-		p = l.SourceURL
-	}
-	if !filepath.IsAbs(p) {
-		return "", false
-	}
-	return filepath.Clean(p), true
-}
-
-func lockGitHub(l lockEntry) (string, string, bool) {
-	repo, sub, ok := githubIdentity(l.Source)
-	uRepo, uSub, uOK := githubIdentity(l.SourceURL)
-	if ok && uOK && !strings.EqualFold(repo, uRepo) {
-		return "", "", false
-	}
-	if !ok && uOK {
-		return uRepo, uSub, true
-	}
-	return repo, sub, ok
 }
 
 func githubIdentity(s string) (repo, sub string, ok bool) {
@@ -293,33 +173,7 @@ func githubIdentity(s string) (repo, sub string, ok bool) {
 	return parts[0] + "/" + parts[1], strings.Join(rest, "/"), true
 }
 
-func skillSubpath(skillPath string) string {
-	skillPath = filepath.ToSlash(skillPath)
-	return strings.Trim(strings.TrimSuffix(skillPath, "/SKILL.md"), "/")
-}
-
-func skillBaseline(repoRoot, home string, e manifestEntry, name string) (string, string, lockEntry, error) {
-	if locked, foreign := foreignLockEntry(repoRoot, home, e, name); foreign {
-		return "", "", lockEntry{}, fmt.Errorf("Skill %s is locked to %s, not %s", name, lockLabel(locked), e.Source)
-	}
-	if local := e.Path != "" || e.Source == "."; local {
-		dir := localSkillDir(addSource(repoRoot, e), name)
-		if dir == "" {
-			return "", "", lockEntry{}, fmt.Errorf("Skill baseline unavailable for %s: expected one local source", name)
-		}
-		hash, err := treeHash(dir)
-		return hash, dir, lockEntry{}, err
-	}
-	skills, lockErr := readSkillLock(home)
-	l, found := skills[name]
-	if lockErr != nil || !found || l.SkillFolderHash == "" {
-		return "", "", lockEntry{}, fmt.Errorf("Skill baseline unavailable for %s in %s", name, skillLockPath(home))
-	}
-	// Recorded as-is: 40-hex Git tree, or 64-hex content hash when the tree API was unavailable.
-	return l.SkillFolderHash, "", l, nil
-}
-
-func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
+func checkDrift(home string, entries []manifestEntry) (bool, error) {
 	defer func() {
 		for _, e := range entries {
 			if e.Project != "" {
@@ -337,63 +191,55 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 	for _, e := range entries {
 		target := entryHome(home, e)
 		for _, name := range e.Skills {
-			var sourceDir string
-			var external lockEntry
-			drifted := false
-			foreignReview := false
-			root := entryRoot(repoRoot, e)
-			if locked, foreign := foreignLockEntry(root, target, e, name); foreign {
-				foreignReview = true
-				fmt.Fprintf(os.Stderr, "Skill %s is locked to %s, not %s\n", name, lockLabel(locked), e.Source)
-				drifted = true
-				if e.Path != "" || e.Source == "." {
-					sourceDir = localSkillDir(addSource(repoRoot, e), name)
-				}
-			} else {
-				want, dir, ext, err := skillBaseline(root, target, e, name)
-				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					ok = false
+			sourceDir := entrySkillDir(e, name)
+			if sourceDir == "" {
+				fmt.Fprintf(os.Stderr, "Skill baseline unavailable for %s: %s has no %s skill\n", name, e.Path, name)
+				ok = false
+				continue
+			}
+			want, err := treeHash(sourceDir)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				ok = false
+				continue
+			}
+			drifted := !installed(target, name)
+			for _, dir := range skillDirs(target, name) {
+				info, err := os.Stat(dir)
+				if errors.Is(err, os.ErrNotExist) {
 					continue
 				}
-				sourceDir, external = dir, ext
-				dirs := skillDirs(target, name)
-				drifted = !installed(target, name)
-				for _, dir := range dirs {
-					info, err := os.Stat(dir)
-					if errors.Is(err, os.ErrNotExist) {
-						continue
-					}
-					if err != nil {
-						return false, err
-					}
-					if !info.IsDir() {
-						drifted = true
-						continue
-					}
-					got, err := hashLike(dir, want)
-					if err != nil {
-						return false, err
-					}
-					drifted = drifted || got != want
+				if err != nil {
+					return false, err
 				}
+				if !info.IsDir() {
+					drifted = true
+					continue
+				}
+				got, err := treeHash(dir)
+				if err != nil {
+					return false, err
+				}
+				drifted = drifted || got != want
 			}
 			if !drifted {
 				continue
 			}
 			newReport(os.Stdout).warn("Skill drifted from its source or is incomplete: "+name, name, "drifted from its source or incomplete")
+			if e.Project == "" {
+				if skills, err := readSkillLock(home); err == nil {
+					if locked, found := skills[name]; found {
+						fmt.Fprintf(os.Stderr, "Skill %s was installed by skills.sh from %s; take source moves it to %s\n", name, lockLabel(locked), cmp.Or(e.Owner, e.Source))
+					}
+				}
+			}
 			if !tty {
 				ok = false
 				continue
 			}
-			if foreignReview && sourceDir == "" {
-				var cleanup func()
-				sourceDir, cleanup = openSourceSkill(e, name)
-				defer cleanup()
-			}
 			for _, dir := range skillDirs(target, name) {
 				if _, err := os.Stat(dir); err == nil {
-					showDiff(sourceDir, external, dir)
+					showDiff(sourceDir, dir)
 				} else {
 					fmt.Println("Missing skill destination: " + dir)
 				}
@@ -403,7 +249,7 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 			case "k":
 				ok = installed(target, name) && ok
 			case "t":
-				replaced, err := replaceSkill("", entryRoot(repoRoot, e), target, e, name)
+				replaced, err := replaceSkill(target, e, name)
 				if err != nil {
 					return false, err
 				}
@@ -416,19 +262,12 @@ func checkDrift(repoRoot, home string, entries []manifestEntry) (bool, error) {
 	return ok, nil
 }
 
-func replaceSkill(npx, repoRoot, home string, e manifestEntry, name string) (bool, error) {
-	src := ""
-	if e.Path != "" {
-		src = localSkillDir(e.Path, name)
-		if src == "" {
-			return false, fmt.Errorf("skill %s has no source in pinned store %s", name, e.Path)
-		}
-	} else if npx == "" {
-		var err error
-		npx, err = exec.LookPath("npx")
-		if err != nil {
-			return false, fmt.Errorf("cannot take source: npx not found: %w", err)
-		}
+// replaceSkill backs up both destinations, then copies name out of the entry's pinned store.
+// A global install also drops any skills.sh lock entry for name. A failed copy restores the backups.
+func replaceSkill(home string, e manifestEntry, name string) (bool, error) {
+	src := entrySkillDir(e, name)
+	if src == "" {
+		return false, fmt.Errorf("skill %s has no source in pinned store %s", name, e.Path)
 	}
 	dirs := skillDirs(home, name)
 	backups := map[string]string{}
@@ -459,21 +298,18 @@ func replaceSkill(npx, repoRoot, home string, e manifestEntry, name string) (boo
 		fmt.Println("Backed up to " + backup)
 	}
 	var installErr error
-	if src != "" {
-		for _, dir := range dirs {
-			if installErr = copySkill(src, dir); installErr != nil {
-				break
+	for _, dir := range dirs {
+		if installErr = copySkill(src, dir); installErr != nil {
+			break
+		}
+	}
+	if installErr == nil {
+		if e.Project == "" {
+			if err := dropSkillLockEntry(home, name); err != nil {
+				fmt.Fprintf(os.Stderr, "Could not drop %s from %s: %v\n", name, skillLockPath(home), err)
 			}
 		}
-		if installErr == nil {
-			return true, recordOwnership(home, e.Owner, []string{name}, nil, e.Path)
-		}
-	} else {
-		snap := snapshotSkillLock(home, name)
-		if skillsAdd(npx, repoRoot, home, e, []string{name}) {
-			return true, nil
-		}
-		installErr = restoreSkillLock(snap)
+		return true, recordOwnership(home, e.Owner, []string{name}, nil, e.Path)
 	}
 	for _, dir := range dirs {
 		installErr = errors.Join(installErr, os.RemoveAll(dir))
@@ -486,32 +322,6 @@ type skillLockSnap struct {
 	hadFile    bool
 	hadSkill   bool
 	entry      json.RawMessage
-}
-
-func snapshotSkillLock(home, name string) skillLockSnap {
-	path := skillLockPath(home)
-	snap := skillLockSnap{path: path, name: name}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return snap
-	}
-	snap.hadFile = true
-	entry, ok := rawSkillEntry(b, name)
-	snap.hadSkill, snap.entry = ok, entry
-	return snap
-}
-
-func rawSkillEntry(doc []byte, name string) (json.RawMessage, bool) {
-	var root map[string]json.RawMessage
-	if json.Unmarshal(doc, &root) != nil {
-		return nil, false
-	}
-	var skills map[string]json.RawMessage
-	if json.Unmarshal(root["skills"], &skills) != nil {
-		return nil, false
-	}
-	entry, ok := skills[name]
-	return entry, ok
 }
 
 func restoreSkillLock(snap skillLockSnap) error {
@@ -555,62 +365,29 @@ func restoreSkillLock(snap skillLockSnap) error {
 	return os.WriteFile(snap.path, append(out, '\n'), 0o644)
 }
 
-// openSourceSkill returns the skill directory for a diff.
-// Path selects the pinned checkout to read from. Otherwise the manifest source is cloned.
-// The cleanup removes a clone. A failed fetch returns an empty dir after reporting what take would replace.
-func openSourceSkill(e manifestEntry, name string) (string, func()) {
-	noop := func() {}
-	if e.Path != "" {
-		dir := localSkillDir(e.Path, name)
-		if dir == "" {
-			fmt.Fprintf(os.Stderr, "No diff for %s: %s has no %s skill. Take would reinstall from %s.\n", name, e.Path, name, e.Path)
-		}
-		return dir, noop
-	}
-	source := e.Source
-	repo, sub, ok := githubIdentity(source)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "No diff for %s: cannot fetch %s. Take would reinstall from %s.\n", name, source, source)
-		return "", noop
-	}
-	tmp, err := os.MkdirTemp("", "gap-src-")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "No diff for %s: %v. Take would reinstall from %s.\n", name, err, source)
-		return "", noop
-	}
-	cleanup := func() { os.RemoveAll(tmp) }
-	url := "https://github.com/" + repo + ".git"
-	if exec.Command("git", "clone", "-q", "--depth", "1", url, tmp).Run() != nil {
-		cleanup()
-		fmt.Fprintf(os.Stderr, "No diff for %s: could not fetch %s. Take would reinstall from %s.\n", name, url, source)
-		return "", noop
-	}
-	dir := findSkillDir(tmp, sub, name)
-	if dir == "" {
-		cleanup()
-		fmt.Fprintf(os.Stderr, "No diff for %s: %s has no %s skill. Take would reinstall from %s.\n", name, url, name, source)
-		return "", noop
-	}
-	return dir, cleanup
-}
-
+// findSkillDir returns the folder named name that holds a regular SKILL.md, searching root/sub before root.
+// Within one base the shallowest match wins, and a tie goes to the first path in lexical order,
+// so a repo that ships several copies of a skill always resolves to the same one.
 func findSkillDir(root, sub, name string) string {
 	bases := []string{root}
 	if sub != "" {
 		bases = []string{filepath.Join(root, filepath.FromSlash(sub)), root}
 	}
 	for _, base := range bases {
-		var found string
+		found, best := "", -1
 		_ = filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
-			if err != nil || found != "" {
+			if err != nil {
 				return err
 			}
-			if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".git") {
-				return filepath.SkipDir
+			depth := strings.Count(filepath.ToSlash(strings.TrimPrefix(path, base)), "/")
+			if d.IsDir() {
+				if d.Name() == "node_modules" || d.Name() == ".git" || (best >= 0 && depth >= best) {
+					return filepath.SkipDir
+				}
+				return nil
 			}
-			if d.Name() == "SKILL.md" && d.Type().IsRegular() && filepath.Base(filepath.Dir(path)) == name {
-				found = filepath.Dir(path)
-				return filepath.SkipAll
+			if d.Name() == "SKILL.md" && d.Type().IsRegular() && filepath.Base(filepath.Dir(path)) == name && (best < 0 || depth-1 < best) {
+				found, best = filepath.Dir(path), depth-1
 			}
 			return nil
 		})
@@ -625,23 +402,12 @@ func localSkillDir(repoRoot, name string) string {
 	return findSkillDir(repoRoot, "skills", name)
 }
 
-// entryRoot is the component store when Path is set, otherwise the GAP checkout.
-func entryRoot(repoRoot string, e manifestEntry) string {
-	return addSource(repoRoot, e)
+// entrySkillDir is name's folder in the entry's pinned store. A component path replaces skills/ as the first place searched.
+func entrySkillDir(e manifestEntry, name string) string {
+	return findSkillDir(e.Path, cmp.Or(e.SkillPath, "skills"), name)
 }
 
-// addSource prefers the pinned Path over Source, which remains the lock identity.
-func addSource(repoRoot string, e manifestEntry) string {
-	if e.Path != "" {
-		return e.Path
-	}
-	if e.Source == "." {
-		return repoRoot
-	}
-	return e.Source
-}
-
-// treeHash is the Git tree id of dir. skills.sh records that when the GitHub tree API works.
+// treeHash is the Git tree id of dir, without the paths indexPathExcluded names.
 func treeHash(dir string) (string, error) {
 	tmp, err := os.MkdirTemp("", "gap-tree-")
 	if err != nil {
@@ -671,10 +437,9 @@ func treeHash(dir string) (string, error) {
 	return run(env, "--git-dir="+tmp, "--work-tree="+dir, "write-tree")
 }
 
-// indexPathExcluded is a path skills.sh copyDirectory does not install, plus node_modules.
-// installer.ts excludes metadata.json, .git, __pycache__, and __pypackages__. A skill's
-// node_modules is not in that set, but skills.sh's install of do-art omits it and a Git
-// tree of it never matches the copy (symlinks are dereferenced). Hash both sides without it.
+// indexPathExcluded is a path an installed skill copy leaves out: metadata.json, .git,
+// __pycache__, __pypackages__, and node_modules (a Git tree of node_modules never matches
+// a copy, because symlinks are dereferenced). Both sides are hashed without them.
 func indexPathExcluded(rel string) bool {
 	rel = filepath.ToSlash(rel)
 	if rel == "metadata.json" || strings.HasSuffix(rel, "/metadata.json") {
@@ -714,29 +479,6 @@ func dropInstallExcludes(env []string, gitDir string) error {
 	return nil
 }
 
-func copiesMatchLock(home, name string, locked lockEntry) bool {
-	if !isHexLen(locked.SkillFolderHash, 40) && !isHexLen(locked.SkillFolderHash, 64) {
-		return false
-	}
-	for _, dir := range skillDirs(home, name) {
-		if _, err := os.Lstat(dir); err != nil {
-			return false
-		}
-		got, err := hashLike(dir, locked.SkillFolderHash)
-		if err != nil || got != locked.SkillFolderHash {
-			return false
-		}
-	}
-	return true
-}
-
-func hashLike(dir, recorded string) (string, error) {
-	if isHexLen(recorded, 64) {
-		return contentHash(dir)
-	}
-	return treeHash(dir)
-}
-
 func isHexLen(s string, n int) bool {
 	if len(s) != n {
 		return false
@@ -749,7 +491,7 @@ func isHexLen(s string, n int) bool {
 	return true
 }
 
-// contentHash is skills.sh computeSkillFolderHash: SHA-256 of each relative path plus its bytes, sorted.
+// contentHash is SHA-256 of each relative path plus its bytes, sorted the way skills.sh sorts them.
 // .git, node_modules, and non-regular files are skipped.
 // ponytail: ASCII order matches Node en-US localeCompare; non-ASCII code points sort after ASCII. Revisit if a non-en-US lock hash does not verify.
 func contentHash(dir string) (string, error) {
@@ -846,23 +588,8 @@ func skillPathLess(a, b string) bool {
 	return false
 }
 
-// showDiff prints source vs installed. An external source is cloned shallowly from its lock entry.
-func showDiff(sourceDir string, external lockEntry, installedDir string) {
-	if sourceDir == "" {
-		if external.SourceURL == "" {
-			return
-		}
-		tmp, err := os.MkdirTemp("", "gap-src-")
-		if err != nil {
-			return
-		}
-		defer os.RemoveAll(tmp)
-		if exec.Command("git", "clone", "-q", "--depth", "1", external.SourceURL, tmp).Run() != nil {
-			fmt.Fprintln(os.Stderr, "Could not fetch "+external.SourceURL+" to show the diff")
-			return
-		}
-		sourceDir = filepath.Join(tmp, filepath.Dir(external.SkillPath))
-	}
+// showDiff prints the pinned source against an installed copy.
+func showDiff(sourceDir, installedDir string) {
 	cmd := exec.Command("git", "--no-pager", "diff", "--no-index", "--", sourceDir, installedDir)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	_ = cmd.Run()

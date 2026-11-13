@@ -26,7 +26,6 @@ func TestUtilityLifecycle(t *testing.T) {
 	write(t, filepath.Join(repo, "go.mod"), readString(t, "../../go.mod"))
 	write(t, filepath.Join(repo, "go.sum"), readString(t, "../../go.sum"))
 	write(t, filepath.Join(repo, "global", "AGENTS.md"), "policy\n")
-	write(t, filepath.Join(repo, "global", "skills.json"), "[]\n")
 	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n")
 	for _, args := range [][]string{
 		{"init", "-q", "-b", "master", repo},
