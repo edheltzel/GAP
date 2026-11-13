@@ -290,7 +290,7 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpIn
 	return nil
 }
 
-func updateUtilities(id string) error {
+func updateUtilities(id string) (resultErr error) {
 	home, repoRoot, err := gapHomes()
 	if err != nil {
 		return err
@@ -304,10 +304,6 @@ func updateUtilities(id string) error {
 		return err
 	}
 	d, err = mergeOverrides(d, home, repoRoot, projectRoot, "")
-	if err != nil {
-		return err
-	}
-	lk, err := readLock(userConfigDir(home))
 	if err != nil {
 		return err
 	}
@@ -337,12 +333,36 @@ func updateUtilities(id string) error {
 		}
 		return nil
 	}
+	checked, updated := 0, 0
+	defer func() {
+		for _, cid := range ids[checked:] {
+			out.done(false, cid+" was not checked; update stopped")
+		}
+		noun := "utilities"
+		if checked == 1 {
+			noun = "utility"
+		}
+		summary := fmt.Sprintf("%d %s checked: %d updated, %d up to date", checked, noun, updated, checked-updated)
+		if checked < len(ids) {
+			summary += fmt.Sprintf("; %d not checked", len(ids)-checked)
+		}
+		switch {
+		case errors.Is(resultErr, errSkipped):
+			summary += "; some install steps were left over, see above"
+		case resultErr != nil:
+			summary += "; update failed"
+		}
+		out.done(resultErr == nil, summary)
+	}()
+	lk, err := readLock(userConfigDir(home))
+	if err != nil {
+		return err
+	}
 	state, err := readState(home)
 	if err != nil {
 		return err
 	}
 	baselines := map[string]string{}
-	updated := 0
 	for _, cid := range ids {
 		c := d.Components[cid]
 		url, err := cloneURL(c.Repo)
@@ -380,6 +400,7 @@ func updateUtilities(id string) error {
 				out.done(true, cid+" pinned"+pinLabel(pin))
 			}
 		}
+		checked++
 	}
 	requested := distro{Components: map[string]component{}}
 	for _, cid := range ids {
@@ -402,16 +423,9 @@ func updateUtilities(id string) error {
 			failed = true
 		}
 	}
-	noun := "utilities"
-	if len(ids) == 1 {
-		noun = "utility"
-	}
-	summary := fmt.Sprintf("%d %s checked: %d updated, %d up to date", len(ids), noun, updated, len(ids)-updated)
 	if failed {
-		out.done(false, summary+"; some install steps were left over, see above")
 		return errSkipped
 	}
-	out.done(true, summary)
 	return nil
 }
 

@@ -726,6 +726,7 @@ func restoreAll(id string) error {
 	}
 	ok := true
 	restored := 0
+	checked := 0
 	for _, cid := range sortedIDs(d.Components) {
 		if id != "" && cid != id {
 			continue
@@ -745,6 +746,7 @@ func restoreAll(id string) error {
 		for _, entry := range selectedEntries(c, dir, projectRoot) {
 			target := entryHome(home, entry)
 			for _, name := range entry.Skills {
+				checked++
 				if skillDriftCount(dir, target, name) == 0 {
 					continue
 				}
@@ -763,7 +765,15 @@ func restoreAll(id string) error {
 		return errSkipped
 	}
 	if restored == 0 {
-		out.done(true, "Nothing to restore: every installed component skill matches its pin.")
+		scope := ""
+		if id != "" {
+			scope = " for " + id
+		}
+		if checked == 0 {
+			out.done(true, "Nothing to restore: no component skills selected"+scope+".")
+		} else {
+			out.done(true, "Nothing to restore: checked "+plural(checked, "selected skill")+scope+"; each matches its pin.")
+		}
 		return nil
 	}
 	out.done(true, "Restored "+plural(restored, "skill")+".")
