@@ -61,7 +61,7 @@ func TestComponentCommandSync(t *testing.T) {
 			t.Fatalf("%s = %q", dest, got)
 		}
 	}
-	if err := recordDeclarativeInstalls(home, project, d, owned); err != nil {
+	if err := recordDeclarativeInstalls(home, project, d, owned, nil); err != nil {
 		t.Fatal(err)
 	}
 	state, err := readState(home)

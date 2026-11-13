@@ -265,7 +265,7 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 			}
 		}
 	}
-	mcpOK, err := publishComponentMCP(home, d)
+	mcpFailures, err := publishComponentMCP(home, d)
 	if err != nil {
 		return err
 	}
@@ -274,10 +274,10 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 	if err != nil {
 		return err
 	}
-	if err := recordDeclarativeInstalls(home, projectRoot, d, owned); err != nil {
+	if err := recordDeclarativeInstalls(home, projectRoot, d, owned, mcpFailures); err != nil {
 		return err
 	}
-	if !hooksOK || !commandsOK || !mcpOK || !skillsOK || !driftOK {
+	if !hooksOK || !commandsOK || len(mcpFailures) > 0 || !skillsOK || !driftOK {
 		return errSkipped
 	}
 	return nil
@@ -539,6 +539,9 @@ func removeUtility(id string) error {
 			fmt.Fprintf(os.Stderr, "%s has an install hook but no uninstall hook; gap cannot undo what its installer did.\n", id)
 		}
 	}
+	if err := removeComponentMCP(home, id); err != nil {
+		return err
+	}
 	shared := map[string]bool{}
 	sharedSkillOwners := map[string][]string{}
 	sharedCommands := map[string]bool{}
@@ -632,7 +635,6 @@ func removeUtility(id string) error {
 			return err
 		}
 	}
-	removeComponentMCP(home, entry)
 	ledgerPath := filepath.Join(home, ".gap", "published.json")
 	ledger, err := readLedger(ledgerPath)
 	if err != nil {

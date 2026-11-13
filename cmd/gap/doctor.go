@@ -16,13 +16,13 @@ type stateFile struct {
 }
 
 type stateEntry struct {
-	Commit      string            `json:"commit"`
-	Adapters    []string          `json:"adapters"`
-	Installed   string            `json:"installed,omitempty"`
-	Skills      []string          `json:"skills,omitempty"`
-	Commands    []string          `json:"commands,omitempty"`
-	SkillCopies map[string]string `json:"skillCopies,omitempty"`
-	MCP         map[string]string `json:"mcp,omitempty"`
+	Commit      string                     `json:"commit"`
+	Adapters    []string                   `json:"adapters"`
+	Installed   string                     `json:"installed,omitempty"`
+	Skills      []string                   `json:"skills,omitempty"`
+	Commands    []string                   `json:"commands,omitempty"`
+	SkillCopies map[string]string          `json:"skillCopies,omitempty"`
+	MCP         map[string]mcpRegistration `json:"mcp,omitempty"`
 }
 
 func statePath(home string) string {
@@ -48,7 +48,7 @@ func readState(home string) (stateFile, error) {
 	return state, nil
 }
 
-func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[string][]string) error {
+func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[string][]string, mcpFailures map[string]bool) error {
 	if !slices.ContainsFunc(sortedIDs(d.Components), func(id string) bool { return d.Components[id].Store != "" }) {
 		return nil
 	}
@@ -62,7 +62,7 @@ func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[
 			continue
 		}
 		entry := state.Components[id]
-		complete := true
+		complete := !mcpFailures[id]
 		for _, selected := range selectedEntries(c, c.Store, projectRoot) {
 			for _, name := range selected.Skills {
 				target := entryHome(home, selected)

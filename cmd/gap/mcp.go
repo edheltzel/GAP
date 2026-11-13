@@ -21,10 +21,12 @@ type mcpServer struct {
 
 // mcpCLI registers servers through a harness's own mcp command, so GAP never edits that harness's config by hand.
 type mcpCLI struct {
-	bin    string
-	add    func(s mcpServer) []string
-	remove func(name string) []string
-	exists func(home, name string) bool
+	bin        string
+	configEnv  string
+	defaultDir string
+	add        func(s mcpServer) []string
+	remove     func(name string) []string
+	exists     func(home, target, name string) (bool, error)
 }
 
 func manifestMCP(doc map[string]any) ([]mcpServer, error) {
@@ -114,25 +116,34 @@ func stdioArgs(head []string, envFlag string, s mcpServer) []string {
 	return append(append(args, "--"), s.Command...)
 }
 
-func jsonServerExists(path string) func(home, name string) bool {
-	return func(home, name string) bool {
-		b, err := os.ReadFile(filepath.Join(home, path))
+type mcpRegistration struct {
+	Digest string `json:"digest"`
+	Target string `json:"target"`
+}
+
+func jsonServerExists(file string) func(home, target, name string) (bool, error) {
+	return func(home, target, name string) (bool, error) {
+		b, err := os.ReadFile(filepath.Join(target, file))
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		if err != nil {
-			return false
+			return false, err
 		}
 		var doc struct {
 			MCPServers map[string]json.RawMessage `json:"mcpServers"`
 		}
-		if json.Unmarshal(b, &doc) != nil {
-			return false
+		if err := json.Unmarshal(b, &doc); err != nil {
+			return false, err
 		}
 		_, ok := doc.MCPServers[name]
-		return ok
+		return ok, nil
 	}
 }
 
 var claudeMCP = &mcpCLI{
-	bin: "claude",
+	bin:       "claude",
+	configEnv: "CLAUDE_CONFIG_DIR",
 	add: func(s mcpServer) []string {
 		if s.URL != "" {
 			return []string{"mcp", "add", "--scope", "user", "--transport", "http", s.Name, s.URL}
@@ -144,7 +155,9 @@ var claudeMCP = &mcpCLI{
 }
 
 var codexMCP = &mcpCLI{
-	bin: "codex",
+	bin:        "codex",
+	configEnv:  "CODEX_HOME",
+	defaultDir: ".codex",
 	add: func(s mcpServer) []string {
 		if s.URL != "" {
 			return []string{"mcp", "add", s.Name, "--url", s.URL}
@@ -152,15 +165,31 @@ var codexMCP = &mcpCLI{
 		return stdioArgs([]string{"mcp", "add", s.Name}, "--env", s)
 	},
 	remove: func(name string) []string { return []string{"mcp", "remove", name} },
-	exists: func(home, name string) bool {
-		cmd := exec.Command("codex", "mcp", "get", name)
-		cmd.Env = append(os.Environ(), "HOME="+home)
-		return cmd.Run() == nil
+	exists: func(home, target, name string) (bool, error) {
+		cmd := mcpCommand(home, "CODEX_HOME", target, "codex", []string{"mcp", "list", "--json"})
+		out, err := cmd.Output()
+		if err != nil {
+			return false, err
+		}
+		var servers []struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(out, &servers); err != nil {
+			return false, err
+		}
+		for _, server := range servers {
+			if server.Name == name {
+				return true, nil
+			}
+		}
+		return false, nil
 	},
 }
 
 var piMCP = &mcpCLI{
-	bin: "pi",
+	bin:        "pi",
+	configEnv:  "PI_CODING_AGENT_DIR",
+	defaultDir: filepath.Join(".pi", "agent"),
 	add: func(s mcpServer) []string {
 		if s.URL != "" {
 			return []string{"mcp", "add", s.Name, "--url", s.URL}
@@ -168,17 +197,51 @@ var piMCP = &mcpCLI{
 		return stdioArgs([]string{"mcp", "add", s.Name}, "--env", s)
 	},
 	remove: func(name string) []string { return []string{"mcp", "remove", name} },
-	exists: jsonServerExists(filepath.Join(".pi", "agent", "mcp.json")),
+	exists: jsonServerExists("mcp.json"),
 }
 
-func runMCP(home, bin string, args []string) error {
+func (cli *mcpCLI) target(home string) (string, error) {
+	target := os.Getenv(cli.configEnv)
+	if target == "" {
+		target = filepath.Join(home, cli.defaultDir)
+	}
+	if !filepath.IsAbs(target) {
+		return "", fmt.Errorf("%s must be an absolute path: %s", cli.configEnv, target)
+	}
+	return filepath.Clean(target), nil
+}
+
+func mcpCommand(home, configEnv, target, bin string, args []string) *exec.Cmd {
 	cmd := exec.Command(bin, args...)
-	cmd.Env = append(os.Environ(), "HOME="+home)
+	cmd.Dir = home
+	cmd.Env = append(os.Environ(), "HOME="+home, configEnv+"="+target)
+	return cmd
+}
+
+func runMCP(home string, cli *mcpCLI, target string, args []string) error {
+	cmd := mcpCommand(home, cli.configEnv, target, cli.bin, args)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s %s: %w: %s", bin, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%s %s: %w: %s", cli.bin, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func removeMCP(home string, h harness, target, name string) error {
+	if h.mcp == nil {
+		return fmt.Errorf("%s has no mcp CLI", h.name)
+	}
+	if !filepath.IsAbs(target) {
+		return fmt.Errorf("%s mcp ownership has no absolute configuration target", h.name)
+	}
+	if _, err := exec.LookPath(h.mcp.bin); err != nil {
+		return err
+	}
+	exists, err := h.mcp.exists(home, target, name)
+	if err != nil || !exists {
+		return err
+	}
+	return runMCP(home, h.mcp, target, h.mcp.remove(name))
 }
 
 func mcpKey(h harness, name string) string { return h.name + ":" + name }
@@ -190,14 +253,14 @@ func mcpDigest(s mcpServer) string {
 
 // publishComponentMCP registers each selected component's MCP servers with every harness whose mcp CLI is installed.
 // A server name another component owns, or one the user already configured, is left alone and reported.
-func publishComponentMCP(home string, d distro) (bool, error) {
+func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 	state, err := readState(home)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	gate, err := newHookGate(home)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	owner := map[string]string{}
 	for id, entry := range state.Components {
@@ -205,7 +268,7 @@ func publishComponentMCP(home string, d distro) (bool, error) {
 			owner[key] = id
 		}
 	}
-	ok, changed := true, false
+	failed, changed := map[string]bool{}, false
 	out := newReport(os.Stdout)
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
@@ -214,11 +277,12 @@ func publishComponentMCP(home string, d distro) (bool, error) {
 			continue
 		}
 		type job struct {
-			h    harness
-			s    mcpServer
-			key  string
-			sum  string
-			owns bool
+			h      harness
+			s      mcpServer
+			key    string
+			sum    string
+			target string
+			owns   bool
 		}
 		var jobs []job
 		var stale []string
@@ -227,28 +291,54 @@ func publishComponentMCP(home string, d distro) (bool, error) {
 				continue
 			}
 			if _, err := exec.LookPath(h.mcp.bin); err != nil {
+				for key := range entry.MCP {
+					if strings.HasPrefix(key, h.name+":") {
+						fmt.Fprintf(os.Stderr, "%s: %v\n", id, err)
+						failed[id] = true
+						break
+					}
+				}
 				continue
 			}
 			for _, raw := range c.MCP {
 				s := raw.expand(c.Store)
 				key, sum := mcpKey(h, s.Name), mcpDigest(s)
-				if prev, mine := entry.MCP[key]; mine {
-					if prev != sum {
-						jobs = append(jobs, job{h, s, key, sum, true})
+				prev, mine := entry.MCP[key]
+				target := prev.Target
+				var targetErr error
+				if !mine {
+					target, targetErr = h.mcp.target(home)
+				} else if !filepath.IsAbs(target) {
+					targetErr = fmt.Errorf("%s mcp ownership has no absolute configuration target", h.name)
+				}
+				if targetErr != nil {
+					fmt.Fprintf(os.Stderr, "%s: %v\n", id, targetErr)
+					failed[id] = true
+					continue
+				}
+				exists, err := h.mcp.exists(home, target, s.Name)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%s: %v\n", id, err)
+					failed[id] = true
+					continue
+				}
+				if mine {
+					if prev.Digest != sum || !exists {
+						jobs = append(jobs, job{h, s, key, sum, target, true})
 					}
 					continue
 				}
 				if other := owner[key]; other != "" && other != id {
 					fmt.Fprintf(os.Stderr, "%s: mcp server %s in %s belongs to %s; skipped\n", id, s.Name, h.name, other)
-					ok = false
+					failed[id] = true
 					continue
 				}
-				if h.mcp.exists(home, s.Name) {
+				if exists {
 					fmt.Fprintf(os.Stderr, "%s: %s already has an mcp server named %s that gap did not add; left alone\n", id, h.name, s.Name)
-					ok = false
+					failed[id] = true
 					continue
 				}
-				jobs = append(jobs, job{h, s, key, sum, false})
+				jobs = append(jobs, job{h, s, key, sum, target, false})
 			}
 			for key := range entry.MCP {
 				if strings.HasPrefix(key, h.name+":") && !slices.ContainsFunc(c.MCP, func(s mcpServer) bool { return mcpKey(h, s.Name) == key }) {
@@ -265,48 +355,55 @@ func publishComponentMCP(home string, d distro) (bool, error) {
 				lines = append(lines, j.h.name+": "+j.s.describe())
 			}
 			if !gate.approve(c, "mcp", strings.Join(lines, "\n  ")) {
-				ok = false
+				failed[id] = true
 				jobs = nil
 			}
 		}
 		out.section(id, "register mcp servers")
 		if entry.MCP == nil {
-			entry.MCP = map[string]string{}
+			entry.MCP = map[string]mcpRegistration{}
 		}
 		slices.Sort(stale)
 		for _, key := range stale {
 			hname, name, _ := strings.Cut(key, ":")
 			h := harnessNamed(hname)
-			if err := runMCP(home, h.mcp.bin, h.mcp.remove(name)); err != nil {
+			if err := removeMCP(home, h, entry.MCP[key].Target, name); err != nil {
 				fmt.Fprintf(os.Stderr, "%s: %v\n", id, err)
-				ok = false
+				failed[id] = true
 				continue
 			}
 			delete(entry.MCP, key)
+			delete(owner, key)
 			changed = true
 			out.result(true, fmt.Sprintf("%s: removed %s", hname, name))
 		}
 		for _, j := range jobs {
 			if j.owns {
-				if err := runMCP(home, j.h.mcp.bin, j.h.mcp.remove(j.s.Name)); err != nil {
+				if err := removeMCP(home, j.h, j.target, j.s.Name); err != nil {
 					fmt.Fprintf(os.Stderr, "%s: %v\n", id, err)
-					ok = false
+					failed[id] = true
 					continue
 				}
 			}
-			if err := runMCP(home, j.h.mcp.bin, j.h.mcp.add(j.s)); err != nil {
-				fmt.Fprintf(os.Stderr, "%s: %v\n", id, err)
-				ok = false
-				if j.owns {
-					delete(entry.MCP, j.key)
-					changed = true
+			addErr := runMCP(home, j.h.mcp, j.target, j.h.mcp.add(j.s))
+			if addErr != nil {
+				fmt.Fprintf(os.Stderr, "%s: %v\n", id, addErr)
+				failed[id] = true
+				exists, checkErr := j.h.mcp.exists(home, j.target, j.s.Name)
+				if checkErr != nil {
+					fmt.Fprintf(os.Stderr, "%s: %v\n", id, checkErr)
+					j.sum = ""
 				}
-				continue
+				if !exists && checkErr == nil {
+					continue
+				}
 			}
-			entry.MCP[j.key] = j.sum
+			entry.MCP[j.key] = mcpRegistration{Digest: j.sum, Target: j.target}
 			owner[j.key] = id
 			changed = true
-			out.result(true, fmt.Sprintf("%s: %s", j.h.name, j.s.describe()))
+			if addErr == nil {
+				out.result(true, fmt.Sprintf("%s: %s", j.h.name, j.s.describe()))
+			}
 		}
 		if len(entry.MCP) == 0 {
 			entry.MCP = nil
@@ -314,22 +411,27 @@ func publishComponentMCP(home string, d distro) (bool, error) {
 		state.Components[id] = entry
 	}
 	if !changed {
-		return ok, nil
+		return failed, nil
 	}
 	fresh, err := readState(home)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	for id, entry := range state.Components {
 		f := fresh.Components[id]
 		f.MCP = entry.MCP
 		fresh.Components[id] = f
 	}
-	return ok, writeState(home, fresh)
+	return failed, writeState(home, fresh)
 }
 
 // removeComponentMCP unregisters every server the state records for one component.
-func removeComponentMCP(home string, entry stateEntry) bool {
+func removeComponentMCP(home, id string) error {
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	entry := state.Components[id]
 	ok := true
 	keys := make([]string, 0, len(entry.MCP))
 	for key := range entry.MCP {
@@ -339,20 +441,20 @@ func removeComponentMCP(home string, entry stateEntry) bool {
 	for _, key := range keys {
 		hname, name, _ := strings.Cut(key, ":")
 		h := harnessNamed(hname)
-		if h.mcp == nil {
-			continue
-		}
-		if _, err := exec.LookPath(h.mcp.bin); err != nil {
-			fmt.Fprintf(os.Stderr, "%s is not installed; remove its mcp server %s by hand\n", hname, name)
-			ok = false
-			continue
-		}
-		if err := runMCP(home, h.mcp.bin, h.mcp.remove(name)); err != nil {
+		if err := removeMCP(home, h, entry.MCP[key].Target, name); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			ok = false
 			continue
 		}
+		delete(entry.MCP, key)
 		fmt.Printf("Removed mcp server %s from %s\n", name, hname)
 	}
-	return ok
+	state.Components[id] = entry
+	if err := writeState(home, state); err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("%s: mcp removal incomplete; retry gap remove %s", id, id)
+	}
+	return nil
 }

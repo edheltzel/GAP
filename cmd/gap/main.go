@@ -178,11 +178,11 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	skipped = skipped || !commandsOK
-	mcpOK, err := publishComponentMCP(home, d)
+	mcpFailures, err := publishComponentMCP(home, d)
 	if err != nil {
 		return err
 	}
-	skipped = skipped || !mcpOK
+	skipped = skipped || len(mcpFailures) > 0
 	if len(entries) > 0 {
 		out.section("skills", "install missing skills, then check drift")
 	}
@@ -191,7 +191,7 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
-	if err := recordDeclarativeInstalls(home, projectRoot, d, ownedCommands); err != nil {
+	if err := recordDeclarativeInstalls(home, projectRoot, d, ownedCommands, mcpFailures); err != nil {
 		return err
 	}
 	if len(entries) > 0 && skillsOK && driftOK {
