@@ -200,7 +200,7 @@ every step succeeds; a failure exits 1 and keeps them so the command can run aga
 func searchCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "search [query]",
-		Short: "Search the utility catalog and print the gap add command for each match",
+		Short: "Search the utility catalog",
 		Args:  cobra.MaximumNArgs(1),
 		RunE:  func(cmd *cobra.Command, args []string) error { exitCode = runSearch(args); return nil },
 	}
