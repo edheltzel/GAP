@@ -81,7 +81,9 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
-	if err := checkHarnessHomes(home); err != nil {
+	codexPolicy := filepath.Join(codexHome, "gap", "global-agent-policy.md")
+	dests, err := policyDests(home, codexPolicy)
+	if err != nil {
 		return err
 	}
 	docsDir = filepath.Join(repoRoot, "global", "docs", "agents")
@@ -101,8 +103,6 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
-	codexPolicy := filepath.Join(codexHome, "gap", "global-agent-policy.md")
-	dests := policyDests(home, codexPolicy)
 	groups := syncGroups(d, pins, manifest, projectRoot, len(dests), commandCount(repoRoot))
 	sel, err := chooseGroups(groups, opts.Only, opts.Skip, opts.Yes)
 	if err != nil {

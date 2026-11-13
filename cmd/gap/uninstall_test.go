@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -106,7 +107,7 @@ func TestUninstallRemovesOnlyGapRecords(t *testing.T) {
 		t.Fatal("a foreign file without markers was changed")
 	}
 	for _, rel := range []string{
-		".pi/agent/APPEND_SYSTEM.md", ".omp/agent/APPEND_SYSTEM.md", ".empryo/EMPRYO.md", ".codex/gap/global-agent-policy.md",
+		".pi/agent/APPEND_SYSTEM.md", ".omp/agent/APPEND_SYSTEM.md", ".empryo/EMPRYO.md", ".codex/gap/global-agent-policy.md", ".jcode/prompt-overlay.md",
 		".claude/commands/hello.md", ".pi/agent/prompts/hello.md", ".omp/agent/commands/hello.md",
 		".claude/commands/util-cmd.md", ".agents/skills/util-skill", ".claude/skills/util-skill",
 		".agents/skills/do-todo", ".claude/skills/do-todo",
@@ -186,6 +187,73 @@ func TestUninstallDryRunChangesNothing(t *testing.T) {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("preview is missing %q:\n%s", want, stdout)
 		}
+	}
+}
+
+func TestHarnessHomeValidation(t *testing.T) {
+	for _, key := range []string{"CODEX_HOME", "JCODE_HOME"} {
+		t.Run(key, func(t *testing.T) {
+			t.Setenv("JCODE_HOME", "")
+			e := newUtilityEnv(t, hookManifest)
+			readyEnvReviewDistro(t, e.repo)
+			captureStd(t, func() {
+				if code := run([]string{"sync", "--yes"}); code != 0 {
+					t.Fatalf("sync exit %d", code)
+				}
+			})
+			if !e.exists(".jcode/prompt-overlay.md") || !e.exists(".gap/published.json") {
+				t.Fatal("sync did not publish the jcode overlay and ledger")
+			}
+			t.Setenv(key, "relative/home")
+			for _, args := range [][]string{{"sync", "--yes"}, {"uninstall", "--dry-run"}, {"uninstall", "--yes"}} {
+				t.Run(strings.Join(args, " "), func(t *testing.T) {
+					before := snapshotTree(t, e.home)
+					_, stderr := captureStd(t, func() {
+						if code := run(args); code != 1 {
+							t.Errorf("exit %d, want 1", code)
+						}
+					})
+					if !strings.Contains(stderr, key+" must be an absolute path") {
+						t.Errorf("missing home validation error: %q", stderr)
+					}
+					if !maps.Equal(before, snapshotTree(t, e.home)) {
+						t.Fatal("invalid harness home changed published files or records")
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestJcodeSyncAndUninstall(t *testing.T) {
+	for _, name := range []string{"default", "override"} {
+		t.Run(name, func(t *testing.T) {
+			e := newUtilityEnv(t, hookManifest)
+			readyEnvReviewDistro(t, e.repo)
+			base := filepath.Join(e.home, ".jcode")
+			if name == "override" {
+				base = t.TempDir()
+				t.Setenv("JCODE_HOME", base)
+			}
+			dest := filepath.Join(base, "prompt-overlay.md")
+			write(t, dest, "user head\n<!-- gap:begin -->\nold policy\n<!-- gap:end -->\nuser tail\n")
+			captureStd(t, func() {
+				if code := run([]string{"sync", "--yes"}); code != 0 {
+					t.Fatalf("sync exit %d", code)
+				}
+			})
+			if got := readString(t, dest); got != "user head\n<!-- gap:begin -->\nfixture policy\n<!-- gap:end -->\nuser tail\n" {
+				t.Fatalf("published overlay: %q", got)
+			}
+			captureStd(t, func() {
+				if code := run([]string{"uninstall", "--yes"}); code != 0 {
+					t.Fatalf("uninstall exit %d", code)
+				}
+			})
+			if got := readString(t, dest); got != "user head\nuser tail\n" {
+				t.Fatalf("uninstalled overlay: %q", got)
+			}
+		})
 	}
 }
 

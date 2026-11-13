@@ -45,24 +45,12 @@ func harnessHome(h harness, home string) (string, error) {
 	return resolveHarnessHome(h.homeEnv, os.Getenv(h.homeEnv), filepath.Join(home, h.homeDir))
 }
 
-// checkHarnessHomes refuses a sync when a harness home variable is set to a relative path.
-func checkHarnessHomes(home string) error {
-	for _, h := range harnesses {
-		if h.homeEnv != "" {
-			if _, err := harnessHome(h, home); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 type policyDest struct {
 	dest   string
 	cursor bool
 }
 
-func policyDests(home, codexPolicy string) []policyDest {
+func policyDests(home, codexPolicy string) ([]policyDest, error) {
 	dests := make([]policyDest, 0, len(harnesses))
 	for _, h := range harnesses {
 		dest := codexPolicy
@@ -70,7 +58,7 @@ func policyDests(home, codexPolicy string) []policyDest {
 		case h.homeEnv != "":
 			base, err := harnessHome(h, home)
 			if err != nil {
-				continue
+				return nil, err
 			}
 			dest = filepath.Join(base, filepath.FromSlash(h.policy))
 		case h.policy != "":
@@ -78,7 +66,7 @@ func policyDests(home, codexPolicy string) []policyDest {
 		}
 		dests = append(dests, policyDest{dest, h.cursor})
 	}
-	return dests
+	return dests, nil
 }
 
 func commandDests(home, name string) []string {
