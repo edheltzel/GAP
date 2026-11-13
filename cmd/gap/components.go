@@ -34,6 +34,7 @@ type component struct {
 	Manifest    bool
 	Update      string
 	Commands    []string
+	MCP         []mcpServer
 	Store       string
 }
 
@@ -158,6 +159,7 @@ func applyManifest(c component, store string) (component, error) {
 	}
 	c.Manifest = true
 	c.Commands = m.Commands
+	c.MCP = m.MCP
 	c.Install, c.Update, c.Doctor = m.Hooks.Install, m.Hooks.Update, m.Hooks.Doctor
 	return c, nil
 }

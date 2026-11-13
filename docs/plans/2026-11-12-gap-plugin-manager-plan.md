@@ -18,7 +18,7 @@ Missing:
 | --- | --- |
 | Uninstall | Utilities have `gap remove`; nothing for `gap` itself |
 | Per-harness delivery | Skills go to `~/.agents/skills` and `~/.claude/skills`; commands follow the [supported harness destinations](../../README.md#where-each-agent-reads-the-policy) |
-| MCP servers and harness settings | Not handled; Echo's installer does its own |
+| MCP servers and harness settings | MCP delivery follows the [manifest contract](../../README.md#publish-a-utility); other harness settings remain installer-owned |
 | Install without Go | The installer builds from source; manifest skills need `npx` |
 | Discovery | No catalog or search |
 
@@ -27,7 +27,7 @@ Missing:
 1. Completed: merge `feat/gap-utilities` (PR #114, `fbebb517`). Owner: GAP API tab.
 2. Reorder the README after step 1: Change the policy before Manage skills, Components before the first `gap.toml` example. Move the edge-case detail in Project setup and the Echo pin note into `cmd/gap/AGENTS.md`. Done after step 1 because those sections overlap the utilities branch.
 3. Harness adapter table in `cmd/gap`: for each harness, where skills, commands, MCP servers, and hooks go. Drive skill and command delivery from it. Start with Codex, Cursor, Pi, and Empryo commands.
-4. MCP entries in `gap-utility.toml`, written through the adapter table with the same ledger, backup, and refusal rules as policy files.
+4. MCP entries in `gap-utility.toml` follow the [manifest and lifecycle contract](../../README.md#publish-a-utility) through the harness adapter table and each harness's own MCP CLI.
 5. `gap uninstall`: strip the policy blocks, Codex hooks, published commands, and owned skills recorded in the ledger and `state.json`.
 6. Release binaries (GoReleaser or `go build` in CI) and an installer that downloads one when Go is absent.
 7. Drop the skills.sh path once `global/skills.json` sources become utilities (provisioner section 9 step 5).

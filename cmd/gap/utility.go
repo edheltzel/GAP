@@ -155,7 +155,7 @@ func addUtility(spec, id string) error {
 	if err := setUserPin(home, id, pin); err != nil {
 		return err
 	}
-	return installUtility(home, repoRoot, projectRoot, id, "")
+	return installUtility(home, repoRoot, projectRoot, id, "", mcpInventory{})
 }
 
 func describeUtility(m utilityManifest) string {
@@ -174,6 +174,13 @@ func describeUtility(m utilityManifest) string {
 	}
 	if len(hooks) > 0 {
 		parts = append(parts, "hooks: "+strings.Join(hooks, ", "))
+	}
+	if len(m.MCP) > 0 {
+		names := make([]string, len(m.MCP))
+		for i, s := range m.MCP {
+			names[i] = s.Name
+		}
+		parts = append(parts, "mcp: "+strings.Join(names, ", "))
 	}
 	return strings.Join(parts, ", ")
 }
@@ -196,7 +203,7 @@ func setUserPin(home, id string, pin lockEntryM1) error {
 }
 
 // installUtility syncs one component: its hook, its skills, its commands, and the ownership record.
-func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
+func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpInventory) error {
 	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
 	if err != nil {
 		return err
@@ -258,15 +265,19 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 			}
 		}
 	}
+	mcpFailures, err := publishComponentMCP(home, d, inv)
+	if err != nil {
+		return err
+	}
 	skillsOK = installSkills(repoRoot, home, entries) && skillsOK
 	driftOK, err := checkDrift(repoRoot, home, entries)
 	if err != nil {
 		return err
 	}
-	if err := recordDeclarativeInstalls(home, projectRoot, d, owned); err != nil {
+	if err := recordDeclarativeInstalls(home, projectRoot, d, owned, mcpFailures); err != nil {
 		return err
 	}
-	if !hooksOK || !commandsOK || !skillsOK || !driftOK {
+	if !hooksOK || !commandsOK || len(mcpFailures) > 0 || !skillsOK || !driftOK {
 		return errSkipped
 	}
 	return nil
@@ -356,8 +367,9 @@ func updateUtilities(id string) error {
 		return err
 	}
 	failed := false
+	inv := mcpInventory{}
 	for _, cid := range ids {
-		if err := installUtility(home, repoRoot, projectRoot, cid, baselines[cid]); err != nil {
+		if err := installUtility(home, repoRoot, projectRoot, cid, baselines[cid], inv); err != nil {
 			if !errors.Is(err, errSkipped) {
 				return err
 			}
@@ -524,9 +536,15 @@ func removeUtility(id string) error {
 				return fmt.Errorf("%s uninstall hook failed; nothing removed: %w", id, err)
 			}
 			out.result(true, id+" uninstall hook finished")
+			if err := markUninstalled(home, id); err != nil {
+				return err
+			}
 		} else if manifest.Hooks.Install != "" && !gate.trusted(c) {
 			fmt.Fprintf(os.Stderr, "%s has an install hook but no uninstall hook; gap cannot undo what its installer did.\n", id)
 		}
+	}
+	if err := removeComponentMCP(home, id); err != nil {
+		return err
 	}
 	shared := map[string]bool{}
 	sharedSkillOwners := map[string][]string{}
@@ -688,6 +706,18 @@ func removeUtility(id string) error {
 		out.result(true, id+" removed")
 	}
 	return nil
+}
+
+// markUninstalled records that a utility's uninstall hook has run, so a retry after a later failure does not run it again.
+func markUninstalled(home, id string) error {
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	entry := state.Components[id]
+	entry.Installed = ""
+	state.Components[id] = entry
+	return writeState(home, state)
 }
 
 func fileExists(path string) bool {

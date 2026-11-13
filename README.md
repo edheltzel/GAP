@@ -71,7 +71,7 @@ Use the Codex home used for publication: `<codex-home>` below means the absolute
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
 | `gap add <owner/repo[@ref]> [--id <id>]` | Add a utility: pin a repo that ships a `gap-utility.toml` and install it. See [Add a utility](#add-a-utility) |
 | `gap update [id]` | Update one utility, or every utility you added when the id is omitted. See [Add a utility](#add-a-utility) |
-| `gap remove <id>` | Run a utility's uninstall hook, move its files to `~/.gap/backups/`, and drop it from your config and lock |
+| `gap remove <id>` | Remove a utility and its recorded installations. See [Add a utility](#add-a-utility) |
 | `gap list` | List every component and utility with its source, ref, pinned commit, and hook trust |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `go test ./...` | Run the self-test against throwaway folders |
@@ -178,7 +178,7 @@ With no terminal to ask in, sync lists the drifted skills, including a foreign l
 
 ### Components
 
-A component is a repo pinned to one commit that supplies skills, commands, or its own installer and doctor. [`gap.toml`](gap.toml) selects the distro's components; [`gap.lock`](gap.lock) records the exact commits and trees. A component whose pinned commit includes a [`gap-utility.toml`](#publish-a-utility) describes its own skills, commands, and hooks, so its entry needs only `repo` and `ref`; keeping `install` or `doctor` in that entry is refused. A distro component whose pinned commit lacks one lists its skills in `names` and may set `install` and `doctor` commands in its entry.
+A component is a utility pinned to one commit. [`gap.toml`](gap.toml) selects the distro's components; [`gap.lock`](gap.lock) records the exact commits and trees. A component whose pinned commit includes a [`gap-utility.toml`](#publish-a-utility) takes its installation declarations from that manifest, so its entry needs only `repo` and `ref`; keeping `install` or `doctor` in that entry is refused. A distro component whose pinned commit lacks one lists its skills in `names` and may set `install` and `doctor` commands in its entry.
 
 The distro can narrow a manifest's skill list as described under [Load levels](#load-levels). For example:
 
@@ -235,7 +235,7 @@ Overrides never write either lock. If an overridden `ref` differs from the locke
 
 ### Choose what syncs
 
-`gap sync` groups its work as `policy` (policy and global commands), each enabled component id (distro or user), and `manifest` (`global/skills.json`, when it lists any source). A utility's commands belong to its component group. With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Only enter syncs: ctrl+c, a termination signal, or submitting with no groups checked writes nothing. A `TERM=dumb` terminal gets the line prompt below instead.
+`gap sync` groups its work as `policy` (policy and global commands), each enabled component id (distro or user), and `manifest` (`global/skills.json`, when it lists any source). A utility's commands and MCP servers belong to its component group. With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Only enter syncs: ctrl+c, a termination signal, or submitting with no groups checked writes nothing. A `TERM=dumb` terminal gets the line prompt below instead.
 
 After selection, terminal output shows a framed plan, phase headers, progress lines, and a final result. Written paths use `~` for your home directory. Piped output keeps the plain preview and progress lines, for example:
 
@@ -271,7 +271,7 @@ gap add owner/repo@v1.2.0     # a branch, tag, or commit
 gap add owner/repo --id tools # another id; the default is the repo name, lowercased
 ```
 
-`gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs its skills, commands, and install hook. These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved sync group names. User utility skills install under home; `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
+`gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs what it declares in the [manifest](#publish-a-utility). These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved sync group names. User utility skills install under home; `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
 
 ```toml
 # ~/.config/gap/gap.toml, as written by gap add
@@ -285,7 +285,7 @@ ref = "master"
 | Install from the lock | `gap sync` | Installs every utility at its pinned commit, like the distro components. Sync never moves a pin |
 | Update | `gap update [id]` | Moves every requested pin to the newest commit on its effective ref before installing enabled utilities. A skill copy you did not edit moves to the new version; an edited copy is kept and `gap restore <id>` takes the new one. Hook timing follows the [manifest reference](#publish-a-utility) |
 | See what is added | `gap list` | One line per component: id, `distro` or `user`, repo, ref, commit, and whether its hooks run, ask, or are trusted |
-| Remove | `gap remove <id>` | Runs the `uninstall` hook, moves the skills and commands GAP placed for it into one `~/.gap/backups/<time>/` folder, and drops its config entry, pin, and record. An edited copy is named in the output |
+| Remove | `gap remove <id>` | Runs the `uninstall` hook, unregisters its [MCP servers](#publish-a-utility), moves the skills and commands GAP placed for it into one `~/.gap/backups/<time>/` folder, and drops its config entry, pin, and record. An edited copy is named in the output |
 
 Before installing any utility, update verifies every requested source checkout, including disabled utilities, and rebuilds missing or corrupt caches even when the pin is already current. Update compares each skill with its last copied version, tracked separately from hook completion in `~/.gap/state.json`. If an update hook fails, fix its cause and rerun `gap update [id]`: installation retries even when the pin is already current.
 
@@ -293,7 +293,7 @@ GAP removes only the files it recorded for that utility in `~/.gap/state.json`, 
 
 ### Hooks and trust
 
-A utility's hooks are shell commands from someone else's repo, so GAP shows the command and asks `[y/N]` whenever it needs to run one. Approval applies to that execution. With no terminal, an untrusted hook is skipped and the command exits `1`. During add, update, or sync, skills and commands still install when a hook is skipped. Successful install and update hooks, and completed installations needing no hook, are recorded in `~/.gap/state.json` so repeating the same pin skips the hook. The hook choice on a pin change is defined in the [manifest reference](#publish-a-utility).
+A utility's hooks are shell commands from someone else's repo, so GAP shows the command and asks `[y/N]` whenever it needs to run one. Approval applies to that execution. MCP registrations can launch a utility's code, so they use the same trust setting and ask separately before registering or re-registering servers. With no terminal, untrusted hooks and registrations are skipped and the command exits `1`. During add, update, or sync, skills and commands still install when a hook or registration is skipped. Successful install and update hooks, and completed installations needing no hook, are recorded in `~/.gap/state.json` so repeating the same pin skips the hook. An installation needing no hook is complete only after its selected skills, commands, and MCP steps succeed. The hook choice on a pin change is defined in the [manifest reference](#publish-a-utility).
 
 To stop the questions for a repo or an owner you trust, the way you trust a Homebrew tap, list it in your config:
 
@@ -319,6 +319,10 @@ commands = ["commands/my-command.md"]
 [hooks]
 install = "./scripts/install.sh"
 uninstall = "./scripts/uninstall.sh"
+
+[mcp.my-tools]
+command = ["node", "{store}/mcp/server.js"]
+env = ["LOG_LEVEL=info"]
 ```
 
 | Key | Required | Meaning |
@@ -330,12 +334,21 @@ uninstall = "./scripts/uninstall.sh"
 | `commands` | no | Repo paths of `.md` command files. GAP copies each by basename, unchanged, into `~/.claude/commands`, `~/.pi/agent/prompts`, and `~/.omp/agent/commands` |
 | `hooks.install` | no | Runs on the first installation and on later pin changes when `update` is absent |
 | `hooks.update` | no | Replaces `install` when installing a different pin after a first successful installation |
-| `hooks.uninstall` | no | Runs on `gap remove` from the last successfully installed version, before GAP moves its files; skipped if no installation succeeded. It must undo the effects of `install` and `update` outside GAP's skill and command files |
+| `hooks.uninstall` | no | Runs on `gap remove` from the last successfully installed version, before GAP moves its files; skipped if no installation succeeded or an earlier removal attempt already ran the hook successfully. It must undo the effects of `install` and `update` outside GAP's skill and command files |
 | `hooks.doctor` | no | Runs on `gap doctor` |
+| `mcp.<name>` | no | One MCP server. Set exactly one of `command` (a nonempty string array) or `url` (an `http://` or `https://` URL). Command servers may also set `env` (`KEY=value` strings). `{store}` in command arguments and environment values becomes the pinned checkout path |
 
-A manifest needs at least one skill, command, or hook. Unknown keys are refused, so a typo fails at `gap add` instead of being ignored. Hooks run with `sh -c` from the verified checkout for that version in `~/.gap/store/<id>/<commit>/`; treat that folder as read-only. Exit `0` is success. Any other exit fails that utility, makes the command exit `1`, and leaves the hook to run again next time. Command basenames must be unique within a utility and across registered components and `global/commands/`. Names of previously copied commands remain reserved until the owning utility is removed.
+A manifest needs at least one skill, command, hook, or MCP server. Unknown keys are refused, so a typo fails at `gap add` instead of being ignored. Hooks run with `sh -c` from the verified checkout for that version in `~/.gap/store/<id>/<commit>/`; treat that folder as read-only. Exit `0` is success. Any other exit fails that utility, makes the command exit `1`, and leaves the hook to run again next time. Command basenames must be unique within a utility and across registered components and `global/commands/`. Names of previously copied commands remain reserved until the owning utility is removed.
 
 Command publication stops if a registered user utility's manifest cannot be resolved from a verified local checkout, even when that utility is disabled or skipped for this run.
+
+During add, sync, and update, GAP registers MCP servers through each installed harness's own CLI: `claude mcp add --scope user`, `codex mcp add`, and `pi mcp add`. Registration follows [Hooks and trust](#hooks-and-trust). OMP, Cursor, and Empryo get none yet. A missing CLI is skipped for new registrations; if GAP already owns a server in that harness, a missing CLI makes the command exit `1` and preserves its ownership.
+
+First registration uses `CLAUDE_CONFIG_DIR` (default: your home directory), `CODEX_HOME` (default: `~/.codex`), or `PI_CODING_AGENT_DIR` (default: `~/.pi/agent`). Empty overrides use those defaults; nonempty overrides must be absolute paths. GAP records each server's configuration target in `~/.gap/state.json`. Later checks, updates, and removal use that recorded target even if the environment changes.
+
+Sync and update leave an unchanged registered server in place, remove and re-add it when its expanded declaration changes, and restore it if it is missing. A pin change only requires re-registration when it changes the expanded declaration, such as a command containing `{store}`. A server name you already configured in a harness, or one another utility owns, is left alone and reported, and the command exits `1`. If a failed add command nevertheless writes a registration, GAP retains ownership for later removal.
+
+GAP unregisters recorded servers through the harness CLIs when the manifest drops them or on `gap remove`. Removal happens before skills and commands move to backup. If MCP removal fails, `gap remove` exits `1`, retains the utility's config entry and pin, and records which servers still need removal. Resolve the reported failure and retry `gap remove <id>`.
 
 ## Skill catalog
 

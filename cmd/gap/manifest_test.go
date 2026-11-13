@@ -58,8 +58,8 @@ func TestReadmeManifestExample(t *testing.T) {
 	if err != nil {
 		t.Fatalf("README example manifest: %v", err)
 	}
-	if m.Hooks.Install == "" || m.Hooks.Uninstall == "" {
-		t.Fatalf("README example lost its hooks: %+v", m)
+	if m.Hooks.Install == "" || m.Hooks.Uninstall == "" || len(m.MCP) != 1 {
+		t.Fatalf("README example lost its hooks or mcp server: %+v", m)
 	}
 }
 
