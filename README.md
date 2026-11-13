@@ -150,7 +150,7 @@ Empryo reads `~/.empryo/EMPRYO.md`, which already holds SoulStack's block. The f
 
 Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP recommends three: `do-todo` (the policy tracks tasks every turn), `do-commit` and `but-axi` (the GitButler flow). Everything else loads by name when a task needs it. Until your pins match, `gap sync` prints the exact `settings` call. Ask an agent inside Empryo to run it. gap never changes Empryo's settings; it only writes its block in `EMPRYO.md`.
 
-`gap sync` also warns when `~/.empryo/skills/<name>` differs from a managed skill. Empryo loads that copy first, so the managed one never runs there.
+`gap sync` also warns when `~/.empryo/skills/<name>` differs from a managed skill. Empryo loads that copy first, so the managed one never runs there. It warns the same way for `~/.jcode/skills/<name>`, which jcode loads beside `~/.agents/skills`.
 
 ## Manage skills
 
@@ -364,6 +364,7 @@ GAP keeps no skill source. [Do-Skills](https://github.com/edheltzel/Do-Skills#re
 | Codex | `~/.codex/gap/global-agent-policy.md` (`$CODEX_HOME/gap/global-agent-policy.md` when nonempty), printed by the SessionStart and SubagentStart hooks | none |
 | Cursor | `~/.cursor/rules/global-agent-policy.mdc` | none |
 | Empryo | `~/.empryo/EMPRYO.md`, beside the SoulStack block. The first sync asks once, so run it from a terminal. | none |
+| jcode | `~/.jcode/prompt-overlay.md` (`$JCODE_HOME/prompt-overlay.md` when nonempty) | none |
 | Grok | No file of its own. It reads the Claude copy. | none |
 
 ### How sync tells its own files apart

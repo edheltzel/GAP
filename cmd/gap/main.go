@@ -81,6 +81,9 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
+	if err := checkHarnessHomes(home); err != nil {
+		return err
+	}
 	docsDir = filepath.Join(repoRoot, "global", "docs", "agents")
 	co, err := readCheckout(repoRoot)
 	if err != nil {
@@ -513,13 +516,7 @@ func ignoredPathBlocks(path string) bool {
 }
 
 func resolveCodexHome(env, home string) (string, error) {
-	if env == "" {
-		return filepath.Join(home, ".codex"), nil
-	}
-	if !filepath.IsAbs(env) {
-		return "", fmt.Errorf("CODEX_HOME must be an absolute path: %s", env)
-	}
-	return env, nil
+	return resolveHarnessHome("CODEX_HOME", env, filepath.Join(home, ".codex"))
 }
 
 const (

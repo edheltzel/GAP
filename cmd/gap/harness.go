@@ -1,16 +1,23 @@
 package main
 
-import "path/filepath"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
 
 // harness is one agent GAP delivers to. Paths are relative to $HOME. An empty policy is Codex, whose file lives under CODEX_HOME.
 // commands is the folder the harness loads user slash commands from; empty means GAP publishes no commands there.
 // mcp registers servers through the harness's own CLI. Add a path or CLI only after proving the harness loads it.
+// homeEnv names an environment variable that moves the harness home; policy is then relative to that home, which defaults to homeDir under $HOME.
 type harness struct {
 	name     string
 	policy   string
 	cursor   bool
 	commands string
 	mcp      *mcpCLI
+	homeEnv  string
+	homeDir  string
 }
 
 var harnesses = []harness{
@@ -20,6 +27,34 @@ var harnesses = []harness{
 	{name: "codex", mcp: codexMCP},
 	{name: "cursor", policy: ".cursor/rules/global-agent-policy.mdc", cursor: true},
 	{name: "empryo", policy: ".empryo/EMPRYO.md"},
+	{name: "jcode", policy: "prompt-overlay.md", homeEnv: "JCODE_HOME", homeDir: ".jcode"},
+}
+
+// resolveHarnessHome returns the harness home from its environment variable. Empty means unset; a relative value is refused.
+func resolveHarnessHome(name, env, fallback string) (string, error) {
+	if env == "" {
+		return fallback, nil
+	}
+	if !filepath.IsAbs(env) {
+		return "", fmt.Errorf("%s must be an absolute path: %s", name, env)
+	}
+	return env, nil
+}
+
+func harnessHome(h harness, home string) (string, error) {
+	return resolveHarnessHome(h.homeEnv, os.Getenv(h.homeEnv), filepath.Join(home, h.homeDir))
+}
+
+// checkHarnessHomes refuses a sync when a harness home variable is set to a relative path.
+func checkHarnessHomes(home string) error {
+	for _, h := range harnesses {
+		if h.homeEnv != "" {
+			if _, err := harnessHome(h, home); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 type policyDest struct {
@@ -31,7 +66,14 @@ func policyDests(home, codexPolicy string) []policyDest {
 	dests := make([]policyDest, 0, len(harnesses))
 	for _, h := range harnesses {
 		dest := codexPolicy
-		if h.policy != "" {
+		switch {
+		case h.homeEnv != "":
+			base, err := harnessHome(h, home)
+			if err != nil {
+				continue
+			}
+			dest = filepath.Join(base, filepath.FromSlash(h.policy))
+		case h.policy != "":
 			dest = filepath.Join(home, filepath.FromSlash(h.policy))
 		}
 		dests = append(dests, policyDest{dest, h.cursor})

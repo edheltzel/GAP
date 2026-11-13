@@ -1041,6 +1041,53 @@ func TestEmpryoDestination(t *testing.T) {
 	t.Fatalf("policyDests misses %s", want)
 }
 
+func TestJcodeOverlay(t *testing.T) {
+	jcodeDest := func(home string) string {
+		for _, d := range policyDests(home, policyPath) {
+			if strings.HasSuffix(d.dest, "prompt-overlay.md") {
+				return d.dest
+			}
+		}
+		return ""
+	}
+	t.Setenv("JCODE_HOME", "")
+	if got := jcodeDest("/h"); got != filepath.Join("/h", ".jcode", "prompt-overlay.md") {
+		t.Fatalf("default dest = %q", got)
+	}
+	t.Setenv("JCODE_HOME", "/opt/jc")
+	if got := jcodeDest("/h"); got != filepath.Join("/opt/jc", "prompt-overlay.md") {
+		t.Fatalf("JCODE_HOME dest = %q", got)
+	}
+	t.Setenv("JCODE_HOME", "rel/jc")
+	if err := checkHarnessHomes("/h"); err == nil || !strings.Contains(err.Error(), "JCODE_HOME") {
+		t.Fatalf("relative JCODE_HOME: %v", err)
+	}
+	if got := jcodeDest("/h"); got != "" {
+		t.Fatalf("relative JCODE_HOME still published to %q", got)
+	}
+
+	home := t.TempDir()
+	t.Setenv("JCODE_HOME", "")
+	dest := filepath.Join(home, ".jcode", "prompt-overlay.md")
+	foreign := "my overlay\n\n" + gapMarked("old\n") + "\ntail\n"
+	write(t, dest, foreign)
+	ledgerFile := filepath.Join(home, ".gap", "published.json")
+	ledger := map[string]string{}
+	if _, err := publishPolicy(source, dest, false, ledger, ledgerFile, true, home); err != nil {
+		t.Fatal(err)
+	}
+	got := readString(t, dest)
+	if !strings.HasPrefix(got, "my overlay\n\n") || !strings.HasSuffix(got, "\ntail\n") || strings.Count(got, "<!-- gap:begin -->") != 1 || strings.Contains(got, "old\n") {
+		t.Fatalf("overlay = %q", got)
+	}
+	info, _ := os.Stat(dest)
+	wrote, err := publishPolicy(source, dest, false, ledger, ledgerFile, true, home)
+	after, _ := os.Stat(dest)
+	if err != nil || wrote && !info.ModTime().Equal(after.ModTime()) || readString(t, dest) != got {
+		t.Fatalf("second publish changed the overlay: %v %v", wrote, err)
+	}
+}
+
 func TestEmpryoSpliceKeepsSoulStack(t *testing.T) {
 	home := t.TempDir()
 	dest := filepath.Join(home, ".empryo", "EMPRYO.md")
