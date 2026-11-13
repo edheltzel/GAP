@@ -193,7 +193,7 @@ func TestUninstallDryRunChangesNothing(t *testing.T) {
 func TestHarnessHomeValidation(t *testing.T) {
 	for _, key := range []string{"CODEX_HOME", "JCODE_HOME"} {
 		t.Run(key, func(t *testing.T) {
-			t.Setenv("JCODE_HOME", "")
+			unsetEnv(t, "JCODE_HOME")
 			e := newUtilityEnv(t, hookManifest)
 			readyEnvReviewDistro(t, e.repo)
 			captureStd(t, func() {

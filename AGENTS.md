@@ -14,7 +14,7 @@ Machine `gap sync` writes `global/AGENTS.md` between `<!-- gap:begin -->` and `<
 - `~/.codex/gap/global-agent-policy.md` (`CODEX_HOME` when set). SessionStart and SubagentStart hooks print that file. Sync leaves old policy text in `~/.codex/AGENTS.md`, so Codex loads the policy twice until `gap sync --remove-codex-legacy`. Run the flag only after both hooks are trusted in `/hooks`; it refuses unless both were in `hooks.json` before that run. Empty `CODEX_HOME` means unset. A relative `CODEX_HOME` is refused.
 - `~/.cursor/rules/global-agent-policy.mdc`
 - `~/.empryo/EMPRYO.md`. Empryo loads it into every tab. SoulStack keeps its own marked block there, so the first sync is a foreign-file splice and needs a terminal yes.
-- `~/.jcode/prompt-overlay.md` (`$JCODE_HOME/prompt-overlay.md` when set). jcode reads it into every new session. Empty `JCODE_HOME` means unset. A relative `JCODE_HOME` is refused.
+- `~/.jcode/prompt-overlay.md` (`$JCODE_HOME/prompt-overlay.md` when set). jcode reads it into every new session. Unlike `CODEX_HOME`, a set but empty `JCODE_HOME` is refused: jcode would read the overlay from its working folder. A relative `JCODE_HOME` is refused.
 - `~/.omp/agent/commands/<name>.md` for each `global/commands/<name>.md`
 - `~/.claude/commands/<name>.md` for the same file. Claude Code loads that directory as user slash commands. `$ARGUMENTS` and `argument-hint` are Claude's own syntax, so the file is copied unchanged.
 - `~/.pi/agent/prompts/<name>.md` for the same file. Pi loads that directory as prompt templates and expands `$ARGUMENTS` (proved 2026-11-12 with a probe template under Pi 1.5.2).

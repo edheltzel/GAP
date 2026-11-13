@@ -1062,7 +1062,7 @@ func TestJcodeOverlay(t *testing.T) {
 		}
 		return ""
 	}
-	t.Setenv("JCODE_HOME", "")
+	unsetEnv(t, "JCODE_HOME")
 	if got := jcodeDest("/h"); got != filepath.Join("/h", ".jcode", "prompt-overlay.md") {
 		t.Fatalf("default dest = %q", got)
 	}
@@ -1076,7 +1076,7 @@ func TestJcodeOverlay(t *testing.T) {
 	}
 
 	home := t.TempDir()
-	t.Setenv("JCODE_HOME", "")
+	unsetEnv(t, "JCODE_HOME")
 	dest := filepath.Join(home, ".jcode", "prompt-overlay.md")
 	foreign := "my overlay\n\n" + gapMarked("old\n") + "\ntail\n"
 	write(t, dest, foreign)

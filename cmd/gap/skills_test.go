@@ -711,7 +711,7 @@ func TestEmpryoShadowWarning(t *testing.T) {
 			if tc.shadow != "" {
 				put(t, shadow, tc.shadow)
 			}
-			t.Setenv("JCODE_HOME", "")
+			unsetEnv(t, "JCODE_HOME")
 			warnings := shadowWarnings(home, tc.skill)
 			got := strings.Join(warnings, "\n")
 			if (got != "") != tc.warn || len(warnings) > 1 {
@@ -743,7 +743,7 @@ func TestShadowJcode(t *testing.T) {
 			home := t.TempDir()
 			put(t, filepath.Join(home, ".agents", "skills", "do-todo"), "same\n")
 			base := filepath.Join(home, ".jcode")
-			t.Setenv("JCODE_HOME", "")
+			unsetEnv(t, "JCODE_HOME")
 			if tc.env {
 				base = filepath.Join(t.TempDir(), "jc")
 				t.Setenv("JCODE_HOME", base)

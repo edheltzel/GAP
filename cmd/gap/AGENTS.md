@@ -53,7 +53,7 @@ Doctor also asks Echo's verified pinned store for `scripts/install.sh --list-ins
 - `$CODEX_HOME/gap/global-agent-policy.md` (`~/.codex` when unset)
 - `~/.cursor/rules/global-agent-policy.mdc`
 - `~/.empryo/EMPRYO.md`. The SoulStack block and any other text there stay outside the GAP markers.
-- `$JCODE_HOME/prompt-overlay.md` (`~/.jcode` when unset; a relative `JCODE_HOME` stops the sync). Text outside the GAP markers stays as written.
+- `$JCODE_HOME/prompt-overlay.md` (`~/.jcode` when unset; a relative or set but empty `JCODE_HOME` stops the sync, because jcode reads an empty one as its working folder). Text outside the GAP markers stays as written.
 - `~/.omp/agent/commands/<name>.md` for each `global/commands/*.md`
 - `~/.claude/commands/<name>.md` for the same file. Claude Code loads that path as a user slash command. The prompt uses Claude's `$ARGUMENTS` and `argument-hint`, so the file is copied unchanged.
 - `~/.pi/agent/prompts/<name>.md` for the same file. Pi loads that directory as prompt templates and expands `$ARGUMENTS` (proved 2026-11-12 with a probe template under Pi 1.5.2).

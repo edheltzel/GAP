@@ -41,8 +41,14 @@ func resolveHarnessHome(name, env, fallback string) (string, error) {
 	return env, nil
 }
 
+// harnessHome resolves a harness home from homeEnv. Unlike CODEX_HOME, a set but empty value is refused:
+// jcode reads it as an empty path and loads its files from the working folder.
 func harnessHome(h harness, home string) (string, error) {
-	return resolveHarnessHome(h.homeEnv, os.Getenv(h.homeEnv), filepath.Join(home, h.homeDir))
+	env, set := os.LookupEnv(h.homeEnv)
+	if set && env == "" {
+		return "", fmt.Errorf("%s is set but empty, so %s would read %s from its working folder; unset it", h.homeEnv, h.name, h.policy)
+	}
+	return resolveHarnessHome(h.homeEnv, env, filepath.Join(home, h.homeDir))
 }
 
 type policyDest struct {
