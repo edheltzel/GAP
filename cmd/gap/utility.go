@@ -155,7 +155,14 @@ func addUtility(spec, id string) error {
 	if err := setUserPin(home, id, pin); err != nil {
 		return err
 	}
-	return installUtility(home, repoRoot, projectRoot, id, "", mcpInventory{})
+	err = installUtility(home, repoRoot, projectRoot, id, "", mcpInventory{})
+	switch {
+	case err == nil:
+		out.done(true, id+" added"+pinLabel(pin))
+	case errors.Is(err, errSkipped):
+		out.done(false, id+" added"+pinLabel(pin)+"; some install steps were left over, see above")
+	}
+	return err
 }
 
 func describeUtility(m utilityManifest) string {
@@ -283,7 +290,7 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpIn
 	return nil
 }
 
-func updateUtilities(id string) error {
+func updateUtilities(id string) (resultErr error) {
 	home, repoRoot, err := gapHomes()
 	if err != nil {
 		return err
@@ -300,10 +307,6 @@ func updateUtilities(id string) error {
 	if err != nil {
 		return err
 	}
-	lk, err := readLock(userConfigDir(home))
-	if err != nil {
-		return err
-	}
 	var ids []string
 	for _, cid := range sortedIDs(d.Components) {
 		if d.Components[cid].User && (id == "" || cid == id) {
@@ -316,11 +319,49 @@ func updateUtilities(id string) error {
 		}
 		return fmt.Errorf("utility %s is not added; run gap add owner/repo", id)
 	}
+	out := newReport(os.Stdout)
+	if len(ids) == 0 {
+		var distroIDs []string
+		for _, cid := range sortedIDs(d.Components) {
+			if !d.Components[cid].User {
+				distroIDs = append(distroIDs, cid)
+			}
+		}
+		out.println("No utilities added, so there is nothing to update; gap add owner/repo adds one.")
+		if len(distroIDs) > 0 {
+			out.println("Distro components (" + strings.Join(distroIDs, ", ") + ") update with gap pin <id>@<ref>, then gap sync.")
+		}
+		return nil
+	}
+	checked, updated := 0, 0
+	defer func() {
+		for _, cid := range ids[checked:] {
+			out.done(false, cid+" was not checked; update stopped")
+		}
+		noun := "utilities"
+		if checked == 1 {
+			noun = "utility"
+		}
+		summary := fmt.Sprintf("%d %s checked: %d updated, %d up to date", checked, noun, updated, checked-updated)
+		if checked < len(ids) {
+			summary += fmt.Sprintf("; %d not checked", len(ids)-checked)
+		}
+		switch {
+		case errors.Is(resultErr, errSkipped):
+			summary += "; some install steps were left over, see above"
+		case resultErr != nil:
+			summary += "; update failed"
+		}
+		out.done(resultErr == nil, summary)
+	}()
+	lk, err := readLock(userConfigDir(home))
+	if err != nil {
+		return err
+	}
 	state, err := readState(home)
 	if err != nil {
 		return err
 	}
-	out := newReport(os.Stdout)
 	baselines := map[string]string{}
 	for _, cid := range ids {
 		c := d.Components[cid]
@@ -339,7 +380,7 @@ func updateUtilities(id string) error {
 			baselines[cid] = storePath(home, cid, prev.Commit)
 		}
 		if pinned && prev.Commit == commit && prev.Ref == c.Ref {
-			out.result(true, cid+" is up to date"+pinLabel(prev))
+			out.done(true, cid+" is up to date"+pinLabel(prev))
 		} else {
 			pin, err := pinCommit(home, c, c.Ref, commit, prev)
 			if err != nil {
@@ -352,8 +393,14 @@ func updateUtilities(id string) error {
 			if err := writeLock(userConfigDir(home), lk); err != nil {
 				return err
 			}
-			out.result(true, cid+" pinned"+pinLabel(pin))
+			updated++
+			if pinned {
+				out.done(true, fmt.Sprintf("%s moved from %s to %s @ %s", cid, prev.Commit[:min(7, len(prev.Commit))], commit[:7], c.Ref))
+			} else {
+				out.done(true, cid+" pinned"+pinLabel(pin))
+			}
 		}
+		checked++
 	}
 	requested := distro{Components: map[string]component{}}
 	for _, cid := range ids {
@@ -701,9 +748,9 @@ func removeUtility(id string) error {
 		fmt.Printf("Kept your edited copy at %s\n", path)
 	}
 	if moved > 0 {
-		out.result(true, fmt.Sprintf("%s removed; its files moved to %s", id, backup))
+		out.done(true, fmt.Sprintf("%s removed; its files moved to %s", id, backup))
 	} else {
-		out.result(true, id+" removed")
+		out.done(true, id+" removed")
 	}
 	return nil
 }

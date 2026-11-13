@@ -714,7 +714,9 @@ func restoreAll(id string) error {
 	if err != nil {
 		return err
 	}
+	out := newReport(os.Stdout)
 	if d.Profile == "crew" {
+		out.done(true, "Crew profile: no component skills are managed here, so there is nothing to restore.")
 		return nil
 	}
 	if id != "" {
@@ -723,6 +725,8 @@ func restoreAll(id string) error {
 		}
 	}
 	ok := true
+	restored := 0
+	checked := 0
 	for _, cid := range sortedIDs(d.Components) {
 		if id != "" && cid != id {
 			continue
@@ -742,6 +746,7 @@ func restoreAll(id string) error {
 		for _, entry := range selectedEntries(c, dir, projectRoot) {
 			target := entryHome(home, entry)
 			for _, name := range entry.Skills {
+				checked++
 				if skillDriftCount(dir, target, name) == 0 {
 					continue
 				}
@@ -749,13 +754,29 @@ func restoreAll(id string) error {
 				if err != nil || !replaced {
 					fmt.Fprintf(os.Stderr, "Restoring %s: %v\n", name, err)
 					ok = false
+					continue
 				}
+				restored++
+				out.done(true, "restored "+name+" from "+cid+pinLabel(e))
 			}
 		}
 	}
 	if !ok {
 		return errSkipped
 	}
+	if restored == 0 {
+		scope := ""
+		if id != "" {
+			scope = " for " + id
+		}
+		if checked == 0 {
+			out.done(true, "Nothing to restore: no component skills selected"+scope+".")
+		} else {
+			out.done(true, "Nothing to restore: checked "+plural(checked, "selected skill")+scope+"; each matches its pin.")
+		}
+		return nil
+	}
+	out.done(true, "Restored "+plural(restored, "skill")+".")
 	return nil
 }
 
@@ -792,8 +813,21 @@ func pinComponent(spec string) error {
 	if err != nil {
 		return err
 	}
+	prev, pinned := lk.Components[id]
 	lk.Components[id] = pin
-	return writeLock(repoRoot, lk)
+	if err := writeLock(repoRoot, lk); err != nil {
+		return err
+	}
+	out := newReport(os.Stdout)
+	switch {
+	case pinned && prev.Commit == pin.Commit && prev.Ref == pin.Ref:
+		out.done(true, id+" is already pinned"+pinLabel(pin)+"; gap.lock unchanged")
+	case pinned:
+		out.done(true, fmt.Sprintf("%s pin moved from %s to %s @ %s in gap.lock; run gap sync to install it", id, prev.Commit[:min(7, len(prev.Commit))], pin.Commit[:7], pin.Ref))
+	default:
+		out.done(true, id+" pinned"+pinLabel(pin)+" in gap.lock; run gap sync to install it")
+	}
+	return nil
 }
 
 func pinCommit(home string, c component, ref, commit string, prev lockEntryM1) (lockEntryM1, error) {

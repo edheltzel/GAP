@@ -51,7 +51,7 @@ It previews what it will remove and asks on a terminal (`--yes` skips the questi
 
 Skills are removed from both `~/.agents/skills/` and `~/.claude/skills/` when recorded in a component's `skills` or `skillCopies`, or selected by `global/skills.json` with a matching source in the skills.sh lock. An unreadable or malformed skills lock stops discovery before removal. Policy, command, skill, and Codex hook backups go under `~/.gap/backups/<time>/`; utility removals can use separate timestamped folders. Before removing utilities, GAP saves their skill and command ownership in `~/.gap/state.json` so cleanup can resume after an interruption. After cleanup succeeds, it deletes `~/.gap/store/`, `~/.gap/state.json`, and `~/.gap/published.json`. A failed cleanup exits `1` and keeps the records for a retry.
 
-It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/checkouts/`, your remaining `~/.config/gap/` settings, and the `gap` binary. It prints a `trash` command for the binary. Copy out any saved files you want, then trash `~/.gap/` yourself.
+It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/checkouts/`, your remaining `~/.config/gap/` settings, and the `gap` binary. It prints a `trash` command for the binary and confirms successful cleanup with `Uninstall complete.` Copy out any saved files you want, then trash `~/.gap/` yourself.
 
 ## Commands
 
@@ -74,7 +74,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `go test ./...` | Run the self-test against throwaway folders |
 
-Use `gap --help` or `gap <command> --help` for usage and flags. Status and doctor reports use color and tables in terminals, and plain text when redirected.
+Use `gap --help` or `gap <command> --help` for usage and flags. Status and doctor reports use color and tables in terminals, and plain text when redirected. Add, update, restore, pin, remove, and uninstall outcome lines also appear when redirected, as plain text.
 
 ## Change the policy
 
@@ -191,6 +191,8 @@ names = ["do-commit", "do-todo"]
 
 `gap pin do-skills@master` writes the requested ref, resolved commit, and tree to `gap.lock`. If a branch and tag share a name, use `refs/heads/<name>` or `refs/tags/<name>` to choose one. Machine sync fetches the locked commit into `~/.gap/store/<id>/<commit>/`, checks its tree against the lock, and installs the selected skills as described above. Sync never moves a pin. A component missing from `gap.lock` stops the sync and names the `gap pin` command to run. `gap.toml` and `gap.lock` pass the same merge gate as `global/`.
 
+Pin confirms the new pin, shows the old and new commits when it moves, or reports that it is already current. A new or moved pin includes a reminder to run `gap sync` to install it.
+
 The distro includes Do-Skills, Forge, Echo, and Recall. Forge supplies `forge-interview`. Echo and Recall have empty skill lists: machine sync runs their `install` commands from their verified stores, and those installers own their skills and runtime prerequisites. Hook timing and state are described under [Hooks and trust](#hooks-and-trust). Gap copies no skills from them and never installs a harness.
 
 `gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing pins, missing or changed stores, and failed doctors produce exit `1`; doctor does not fetch missing components.
@@ -200,6 +202,8 @@ Doctor also records the adapters Echo reports in `~/.gap/state.json`, when the p
 `gap status` checks component source checkouts and selected component skills, using the locked ref when pinned. It does not check Recall's memory database or additional manifest skills. `store=missing` means the checkout is absent, `store=changed` means its source files differ from the pin, and `store=unpinned` means `gap.lock` has no entry. For these states, it prints the matching repair command. Ignored, untracked build output does not change the result; tracked edits, deletions, and mode changes still do. Skill drift is checked only when the source checkout matches the lock; an unreadable checkout reports an error.
 
 Status and `gap restore [id]` use the same component overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
+
+Restore names each repaired skill and its source pin, then reports the total restored. If nothing needs repair, it reports how many selected skills were checked, or that none were selected. An id limits that confirmation to the requested component.
 
 ### Load levels
 
@@ -271,6 +275,8 @@ gap add owner/repo --id tools # another id; the default is the repo name, lowerc
 
 `gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs what it declares in the [manifest](#publish-a-utility). These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved sync group names. User utility skills install under home; `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
 
+Add confirms the utility id, ref, and commit on success, and flags skipped installation steps when registration succeeded but installation is incomplete.
+
 ```toml
 # ~/.config/gap/gap.toml, as written by gap add
 [components.tools]
@@ -285,9 +291,11 @@ ref = "master"
 | See what is added | `gap list` | One line per component: id, `distro` or `user`, repo, ref, commit, and whether its hooks run, ask, or are trusted |
 | Remove | `gap remove <id>` | Runs the `uninstall` hook, unregisters its [MCP servers](#publish-a-utility), moves the skills and commands GAP placed for it into one `~/.gap/backups/<time>/` folder, and drops its config entry, pin, and record. An edited copy is named in the output |
 
+Update reports each utility's pin change or that it is up to date, then totals the utilities checked, updated, and up to date. Those counts describe pins; the summary also flags failed updates or skipped installation steps. Once utilities are selected, failures still print the summary and name utilities whose pins were not checked. With no added utilities, update explains there is nothing to update, shows `gap add owner/repo`, and lists any distro components with their `gap pin <id>@<ref>`, then `gap sync` update path.
+
 Before installing any utility, update verifies every requested source checkout, including disabled utilities, and rebuilds missing or corrupt caches even when the pin is already current. Update compares each skill with its last copied version, tracked separately from hook completion in `~/.gap/state.json`. If an update hook fails, fix its cause and rerun `gap update [id]`: installation retries even when the pin is already current.
 
-GAP removes only the files it recorded for that utility in `~/.gap/state.json`, keeping files another source still selects. If it cannot determine remaining component selections from verified local checkouts, removal stops before running the uninstall hook; run `gap sync` before retrying. If a successfully installed, untrusted utility has an `install` hook and no `uninstall` hook, `gap remove` warns that it cannot undo what the installer did. A failing or unapproved `uninstall` hook stops `gap remove` before anything moves.
+GAP removes only the files it recorded for that utility in `~/.gap/state.json`, keeping files another source still selects. If it cannot determine remaining component selections from verified local checkouts, removal stops before running the uninstall hook; run `gap sync` before retrying. If a successfully installed, untrusted utility has an `install` hook and no `uninstall` hook, `gap remove` warns that it cannot undo what the installer did. A failing or unapproved `uninstall` hook stops `gap remove` before anything moves. Successful removal confirms the utility id and, when files were moved, the backup folder.
 
 ### Hooks and trust
 
