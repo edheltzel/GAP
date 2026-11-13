@@ -35,9 +35,8 @@ func rootCmd() *cobra.Command {
 those harnesses already read, installs the skills listed in global/skills.json,
 and installs each component pinned in gap.toml from gap.lock.
 
-gap publishes the checkout it was built from. Reinstall with
-curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/install.sh | sh
-after cmd/gap changes.
+Installation, source checkout requirements, and updates:
+https://gap.edheltzel.codes/docs/#install-gap
 Component skills install from the pinned store with no Node. Skills in
 global/skills.json that are not pinned still install through skills.sh, which needs Node (npx).
 sync never moves pins. pin is the only command that writes the distro's gap.lock.
