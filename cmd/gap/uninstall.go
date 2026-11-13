@@ -573,6 +573,6 @@ func uninstallAll(opts uninstallOptions) error {
 	if bin, err := os.Executable(); err == nil {
 		fmt.Println("To remove the gap binary, run: trash " + shellQuote(bin))
 	}
-	out.result(true, "Uninstall complete.")
+	out.done(true, "Uninstall complete.")
 	return nil
 }

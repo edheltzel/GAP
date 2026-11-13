@@ -93,6 +93,15 @@ func (r *report) result(ok bool, text string) {
 	r.printf("  %s %s\n", r.tone(mark, hex), text)
 }
 
+// done prints an outcome line everywhere: the plain text when piped, a marked line on a terminal.
+func (r *report) done(ok bool, text string) {
+	if !r.tty {
+		r.println(text)
+		return
+	}
+	r.result(ok, text)
+}
+
 // warn prints plain on a pipe and as a flagged line on a terminal.
 func (r *report) warn(plain, name, detail string) {
 	if !r.tty {
