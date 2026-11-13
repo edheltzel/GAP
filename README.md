@@ -32,6 +32,8 @@ That one line does four things:
 3. It builds `gap` with `go install ./cmd/gap` and puts the binary in Go's bin folder.
 4. It checks whether your shell can find that folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it.
 
+Without Go, or with `GAP_VERSION=<tag>` set, the script installs a release instead: it downloads the `gap` binary for your system from GitHub releases, checks its sha256 against `checksums.txt` and stops on a mismatch, installs it to `~/.local/bin` (or `$GAP_BIN_DIR`), and clones the repo into `~/.gap/checkout`, which that binary publishes from. Rerun the script to update both.
+
 Installation also needs git. It writes the source checkout and Go binary. `gap sync` publishes the policy and installs the selected components and skills.
 
 Already have the repo checked out? From its root, `sh scripts/install.sh` builds that copy instead of cloning, including when stdin is redirected. Keep that checkout too.
@@ -44,18 +46,15 @@ gap sync
 
 `gap` publishes the checkout it was built from, so it runs from any folder. Run the curl command again after `cmd/gap` changes. To skip installing, run `go run ./cmd/gap sync` from a checkout.
 
-To uninstall, there is no `gap uninstall` yet. Do these steps in order: steps 1 and 3 need the records in `~/.gap/`, so trash it last.
+To uninstall, run:
 
-Use the Codex home used for publication: `<codex-home>` below means the absolute `CODEX_HOME` value, or `~/.codex` when empty or unset.
+```bash
+gap uninstall
+```
 
-1. Run `gap list`, then `gap remove <id>` for every entry whose `SOURCE` is `user`, including disabled utilities. Finish all removals before continuing; see [utility removal rules](#add-a-utility) for hook approval, failures, and shared files. Keep `~/.gap/state.json` until then so GAP can find each utility's installation.
-2. If `<codex-home>/AGENTS.md` still holds an old unmarked GAP policy prefix, follow [Set up Codex](#set-up-codex-once-per-machine) to run `gap sync --remove-codex-legacy` first. Keep the policy file, both trusted GAP hooks, and `~/.gap/published.json` until that cleanup succeeds. Preserve unrelated rules in `AGENTS.md`.
-3. For each file listed in [Where each agent reads the policy](#where-each-agent-reads-the-policy), and `<codex-home>/AGENTS.md`:
-   - If it has `<!-- gap:begin -->` and `<!-- gap:end -->`, delete that text, markers included. Delete a file that held only that block.
-   - If it has no markers, an older `gap` may have written the whole file. For those publications, `~/.gap/published.json` records each file's absolute path and whole-file SHA-256. When `shasum -a 256 <file>` matches that path's digest, delete the file or restore a saved copy from `~/.gap/backups/`. If the entry is missing or does not match, leave the file untouched.
-   - Use `<codex-home>/gap/global-agent-policy.md` for the Codex policy.
-4. Remove only the GAP SessionStart and SubagentStart hooks that print that policy from `<codex-home>/hooks.json`, and each published `global/commands/*.md` from `~/.claude/commands/`, `~/.pi/agent/prompts/`, and `~/.omp/agent/commands/`.
-5. Trash the installed `gap` binary: `$(go env GOBIN)/gap` if `GOBIN` was nonempty at installation, otherwise `$(go env GOPATH)/bin/gap`. Use the location from that installation if your Go settings have since changed. Copy out any saved files you want from `~/.gap/backups/` and `~/.gap/recovery/`, then trash `~/.gap/`; those folders are not a complete replacement history. Distro skills stay in `~/.agents/skills` and `~/.claude/skills` until you remove them.
+It previews what it will remove and asks on a terminal (`--yes` skips the question, `--dry-run` only previews). Use the same `CODEX_HOME` you published with. It removes every utility the way `gap remove` does, the MCP servers and commands recorded for components, the GAP block from each policy file, the GAP Codex hooks, published commands that still match `~/.gap/published.json`, and the skills GAP recorded installing. It moves what it removes into one `~/.gap/backups/<time>/` folder. A file GAP did not write stays and is listed. If a step fails, it exits `1` and keeps `~/.gap/state.json` and `~/.gap/published.json`, so you can fix the problem and run it again.
+
+It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkouts/`, your `~/.config/gap/` settings, and the `gap` binary. It prints a `trash` command for the binary. Copy out any saved files you want, then trash `~/.gap/` yourself.
 
 ## Commands
 
@@ -72,6 +71,8 @@ Use the Codex home used for publication: `<codex-home>` below means the absolute
 | `gap add <owner/repo[@ref]> [--id <id>]` | Add a utility: pin a repo that ships a `gap-utility.toml` and install it. See [Add a utility](#add-a-utility) |
 | `gap update [id]` | Update one utility, or every utility you added when the id is omitted. See [Add a utility](#add-a-utility) |
 | `gap remove <id>` | Remove a utility and its recorded installations. See [Add a utility](#add-a-utility) |
+| `gap uninstall [--yes] [--dry-run]` | Preview, then remove everything `gap sync` and `gap add` installed, using GAP's records. Keeps backups, recovery copies, and the binary. See [Install `gap`](#install-gap) |
+| `gap search [query]` | Search `catalog.toml`, the list of known utilities, by id, tag, or description, and print the `gap add` command for each match. Marks utilities already added |
 | `gap list` | List every component and utility with its source, ref, pinned commit, and hook trust |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `go test ./...` | Run the self-test against throwaway folders |

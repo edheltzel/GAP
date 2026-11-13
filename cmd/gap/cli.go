@@ -50,7 +50,7 @@ gap-utility.toml, recorded in ~/.config/gap/gap.toml and pinned in ~/.config/gap
 			return cmd.Help()
 		},
 	}
-	root.AddCommand(syncCmd(), statusCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), updateCmd(), removeCmd(), listCmd())
+	root.AddCommand(syncCmd(), statusCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd())
 	return root
 }
 
@@ -174,6 +174,36 @@ func removeCmd() *cobra.Command {
 		Short: "Run a utility's uninstall hook, move its files to ~/.gap/backups, and drop it",
 		Args:  cobra.ExactArgs(1),
 		RunE:  func(cmd *cobra.Command, args []string) error { return finish(removeUtility(args[0])) },
+	}
+}
+
+func uninstallCmd() *cobra.Command {
+	var opts uninstallOptions
+	cmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Remove everything gap sync and gap add put on this machine, from GAP's records",
+		Long: `uninstall removes every utility the way gap remove does, then the MCP servers and
+commands recorded for distro components, the GAP block from each policy file (a file
+with no markers is deleted only when it matches ~/.gap/published.json), the GAP Codex
+hooks, published global commands that match the ledger, and the skills GAP recorded
+installing. Anything GAP did not write is left and listed. It previews first and asks
+on a terminal. ~/.gap/store, state.json, and published.json are removed only after
+every step succeeds; a failure exits 1 and keeps them so the command can run again.
+~/.gap/backups, ~/.gap/recovery, your ~/.config/gap settings, and the gap binary stay.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error { return finish(uninstallAll(opts)) },
+	}
+	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "remove without asking")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "print what would be removed and change nothing")
+	return cmd
+}
+
+func searchCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "search [query]",
+		Short: "Search the utility catalog and print the gap add command for each match",
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  func(cmd *cobra.Command, args []string) error { exitCode = runSearch(args); return nil },
 	}
 }
 
