@@ -243,22 +243,6 @@ func empryoPinAdvice(home string) string {
 	return fmt.Sprintf("Empryo pins %d skills in skills.autoLoad; GAP recommends %s. Ask an agent inside Empryo to run:\n  settings(action:\"set\", key:\"skills.autoLoad\", value:'%s', scope:\"global\")", len(config.Skills.AutoLoad), strings.Join(empryoPins, ", "), want)
 }
 
-type policyDest struct {
-	dest   string
-	cursor bool
-}
-
-func policyDests(home, codexPolicy string) []policyDest {
-	return []policyDest{
-		{filepath.Join(home, ".claude", "rules", "global-agent-policy.md"), false},
-		{filepath.Join(home, ".pi", "agent", "APPEND_SYSTEM.md"), false},
-		{filepath.Join(home, ".omp", "agent", "APPEND_SYSTEM.md"), false},
-		{codexPolicy, false},
-		{filepath.Join(home, ".cursor", "rules", "global-agent-policy.mdc"), true},
-		{filepath.Join(home, ".empryo", "EMPRYO.md"), false},
-	}
-}
-
 func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath string) (bool, error) {
 	if err := checkCommandOwners(repoRoot, home, distro{}); err != nil {
 		return false, err
@@ -301,13 +285,6 @@ func globalCommandNames(repoRoot string) ([]string, error) {
 		}
 	}
 	return names, nil
-}
-
-func commandDests(home, name string) []string {
-	return []string{
-		filepath.Join(home, ".omp", "agent", "commands", name),
-		filepath.Join(home, ".claude", "commands", name),
-	}
 }
 
 // publishComponentCommands publishes each component's manifest commands like global/commands and returns the paths it owns per id.

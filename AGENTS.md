@@ -16,6 +16,9 @@ Machine `gap sync` writes `global/AGENTS.md` between `<!-- gap:begin -->` and `<
 - `~/.empryo/EMPRYO.md`. Empryo loads it into every tab. SoulStack keeps its own marked block there, so the first sync is a foreign-file splice and needs a terminal yes.
 - `~/.omp/agent/commands/<name>.md` for each `global/commands/<name>.md`
 - `~/.claude/commands/<name>.md` for the same file. Claude Code loads that directory as user slash commands. `$ARGUMENTS` and `argument-hint` are Claude's own syntax, so the file is copied unchanged.
+- `~/.pi/agent/prompts/<name>.md` for the same file. Pi loads that directory as prompt templates and expands `$ARGUMENTS` (proved 2026-11-12 with a probe template under Pi 1.5.2).
+
+The destinations come from the `harnesses` table in `cmd/gap/harness.go`. Codex, Cursor, and Empryo have no command destination: Codex 0.167 no longer reads custom prompts, and Cursor's and Empryo's command folders are unproven.
 
 The CLI writes regular files. Do not symlink those paths. Do not add Stow. Publish only from the primary branch (`origin/HEAD`, `master` here) or GitButler's `gitbutler/workspace`, not from another branch or a worktree. Sync writes the policy between `<!-- gap:begin -->` and `<!-- gap:end -->`. A file that already has those markers is updated in place. Only the block changes, and the rest stays byte for byte. A foreign policy file with no markers stays unless a terminal answers yes. Yes backs that file up under `~/.gap/backups/` and appends the block, so the harness keeps loading the rest. No prompt leaves that file alone and the other destinations still publish. A symlink is still moved aside after a yes. That harness stops loading the old target. The backup keeps those bytes only. Command files are whole-file copies. A foreign command file is replaced after a yes. That harness stops loading the old file. The backup keeps the bytes only. Empty `CODEX_HOME` means unset. A relative `CODEX_HOME` is refused. Grok already loads `~/.claude/rules/global-agent-policy.md` when Claude compatibility is on. Confirm with `grok inspect` before adding a Grok destination. A second copy loads the policy twice. The human note is in `README.md`.
 Do not point `~/CLAUDE.md` at the shared file. An ancestor `CLAUDE.md` suppresses that project's `AGENTS.md`.
@@ -25,7 +28,7 @@ After a shared markdown change is merged and pulled, run `gap sync`. Sync refuse
 ## Edit
 
 - Change a shared rule in `global/`, then sync. Do not paste the rule into a harness home by hand.
-- Add a harness destination in `cmd/gap/main.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
+- Add a harness destination in `cmd/gap/harness.go` only when that harness actually loads the path. Sync writes that payload. If nothing reads it, the copy is dead.
 - A utility describes itself with a `gap-utility.toml` in its own repo; a user adds one with `gap add` into `~/.config/gap/`, never into this repo's `gap.toml`. Contract: [Publish a utility](README.md#publish-a-utility).
 - Skill source lives in its component repo, not here. Change a `do-*` skill in Do-Skills, then move the pin with `gap pin do-skills@master`. Installation selection is in [Manage skills](README.md#manage-skills).
 - `docs/solutions/` holds documented solutions to past problems, by category, with YAML frontmatter (`module`, `tags`, `problem_type`). `CONCEPTS.md` is the shared domain vocabulary. Relevant when implementing or debugging in a documented area, or when a domain word is unclear.

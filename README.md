@@ -54,7 +54,7 @@ Use the Codex home used for publication: `<codex-home>` below means the absolute
    - If it has `<!-- gap:begin -->` and `<!-- gap:end -->`, delete that text, markers included. Delete a file that held only that block.
    - If it has no markers, an older `gap` may have written the whole file. For those publications, `~/.gap/published.json` records each file's absolute path and whole-file SHA-256. When `shasum -a 256 <file>` matches that path's digest, delete the file or restore a saved copy from `~/.gap/backups/`. If the entry is missing or does not match, leave the file untouched.
    - Use `<codex-home>/gap/global-agent-policy.md` for the Codex policy.
-4. Remove only the GAP SessionStart and SubagentStart hooks that print that policy from `<codex-home>/hooks.json`, and each published `global/commands/*.md` from `~/.claude/commands/` and `~/.omp/agent/commands/`.
+4. Remove only the GAP SessionStart and SubagentStart hooks that print that policy from `<codex-home>/hooks.json`, and each published `global/commands/*.md` from `~/.claude/commands/`, `~/.pi/agent/prompts/`, and `~/.omp/agent/commands/`.
 5. Trash the installed `gap` binary: `$(go env GOBIN)/gap` if `GOBIN` was nonempty at installation, otherwise `$(go env GOPATH)/bin/gap`. Use the location from that installation if your Go settings have since changed. Copy out any saved files you want from `~/.gap/backups/` and `~/.gap/recovery/`, then trash `~/.gap/`; those folders are not a complete replacement history. Distro skills stay in `~/.agents/skills` and `~/.claude/skills` until you remove them.
 
 ## Commands
@@ -102,7 +102,7 @@ gap sync
 
 It reports each file it wrote using the [terminal or plain-text format](#choose-what-syncs).
 
-Policy files are the shared rules. Each top-level `global/commands/*.md` is a slash-command prompt, copied unchanged as a whole file to OMP and Claude Code. See [how sync handles existing files](#step-4-answer-if-gap-sync-asks-about-a-file).
+Policy files are the shared rules. Each top-level `global/commands/*.md` is a slash-command prompt, copied unchanged as a whole file to Claude Code, Pi, and OMP. See [how sync handles existing files](#step-4-answer-if-gap-sync-asks-about-a-file).
 
 The bundled [`/state-docs`](global/commands/state-docs.md) prompt writes project maps under `docs/state`. It follows the skill in a local clone of [nessa-docs](https://github.com/nessalabs/nessa-docs), found through `NESSA_DOCS`; see the prompt for arguments.
 
@@ -327,7 +327,7 @@ uninstall = "./scripts/uninstall.sh"
 | `name` | yes | Display name |
 | `description` | no | One line about the utility |
 | `skills` | no | Skill names. Each needs a `<name>/SKILL.md` folder in the repo, such as `skills/<name>/SKILL.md`. GAP copies them into `~/.agents/skills` and `~/.claude/skills` |
-| `commands` | no | Repo paths of `.md` command files. GAP copies each by basename, unchanged, into `~/.claude/commands` and `~/.omp/agent/commands` |
+| `commands` | no | Repo paths of `.md` command files. GAP copies each by basename, unchanged, into `~/.claude/commands`, `~/.pi/agent/prompts`, and `~/.omp/agent/commands` |
 | `hooks.install` | no | Runs on the first installation and on later pin changes when `update` is absent |
 | `hooks.update` | no | Replaces `install` when installing a different pin after a first successful installation |
 | `hooks.uninstall` | no | Runs on `gap remove` from the last successfully installed version, before GAP moves its files; skipped if no installation succeeded. It must undo the effects of `install` and `update` outside GAP's skill and command files |
@@ -345,15 +345,15 @@ GAP keeps no skill source. [Do-Skills](https://github.com/edheltzel/Do-Skills#re
 
 ### Where each agent reads the policy
 
-| Agent | File it reads |
-| --- | --- |
-| Claude | `~/.claude/rules/global-agent-policy.md` |
-| Pi | `~/.pi/agent/APPEND_SYSTEM.md` |
-| OMP | `~/.omp/agent/APPEND_SYSTEM.md` |
-| Codex | `~/.codex/gap/global-agent-policy.md` (`$CODEX_HOME/gap/global-agent-policy.md` when nonempty), printed by the SessionStart and SubagentStart hooks |
-| Cursor | `~/.cursor/rules/global-agent-policy.mdc` |
-| Empryo | `~/.empryo/EMPRYO.md`, beside the SoulStack block. The first sync asks once, so run it from a terminal. |
-| Grok | No file of its own. It reads the Claude copy. |
+| Agent | File it reads | Commands |
+| --- | --- | --- |
+| Claude | `~/.claude/rules/global-agent-policy.md` | `~/.claude/commands/` |
+| Pi | `~/.pi/agent/APPEND_SYSTEM.md` | `~/.pi/agent/prompts/` |
+| OMP | `~/.omp/agent/APPEND_SYSTEM.md` | `~/.omp/agent/commands/` |
+| Codex | `~/.codex/gap/global-agent-policy.md` (`$CODEX_HOME/gap/global-agent-policy.md` when nonempty), printed by the SessionStart and SubagentStart hooks | none |
+| Cursor | `~/.cursor/rules/global-agent-policy.mdc` | none |
+| Empryo | `~/.empryo/EMPRYO.md`, beside the SoulStack block. The first sync asks once, so run it from a terminal. | none |
+| Grok | No file of its own. It reads the Claude copy. | none |
 
 ### How sync tells its own files apart
 

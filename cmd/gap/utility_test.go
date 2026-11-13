@@ -103,7 +103,7 @@ func TestUtilityAdd(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(e.repo, "gap.lock")); !os.IsNotExist(err) {
 		t.Fatal("add wrote the distro lock")
 	}
-	for _, rel := range []string{".agents/skills/util-skill/SKILL.md", ".claude/skills/util-skill/SKILL.md", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md"} {
+	for _, rel := range []string{".agents/skills/util-skill/SKILL.md", ".claude/skills/util-skill/SKILL.md", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md", ".pi/agent/prompts/util-cmd.md"} {
 		if !e.exists(rel) {
 			t.Fatalf("missing %s", rel)
 		}
@@ -335,7 +335,7 @@ func TestUtilityRemove(t *testing.T) {
 	if !e.exists("uninstalled") {
 		t.Fatal("uninstall hook did not run")
 	}
-	for _, rel := range []string{".agents/skills/util-skill", ".claude/skills/util-skill", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md"} {
+	for _, rel := range []string{".agents/skills/util-skill", ".claude/skills/util-skill", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md", ".pi/agent/prompts/util-cmd.md"} {
 		if e.exists(rel) {
 			t.Fatalf("%s left behind", rel)
 		}

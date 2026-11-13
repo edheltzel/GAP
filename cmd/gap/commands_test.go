@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -50,7 +51,12 @@ func TestComponentCommandSync(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("publish: %v %v", ok, err)
 	}
-	for _, dest := range commandDests(home, "util-cmd.md") {
+	wantCommands := []string{
+		filepath.Join(home, ".claude", "commands", "util-cmd.md"),
+		filepath.Join(home, ".omp", "agent", "commands", "util-cmd.md"),
+		filepath.Join(home, ".pi", "agent", "prompts", "util-cmd.md"),
+	}
+	for _, dest := range wantCommands {
 		if got := readString(t, dest); got != "Run the utility.\n" {
 			t.Fatalf("%s = %q", dest, got)
 		}
@@ -63,7 +69,8 @@ func TestComponentCommandSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := state.Components["util"]
-	if len(got.Commands) != 2 || len(got.Skills) != 1 || got.Skills[0] != "util-skill" {
+	slices.Sort(got.Commands)
+	if !slices.Equal(got.Commands, wantCommands) || len(got.Skills) != 1 || got.Skills[0] != "util-skill" {
 		t.Fatalf("ownership = %+v", got)
 	}
 
@@ -167,7 +174,7 @@ func TestCommandSync(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, dir := range []string{".omp/agent/commands", ".claude/commands"} {
+				for _, dir := range []string{".omp/agent/commands", ".claude/commands", ".pi/agent/prompts"} {
 					entries, err := os.ReadDir(filepath.Join(home, dir))
 					if err != nil || len(entries) != 2 {
 						t.Fatalf("expected only two top-level commands in %s: %v, %v", dir, entries, err)
