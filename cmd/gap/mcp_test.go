@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,7 +11,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestManifestMCP(t *testing.T) {
@@ -140,6 +143,17 @@ func TestMCPCLIProcess(t *testing.T) {
 	}
 	fmt.Fprintln(log, bin+" "+strings.Join(args, " "))
 	log.Close()
+	pause := func(timing string) {
+		if _, err := os.Stat(filepath.Join(home, "pause-"+bin+"-"+action+"-"+timing)); err == nil {
+			if os.WriteFile(filepath.Join(home, "paused"), nil, 0o600) != nil {
+				os.Exit(2)
+			}
+			for {
+				time.Sleep(time.Second)
+			}
+		}
+	}
+	pause("before")
 	if _, err := os.Stat(filepath.Join(home, "fail-"+bin+"-"+action+"-before")); err == nil {
 		os.Exit(1)
 	}
@@ -179,10 +193,150 @@ func TestMCPCLIProcess(t *testing.T) {
 	if err != nil || os.WriteFile(path, b, 0o600) != nil {
 		os.Exit(2)
 	}
+	pause("after")
 	if _, err := os.Stat(filepath.Join(home, "fail-"+bin+"-"+action+"-after")); err == nil {
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+func TestUtilityMCPInterruptedRegistration(t *testing.T) {
+	packageDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := t.TempDir()
+	write(t, filepath.Join(source, "gap.toml"), "schema = \"2\"\n")
+	bin := filepath.Join(t.TempDir(), "gap")
+	build := exec.Command("go", "build", "-ldflags", "-X main.sourceRootFor="+source, "-o", bin, ".")
+	build.Dir = packageDir
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	for _, stage := range []string{"initial", "replacement", "repair"} {
+		for _, harness := range []string{"claude", "pi", "codex"} {
+			for _, timing := range []string{"before", "after"} {
+				for _, recovery := range []string{"update", "remove"} {
+					t.Run(stage+"/"+harness+"/"+timing+"/"+recovery, func(t *testing.T) {
+						e := newUtilityEnv(t, mcpUtility)
+						fakeMCPBins(t)
+						write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
+						gap := func(args ...string) {
+							t.Helper()
+							cmd := exec.Command(bin, args...)
+							if out, err := cmd.CombinedOutput(); err != nil {
+								t.Fatalf("gap %v: %v\n%s", args, err, out)
+							}
+						}
+						args := []string{"add", e.remote, "--id", "util"}
+						if stage != "initial" {
+							gap(args...)
+							args = []string{"update", "util"}
+							if stage == "replacement" {
+								write(t, filepath.Join(e.remote, utilityManifestName), strings.Replace(mcpUtility, "server.sh", "updated.sh", 1))
+								commitAll(t, e.remote)
+							} else {
+								for _, h := range []string{"claude", "pi", "codex"} {
+									cli := harnessNamed(h).mcp
+									cmd := exec.Command(h, cli.remove("util-mcp")...)
+									if out, err := cmd.CombinedOutput(); err != nil {
+										t.Fatalf("remove fixture registration: %v\n%s", err, out)
+									}
+								}
+							}
+						}
+						flag := filepath.Join(e.home, "pause-"+harness+"-add-"+timing)
+						write(t, flag, "")
+						cmd := exec.Command(bin, args...)
+						cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+						var output bytes.Buffer
+						cmd.Stdout, cmd.Stderr = &output, &output
+						if err := cmd.Start(); err != nil {
+							t.Fatal(err)
+						}
+						done := make(chan error, 1)
+						go func() { done <- cmd.Wait() }()
+						stopped := false
+						t.Cleanup(func() {
+							if !stopped {
+								_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+								<-done
+							}
+						})
+						deadline := time.NewTimer(10 * time.Second)
+						defer deadline.Stop()
+						tick := time.NewTicker(10 * time.Millisecond)
+						defer tick.Stop()
+						for {
+							if _, err := os.Stat(filepath.Join(e.home, "paused")); err == nil {
+								break
+							}
+							select {
+							case err := <-done:
+								stopped = true
+								t.Fatalf("gap exited before interruption: %v\n%s", err, &output)
+							case <-deadline.C:
+								t.Fatal("harness CLI did not reach interruption point")
+							case <-tick.C:
+							}
+						}
+						if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+							t.Fatal(err)
+						}
+						if err := <-done; err == nil {
+							t.Fatal("interrupted command succeeded")
+						}
+						stopped = true
+						entry := testMCPState(t, e.home).Components["util"]
+						pending, owns := entry.MCP[harness+":util-mcp"]
+						if !owns || pending.Target == "" || pending.Digest != "" {
+							t.Errorf("interrupted registration has no pending ownership: %+v", entry.MCP)
+						}
+						for _, h := range []string{"claude", "pi", "codex"} {
+							if h == harness {
+								break
+							}
+							if completed := entry.MCP[h+":util-mcp"]; completed.Target == "" || completed.Digest == "" {
+								t.Errorf("completed %s registration was not saved: %+v", h, entry.MCP)
+							}
+						}
+						if err := os.Remove(flag); err != nil {
+							t.Fatal(err)
+						}
+						if recovery == "update" {
+							gap("update", "util")
+							if got := testMCPState(t, e.home).Components["util"].MCP; len(got) != 3 {
+								t.Fatalf("recovered ownership = %+v", got)
+							}
+							lk, err := readLock(userConfigDir(e.home))
+							if err != nil {
+								t.Fatal(err)
+							}
+							command := "server.sh"
+							if stage == "replacement" {
+								command = "updated.sh"
+							}
+							want := filepath.Join(storePath(e.home, "util", lk.Components["util"].Commit), command)
+							for _, file := range []string{".claude.json", ".pi/agent/mcp.json", ".codex/servers.json"} {
+								if got := testMCPServers(t, filepath.Join(e.home, file))["util-mcp"].Command; got != want {
+									t.Errorf("recovered command in %s = %q, want %q", file, got, want)
+								}
+							}
+						}
+						gap("remove", "util")
+						for _, file := range []string{".claude.json", ".pi/agent/mcp.json", ".codex/servers.json"} {
+							if _, exists := testMCPServers(t, filepath.Join(e.home, file))["util-mcp"]; exists {
+								t.Errorf("interrupted registration escaped removal from %s", file)
+							}
+						}
+						if _, exists := testMCPState(t, e.home).Components["util"]; exists {
+							t.Fatal("removed utility retains ownership")
+						}
+					})
+				}
+			}
+		}
+	}
 }
 
 func testMCPServers(t *testing.T, path string) map[string]testMCPServer {

@@ -251,6 +251,17 @@ func mcpDigest(s mcpServer) string {
 	return digest(string(b))
 }
 
+func recordComponentMCP(home, id string, registrations map[string]mcpRegistration) error {
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	entry := state.Components[id]
+	entry.MCP = registrations
+	state.Components[id] = entry
+	return writeState(home, state)
+}
+
 // publishComponentMCP registers each selected component's MCP servers with every harness whose mcp CLI is installed.
 // A server name another component owns, or one the user already configured, is left alone and reported.
 func publishComponentMCP(home string, d distro) (map[string]bool, error) {
@@ -268,7 +279,7 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 			owner[key] = id
 		}
 	}
-	failed, changed := map[string]bool{}, false
+	failed := map[string]bool{}
 	out := newReport(os.Stdout)
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
@@ -374,7 +385,9 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 			}
 			delete(entry.MCP, key)
 			delete(owner, key)
-			changed = true
+			if err := recordComponentMCP(home, id, entry.MCP); err != nil {
+				return nil, err
+			}
 			out.result(true, fmt.Sprintf("%s: removed %s", hname, name))
 		}
 		for _, j := range jobs {
@@ -384,6 +397,11 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 					failed[id] = true
 					continue
 				}
+			}
+			previous := entry.MCP[j.key]
+			entry.MCP[j.key] = mcpRegistration{Target: j.target}
+			if err := recordComponentMCP(home, id, entry.MCP); err != nil {
+				return nil, err
 			}
 			addErr := runMCP(home, j.h.mcp, j.target, j.h.mcp.add(j.s))
 			if addErr != nil {
@@ -395,34 +413,28 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 					j.sum = ""
 				}
 				if !exists && checkErr == nil {
+					if j.owns {
+						entry.MCP[j.key] = previous
+					} else {
+						delete(entry.MCP, j.key)
+					}
+					if err := recordComponentMCP(home, id, entry.MCP); err != nil {
+						return nil, err
+					}
 					continue
 				}
 			}
 			entry.MCP[j.key] = mcpRegistration{Digest: j.sum, Target: j.target}
 			owner[j.key] = id
-			changed = true
+			if err := recordComponentMCP(home, id, entry.MCP); err != nil {
+				return nil, err
+			}
 			if addErr == nil {
 				out.result(true, fmt.Sprintf("%s: %s", j.h.name, j.s.describe()))
 			}
 		}
-		if len(entry.MCP) == 0 {
-			entry.MCP = nil
-		}
-		state.Components[id] = entry
 	}
-	if !changed {
-		return failed, nil
-	}
-	fresh, err := readState(home)
-	if err != nil {
-		return nil, err
-	}
-	for id, entry := range state.Components {
-		f := fresh.Components[id]
-		f.MCP = entry.MCP
-		fresh.Components[id] = f
-	}
-	return failed, writeState(home, fresh)
+	return failed, nil
 }
 
 // removeComponentMCP unregisters every server the state records for one component.
