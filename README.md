@@ -156,7 +156,7 @@ Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP r
 
 The distro's `gap.toml` and your `~/.config/gap/gap.toml` select pinned [components](#components). Their skill lists and load levels are described under [Load levels](#load-levels). All former `global/skills.json` sources are now pinned components; the separate skills manifest is no longer used.
 
-`gap sync` copies selected component skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Harnesses that read neither folder get no skills from GAP; the policy still reaches them. Component skill installation, drift repair, and restore do not use Node or `npx`. Project skills use the same two paths under the invoking project instead of the home directory; see [load levels](#load-levels).
+`gap sync` copies selected skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Harnesses that read neither folder get no skills from GAP; the policy still reaches them. Installation, drift repair, and restore need only git: no Node, no `npx`. Project skills use the same two paths under the invoking project instead of the home directory; see [load levels](#load-levels).
 
 Sync checks every selected skill against its pinned store. Existing skills.sh installations are adopted in place when both destinations match that source: GAP records component ownership and removes only that skill's entry from the skills.sh lock. The lock is `$XDG_STATE_HOME/skills/.skill-lock.json` when `XDG_STATE_HOME` is set, otherwise `~/.agents/.skill-lock.json`. Unrelated lock entries and fields stay intact. If GAP cannot save component ownership, adoption fails and restores the previous lock contents. If that restoration also fails, the error includes both failures and the lock path. Missing, unreadable, or malformed locks follow the [migration failure contract](cmd/gap/AGENTS.md#sync-steps). Edited copies go to drift review. For each drifted skill, sync shows the diff and asks:
 
@@ -189,7 +189,7 @@ names = ["do-commit", "do-todo"]
 
 Pin confirms the new pin, shows the old and new commits when it moves, or reports that it is already current. A new or moved pin includes a reminder to run `gap sync` to install it.
 
-The distro includes Do-Skills, Forge, Echo, and Recall. Forge supplies `forge-interview`. Echo and Recall have empty skill lists: machine sync runs their `install` commands from their verified stores, and those installers own their skills and runtime prerequisites. Hook timing and state are described under [Hooks and trust](#hooks-and-trust). Gap copies no skills from them and never installs a harness.
+The distro includes Do-Skills, Forge, Echo, and Recall, plus twelve third-party skill sources pinned the same way: `but-axi`, `gitbutler`, `gh-stack`, `chrome-devtools-axi`, `gh-axi`, `visual-explainer`, `herdr`, `dev-skills`, `agent-reviews`, `impeccable`, `guides`, and `typesafe-ai`. Forge supplies `forge-interview`. Echo and Recall have empty skill lists: machine sync runs their `install` commands from their verified stores, and those installers own their skills and runtime prerequisites. Hook timing and state are described under [Hooks and trust](#hooks-and-trust). Gap copies no skills from them and never installs a harness.
 
 `gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing pins, missing or changed stores, and failed doctors produce exit `1`; doctor does not fetch missing components.
 
@@ -352,7 +352,7 @@ GAP unregisters recorded servers through the harness CLIs when the manifest drop
 
 ## Skill catalog
 
-GAP keeps no skill source. [Do-Skills](https://github.com/edheltzel/Do-Skills#readme) supplies the `do-*` and marketing skills, pinned in `gap.toml` and `gap.lock`; its README holds the catalog and the human docs for each skill. See [Manage skills](#manage-skills) for the other sources GAP selects.
+GAP keeps no skill source. [Do-Skills](https://github.com/edheltzel/Do-Skills#readme) supplies the `do-*` and marketing skills, pinned in `gap.toml` and `gap.lock`; its README holds the catalog and the human docs for each skill. The other skills come from the third-party components listed under [Components](#components).
 
 ## Reference
 

@@ -27,7 +27,8 @@ import '../styles/landing/landing.css';
         <div class="eyebrow">Global Agent Policies</div>
         <h1>One set of rules.<br /><span class="l2">Every coding</span><br /><span class="l3">agent.</span></h1>
         <p class="sub">
-          Write your policy once. <code>gap sync</code> copies it into the file each agent already reads.
+          Write your policy once. <code>gap sync</code> copies it into the file each agent already reads, then
+          installs your skills and MCP servers.
         </p>
         <div class="tabs"><b>Install</b></div>
         <div class="cmd">
@@ -35,7 +36,8 @@ import '../styles/landing/landing.css';
           <button class="cp" type="button">Copy</button>
         </div>
         <p class="hint">
-          See the <a href="/docs/#install-gap">installation requirements</a>.
+          No Go needed: without it, the script installs a checksum-verified release binary. See the
+          <a href="/docs/#install-gap">installation requirements</a>.
         </p>
         <div class="cta">
           <a class="btn" href="/docs/#install-gap">Read the docs</a>
@@ -62,7 +64,7 @@ import '../styles/landing/landing.css';
         <h2 id="how-title">Write it once. <span>Every agent reads it.</span></h2>
         <p class="lead">
           One rules file, <code>global/AGENTS.md</code>. <code>gap sync</code> copies it into the file each agent
-          already reads.
+          already reads, and manages the skills and MCP servers your harnesses load, each pinned to one commit.
         </p>
         <div class="cards">
           <article class="card">
@@ -76,12 +78,18 @@ import '../styles/landing/landing.css';
           <article class="card">
             <div class="n"><span>Step</span><i>02</i></div>
             <h3>Run gap sync</h3>
-            <p>Copies your rules into every agent's file and installs any listed skills that are missing.</p>
+            <p>
+              Copies your rules into every agent's file, copies pinned skills straight from git with no Node, and
+              registers MCP servers through the Claude, Codex, and Pi CLIs.
+            </p>
           </article>
           <article class="card">
             <div class="n"><span>Step</span><i>03</i></div>
             <h3>Check status</h3>
-            <p><code>gap status</code> shows each component's pin and any skill drift. It writes nothing and exits 1 on drift.</p>
+            <p>
+              <code>gap status</code> draws a table of each component's pin and any skill drift. It writes nothing and
+              exits 1 on drift. <code>gap list</code> shows what is installed.
+            </p>
           </article>
         </div>
       </section>
@@ -96,7 +104,10 @@ import '../styles/landing/landing.css';
           <article class="card">
             <div class="n"><span>Add</span><i>01</i></div>
             <h3>gap add owner/repo</h3>
-            <p>Pins the repo in your own lock and installs its skills, commands, and install hook.</p>
+            <p>
+              Pins the repo in your own lock and installs its skills, commands, MCP servers, and install hook.
+              <code>gap search</code> finds one.
+            </p>
           </article>
           <article class="card">
             <div class="n"><span>Update</span><i>02</i></div>
@@ -106,7 +117,7 @@ import '../styles/landing/landing.css';
           <article class="card">
             <div class="n"><span>Remove</span><i>03</i></div>
             <h3>gap remove &lt;id&gt;</h3>
-            <p>Runs its uninstall hook and moves its files to a backup folder, so nothing is lost.</p>
+            <p>Runs its uninstall hook, removes its MCP servers, and moves its files to a backup folder, so nothing is lost.</p>
           </article>
         </div>
         <div class="cta">
@@ -143,6 +154,13 @@ import '../styles/landing/landing.css';
             <p>
               <b>It asks before it changes a file it did not write.</b> In a shell with no terminal, it prints
               <code>Refusing to replace foreign file</code>, skips that file, publishes the rest, and exits 1.
+            </p>
+          </div>
+          <div>
+            <span>Uninstall</span>
+            <p>
+              <b>It removes only what it recorded.</b> <code>gap uninstall</code> previews first, backs up what it
+              removes, and leaves your other files alone.
             </p>
           </div>
         </div>

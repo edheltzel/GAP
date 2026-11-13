@@ -16,11 +16,11 @@ Missing:
 
 | Gap | Today |
 | --- | --- |
-| Uninstall | Utilities have `gap remove`; nothing for `gap` itself |
+| Uninstall | Done: `gap uninstall` (step 5) |
 | Per-harness delivery | Skills go to `~/.agents/skills` and `~/.claude/skills`; commands follow the [supported harness destinations](../../README.md#where-each-agent-reads-the-policy) |
 | MCP servers and harness settings | MCP delivery follows the [manifest contract](../../README.md#publish-a-utility); other harness settings remain installer-owned |
-| Install without Go | The installer builds from source; manifest skills need `npx` |
-| Discovery | No catalog or search |
+| Install without Go | Done: release binaries, and skills no longer need `npx` (steps 6 and 7) |
+| Discovery | Done: `catalog.toml` and `gap search` (step 8) |
 
 ## Steps
 
@@ -28,10 +28,10 @@ Missing:
 2. Reorder the README after step 1: Change the policy before Manage skills, Components before the first `gap.toml` example. Move the edge-case detail in Project setup and the Echo pin note into `cmd/gap/AGENTS.md`. Done after step 1 because those sections overlap the utilities branch.
 3. Harness adapter table in `cmd/gap`: for each harness, where skills, commands, MCP servers, and hooks go. Drive skill and command delivery from it. Start with Codex, Cursor, Pi, and Empryo commands.
 4. MCP entries in `gap-utility.toml` follow the [manifest and lifecycle contract](../../README.md#publish-a-utility) through the harness adapter table and each harness's own MCP CLI.
-5. `gap uninstall`: strip the policy blocks, Codex hooks, published commands, and owned skills recorded in the ledger and `state.json`.
-6. Release binaries (GoReleaser or `go build` in CI) and an installer that downloads one when Go is absent.
-7. Drop the skills.sh path once `global/skills.json` sources become utilities (provisioner section 9 step 5).
-8. Catalog: `gap search` over a list of known utility repos, kept in this repo.
+5. Completed (PR #120): `gap uninstall`: strip the policy blocks, Codex hooks, published commands, and owned skills recorded in the ledger and `state.json`.
+6. Completed (PR #120): release binaries (GoReleaser or `go build` in CI) and an installer that downloads one when Go is absent.
+7. Completed: drop the skills.sh path once `global/skills.json` sources become utilities (provisioner section 9 step 5, also done). The 12 sources are pinned components in `gap.toml` and `gap.lock`, `global/skills.json` is gone, and the first sync takes over matching skills.sh installs. Branch `feat/drop-skillssh`.
+8. Completed (PR #120): catalog, `gap search` over a list of known utility repos, kept in this repo.
 
 Version ranges and dependencies between utilities wait until two utilities need each other.
 
