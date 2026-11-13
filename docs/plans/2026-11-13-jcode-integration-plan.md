@@ -26,7 +26,7 @@ Scope: U1-U4 ship in this change; U5-U6 are machine steps after merge.
 ### U2. jcode shadow warning
 - Depends on: none
 - Files: `cmd/gap/skills.go`, `cmd/gap/skills_test.go`
-- Change: generalize `empryoShadow(home, name)` into `shadowWarnings(home, name) []string` over a table of `{label, dir}` pairs. Empryo uses `~/.empryo/skills` and keeps its `empryo` skill exception; jcode uses `$JCODE_HOME/skills`, or `~/.jcode/skills` when unset. `checkDrift`'s deferred loop prints each warning. The wording for jcode states only that both copies exist and differ, because jcode's copy precedence is unverified.
+- Change: generalize `empryoShadow(home, name)` into `shadowWarnings(home, name) []string`. Empryo uses `~/.empryo/skills` and keeps its `empryo` skill exception; jcode uses `$JCODE_HOME/skills`, or `~/.jcode/skills` when unset. `checkDrift`'s deferred loop prints each warning. The wording for jcode states only that both copies exist and differ, because jcode's copy precedence is unverified.
 - Done when: a differing `~/.jcode/skills/<name>` prints exactly one line naming both paths, a matching or missing copy prints nothing, and the exit code is unchanged.
 - Verify: `go test ./cmd/gap -run 'TestShadow'`
 
