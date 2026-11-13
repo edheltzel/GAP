@@ -854,26 +854,123 @@ func TestUtilityMCPUninstallHookRunsOnce(t *testing.T) {
 }
 
 func TestUtilityMCPListsCodexOncePerRun(t *testing.T) {
-	two := "schema = \"1\"\nname = \"util\"\n[mcp.one]\ncommand = [\"{store}/one.sh\"]\n[mcp.two]\ncommand = [\"{store}/two.sh\"]\n"
-	e := newUtilityEnv(t, two)
-	fakeMCPBins(t)
-	quietStdout(t)
-	write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
-	lists := func() int {
-		b, _ := os.ReadFile(filepath.Join(e.home, "mcp-list.log"))
-		os.Remove(filepath.Join(e.home, "mcp-list.log"))
-		return strings.Count(string(b), "codex\n")
-	}
-	if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
-		t.Fatalf("add exit %d", code)
-	}
-	if n := lists(); n != 1 {
-		t.Fatalf("add listed codex %d times, want 1", n)
-	}
-	if code := run([]string{"remove", "util"}); code != 0 {
-		t.Fatalf("remove exit %d", code)
-	}
-	if n := lists(); n != 1 {
-		t.Fatalf("remove listed codex %d times, want 1", n)
+	for _, tc := range []struct {
+		name             string
+		bulk, twoTargets bool
+	}{
+		{"single utility", false, false},
+		{"multiple utilities", true, false},
+		{"multiple targets", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			two := "schema = \"1\"\nname = \"util\"\n[mcp.one]\ncommand = [\"{store}/one.sh\"]\n[mcp.two]\ncommand = [\"{store}/two.sh\"]\n"
+			e := newUtilityEnv(t, two)
+			utilities := []struct {
+				id, remote, target string
+				names              []string
+			}{
+				{"util", e.remote, filepath.Join(e.home, ".codex"), []string{"one", "two"}},
+			}
+			if tc.bulk {
+				other := filepath.Join(t.TempDir(), "remote")
+				writeUtilityRepo(t, other, strings.ReplaceAll(two, "[mcp.", "[mcp.other-"))
+				commitAll(t, other)
+				target := utilities[0].target
+				if tc.twoTargets {
+					target = filepath.Join(e.home, "other-codex")
+				}
+				utilities = append(utilities, struct {
+					id, remote, target string
+					names              []string
+				}{"other", other, target, []string{"other-one", "other-two"}})
+			}
+			fakeMCPBins(t)
+			quietStdout(t)
+			var repos []string
+			for _, u := range utilities {
+				repos = append(repos, fmt.Sprintf("%q", u.remote))
+			}
+			write(t, userConfigFile(e.home), "[trust]\nrepos = ["+strings.Join(repos, ", ")+"]\n")
+			lists := func() int {
+				t.Helper()
+				path := filepath.Join(e.home, "mcp-list.log")
+				b, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				return strings.Count(string(b), "codex\n")
+			}
+			for _, u := range utilities {
+				t.Setenv("CODEX_HOME", u.target)
+				if code := run([]string{"add", u.remote, "--id", u.id}); code != 0 {
+					t.Fatalf("add %s exit %d", u.id, code)
+				}
+				if n := lists(); n != 1 {
+					t.Fatalf("add listed codex %d times, want 1", n)
+				}
+				write(t, filepath.Join(u.remote, "version"), "next")
+				commitAll(t, u.remote)
+			}
+			before := testMCPState(t, e.home)
+			args := []string{"update"}
+			if !tc.bulk {
+				args = append(args, "util")
+			}
+			if code := run(args); code != 0 {
+				t.Fatalf("update exit %d", code)
+			}
+			wantLists := 1
+			if tc.twoTargets {
+				wantLists = 2
+			}
+			if n := lists(); n != wantLists {
+				t.Fatalf("replacement listed codex %d times, want %d", n, wantLists)
+			}
+			lk, err := readLock(userConfigDir(e.home))
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := testMCPState(t, e.home)
+			for _, u := range utilities {
+				pin := lk.Components[u.id].Commit
+				if pin == before.Components[u.id].Installed || state.Components[u.id].Installed != pin {
+					t.Fatalf("%s did not install the new pin", u.id)
+				}
+				for _, path := range []string{
+					filepath.Join(e.home, ".claude.json"),
+					filepath.Join(e.home, ".pi", "agent", "mcp.json"),
+					filepath.Join(u.target, "servers.json"),
+				} {
+					servers := testMCPServers(t, path)
+					for i, name := range u.names {
+						want := filepath.Join(storePath(e.home, u.id, pin), []string{"one.sh", "two.sh"}[i])
+						if got := servers[name].Command; got != want {
+							t.Fatalf("%s in %s runs %q, want %q", name, path, got, want)
+						}
+					}
+				}
+			}
+			mcpLog(t, e.home)
+			if code := run(args); code != 0 {
+				t.Fatalf("unchanged update exit %d", code)
+			}
+			if n := lists(); n != wantLists {
+				t.Fatalf("unchanged update listed codex %d times, want %d", n, wantLists)
+			}
+			if got := mcpLog(t, e.home); got != nil {
+				t.Fatalf("unchanged servers were registered again: %v", got)
+			}
+			for _, u := range utilities {
+				if code := run([]string{"remove", u.id}); code != 0 {
+					t.Fatalf("remove %s exit %d", u.id, code)
+				}
+				if n := lists(); n != 1 {
+					t.Fatalf("remove listed codex %d times, want 1", n)
+				}
+			}
+		})
 	}
 }

@@ -155,7 +155,7 @@ func addUtility(spec, id string) error {
 	if err := setUserPin(home, id, pin); err != nil {
 		return err
 	}
-	return installUtility(home, repoRoot, projectRoot, id, "")
+	return installUtility(home, repoRoot, projectRoot, id, "", mcpInventory{})
 }
 
 func describeUtility(m utilityManifest) string {
@@ -203,7 +203,7 @@ func setUserPin(home, id string, pin lockEntryM1) error {
 }
 
 // installUtility syncs one component: its hook, its skills, its commands, and the ownership record.
-func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
+func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpInventory) error {
 	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
 	if err != nil {
 		return err
@@ -265,7 +265,7 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string) error {
 			}
 		}
 	}
-	mcpFailures, err := publishComponentMCP(home, d)
+	mcpFailures, err := publishComponentMCP(home, d, inv)
 	if err != nil {
 		return err
 	}
@@ -367,8 +367,9 @@ func updateUtilities(id string) error {
 		return err
 	}
 	failed := false
+	inv := mcpInventory{}
 	for _, cid := range ids {
-		if err := installUtility(home, repoRoot, projectRoot, cid, baselines[cid]); err != nil {
+		if err := installUtility(home, repoRoot, projectRoot, cid, baselines[cid], inv); err != nil {
 			if !errors.Is(err, errSkipped) {
 				return err
 			}

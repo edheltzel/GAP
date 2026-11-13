@@ -298,7 +298,7 @@ func recordComponentMCP(home, id string, registrations map[string]mcpRegistratio
 
 // publishComponentMCP registers each selected component's MCP servers with every harness whose mcp CLI is installed.
 // A server name another component owns, or one the user already configured, is left alone and reported.
-func publishComponentMCP(home string, d distro) (map[string]bool, error) {
+func publishComponentMCP(home string, d distro, inv mcpInventory) (map[string]bool, error) {
 	state, err := readState(home)
 	if err != nil {
 		return nil, err
@@ -314,7 +314,6 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 		}
 	}
 	failed := map[string]bool{}
-	inv := mcpInventory{}
 	out := newReport(os.Stdout)
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
@@ -439,8 +438,8 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 				return nil, err
 			}
 			addErr := runMCP(home, j.h.mcp, j.target, j.h.mcp.add(j.s))
-			inv.forget(j.h.mcp, j.target)
 			if addErr != nil {
+				inv.forget(j.h.mcp, j.target)
 				fmt.Fprintf(os.Stderr, "%s: %v\n", id, addErr)
 				failed[id] = true
 				exists, checkErr := inv.has(home, j.h.mcp, j.target, j.s.Name)
@@ -459,6 +458,8 @@ func publishComponentMCP(home string, d distro) (map[string]bool, error) {
 					}
 					continue
 				}
+			} else {
+				inv.set(j.h.mcp, j.target, j.s.Name, true)
 			}
 			entry.MCP[j.key] = mcpRegistration{Digest: j.sum, Target: j.target}
 			owner[j.key] = id

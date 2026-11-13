@@ -178,7 +178,7 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	skipped = skipped || !commandsOK
-	mcpFailures, err := publishComponentMCP(home, d)
+	mcpFailures, err := publishComponentMCP(home, d, mcpInventory{})
 	if err != nil {
 		return err
 	}
