@@ -1,0 +1,22 @@
+# Known gap utilities for `gap search`. Each [utilities.<id>] names a repo that ships a gap-utility.toml.
+# Parsed by the TOML subset in cmd/gap/toml.go: tables, strings, and string arrays only.
+
+[utilities.forge]
+repo        = "github.com/edheltzel/Forge"
+description = "Project setup interview that writes a project's agent context (forge-interview)"
+tags        = ["project", "setup", "interview", "skills"]
+
+[utilities.do-skills]
+repo        = "github.com/edheltzel/Do-Skills"
+description = "The do-* skill library plus marketing and SEO skills"
+tags        = ["skills", "workflow", "git", "review", "seo", "marketing"]
+
+[utilities.echo]
+repo        = "github.com/edheltzel/Echo"
+description = "Local voice notification server for coding agents (macOS)"
+tags        = ["macos", "voice", "notifications", "adapters"]
+
+[utilities.recall]
+repo        = "github.com/edheltzel/Recall"
+description = "Local memory for coding agents; installs its own do-recall skills"
+tags        = ["memory", "context", "mcp", "skills"]
