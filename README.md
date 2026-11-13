@@ -334,7 +334,7 @@ env = ["LOG_LEVEL=info"]
 | `commands` | no | Repo paths of `.md` command files. GAP copies each by basename, unchanged, into `~/.claude/commands`, `~/.pi/agent/prompts`, and `~/.omp/agent/commands` |
 | `hooks.install` | no | Runs on the first installation and on later pin changes when `update` is absent |
 | `hooks.update` | no | Replaces `install` when installing a different pin after a first successful installation |
-| `hooks.uninstall` | no | Runs on `gap remove` from the last successfully installed version, before GAP moves its files; skipped if no installation succeeded. It must undo the effects of `install` and `update` outside GAP's skill and command files |
+| `hooks.uninstall` | no | Runs on `gap remove` from the last successfully installed version, before GAP moves its files; skipped if no installation succeeded or an earlier removal attempt already ran the hook successfully. It must undo the effects of `install` and `update` outside GAP's skill and command files |
 | `hooks.doctor` | no | Runs on `gap doctor` |
 | `mcp.<name>` | no | One MCP server. Set exactly one of `command` (a nonempty string array) or `url` (an `http://` or `https://` URL). Command servers may also set `env` (`KEY=value` strings). `{store}` in command arguments and environment values becomes the pinned checkout path |
 
