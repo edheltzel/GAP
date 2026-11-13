@@ -115,7 +115,11 @@ func tagMatches(tags []string, q string) bool {
 }
 
 // addCommand is the gap add line for an entry, with --id when gap add would pick a different id.
-func addCommand(e catalogEntry) string {
+// An entry the distro already ships gets no add line, because gap add refuses a distro id.
+func addCommand(e catalogEntry, distroIDs map[string]bool) string {
+	if distroIDs[e.ID] {
+		return "included with GAP; gap sync installs it"
+	}
 	if _, _, id, err := parseUtilitySpec(e.Repo); err == nil && id != e.ID {
 		return "gap add " + e.Repo + " --id " + e.ID
 	}
@@ -143,6 +147,15 @@ func searchTo(stdout, stderr io.Writer, query string) int {
 		fmt.Fprintln(stderr, "gap search:", err)
 		return 1
 	}
+	d, err := readDistro(root)
+	if err != nil {
+		fmt.Fprintln(stderr, "gap search:", err)
+		return 1
+	}
+	distroIDs := map[string]bool{}
+	for id := range d.Components {
+		distroIDs[id] = true
+	}
 	matches := searchCatalog(entries, query)
 	if len(matches) == 0 {
 		fmt.Fprintf(stderr, "No utility matches %q.\n", query)
@@ -151,7 +164,7 @@ func searchTo(stdout, stderr io.Writer, query string) int {
 	out := newReport(stdout)
 	rows := make([][]string, 0, len(matches))
 	for _, e := range matches {
-		rows = append(rows, []string{e.ID, e.Description, strings.Join(e.Tags, ", "), addCommand(e)})
+		rows = append(rows, []string{e.ID, e.Description, strings.Join(e.Tags, ", "), addCommand(e, distroIDs)})
 	}
 	if !out.tty {
 		for _, row := range rows {

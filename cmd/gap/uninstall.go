@@ -81,8 +81,16 @@ func classifyPolicy(path string, cursor bool, ledger map[string]string) (policyA
 		}
 		return policyStrip, next, "remove the GAP block", nil
 	}
-	if last := ledger[path]; last != "" && digest(text) == last {
-		return policyDelete, "", "whole-file GAP copy", nil
+	if last := ledger[path]; last != "" && last != cleaned {
+		if digest(text) == last {
+			return policyDelete, "", "whole-file GAP copy", nil
+		}
+		if cut, ok := ledgerPrefixEnd(text, last); ok {
+			if strings.TrimSpace(text[cut:]) == "" {
+				return policyDelete, "", "only the recorded GAP prefix", nil
+			}
+			return policyStrip, text[cut:], "remove the recorded GAP prefix", nil
+		}
 	}
 	return policyLeave, "", "no GAP markers and not a recorded GAP copy", nil
 }
@@ -339,6 +347,45 @@ func (p *uninstallPlan) preview(out *report) {
 
 // uninstallAll removes what gap sync and gap add put on this machine, using only GAP's records.
 // The ~/.gap records are removed last, and only when every earlier step succeeded, so a failed run can be repeated.
+// pendingUninstall is a state entry no utility id can match. It holds every utility's skills and commands before
+// the utilities are removed, so an interrupted run still knows to clean them up when it is repeated.
+const pendingUninstall = ":uninstall"
+
+// holdUtilityCleanup records the utilities' skills and commands under pendingUninstall before any of them is removed.
+func holdUtilityCleanup(home string, ids []string) error {
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	held := state.Components[pendingUninstall]
+	skills, commands := map[string]bool{}, map[string]bool{}
+	for _, name := range held.Skills {
+		skills[name] = true
+	}
+	for _, path := range held.Commands {
+		commands[path] = true
+	}
+	for _, id := range ids {
+		entry := state.Components[id]
+		for _, name := range entry.Skills {
+			skills[name] = true
+		}
+		for name := range entry.SkillCopies {
+			skills[name] = true
+		}
+		for _, path := range entry.Commands {
+			commands[path] = true
+		}
+	}
+	if len(skills) == 0 && len(commands) == 0 {
+		return nil
+	}
+	held.Skills = slices.Sorted(maps.Keys(skills))
+	held.Commands = slices.Sorted(maps.Keys(commands))
+	state.Components[pendingUninstall] = held
+	return writeState(home, state)
+}
+
 func uninstallAll(opts uninstallOptions) error {
 	p, err := planUninstall()
 	if err != nil {
@@ -370,6 +417,9 @@ func uninstallAll(opts uninstallOptions) error {
 	}
 	var kept []string
 
+	if err := holdUtilityCleanup(home, p.utilities); err != nil {
+		return err
+	}
 	for _, id := range p.utilities {
 		if err := removeUtility(id); err != nil {
 			fail("%s: %v", id, err)
@@ -378,14 +428,6 @@ func uninstallAll(opts uninstallOptions) error {
 
 	state, err := readState(home)
 	if err != nil {
-		return err
-	}
-	for id, entry := range p.state.Components {
-		if _, exists := state.Components[id]; !exists {
-			state.Components[id] = stateEntry{Skills: entry.Skills, SkillCopies: entry.SkillCopies, Commands: entry.Commands}
-		}
-	}
-	if err := writeState(home, state); err != nil {
 		return err
 	}
 	if failed {

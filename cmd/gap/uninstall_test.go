@@ -244,7 +244,7 @@ func TestUninstallRemovesUtilityCopiesRetainedForGlobalSelections(t *testing.T) 
 					t.Fatalf("blocked cleanup exit %d", code)
 				}
 				state, err := readState(e.home)
-				if err != nil || !slices.Contains(state.Components["util"].Skills, "util-skill") {
+				if err != nil || !slices.Contains(state.Components[pendingUninstall].Skills, "util-skill") {
 					t.Fatalf("lost pending cleanup: %+v, %v", state, err)
 				}
 				if !e.exists(".gap/published.json") || !e.exists(".gap/store") {
@@ -403,7 +403,7 @@ func TestUninstallLockCleanupFailureKeepsOwnership(t *testing.T) {
 		t.Fatalf("lock cleanup failure exit %d", code)
 	}
 	state, err := readState(e.home)
-	if err != nil || !slices.Contains(state.Components["util"].Skills, "util-skill") || !e.exists(".gap/published.json") {
+	if err != nil || !slices.Contains(state.Components[pendingUninstall].Skills, "util-skill") || !e.exists(".gap/published.json") {
 		t.Fatalf("lock cleanup lost ownership: %+v, %v", state, err)
 	}
 	renameBackup = original
@@ -414,5 +414,49 @@ func TestUninstallLockCleanupFailureKeepsOwnership(t *testing.T) {
 	lock, err := readSkillLock(e.home)
 	if err != nil || len(lock) != 0 || e.exists(".gap/state.json") {
 		t.Fatalf("retry left records: %+v, %v", lock, err)
+	}
+}
+
+func TestUninstallStripsLegacyCodexPrefix(t *testing.T) {
+	e := newUninstallEnv(t)
+	prefix := "# Old GAP policy\n\nFollow the rules.\n"
+	agents := filepath.Join(e.home, ".codex", "AGENTS.md")
+	write(t, agents, prefix+"\n# Mine\nKeep this.\n")
+	ledgerFile := filepath.Join(e.home, ".gap", "published.json")
+	ledger, err := readLedger(ledgerFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ledger[agents] = digest(prefix)
+	if err := writeLedger(ledgerFile, ledger); err != nil {
+		t.Fatal(err)
+	}
+	if code := run([]string{"uninstall", "--yes"}); code != 0 {
+		t.Fatalf("uninstall exit %d", code)
+	}
+	got := readString(t, agents)
+	if strings.Contains(got, "Old GAP policy") || !strings.Contains(got, "Keep this.") {
+		t.Fatalf("legacy GAP prefix not stripped or user rules lost:\n%s", got)
+	}
+}
+
+func TestUninstallKeepsHeldCleanupAfterInterruption(t *testing.T) {
+	e := newUninstallEnv(t)
+	if err := holdUtilityCleanup(e.home, []string{"util"}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := readState(e.home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(state.Components, "util")
+	if err := writeState(e.home, state); err != nil {
+		t.Fatal(err)
+	}
+	if code := run([]string{"uninstall", "--yes"}); code != 0 {
+		t.Fatalf("retry exit %d", code)
+	}
+	if e.exists(".agents/skills/util-skill") || e.exists(".claude/commands/util-cmd.md") {
+		t.Fatal("a utility whose record was lost mid-uninstall left its skill or command behind")
 	}
 }

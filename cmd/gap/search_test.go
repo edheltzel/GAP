@@ -93,17 +93,33 @@ func TestSearchIgnoresLocalStateAndStaysPlainWhenPiped(t *testing.T) {
 		"recall - ",
 		"forge - ",
 		"do-skills - ",
-		"  gap add github.com/edheltzel/Forge\n",
-		"  gap add github.com/edheltzel/Do-Skills\n",
+		"  included with GAP; gap sync installs it\n",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in:\n%s", want, out)
 		}
 	}
+	if strings.Contains(out, "gap add") {
+		t.Fatalf("search suggested gap add for a distro component, which gap add refuses:\n%s", out)
+	}
 	stdout.Reset()
 	stderr.Reset()
 	if code := searchTo(&stdout, &stderr, "no-such-utility"); code != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "No utility matches") {
 		t.Fatalf("no match: code = %d stdout = %q stderr = %q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestAddCommandForNonDistroEntry(t *testing.T) {
+	e := catalogEntry{ID: "tool", Repo: "github.com/someone/tool"}
+	if got := addCommand(e, map[string]bool{}); got != "gap add github.com/someone/tool" {
+		t.Fatalf("addCommand = %q", got)
+	}
+	renamed := catalogEntry{ID: "tool", Repo: "github.com/someone/Other"}
+	if got := addCommand(renamed, map[string]bool{}); got != "gap add github.com/someone/Other --id tool" {
+		t.Fatalf("addCommand = %q", got)
+	}
+	if got := addCommand(e, map[string]bool{"tool": true}); strings.Contains(got, "gap add") {
+		t.Fatalf("distro entry got an add command: %q", got)
 	}
 }
 
