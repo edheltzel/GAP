@@ -46,9 +46,9 @@ commit = "bd0a32504f9ae9f795875a9e6bb90ff7408fda08"
 tree = "9f661011235f0c48a34ad2f1b0cfdc92dc486c1b"
 
 [components.gitbutler]
-ref = "master"
-commit = "5e632a6a3d59c13ee7d7faf2e183a8e99f5693d5"
-tree = "c4a006950660297bc501bac1c0d0513f973c97b9"
+ref = "8218481afa206ccba4db48ce2b4bc2edc85eb1cf"
+commit = "8218481afa206ccba4db48ce2b4bc2edc85eb1cf"
+tree = "c973ca4fe495b85307e9d6163a584687bb9b141c"
 
 [components.guides]
 ref = "main"

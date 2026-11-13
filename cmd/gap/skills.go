@@ -14,9 +14,6 @@ import (
 	"strings"
 )
 
-// manifestEntry is one component's selected skills. Path is the pinned store they are copied from,
-// SkillPath an optional folder inside it searched first, Source the component's repo identity,
-// Project the project root for project-level skills, and Owner the component id recorded in state.
 type manifestEntry struct {
 	Source    string
 	Skills    []string
@@ -78,11 +75,6 @@ func adoptSkill(home string, e manifestEntry, name string) error {
 	}
 	fmt.Printf("Migrated %s from skills.sh (%s) to %s\n", name, lockLabel(locked), cmp.Or(e.Owner, e.Source))
 	return nil
-}
-
-// skillDriftCount is the number of installed copies of name that differ from its folder in store.
-func skillDriftCount(store, home, name string) int {
-	return entryDriftCount(manifestEntry{Path: store}, home, name)
 }
 
 // entryDriftCount is the number of installed copies of name that differ from the entry's pinned store.
@@ -303,12 +295,10 @@ func replaceSkill(home string, e manifestEntry, name string) (bool, error) {
 			break
 		}
 	}
+	if installErr == nil && e.Project == "" {
+		installErr = dropSkillLockEntry(home, name)
+	}
 	if installErr == nil {
-		if e.Project == "" {
-			if err := dropSkillLockEntry(home, name); err != nil {
-				fmt.Fprintf(os.Stderr, "Could not drop %s from %s: %v\n", name, skillLockPath(home), err)
-			}
-		}
 		return true, recordOwnership(home, e.Owner, []string{name}, nil, e.Path)
 	}
 	for _, dir := range dirs {
@@ -402,9 +392,11 @@ func localSkillDir(repoRoot, name string) string {
 	return findSkillDir(repoRoot, "skills", name)
 }
 
-// entrySkillDir is name's folder in the entry's pinned store. A component path replaces skills/ as the first place searched.
 func entrySkillDir(e manifestEntry, name string) string {
-	return findSkillDir(e.Path, cmp.Or(e.SkillPath, "skills"), name)
+	if e.SkillPath != "" {
+		return findSkillDir(filepath.Join(e.Path, filepath.FromSlash(e.SkillPath)), "", name)
+	}
+	return localSkillDir(e.Path, name)
 }
 
 // treeHash is the Git tree id of dir, without the paths indexPathExcluded names.

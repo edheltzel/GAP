@@ -153,6 +153,116 @@ func TestUtilityUpdate(t *testing.T) {
 	}
 }
 
+func TestUtilitySkillPathLifecycle(t *testing.T) {
+	for _, installedVersion := range []string{"old", "new", "edited"} {
+		t.Run(installedVersion, func(t *testing.T) {
+			e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+			write(t, filepath.Join(e.remote, ".agent", "skills", "util-skill", "SKILL.md"), "wrong variant\n")
+			selected := filepath.Join(e.remote, ".agents", "skills", "util-skill", "SKILL.md")
+			write(t, selected, "old selected variant\n")
+			commitAll(t, e.remote)
+			captureStd(t, func() {
+				if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+					t.Fatalf("add exited %d", code)
+				}
+			})
+			config := readString(t, userConfigFile(e.home))
+			write(t, userConfigFile(e.home), config+"path = \".agents/skills\"\n")
+			captureStd(t, func() {
+				if code := run([]string{"restore", "util"}); code != 0 {
+					t.Fatalf("restore exited %d", code)
+				}
+			})
+			write(t, selected, "new selected variant\n")
+			commitAll(t, e.remote)
+			if installedVersion == "new" {
+				for _, dir := range skillDirs(e.home, "util-skill") {
+					write(t, filepath.Join(dir, "SKILL.md"), "new selected variant\n")
+				}
+			} else if installedVersion == "edited" {
+				write(t, filepath.Join(skillDirs(e.home, "util-skill")[1], "SKILL.md"), "my edit\n")
+			}
+			captureStd(t, func() {
+				want := 0
+				if installedVersion == "edited" {
+					want = 1
+				}
+				if code := run([]string{"update", "util"}); code != want {
+					t.Errorf("update exited %d, want %d", code, want)
+				}
+			})
+			for i, dir := range skillDirs(e.home, "util-skill") {
+				want := "new selected variant\n"
+				if installedVersion == "edited" {
+					want = "old selected variant\n"
+					if i == 1 {
+						want = "my edit\n"
+					}
+				}
+				if got := readString(t, filepath.Join(dir, "SKILL.md")); got != want {
+					t.Fatalf("installed %s = %q, want %q", dir, got, want)
+				}
+			}
+			stdout, _ := captureStd(t, func() {
+				if code := run([]string{"remove", "util"}); code != 0 {
+					t.Errorf("remove exited %d", code)
+				}
+			})
+			if got := strings.Contains(stdout, "Kept your edited copy at"); got != (installedVersion == "edited") {
+				t.Fatalf("removal misclassified selected copies:\n%s", stdout)
+			}
+		})
+	}
+}
+
+func TestRestoreReportsSkillsShCleanupFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write to a read-only lock directory")
+	}
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	captureStd(t, func() {
+		if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+			t.Fatalf("add exited %d", code)
+		}
+	})
+	for _, dir := range skillDirs(e.home, "util-skill") {
+		write(t, filepath.Join(dir, "SKILL.md"), "previous copy\n")
+	}
+	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
+	const lock = `{"version":3,"skills":{"util-skill":{"source":"owner/util"},"unrelated":{"source":"owner/other"}},"dismissed":{"x":true}}`
+	write(t, skillLockPath(e.home), lock)
+	lockDir := filepath.Dir(skillLockPath(e.home))
+	if err := os.Chmod(lockDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(lockDir, 0o755) })
+	captureStd(t, func() {
+		if code := run([]string{"restore", "util"}); code != 1 {
+			t.Errorf("restore with a non-writable skills.sh lock exited %d, want 1", code)
+		}
+	})
+	assertSkillLock(t, e.home, lock)
+	for _, dir := range skillDirs(e.home, "util-skill") {
+		if got := readString(t, filepath.Join(dir, "SKILL.md")); got != "previous copy\n" {
+			t.Fatalf("failed ownership transfer changed %s: %q", dir, got)
+		}
+	}
+	if err := os.Chmod(lockDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	captureStd(t, func() {
+		if code := run([]string{"restore", "util"}); code != 0 {
+			t.Errorf("restore retry exited %d", code)
+		}
+	})
+	assertSkillLock(t, e.home, `{"version":3,"skills":{"unrelated":{"source":"owner/other"}},"dismissed":{"x":true}}`)
+	for _, dir := range skillDirs(e.home, "util-skill") {
+		if got := readString(t, filepath.Join(dir, "SKILL.md")); got != "---\nname: util-skill\ndescription: test\n---\n" {
+			t.Fatalf("restore retry left %s = %q", dir, got)
+		}
+	}
+}
+
 func TestUtilityBulkRefChange(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)

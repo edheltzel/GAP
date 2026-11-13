@@ -258,10 +258,12 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpIn
 			if baseline == "" || baseline == entry.Path || !slices.Contains(state.Components[id].Skills, name) {
 				continue
 			}
-			if !installed(target, name) || skillDriftCount(entry.Path, target, name) == 0 {
+			if !installed(target, name) || entryDriftCount(entry, target, name) == 0 {
 				continue
 			}
-			if skillDriftCount(baseline, target, name) > 0 {
+			previous := entry
+			previous.Path = baseline
+			if entryDriftCount(previous, target, name) > 0 {
 				fmt.Fprintf(os.Stderr, "%s: your edited copy of %s was kept; gap restore %s takes the new version\n", id, name, id)
 				skillsOK = false
 				continue
@@ -684,7 +686,7 @@ func removeUtility(id string) error {
 			fmt.Printf("Kept %s: another component also selects it\n", name)
 			continue
 		}
-		changed := c.Store == "" || skillDriftCount(c.Store, home, name) > 0
+		changed := c.Store == "" || entryDriftCount(manifestEntry{Path: c.Store, SkillPath: c.SkillPath}, home, name) > 0
 		for _, dir := range skillDirs(home, name) {
 			if err := moveOut(dir, changed); err != nil {
 				return err

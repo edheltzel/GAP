@@ -1,13 +1,29 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func assertSkillLock(t *testing.T, home, want string) {
+	t.Helper()
+	var gotValue, wantValue any
+	if err := json.Unmarshal([]byte(readString(t, skillLockPath(home))), &gotValue); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(want), &wantValue); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotValue, wantValue) {
+		t.Fatalf("skills.sh lock = %#v, want %#v", gotValue, wantValue)
+	}
+}
 
 // skillsShInstall writes a skill the way skills.sh left it: a folder under ~/.agents/skills and a relative Claude symlink to it.
 func skillsShInstall(t *testing.T, home, name, body string) {
@@ -44,7 +60,8 @@ func TestSyncMigratesSkillsShInstalls(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Chdir(project)
-	write(t, filepath.Join(remote, "skills", "other", "SKILL.md"), "pinned other\n")
+	write(t, filepath.Join(remote, ".agents", "skills", "do-todo", "SKILL.md"), "pinned\n")
+	write(t, filepath.Join(remote, ".agents", "skills", "other", "SKILL.md"), "pinned other\n")
 	write(t, filepath.Join(remote, ".agent", "skills", "variant", "SKILL.md"), "wrong variant\n")
 	write(t, filepath.Join(remote, ".agents", "skills", "variant", "SKILL.md"), "chosen variant\n")
 	commit, tree := gitFixture(t, remote, "pinned\n")
@@ -83,9 +100,7 @@ func TestSyncMigratesSkillsShInstalls(t *testing.T) {
 	if got := skillLockNames(t, home); !slices.Equal(got, []string{"other", "unrelated"}) {
 		t.Fatalf("lock after first sync = %v", got)
 	}
-	if !strings.Contains(readString(t, skillLockPath(home)), `"dismissed"`) {
-		t.Fatal("migration dropped unrelated lock fields")
-	}
+	assertSkillLock(t, home, `{"version":3,"skills":{`+entry("other")+`,"unrelated":{"source":"someone/else"}},"dismissed":{"x":true}}`)
 	state, err := readState(home)
 	if err != nil {
 		t.Fatal(err)
@@ -116,6 +131,28 @@ func TestSyncMigratesSkillsShInstalls(t *testing.T) {
 	}
 	if got := skillLockNames(t, home); !slices.Equal(got, []string{"unrelated"}) {
 		t.Fatalf("lock after take source = %v", got)
+	}
+	assertSkillLock(t, home, `{"version":3,"skills":{"unrelated":{"source":"someone/else"}},"dismissed":{"x":true}}`)
+}
+
+func TestExplicitSkillPathDoesNotFallBack(t *testing.T) {
+	for _, configured := range []string{"missing/skills", ".agents/skills"} {
+		t.Run(configured, func(t *testing.T) {
+			home, store := t.TempDir(), t.TempDir()
+			write(t, filepath.Join(store, ".agent", "skills", "x", "SKILL.md"), "wrong variant\n")
+			write(t, filepath.Join(store, ".agents", "skills", "other", "SKILL.md"), "other\n")
+			entry := manifestEntry{Path: store, SkillPath: configured, Skills: []string{"x"}}
+			captureStd(t, func() {
+				if installSkills(home, []manifestEntry{entry}) {
+					t.Error("installation must fail when the configured subtree lacks the skill")
+				}
+			})
+			for _, dir := range skillDirs(home, "x") {
+				if _, err := os.Lstat(dir); !os.IsNotExist(err) {
+					t.Fatalf("installed an unselected variant at %s: %v", dir, err)
+				}
+			}
+		})
 	}
 }
 

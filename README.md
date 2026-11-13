@@ -49,7 +49,7 @@ gap uninstall
 
 It previews what it will remove and asks on a terminal (`--yes` skips the question, `--dry-run` only previews). Without a terminal, `--yes` is required. Use the same `CODEX_HOME` and `JCODE_HOME` you published with. It removes every utility the way [gap remove](#add-a-utility) does, the MCP servers and commands recorded for components, GAP policy blocks, the GAP Codex hooks, and published global commands that still match `~/.gap/published.json`. Text outside marked policy blocks stays byte for byte; files left with only whitespace or Cursor front matter are removed. An unmarked policy file is removed when its whole-file SHA-256 matches the ledger. A ledger-verified prefix, including a legacy Codex GAP prefix, is stripped while preserving the text after it; the file is removed if only whitespace remains. Other policy files and unmatched global commands stay and are listed.
 
-Skills are removed from both `~/.agents/skills/` and `~/.claude/skills/` when recorded in a component's `skills` or `skillCopies`, or selected by `global/skills.json` with a matching source in the skills.sh lock. An unreadable or malformed skills lock stops discovery before removal. Policy, command, skill, and Codex hook backups go under `~/.gap/backups/<time>/`; utility removals can use separate timestamped folders. Before removing utilities, GAP saves their skill and command ownership in `~/.gap/state.json` so cleanup can resume after an interruption. After cleanup succeeds, it deletes `~/.gap/store/`, `~/.gap/state.json`, and `~/.gap/published.json`. A failed cleanup exits `1` and keeps the records for a retry.
+Skills are removed from both `~/.agents/skills/` and `~/.claude/skills/` when recorded in a component's `skills` or `skillCopies`. An unreadable or malformed skills.sh lock stops discovery before removal. Policy, command, skill, and Codex hook backups go under `~/.gap/backups/<time>/`; utility removals can use separate timestamped folders. Before removing utilities, GAP saves their skill and command ownership in `~/.gap/state.json` so cleanup can resume after an interruption. After cleanup succeeds, it deletes `~/.gap/store/`, `~/.gap/state.json`, and `~/.gap/published.json`. A failed cleanup exits `1` and keeps the records for a retry.
 
 It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/checkouts/`, your remaining `~/.config/gap/` settings, and the `gap` binary. It prints a `trash` command for the binary and confirms successful cleanup with `Uninstall complete.` Copy out any saved files you want, then trash `~/.gap/` yourself.
 
@@ -58,7 +58,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | Command | What it does |
 | --- | --- |
 | `gap sync` | Preview what will sync, ask on a terminal, then publish `global/AGENTS.md` and each `global/commands/*.md`, install missing skills, and check skills for drift. See [Choose what syncs](#choose-what-syncs) |
-| `gap sync --skip <groups>` / `--only <groups>` / `--yes` | Leave groups out, sync only some, or sync without asking. Groups: `policy`, `manifest`, or a component id |
+| `gap sync --skip <groups>` / `--only <groups>` / `--yes` | Leave groups out, sync only some, or sync without asking. Groups: `policy` or a component id |
 | `gap sync --profile crew` | Prepare project files for cloud agents without fetching components or writing to the home directory |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from Codex home's `AGENTS.md`; see [Set up Codex](#set-up-codex-once-per-machine) |
 | `gap status` | Show each component's pin, its store copy, and drift in its selected skills. Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
@@ -90,7 +90,7 @@ Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merge
 
 - you're on a branch other than `master` or GitButler's `gitbutler/workspace`
 - you're in a git worktree
-- `global/`, `skills/`, `gap.toml`, or `gap.lock` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when skills.sh would install it, or when gap reads it (`global/AGENTS.md`, `global/skills.json`, top-level `global/commands/*.md`, `gap.toml`, `gap.lock`). Ignored `node_modules` and `.DS_Store` do not block.
+- `global/`, `skills/`, `gap.toml`, or `gap.lock` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when it is installable content under `skills/`, or when gap reads it (`global/AGENTS.md`, top-level `global/commands/*.md`, `gap.toml`, `gap.lock`). Ignored `node_modules` and `.DS_Store` do not block.
 
 ### Step 3: Run `gap sync`
 
@@ -154,29 +154,25 @@ Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP r
 
 ## Manage skills
 
-The distro's `gap.toml` and your `~/.config/gap/gap.toml` select pinned [components](#components). Their skill lists and load levels are described under [Load levels](#load-levels). `global/skills.json` selects additional skills by source. In that manifest, `"source": "."` means a skill in this repo's `skills/` folder; any other source is a GitHub `owner/repo`, optionally followed by a subdirectory path.
-
-```json
-[
-  { "source": "kunchenguid/gh-axi", "skills": ["gh-axi"] }
-]
-```
+The distro's `gap.toml` and your `~/.config/gap/gap.toml` select pinned [components](#components). Their skill lists and load levels are described under [Load levels](#load-levels). All former `global/skills.json` sources are now pinned components; the separate skills manifest is no longer used.
 
 `gap sync` copies selected component skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Harnesses that read neither folder get no skills from GAP; the policy still reaches them. Component skill installation, drift repair, and restore do not use Node or `npx`. Project skills use the same two paths under the invoking project instead of the home directory; see [load levels](#load-levels).
 
-Additional skills in `global/skills.json` still install through skills.sh (`npx -y skills add <source> -g -y -a claude-code -a codex -s <name>`, repeating `-s` for each missing skill). They use the home-directory destinations above, with a Claude link managed by skills.sh, and require Node. If such an installation is needed but `npx` is unavailable, sync still publishes the policy, skips that installation, and exits `1`.
-
-Sync checks installed managed skills against their selected source. Component skills use the pinned store as their baseline and leave the skills.sh lock unchanged; matching existing copies stay in place. Manifest skills retain skills.sh source-identity migration and hash checks, described in the [sync contract](cmd/gap/AGENTS.md#sync-steps). For each drifted skill, sync shows the diff and asks:
+Sync checks every selected skill against its pinned store. Existing skills.sh installations are adopted in place when both destinations match that source: GAP records component ownership and removes only that skill's entry from the skills.sh lock. The lock is `$XDG_STATE_HOME/skills/.skill-lock.json` when `XDG_STATE_HOME` is set, otherwise `~/.agents/.skill-lock.json`. Unrelated lock entries and fields stay intact. Edited copies go to drift review. For each drifted skill, sync shows the diff and asks:
 
 - `k` keeps the installed copies for this run. Later runs check them again. An incomplete installation still exits `1`.
 - `t` takes the source. Sync backs up both destinations under `~/.gap/backups/`, then reinstalls. A failed install restores the previous destinations.
 - `s` skips it for now. Sync exits `1`.
 
-With no terminal to ask in, sync lists the drifted skills, including a foreign lock that was not migrated, changes none of them, and exits `1`. Skills outside the selected components and `global/skills.json` are never touched.
+With no terminal to ask in, sync lists the drifted skills, leaves those copies in place, and exits `1`. Skills outside the selected components are never touched.
 
 ### Components
 
 A component is a utility pinned to one commit. [`gap.toml`](gap.toml) selects the distro's components; [`gap.lock`](gap.lock) records the exact commits and trees. A component whose pinned commit includes a [`gap-utility.toml`](#publish-a-utility) takes its installation declarations from that manifest, so its entry needs only `repo` and `ref`; keeping `install` or `doctor` in that entry is refused. A distro component whose pinned commit lacks one lists its skills in `names` and may set `install` and `doctor` commands in its entry.
+
+An optional `path` restricts skill lookup to that subtree of the pinned checkout. For example, `path = ".agents/skills"` selects that variant when a repository contains multiple copies. Without `path`, lookup tries `skills/` first, then the repository, choosing the shallowest matching folder and using lexical order to break ties.
+
+GitButler uses the commit before its Lite removal so the existing `lite-render-perf` and `lite-screenshots` selections remain available alongside `cli-commands` and `tui-tests`.
 
 The distro can narrow a manifest's skill list as described under [Load levels](#load-levels). For example:
 
@@ -199,7 +195,7 @@ The distro includes Do-Skills, Forge, Echo, and Recall. Forge supplies `forge-in
 
 Doctor also records the adapters Echo reports in `~/.gap/state.json`, when the pinned Echo supports that report. GAP never installs or removes adapters itself; the full rule is in the [`gap` contract](cmd/gap/AGENTS.md#project-setup-and-doctor).
 
-`gap status` checks component source checkouts and selected component skills, using the locked ref when pinned. It does not check Recall's memory database or additional manifest skills. `store=missing` means the checkout is absent, `store=changed` means its source files differ from the pin, and `store=unpinned` means `gap.lock` has no entry. For these states, it prints the matching repair command. Ignored, untracked build output does not change the result; tracked edits, deletions, and mode changes still do. Skill drift is checked only when the source checkout matches the lock; an unreadable checkout reports an error.
+`gap status` checks component source checkouts and selected component skills, using the locked ref when pinned. It does not check Recall's memory database. `store=missing` means the checkout is absent, `store=changed` means its source files differ from the pin, and `store=unpinned` means `gap.lock` has no entry. For these states, it prints the matching repair command. Ignored, untracked build output does not change the result; tracked edits, deletions, and mode changes still do. Skill drift is checked only when the source checkout matches the lock; an unreadable checkout reports an error.
 
 Status and `gap restore [id]` use the same component overrides and skill selection as sync. `gap restore do-skills` repairs that component's selected missing or drifted skills without asking; omit the id to repair all components. Restore backs up replaced copies and rolls them back if installation fails. A verified store avoids network access.
 
@@ -237,7 +233,7 @@ Overrides never write either lock. If an overridden `ref` differs from the locke
 
 ### Choose what syncs
 
-`gap sync` groups its work as `policy` (policy and global commands), each enabled component id (distro or user), and `manifest` (`global/skills.json`, when it lists any source). A utility's commands and MCP servers belong to its component group. With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Only enter syncs: ctrl+c, a termination signal, or submitting with no groups checked writes nothing. A `TERM=dumb` terminal gets the line prompt below instead.
+`gap sync` groups its work as `policy` (policy and global commands) and each enabled component id (distro or user). A utility's skills, commands, and MCP servers belong to its component group. With both stdin and stdout attached to a terminal, it opens a picker with every group checked: space toggles a group, and enter syncs the checked groups. Only enter syncs: ctrl+c, a termination signal, or submitting with no groups checked writes nothing. A `TERM=dumb` terminal gets the line prompt below instead.
 
 After selection, terminal output shows a framed plan, phase headers, progress lines, and a final result. Written paths use `~` for your home directory. Piped output keeps the plain preview and progress lines, for example:
 
@@ -246,16 +242,14 @@ gap sync will:
   policy     publish AGENTS.md to 7 harness files and 1 command
   do-skills  66 skills @ master (abc1234)
   echo       run its installer @ v0.13.0 (def5678)
-  manifest   15 skills from 12 sources in global/skills.json (skills.sh, needs npx)
+  gh-axi     1 skill @ main (fed4321)
 ```
 
 With terminal input and either `TERM=dumb` or piped output, sync prints the preview before asking `[a]ll, [c]hoose, [q]uit`; `c` asks `[Y/n/q]` about each group. Press enter to submit each answer. An empty submitted line means all at the first prompt and yes at each group prompt. Entering `q`, choosing no groups, or reaching end of input (EOF), even after typing a partial answer, prints `Nothing synced.`, writes nothing, and exits `0`.
 
-For scripts, `gap sync --skip do-skills,manifest`, `gap sync --only policy`, or `gap sync --yes` skip the question. `--only` and `--skip` are mutually exclusive. Without terminal input, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
+For scripts, `gap sync --skip do-skills,gh-axi`, `gap sync --only policy`, or `gap sync --yes` skip the question. `--only` and `--skip` are mutually exclusive. Without terminal input, every group syncs unless a flag leaves it out. A skip lasts for one run; to leave a component out of every sync, add `[components.<id>]` with `enabled = false` to `~/.config/gap/gap.toml`.
 
-To add a whole utility for yourself, run [`gap add`](#add-a-utility). To add a skill from an existing component, add its name to that component's `names` array in `gap.toml`. For another source, add an entry to `global/skills.json`. Then follow [the merge and publish steps](#step-2-merge-the-change).
-
-For a direct skills.sh install that does not use `gap.lock`, run `npx skills add edheltzel/Do-Skills -s <skill-name>`.
+To add a whole utility for yourself, run [`gap add`](#add-a-utility). To add a skill from an existing component, add its name to that component's `names` array in `gap.toml`. For another distro source, add a component with its `repo`, `ref`, and `names`, then run `gap pin <id>@<ref>`. Follow [the merge and publish steps](#step-2-merge-the-change).
 
 ### Project setup
 

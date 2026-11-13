@@ -5,9 +5,44 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
+
+func TestFormerManifestSkillSelections(t *testing.T) {
+	d, err := readDistro("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lk, err := readLock("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, names := range map[string][]string{
+		"but-axi":             {"but-axi"},
+		"gitbutler":           {"cli-commands", "lite-render-perf", "lite-screenshots", "tui-tests"},
+		"gh-stack":            {"gh-stack"},
+		"chrome-devtools-axi": {"chrome-devtools-axi"},
+		"gh-axi":              {"gh-axi"},
+		"visual-explainer":    {"visual-explainer"},
+		"herdr":               {"herdr"},
+		"dev-skills":          {"codegraph"},
+		"agent-reviews":       {"resolve-agent-reviews", "resolve-human-reviews", "resolve-reviews"},
+		"impeccable":          {"impeccable"},
+		"guides":              {"guided-plan", "guided-review"},
+		"typesafe-ai":         {"typesafe-ai"},
+	} {
+		c := d.Components[id]
+		entries := selectedEntries(c, "store", "")
+		if len(entries) != 1 || !slices.Equal(entries[0].Skills, names) {
+			t.Errorf("%s must retain its former manifest selections %v, got %+v", id, names, entries)
+		}
+		if pin := lk.Components[id]; pin.Ref != c.Ref || pin.Commit == "" || pin.Tree == "" {
+			t.Errorf("%s has no matching source pin: %+v", id, pin)
+		}
+	}
+}
 
 func TestParseTOMLSubset(t *testing.T) {
 	const hex = "0123456789abcdef0123456789abcdef01234567"
@@ -526,11 +561,13 @@ func TestPinMovesStoreIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"do-todo":{"source":"`+old+`","sourceType":"local","sourceUrl":"`+old+`","skillFolderHash":"`+hash+`"}}}`)
+	initialLock := `{"skills":{"do-todo":{"source":"` + old + `","sourceType":"local","sourceUrl":"` + old + `","skillFolderHash":"` + hash + `"}}}`
+	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), initialLock)
 	entry := manifestEntry{Source: "edheltzel/Do-Skills", Skills: []string{"do-todo"}, Path: pinned}
-	if !installSkills(home, []manifestEntry{entry}) || !strings.Contains(readString(t, skillLockPath(home)), "do-todo") {
+	if !installSkills(home, []manifestEntry{entry}) {
 		t.Fatal("a copy that differs from the new pin must not be adopted")
 	}
+	assertSkillLock(t, home, initialLock)
 	ok, err := checkDrift(home, []manifestEntry{entry})
 	if err != nil || ok {
 		t.Fatalf("drift vs the new store must be ordinary drift: ok=%v err=%v", ok, err)
@@ -542,9 +579,7 @@ func TestPinMovesStoreIdentity(t *testing.T) {
 	if got := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")); got != "second\n" {
 		t.Fatalf("reinstall body: %q", got)
 	}
-	if strings.Contains(readString(t, skillLockPath(home)), "do-todo") {
-		t.Fatal("take source must drop the skills.sh lock entry")
-	}
+	assertSkillLock(t, home, `{"skills":{}}`)
 }
 
 func TestCheckoutLockMigrates(t *testing.T) {

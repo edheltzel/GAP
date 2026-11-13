@@ -18,6 +18,11 @@ func TestHelpListsCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
+	for _, obsolete := range []string{"global/skills.json", "npx", "skills.sh"} {
+		if strings.Contains(got, obsolete) {
+			t.Fatalf("help advertises the removed installer %q:\n%s", obsolete, got)
+		}
+	}
 	for _, name := range []string{"sync", "status", "restore", "pin", "doctor", "init", "add", "update", "remove", "list", "uninstall"} {
 		if !strings.Contains(got, name) {
 			t.Fatalf("help is missing %q:\n%s", name, got)
@@ -45,6 +50,11 @@ func TestSyncHelpListsFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
+	for _, obsolete := range []string{"manifest", "global/skills.json"} {
+		if strings.Contains(got, obsolete) {
+			t.Fatalf("sync help advertises an unsupported group %q:\n%s", obsolete, got)
+		}
+	}
 	for _, name := range []string{"--remove-codex-legacy", "--profile"} {
 		if !strings.Contains(got, name) {
 			t.Fatalf("sync help is missing %q:\n%s", name, got)

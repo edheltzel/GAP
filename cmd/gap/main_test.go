@@ -631,6 +631,7 @@ func TestCodexCleanupGates(t *testing.T) {
 // TestSyncEndToEnd builds the CLI inside a throwaway clone on its primary branch, then runs it
 // from outside any repo against a temp HOME. The clone gets this tree's Go files so uncommitted code is tested.
 func TestSyncEndToEnd(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", "")
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -741,9 +742,7 @@ func TestSyncEndToEnd(t *testing.T) {
 	if !strings.Contains(lastOut, "Migrated ext from skills.sh (owner/ext) to local") {
 		t.Fatalf("a matching skills.sh install must be taken over:\n%s", lastOut)
 	}
-	if lock := readString(t, filepath.Join(home, ".agents", ".skill-lock.json")); strings.Contains(lock, `"ext"`) || !strings.Contains(lock, `"mine"`) {
-		t.Fatalf("migration must drop only the adopted lock entry: %s", lock)
-	}
+	assertSkillLock(t, home, `{"skills":{"mine":{"source":"me/mine"}}}`)
 	if readString(t, unlisted) != "mine\n" {
 		t.Fatal("unlisted skill changed")
 	}

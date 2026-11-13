@@ -106,8 +106,8 @@ names = ["but-axi"]
 
 [components.gitbutler]
 repo  = "github.com/gitbutlerapp/gitbutler"
-ref   = "master"
-names = ["cli-commands", "tui-tests"]
+ref   = "8218481afa206ccba4db48ce2b4bc2edc85eb1cf"
+names = ["cli-commands", "lite-render-perf", "lite-screenshots", "tui-tests"]
 
 [components.gh-stack]
 repo  = "github.com/github/gh-stack"
