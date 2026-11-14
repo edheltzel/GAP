@@ -275,7 +275,7 @@ Render = pinned source file → frontmatter merge → patch → append → write
 2. Gap stops writing that lock. It leaves it in place for skills Gap doesn't manage.
 3. Replace the symlinks in `~/.claude/skills` with regular copies (backup first), one prompt for the batch.
 4. Do-Skills README install section changes from `npx skills add edheltzel/Do-Skills …` to: "Install with Gap: `gap add do-skills` (or it's already in the default distro). Project skills install automatically when the repo matches." Keep a short "without Gap" note pointing at skills.sh for outside users, if you want one. External skills (gitbutler, plannotator, codegraph, …) stay in the default distro (decision 8).
-5. GAP README "Manage skills" section and the "you need Node" note go away.
+5. Completed: see step 7 of the [plugin-manager plan](2026-11-12-gap-plugin-manager-plan.md#steps).
 
 ---
 
@@ -294,9 +294,8 @@ Render = pinned source file → frontmatter merge → patch → append → write
 
 ## Todo
 
-Open tasks, copied verbatim from Do-Skills' and GAP's `todo.txt`:
+GAP tasks live in [todo.txt](../../todo.txt). Do-Skills follow-up:
 
 ```text
 2026-11-05 Change the README install section from npx skills add to Gap, keeping a short skills.sh note for outside users (GAP provisioner section 9 step 4) +doskills note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-20-gap-env-provisioner-plan.md
-2026-11-05 Provisioner section 9 step 5: drop the skills.sh and Node path from README Manage skills once global/skills.json no longer needs npx +gap note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-10-20-gap-env-provisioner-plan.md
 ```

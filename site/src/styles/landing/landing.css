@@ -9,8 +9,7 @@
 
 .stage {
   position: relative;
-  height: 100vh;
-  min-height: 680px;
+  min-height: max(100vh, 680px);
   overflow: hidden;
   background: var(--bg);
 }
@@ -99,10 +98,10 @@
 }
 
 .copy {
-  position: absolute;
+  position: relative;
   z-index: 2;
   left: var(--pad);
-  top: 15.5vh;
+  padding-block: 15.5vh 100px;
   width: min(520px, calc(100vw - 2 * var(--pad)));
 }
 

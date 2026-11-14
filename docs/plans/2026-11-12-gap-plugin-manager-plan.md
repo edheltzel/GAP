@@ -30,7 +30,7 @@ Delivered in v0.5.0:
 4. Completed: MCP entries in `gap-utility.toml` follow the [manifest and lifecycle contract](../../README.md#publish-a-utility) through the harness adapter table and the Claude, Codex, and Pi MCP CLIs.
 5. Completed (PR #120): `gap uninstall`: strip the policy blocks, Codex hooks, published commands, and owned skills recorded in the ledger and `state.json`.
 6. Completed (PR #120): release binaries (GoReleaser or `go build` in CI) and an installer that downloads one when Go is absent.
-7. Completed: drop the skills.sh path once `global/skills.json` sources become utilities (provisioner section 9 step 5, also done). The 12 sources are pinned components in `gap.toml` and `gap.lock`, `global/skills.json` is gone, and the first sync takes over matching skills.sh installs. Branch `feat/drop-skillssh`.
+7. Completed: replaced the skills.sh path with [pinned components](../../README.md#components), including [adoption of matching installs](../../README.md#manage-skills). This also completes provisioner section 9 step 5. Branch `feat/drop-skillssh`.
 8. Completed (PR #120): catalog, `gap search` over a list of known utility repos, kept in this repo.
 
 Version ranges and dependencies between utilities wait until two utilities need each other.

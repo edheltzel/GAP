@@ -36,8 +36,7 @@ import '../styles/landing/landing.css';
           <button class="cp" type="button">Copy</button>
         </div>
         <p class="hint">
-          No Go needed: without it, the script installs a checksum-verified release binary. See the
-          <a href="/docs/#install-gap">installation requirements</a>.
+          No Go needed: without it, the script installs a checksum-verified release binary. See the <a href="/docs/#install-gap">installation requirements</a>.
         </p>
         <div class="cta">
           <a class="btn" href="/docs/#install-gap">Read the docs</a>
@@ -88,8 +87,8 @@ import '../styles/landing/landing.css';
             <div class="n"><span>Step</span><i>03</i></div>
             <h3>Check status</h3>
             <p>
-              <code>gap status</code> draws a table of each component's pin and any skill drift. It writes nothing and
-              exits 1 on drift. <code>gap list</code> shows what is installed.
+              <code>gap status</code> reports each component's pin and any skill drift. It writes nothing and
+              exits 1 on drift. <code>gap list</code> shows configured components and utilities.
             </p>
           </article>
         </div>
@@ -106,8 +105,7 @@ import '../styles/landing/landing.css';
             <div class="n"><span>Add</span><i>01</i></div>
             <h3>gap add owner/repo</h3>
             <p>
-              Pins the repo in your own lock, copies its skills and commands, registers MCP servers, and runs its install hook.
-              <code>gap search</code> finds one.
+              Pins the repo in your own lock, copies its skills and commands, registers MCP servers, and runs its install hook. <code>gap search</code> finds one.
             </p>
           </article>
           <article class="card">
@@ -118,7 +116,7 @@ import '../styles/landing/landing.css';
           <article class="card">
             <div class="n"><span>Remove</span><i>03</i></div>
             <h3>gap remove &lt;id&gt;</h3>
-            <p>Runs its uninstall hook, removes its MCP servers, and moves its files to a backup folder, so nothing is lost.</p>
+            <p>Runs its uninstall hook, unregisters its MCP servers, and backs up its recorded skills and commands.</p>
           </article>
         </div>
         <div class="cta">
@@ -160,8 +158,8 @@ import '../styles/landing/landing.css';
           <div>
             <span>Uninstall</span>
             <p>
-              <b>It removes only what it recorded.</b> <code>gap uninstall</code> previews first, backs up what it
-              removes, and leaves your other files alone.
+              <b>It removes only what it recorded.</b> <code>gap uninstall</code> previews first. See the
+              <a href="/docs/#install-gap">cleanup and backup rules</a> for what it removes and retains.
             </p>
           </div>
         </div>
