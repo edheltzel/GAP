@@ -70,11 +70,11 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap remove <id>` | Remove a utility and its recorded installations. See [Add a utility](#add-a-utility) |
 | `gap uninstall [--yes] [--dry-run]` | Preview and remove recorded installations. See [Install `gap`](#install-gap) for removal rules and retained files |
 | `gap search [query]` | Search `catalog.toml`, the list of known utilities, by id, tag, or description. Distro components show `included with GAP; gap sync installs it`; other matches show a `gap add` command |
-| `gap list` | List every component and utility with its source, ref, pinned commit, and hook trust |
+| `gap list` | List every component and utility with its source, repo, ref, pinned commit, and hook trust |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `go test ./...` | Run the self-test against throwaway folders |
 
-Use `gap --help` or `gap <command> --help` for usage and flags. Help and terminal reports use GAP's light or dark palette; status, list, and search show framed tables with totals. Git ref lookups and store fetching show spinners on terminal stderr. Set `NO_COLOR=1` or `TERM=dumb` to suppress report colors and spinners while keeping terminal layouts. Redirected reports use plain text. Add, update, restore, pin, remove, and uninstall outcome lines also appear when redirected.
+Use `gap --help` or `gap <command> --help` for usage and flags. Help and terminal reports use GAP's light or dark palette; status, list, and search show framed tables with totals. Git ref lookups and store fetching show spinners on terminal stderr; long titles are truncated to the terminal width measured at the start of the operation, when available. Set `NO_COLOR=1` or `TERM=dumb` to suppress report colors and spinners while keeping terminal layouts. Redirected reports use plain text. Add, update, restore, pin, remove, and uninstall outcome lines also appear when redirected.
 
 ## Change the policy
 
@@ -158,7 +158,7 @@ The distro's `gap.toml` and your `~/.config/gap/gap.toml` select pinned [compone
 
 `gap sync` copies selected component skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Harnesses that read neither folder get no skills from GAP; the policy still reaches them. Component skill installation, drift repair, and restore do not use Node or `npx`. Project skills use the same two paths under the invoking project instead of the home directory; see [load levels](#load-levels).
 
-Sync checks every selected skill against its pinned store. Existing skills.sh installations are adopted in place when both destinations match that source: GAP records component ownership and removes only that skill's entry from the skills.sh lock. The lock is `$XDG_STATE_HOME/skills/.skill-lock.json` when `XDG_STATE_HOME` is set, otherwise `~/.agents/.skill-lock.json`. Unrelated lock entries and fields stay intact. Edited copies go to drift review. For each drifted skill, sync shows the diff and asks:
+Sync checks every selected skill against its pinned store. Existing skills.sh installations are adopted in place when both destinations match that source: GAP records component ownership and removes only that skill's entry from the skills.sh lock. The lock is `$XDG_STATE_HOME/skills/.skill-lock.json` when `XDG_STATE_HOME` is set, otherwise `~/.agents/.skill-lock.json`. Unrelated lock entries and fields stay intact. Missing, unreadable, or malformed locks follow the [migration failure contract](cmd/gap/AGENTS.md#sync-steps). Edited copies go to drift review. For each drifted skill, sync shows the diff and asks:
 
 - `k` keeps the installed copies for this run. Later runs check them again. An incomplete installation still exits `1`.
 - `t` takes the source. Sync backs up both destinations under `~/.gap/backups/`, then reinstalls. A failed install restores the previous destinations.
@@ -267,7 +267,7 @@ gap add owner/repo@v1.2.0     # a branch, tag, or commit
 gap add owner/repo --id tools # another id; the default is the repo name, lowercased
 ```
 
-`gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs what it declares in the [manifest](#publish-a-utility). These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved sync group names. User utility skills install under home; `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
+`gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs what it declares in the [manifest](#publish-a-utility). These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved ids. User utility skills install under home; `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
 
 Add confirms the utility id, ref, and commit on success, and flags skipped installation steps when registration succeeded but installation is incomplete.
 
@@ -282,7 +282,7 @@ ref = "master"
 | --- | --- | --- |
 | Install from the lock | `gap sync` | Installs every utility at its pinned commit, like the distro components. Sync never moves a pin |
 | Update | `gap update [id]` | Moves every requested pin to the newest commit on its effective ref before installing enabled utilities. A skill copy you did not edit moves to the new version; an edited copy is kept and `gap restore <id>` takes the new one. Hook timing follows the [manifest reference](#publish-a-utility) |
-| See what is added | `gap list` | One line per component: id, `distro` or `user`, repo, ref, commit, and whether its hooks run, ask, or are trusted |
+| See what is added | `gap list` | See [Commands](#commands) for listing fields and terminal output |
 | Remove | `gap remove <id>` | Runs the `uninstall` hook, unregisters its [MCP servers](#publish-a-utility), moves the skills and commands GAP placed for it into one `~/.gap/backups/<time>/` folder, and drops its config entry, pin, and record. An edited copy is named in the output |
 
 Update reports each utility's pin change or that it is up to date, then totals the utilities checked, updated, and up to date. Those counts describe pins; the summary also flags failed updates or skipped installation steps. Once utilities are selected, failures still print the summary and name utilities whose pins were not checked. With no added utilities, update explains there is nothing to update, shows `gap add owner/repo`, and lists any distro components with their `gap pin <id>@<ref>`, then `gap sync` update path.

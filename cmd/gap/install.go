@@ -5,8 +5,7 @@ import (
 	"path/filepath"
 )
 
-// copySkill copies the files skills.sh installs: regular files, skipping the
-// dirs and metadata.json that indexPathExcluded names.
+// copySkill uses the same exclusions as the source and installed-copy hashes.
 func copySkill(src, dst string) error {
 	return filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
 		if err != nil {

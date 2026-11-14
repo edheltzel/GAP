@@ -327,8 +327,7 @@ func storePath(home, id, commit string) string {
 	return filepath.Join(home, ".gap", "store", id, commit)
 }
 
-// componentSource is owner/repo for a GitHub component and "." for a local fixture.
-// "." installs through the store path the way a checkout skill does.
+// componentSource supplies a label for migration reports; skill lookup uses the pinned store.
 func componentSource(repo string) string {
 	owner, _, ok := githubIdentity(repo)
 	if ok && strings.HasPrefix(repo, "github.com/") {
