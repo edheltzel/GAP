@@ -57,11 +57,15 @@ func installSkills(home string, entries []manifestEntry) bool {
 
 // adoptSkill takes over a skill skills.sh installed when both copies match the pinned store.
 // It records the component as owner and drops the skills.sh lock entry so skills.sh stops updating it.
-// An edited copy is left for drift review, and a missing or unreadable lock is not a migration.
+// An edited copy is left for drift review, and a missing lock is not a migration.
+// A lock that exists but cannot be read or parsed is an error, and nothing is changed.
 func adoptSkill(home string, e manifestEntry, name string) error {
 	skills, err := readSkillLock(home)
-	if err != nil {
+	if errors.Is(err, os.ErrNotExist) {
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("skills.sh lock %s: %w", skillLockPath(home), err)
 	}
 	locked, found := skills[name]
 	if !found || entryDriftCount(e, home, name) != 0 {

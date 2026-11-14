@@ -177,8 +177,62 @@ func TestInstallSkillsAdoptsOnlyMatchingCopies(t *testing.T) {
 		t.Fatal("adoption touched a copy that differs from the pin")
 	}
 	write(t, skillLockPath(home), "not json")
-	if !installSkills(home, []manifestEntry{entry}) || readString(t, skillLockPath(home)) != "not json" {
-		t.Fatal("an unreadable lock is not a migration and must stay as it is")
+	var ok bool
+	_, stderr := captureStd(t, func() { ok = installSkills(home, []manifestEntry{entry}) })
+	if ok || !strings.Contains(stderr, skillLockPath(home)) {
+		t.Fatalf("a malformed skills.sh lock must fail the install and name the lock:\n%s", stderr)
+	}
+	if readString(t, skillLockPath(home)) != "not json" || readString(t, filepath.Join(skillDirs(home, "half")[1], "SKILL.md")) != "claude edit\n" {
+		t.Fatal("a failed migration changed the lock or an installed copy")
+	}
+}
+
+func TestSyncFailsOnUnreadableSkillLock(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a mode 000 file")
+	}
+	home, repo, project, remote := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	if _, err := git(project, "init", "-q", "-b", "master"); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(project)
+	write(t, filepath.Join(remote, ".agents", "skills", "do-todo", "SKILL.md"), "pinned\n")
+	commit, tree := gitFixture(t, remote, "pinned\n")
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n[components.tools]\nrepo = \""+remote+"\"\nref = \"master\"\npath = \".agents/skills\"\nnames = [\"do-todo\"]\n")
+	if err := writeLock(repo, lockFile{Components: map[string]lockEntryM1{"tools": {Ref: "master", Commit: commit, Tree: tree}}}); err != nil {
+		t.Fatal(err)
+	}
+	readyEnvReviewDistro(t, repo)
+	skillsShInstall(t, home, "do-todo", "pinned\n")
+	lock := skillLockPath(home)
+	body := `{"version":3,"skills":{"do-todo":{"source":"owner/tools"}}}`
+	write(t, lock, body)
+	if err := os.Chmod(lock, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(lock, 0o644) })
+
+	stdout, stderr := captureStd(t, func() {
+		if code := run([]string{"sync", "--yes"}); code == 0 {
+			t.Error("an unreadable skills.sh lock must fail the sync")
+		}
+	})
+	if !strings.Contains(stderr, "Migrating do-todo from skills.sh") || !strings.Contains(stderr, lock) || strings.Contains(stdout, "Migrated do-todo") {
+		t.Fatalf("the failure must name the lock and adopt nothing:\n%s\n%s", stdout, stderr)
+	}
+	if err := os.Chmod(lock, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readString(t, lock); got != body {
+		t.Fatalf("a failed migration changed the lock: %q", got)
+	}
+	if info, err := os.Lstat(skillDirs(home, "do-todo")[1]); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("a failed migration replaced the installed copy: %v", err)
+	}
+	if state, err := readState(home); err == nil && slices.Contains(state.Components["tools"].Skills, "do-todo") {
+		t.Fatalf("a failed migration recorded ownership: %+v", state.Components["tools"])
 	}
 }
 
