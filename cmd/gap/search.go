@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -161,17 +162,31 @@ func searchTo(stdout, stderr io.Writer, query string) int {
 		fmt.Fprintf(stderr, "No utility matches %q.\n", query)
 		return 1
 	}
-	out := newReport(stdout)
 	rows := make([][]string, 0, len(matches))
 	for _, e := range matches {
 		rows = append(rows, []string{e.ID, e.Description, strings.Join(e.Tags, ", "), addCommand(e, distroIDs)})
 	}
+	printSearch(newReport(stdout), query, rows)
+	return 0
+}
+
+// printSearch writes search matches: two plain lines per match when piped, a framed table with a match count on a terminal.
+func printSearch(out *report, query string, rows [][]string) {
 	if !out.tty {
 		for _, row := range rows {
 			out.printf("%s - %s\n  %s\n", row[0], row[1], row[3])
 		}
-		return 0
+		return
 	}
-	out.table([]string{"id", "description", "tags", "add"}, rows)
-	return 0
+	detail := "utility catalog"
+	if q := strings.TrimSpace(query); q != "" {
+		detail = strconv.Quote(q)
+	}
+	out.title("gap search", detail)
+	out.framed([]string{"id", "description", "tags", "add"}, rows)
+	noun := "matches"
+	if len(rows) == 1 {
+		noun = "match"
+	}
+	out.footer(fmt.Sprintf("%d %s", len(rows), noun))
 }

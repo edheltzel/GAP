@@ -4,312 +4,368 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
 
-func TestSkillsInstallPostconditions(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	npx := filepath.Join(t.TempDir(), "npx")
-	write(t, npx, `#!/bin/sh
-canonical=false
-for arg in "$@"; do
-  if [ "$arg" = codex ]; then canonical=true; fi
-done
-while [ $# -gt 0 ]; do
-  if [ "$1" = -s ] && [ "$2" != typo ]; then
-    if [ "$canonical" = true ]; then
-      mkdir -p "$HOME/.agents/skills/$2" "$HOME/.claude/skills"
-      echo installed > "$HOME/.agents/skills/$2/SKILL.md"
-      ln -sfn "$HOME/.agents/skills/$2" "$HOME/.claude/skills/$2"
-    else
-      mkdir -p "$HOME/.claude/skills/$2"
-      echo installed > "$HOME/.claude/skills/$2/SKILL.md"
-    fi
-  fi
-  shift
-done
-`)
-	if err := os.Chmod(npx, 0o755); err != nil {
+func assertSkillLock(t *testing.T, home, want string) {
+	t.Helper()
+	var gotValue, wantValue any
+	if err := json.Unmarshal([]byte(readString(t, skillLockPath(home))), &gotValue); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_STATE_HOME", "")
-	baseline := t.TempDir()
-	write(t, filepath.Join(baseline, "SKILL.md"), "installed\n")
-	hash, err := treeHash(baseline)
-	if err != nil {
+	if err := json.Unmarshal([]byte(want), &wantValue); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"good":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
-	if !skillsAdd(npx, t.TempDir(), home, manifestEntry{Source: "owner/repo"}, []string{"good"}) {
-		t.Fatal("a complete matching install must succeed")
-	}
-	if skillsAdd(npx, t.TempDir(), home, manifestEntry{Source: "owner/repo"}, []string{"good", "typo"}) {
-		t.Fatal("a successful subset must not satisfy all requested installations")
-	}
-	if !installed(home, "good") || installed(home, "typo") {
-		t.Fatal("fixture must install exactly the matching subset")
+	if !reflect.DeepEqual(gotValue, wantValue) {
+		t.Fatalf("skills.sh lock = %#v, want %#v", gotValue, wantValue)
 	}
 }
 
-func TestSkillsReplacement(t *testing.T) {
-	for _, mirrorLink := range []bool{false, true} {
-		for _, mode := range []string{"failed", "incomplete", "mirror-mismatch", "complete"} {
-			t.Run(mode+"-mirror-link-"+map[bool]string{false: "false", true: "true"}[mirrorLink], func(t *testing.T) {
-				home := t.TempDir()
-				t.Setenv("HOME", home)
-				dirs := skillDirs(home, "do-x")
-				write(t, filepath.Join(dirs[0], "SKILL.md"), "canonical edit\n")
-				link, _ := filepath.Rel(filepath.Dir(dirs[1]), dirs[0])
-				if mirrorLink {
-					if err := os.MkdirAll(filepath.Dir(dirs[1]), 0o755); err != nil {
-						t.Fatal(err)
-					}
-					if err := os.Symlink(link, dirs[1]); err != nil {
-						t.Fatal(err)
-					}
-				} else {
-					write(t, filepath.Join(dirs[1], "SKILL.md"), "mirror edit\n")
-				}
-				npx := filepath.Join(t.TempDir(), "npx")
-				repo := t.TempDir()
-				write(t, filepath.Join(repo, "skills", "global", "core", "do-x", "SKILL.md"), "replacement\n")
-				body := "#!/bin/sh\nmkdir -p \"$HOME/.agents/skills/do-x\"\necho replacement > \"$HOME/.agents/skills/do-x/SKILL.md\"\n"
-				switch mode {
-				case "failed":
-					body += "exit 1\n"
-				case "complete":
-					body += "ln -s \"$HOME/.agents/skills/do-x\" \"$HOME/.claude/skills/do-x\"\n"
-				case "mirror-mismatch":
-					body += "mkdir -p \"$HOME/.claude/skills/do-x\"\necho different > \"$HOME/.claude/skills/do-x/SKILL.md\"\n"
-				}
-				write(t, npx, body)
-				if err := os.Chmod(npx, 0o755); err != nil {
-					t.Fatal(err)
-				}
-				ok, err := replaceSkill(npx, repo, home, manifestEntry{Source: "."}, "do-x")
-				if err != nil || ok != (mode == "complete") {
-					t.Fatalf("replace: ok=%v err=%v", ok, err)
-				}
-				if mode == "complete" {
-					for _, dir := range dirs {
-						if readString(t, filepath.Join(dir, "SKILL.md")) != "replacement\n" {
-							t.Fatal("replacement did not reach both destinations")
-						}
-					}
-					backups, _ := filepath.Glob(filepath.Join(home, ".gap", "backups", "*", ".agents", "skills", "do-x", "SKILL.md"))
-					if len(backups) != 1 || readString(t, backups[0]) != "canonical edit\n" {
-						t.Fatal("successful replacement must preserve the original backup")
-					}
-					return
-				}
-				if readString(t, filepath.Join(dirs[0], "SKILL.md")) != "canonical edit\n" {
-					t.Fatal("failed replacement lost canonical edits")
-				}
-				if mirrorLink {
-					if got, err := os.Readlink(dirs[1]); err != nil || got != link {
-						t.Fatal("failed replacement did not restore the original mirror link")
-					}
-				} else if readString(t, filepath.Join(dirs[1], "SKILL.md")) != "mirror edit\n" {
-					t.Fatal("failed replacement lost independent mirror edits")
+// skillsShInstall writes a skill the way skills.sh left it: a folder under ~/.agents/skills and a relative Claude symlink to it.
+func skillsShInstall(t *testing.T, home, name, body string) {
+	t.Helper()
+	dirs := skillDirs(home, name)
+	write(t, filepath.Join(dirs[0], "SKILL.md"), body)
+	if err := os.MkdirAll(filepath.Dir(dirs[1]), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join("..", "..", ".agents", "skills", name), dirs[1]); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func skillLockNames(t *testing.T, home string) []string {
+	t.Helper()
+	lock, err := readSkillLock(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for name := range lock {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+func TestSyncMigratesSkillsShInstalls(t *testing.T) {
+	home, repo, project, remote := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	if _, err := git(project, "init", "-q", "-b", "master"); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(project)
+	write(t, filepath.Join(remote, ".agents", "skills", "do-todo", "SKILL.md"), "pinned\n")
+	write(t, filepath.Join(remote, ".agents", "skills", "other", "SKILL.md"), "pinned other\n")
+	write(t, filepath.Join(remote, ".agent", "skills", "variant", "SKILL.md"), "wrong variant\n")
+	write(t, filepath.Join(remote, ".agents", "skills", "variant", "SKILL.md"), "chosen variant\n")
+	commit, tree := gitFixture(t, remote, "pinned\n")
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n[components.tools]\nrepo = \""+remote+"\"\nref = \"master\"\npath = \".agents/skills\"\nnames = [\"do-todo\", \"other\", \"variant\"]\n")
+	if err := writeLock(repo, lockFile{Components: map[string]lockEntryM1{"tools": {Ref: "master", Commit: commit, Tree: tree}}}); err != nil {
+		t.Fatal(err)
+	}
+	readyEnvReviewDistro(t, repo)
+	skillsShInstall(t, home, "do-todo", "pinned\n")
+	skillsShInstall(t, home, "variant", "chosen variant\n")
+	skillsShInstall(t, home, "other", "edited by hand\n")
+	entry := func(name string) string {
+		return `"` + name + `":{"source":"owner/tools","sourceType":"github","sourceUrl":"https://github.com/owner/tools.git","skillPath":"skills/` + name + `/SKILL.md","skillFolderHash":"0000000000000000000000000000000000000000"}`
+	}
+	write(t, skillLockPath(home), `{"version":3,"skills":{`+entry("do-todo")+`,`+entry("variant")+`,`+entry("other")+`,"unrelated":{"source":"someone/else"}},"dismissed":{"x":true}}`)
+
+	stdout, stderr := captureStd(t, func() {
+		if code := run([]string{"sync", "--yes"}); code != 1 {
+			t.Errorf("an edited skills.sh copy with no terminal must exit 1, got %d", code)
+		}
+	})
+	for _, name := range []string{"do-todo", "variant"} {
+		if !strings.Contains(stdout, "Migrated "+name+" from skills.sh (owner/tools) to tools") {
+			t.Fatalf("missing migration line for %s:\n%s\n%s", name, stdout, stderr)
+		}
+		if info, err := os.Lstat(skillDirs(home, name)[1]); err != nil || info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("a matching copy of %s must be adopted in place, not reinstalled: %v", name, err)
+		}
+	}
+	if strings.Contains(stdout, "Migrated other") || !strings.Contains(stderr, "Skill other was installed by skills.sh from owner/tools; take source moves it to tools") {
+		t.Fatalf("an edited copy must go to drift review:\n%s\n%s", stdout, stderr)
+	}
+	if got := readString(t, filepath.Join(skillDirs(home, "other")[0], "SKILL.md")); got != "edited by hand\n" {
+		t.Fatalf("drift with no terminal changed the edited copy: %q", got)
+	}
+	if got := skillLockNames(t, home); !slices.Equal(got, []string{"other", "unrelated"}) {
+		t.Fatalf("lock after first sync = %v", got)
+	}
+	assertSkillLock(t, home, `{"version":3,"skills":{`+entry("other")+`,"unrelated":{"source":"someone/else"}},"dismissed":{"x":true}}`)
+	state, err := readState(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skills := state.Components["tools"].Skills; !slices.Contains(skills, "do-todo") || !slices.Contains(skills, "variant") {
+		t.Fatalf("adopted skills must be owned by the component: %+v", state.Components["tools"])
+	}
+
+	input := filepath.Join(t.TempDir(), "answer")
+	write(t, input, "t\n")
+	in, err := os.Open(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+	oldIn, oldTerm := os.Stdin, termReady
+	os.Stdin, termReady = in, func() bool { return true }
+	t.Cleanup(func() { os.Stdin, termReady = oldIn, oldTerm })
+	captureStd(t, func() {
+		if code := run([]string{"sync", "--yes"}); code != 0 {
+			t.Errorf("take source must finish the migration, got %d", code)
+		}
+	})
+	for _, dir := range skillDirs(home, "other") {
+		if got := readString(t, filepath.Join(dir, "SKILL.md")); got != "pinned other\n" {
+			t.Fatalf("take source left %s = %q", dir, got)
+		}
+	}
+	if got := skillLockNames(t, home); !slices.Equal(got, []string{"unrelated"}) {
+		t.Fatalf("lock after take source = %v", got)
+	}
+	assertSkillLock(t, home, `{"version":3,"skills":{"unrelated":{"source":"someone/else"}},"dismissed":{"x":true}}`)
+}
+
+func TestExplicitSkillPathDoesNotFallBack(t *testing.T) {
+	for _, configured := range []string{"missing/skills", ".agents/skills"} {
+		t.Run(configured, func(t *testing.T) {
+			home, store := t.TempDir(), t.TempDir()
+			write(t, filepath.Join(store, ".agent", "skills", "x", "SKILL.md"), "wrong variant\n")
+			write(t, filepath.Join(store, ".agents", "skills", "other", "SKILL.md"), "other\n")
+			entry := manifestEntry{Path: store, SkillPath: configured, Skills: []string{"x"}}
+			captureStd(t, func() {
+				if installSkills(home, []manifestEntry{entry}) {
+					t.Error("installation must fail when the configured subtree lacks the skill")
 				}
 			})
+			for _, dir := range skillDirs(home, "x") {
+				if _, err := os.Lstat(dir); !os.IsNotExist(err) {
+					t.Fatalf("installed an unselected variant at %s: %v", dir, err)
+				}
+			}
+		})
+	}
+}
+
+func TestInstallSkillsAdoptsOnlyMatchingCopies(t *testing.T) {
+	home, store := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
+	write(t, filepath.Join(store, "skills", "same", "SKILL.md"), "pinned\n")
+	write(t, filepath.Join(store, "skills", "half", "SKILL.md"), "pinned\n")
+	skillsShInstall(t, home, "same", "pinned\n")
+	write(t, filepath.Join(skillDirs(home, "half")[0], "SKILL.md"), "pinned\n")
+	write(t, filepath.Join(skillDirs(home, "half")[1], "SKILL.md"), "claude edit\n")
+	write(t, skillLockPath(home), `{"skills":{"same":{"source":"a/b"},"half":{"source":"a/b"}}}`)
+	entry := manifestEntry{Source: "github.com/a/b", Skills: []string{"half", "same"}, Path: store, Owner: "ab"}
+	if !installSkills(home, []manifestEntry{entry}) {
+		t.Fatal("install")
+	}
+	if got := skillLockNames(t, home); !slices.Equal(got, []string{"half"}) {
+		t.Fatalf("only the matching copy may leave the XDG skills.sh lock: %v", got)
+	}
+	if got := readString(t, filepath.Join(skillDirs(home, "half")[1], "SKILL.md")); got != "claude edit\n" {
+		t.Fatal("adoption touched a copy that differs from the pin")
+	}
+	write(t, skillLockPath(home), "not json")
+	var ok bool
+	_, stderr := captureStd(t, func() { ok = installSkills(home, []manifestEntry{entry}) })
+	if ok || !strings.Contains(stderr, skillLockPath(home)) {
+		t.Fatalf("a malformed skills.sh lock must fail the install and name the lock:\n%s", stderr)
+	}
+	if readString(t, skillLockPath(home)) != "not json" || readString(t, filepath.Join(skillDirs(home, "half")[1], "SKILL.md")) != "claude edit\n" {
+		t.Fatal("a failed migration changed the lock or an installed copy")
+	}
+}
+
+func TestAdoptSkillRestoresLockWhenOwnershipWriteFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file permissions")
+	}
+	home, store := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
+	write(t, filepath.Join(store, "skills", "same", "SKILL.md"), "pinned\n")
+	skillsShInstall(t, home, "same", "pinned\n")
+	lockBody := `{"version":3,"skills":{"same":{"source":"a/b"}}}`
+	write(t, skillLockPath(home), lockBody)
+	gapDir := filepath.Join(home, ".gap")
+	if err := os.MkdirAll(gapDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(gapDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(gapDir, 0o755) })
+	entry := manifestEntry{Source: "github.com/a/b", Skills: []string{"same"}, Path: store, Owner: "ab"}
+	if err := adoptSkill(home, entry, "same"); err == nil {
+		t.Fatal("adoption must fail when GAP cannot record ownership")
+	}
+	if got := readString(t, skillLockPath(home)); got != lockBody {
+		t.Fatalf("a failed ownership write left the skill owned by nobody; lock is now %q", got)
+	}
+}
+
+func TestSkillMigrationFailurePreservesOwnership(t *testing.T) {
+	for _, command := range []string{"sync", "add", "update"} {
+		for _, failure := range []string{"malformed", "unreadable", "unwritable"} {
+			for _, ownership := range []string{"new", "existing"} {
+				t.Run(command+"/"+failure+"/"+ownership, func(t *testing.T) {
+					if failure != "malformed" && os.Geteuid() == 0 {
+						t.Skip("root bypasses file permissions")
+					}
+					e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+					commit, tree := commitAll(t, e.remote)
+					if command != "add" {
+						write(t, userConfigFile(e.home), "[components.util]\nrepo = \""+e.remote+"\"\nref = \"master\"\n")
+						if err := writeLock(userConfigDir(e.home), lockFile{Components: map[string]lockEntryM1{"util": {Ref: "master", Commit: commit, Tree: tree}}}); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if command == "sync" {
+						readyEnvReviewDistro(t, e.repo)
+					}
+					body := readString(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"))
+					skillsShInstall(t, e.home, "util-skill", body)
+					want := stateEntry{}
+					if ownership == "existing" {
+						previous := strings.Repeat("a", 40)
+						want = stateEntry{Installed: previous, Skills: []string{"util-skill"}, SkillCopies: map[string]string{"util-skill": previous}}
+						if err := writeState(e.home, stateFile{Components: map[string]stateEntry{"util": want}}); err != nil {
+							t.Fatal(err)
+						}
+					}
+					lock := skillLockPath(e.home)
+					valid := `{"version":3,"skills":{"util-skill":{"source":"owner/tools"}},"dismissed":{"x":true}}`
+					lockBody := valid
+					if failure == "malformed" {
+						lockBody = "not json"
+					}
+					write(t, lock, lockBody)
+					path, mode := lock, os.FileMode(0o644)
+					switch failure {
+					case "unreadable":
+						if err := os.Chmod(path, 0); err != nil {
+							t.Fatal(err)
+						}
+					case "unwritable":
+						path, mode = filepath.Dir(lock), 0o755
+						if err := os.Chmod(path, 0o555); err != nil {
+							t.Fatal(err)
+						}
+					}
+					t.Cleanup(func() { os.Chmod(path, mode) })
+					args := []string{"sync", "--yes"}
+					if command == "add" {
+						args = []string{"add", e.remote, "--id", "util"}
+					} else if command == "update" {
+						args = []string{"update", "util"}
+					}
+					stdout, stderr := captureStd(t, func() {
+						if code := run(args); code != 1 {
+							t.Errorf("a failed migration must exit 1, got %d", code)
+						}
+					})
+					if !strings.Contains(stderr, "Migrating util-skill from skills.sh") || !strings.Contains(stderr, lock) || strings.Contains(stdout, "Migrated util-skill") {
+						t.Fatalf("the failure must name the lock and adopt nothing:\n%s\n%s", stdout, stderr)
+					}
+					state, err := readState(e.home)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := state.Components["util"]; !reflect.DeepEqual(got, want) {
+						t.Fatalf("a failed migration changed ownership: %+v, want %+v", got, want)
+					}
+					if err := os.Chmod(path, mode); err != nil {
+						t.Fatal(err)
+					}
+					if got := readString(t, lock); got != lockBody {
+						t.Fatalf("a failed migration changed the lock: %q", got)
+					}
+					for _, dir := range skillDirs(e.home, "util-skill") {
+						if got := readString(t, filepath.Join(dir, "SKILL.md")); got != body {
+							t.Fatalf("a failed migration changed the installed copy: %q", got)
+						}
+					}
+					if info, err := os.Lstat(skillDirs(e.home, "util-skill")[1]); err != nil || info.Mode()&os.ModeSymlink == 0 {
+						t.Fatalf("a failed migration replaced the installed copy: %v", err)
+					}
+					write(t, lock, valid)
+					if names, err := gapSkills(e.home, state); err != nil || !slices.Equal(names, want.Skills) {
+						t.Fatalf("uninstall ownership changed after failed migration: %v, %v", names, err)
+					}
+					if command == "add" {
+						args = []string{"update", "util"}
+					}
+					captureStd(t, func() {
+						if code := run(args); code != 0 {
+							t.Errorf("retry after repairing the lock must succeed, got %d", code)
+						}
+					})
+					state, err = readState(e.home)
+					if err != nil {
+						t.Fatal(err)
+					}
+					got := state.Components["util"]
+					if !slices.Contains(got.Skills, "util-skill") || got.SkillCopies["util-skill"] != commit || got.Installed != commit {
+						t.Fatalf("successful migration did not record ownership: %+v", got)
+					}
+					assertSkillLock(t, e.home, `{"version":3,"skills":{},"dismissed":{"x":true}}`)
+				})
+			}
 		}
 	}
 }
 
-func TestSkillsBaselines(t *testing.T) {
-	for _, state := range []string{"missing", "unreadable", "malformed", "missing-entry", "missing-hash", "xdg", "local-missing"} {
-		t.Run(state, func(t *testing.T) {
-			home, repo := t.TempDir(), t.TempDir()
-			t.Setenv("XDG_STATE_HOME", "")
-			dirs := skillDirs(home, "do-x")
-			for _, dir := range dirs {
-				write(t, filepath.Join(dir, "SKILL.md"), "same\n")
-			}
-			hash, err := treeHash(dirs[0])
-			if err != nil {
-				t.Fatal(err)
-			}
-			lock := filepath.Join(home, ".agents", ".skill-lock.json")
-			source := "owner/repo"
-			switch state {
-			case "unreadable":
-				if err := os.MkdirAll(lock, 0o755); err != nil {
-					t.Fatal(err)
-				}
-			case "malformed":
-				write(t, lock, "{")
-			case "missing-entry":
-				write(t, lock, `{"skills":{}}`)
-			case "missing-hash":
-				write(t, lock, `{"skills":{"do-x":{}}}`)
-			case "xdg":
-				stateHome := filepath.Join(home, "state")
-				t.Setenv("XDG_STATE_HOME", stateHome)
-				write(t, filepath.Join(stateHome, "skills", ".skill-lock.json"), `{"skills":{"do-x":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
-			case "local-missing":
-				source = "."
-			}
-			ok, err := checkDrift(repo, home, []manifestEntry{{Source: source, Skills: []string{"do-x"}}})
-			if err != nil || ok != (state == "xdg") {
-				t.Fatalf("baseline check: ok=%v err=%v", ok, err)
-			}
-		})
+func TestFindSkillDirIsDeterministic(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{".agent/skills/x", ".agents/skills/x", "plugin/skills/x", "a/b/c/d/x"} {
+		write(t, filepath.Join(root, filepath.FromSlash(dir), "SKILL.md"), dir+"\n")
+	}
+	if got := findSkillDir(root, "", "x"); got != filepath.Join(root, ".agent", "skills", "x") {
+		t.Fatalf("shallowest match, then lexical order: %s", got)
+	}
+	if got := findSkillDir(root, ".agents/skills", "x"); got != filepath.Join(root, ".agents", "skills", "x") {
+		t.Fatalf("component path must be searched first: %s", got)
+	}
+	write(t, filepath.Join(root, "z", "x", "SKILL.md"), "shallow\n")
+	if got := findSkillDir(root, "", "x"); got != filepath.Join(root, "z", "x") {
+		t.Fatalf("a shallower match must win over lexical order: %s", got)
+	}
+	if got := entrySkillDir(manifestEntry{Path: root, SkillPath: "plugin/skills"}, "x"); got != filepath.Join(root, "plugin", "skills", "x") {
+		t.Fatalf("entry path: %s", got)
 	}
 }
 
-func TestSyncReinstallsMismatchedSource(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", "")
+func TestComponentPathKey(t *testing.T) {
 	for _, tc := range []struct {
-		name, manifest, lockSource string
+		value any
+		want  string
+		ok    bool
 	}{
-		{name: "fork", manifest: "kunchenguid/gh-axi", lockSource: "fork/gh-axi"},
-		{name: "doskills", manifest: ".", lockSource: "edheltzel/Do-Skills"},
+		{".agents/skills", ".agents/skills", true},
+		{"./plugin//skills/", "plugin/skills", true},
+		{"../outside", "", false},
+		{"/abs", "", false},
+		{"", "", false},
+		{[]string{"x"}, "", false},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			home, repo := t.TempDir(), t.TempDir()
-			t.Setenv("HOME", home)
-			skill := "gh-axi"
-			body := "from-checkout\n"
-			if tc.manifest == "." {
-				skill = "do-x"
-				write(t, filepath.Join(repo, "skills", "global", "core", skill, "SKILL.md"), body)
-			}
-			for _, dir := range skillDirs(home, skill) {
-				write(t, filepath.Join(dir, "SKILL.md"), body)
-			}
-			hash, err := treeHash(skillDirs(home, skill)[0])
-			if err != nil {
-				t.Fatal(err)
-			}
-			write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"`+skill+`":{"source":"`+tc.lockSource+`","sourceType":"github","sourceUrl":"https://github.com/`+tc.lockSource+`.git","skillPath":"skills/`+skill+`/SKILL.md","skillFolderHash":"`+hash+`"}}}`)
-			npxDir := t.TempDir()
-			npxLog := filepath.Join(npxDir, "npx.log")
-			write(t, filepath.Join(npxDir, "npx"), "#!/bin/sh\necho \"$*\" >> "+npxLog+"\n"+`prev=""
-src=""
-for arg in "$@"; do
-  if [ "$prev" = add ]; then src="$arg"; fi
-  if [ "$prev" = -s ]; then
-    mkdir -p "$HOME/.agents/skills/$arg" "$HOME/.claude/skills"
-    printf '%s\n' 'from-checkout' > "$HOME/.agents/skills/$arg/SKILL.md"
-    ln -sfn "$HOME/.agents/skills/$arg" "$HOME/.claude/skills/$arg"
-    python3 - "$HOME" "$arg" "$src" <<'PY'
-import json, sys
-home, name, src = sys.argv[1:]
-path = home + "/.agents/.skill-lock.json"
-lock = json.load(open(path))
-entry = lock["skills"][name]
-entry["source"] = src
-entry["sourceType"] = "local" if src.startswith("/") else "github"
-entry["sourceUrl"] = src if src.startswith("/") else "https://github.com/" + src + ".git"
-json.dump(lock, open(path, "w"))
-PY
-  fi
-  prev="$arg"
-done
-`)
-			if err := os.Chmod(filepath.Join(npxDir, "npx"), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv("PATH", npxDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-			old := os.Stdout
-			r, w, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			os.Stdout = w
-			ok := installSkills(repo, home, []manifestEntry{{Source: tc.manifest, Skills: []string{skill}}})
-			w.Close()
-			os.Stdout = old
-			out, _ := io.ReadAll(r)
-			if !ok {
-				t.Fatalf("reinstall must succeed\n%s", out)
-			}
-			if _, err := os.Stat(npxLog); err != nil {
-				t.Fatal("matching hash from another source must reinstall, not skip")
-			}
-			if !strings.Contains(string(out), "Migrated "+skill+"\n") && !strings.Contains(string(out), "Migrated "+skill+" ") {
-				t.Fatalf("expected one migration line, got %q", out)
-			}
-			backups, _ := filepath.Glob(filepath.Join(home, ".gap", "backups", "*", ".agents", "skills", skill, "SKILL.md"))
-			if len(backups) != 1 {
-				t.Fatal("reinstall must back up the previous skill")
-			}
-			driftOK, err := checkDrift(repo, home, []manifestEntry{{Source: tc.manifest, Skills: []string{skill}}})
-			if err != nil || !driftOK {
-				t.Fatalf("after reinstall, drift check must pass: ok=%v err=%v", driftOK, err)
-			}
-		})
+		c, err := parseComponent("x", map[string]any{"repo": "github.com/a/b", "ref": "main", "path": tc.value})
+		if (err == nil) != tc.ok || c.SkillPath != tc.want {
+			t.Fatalf("path %v: %+v %v", tc.value, c.SkillPath, err)
+		}
 	}
-}
-
-func TestSourceIdentity(t *testing.T) {
-	repo := "/tmp/gap-checkout"
-	match := func(manifest string, l lockEntry) bool {
-		return sameSource(repo, manifestEntry{Source: manifest}, l)
-	}
-	if !match("kunchenguid/gh-axi", lockEntry{Source: "https://github.com/kunchenguid/gh-axi.git", SourceURL: "https://github.com/kunchenguid/gh-axi.git"}) {
-		t.Fatal("a GitHub URL must match owner/repo")
-	}
-	if match("kunchenguid/gh-axi", lockEntry{Source: "fork/gh-axi", SourceURL: "https://github.com/fork/gh-axi.git"}) {
-		t.Fatal("a fork must not match the declared repo")
-	}
-	if !match("backnotprop/plannotator/apps/skills/extra", lockEntry{Source: "backnotprop/plannotator", SourceURL: "https://github.com/backnotprop/plannotator.git", SkillPath: "apps/skills/extra/plannotator-compound/SKILL.md"}) {
-		t.Fatal("a lock skillPath under the manifest subpath must match")
-	}
-	if match("backnotprop/plannotator/apps/skills/extra", lockEntry{Source: "backnotprop/plannotator", SkillPath: "skills/other/SKILL.md"}) {
-		t.Fatal("a different subpath must not match")
-	}
-	if !match(".", lockEntry{Source: repo, SourceType: "local", SourceURL: repo}) {
-		t.Fatal("a local lock path must match the checkout")
-	}
-	if match(".", lockEntry{Source: "edheltzel/Do-Skills", SourceType: "github", SourceURL: "https://github.com/edheltzel/Do-Skills.git"}) {
-		t.Fatal("a GitHub lock must not match the checkout source")
-	}
-}
-
-func TestStorePathSecondSync(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", "")
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	store := filepath.Join(home, ".gap", "store", "do-skills", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	write(t, filepath.Join(store, "skills", "global", "core", "do-todo", "SKILL.md"), "from-store\n")
-	for _, dir := range skillDirs(home, "do-todo") {
-		write(t, filepath.Join(dir, "SKILL.md"), "from-store\n")
-	}
-	hash, err := treeHash(skillDirs(home, "do-todo")[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	checkout := t.TempDir()
-	write(t, filepath.Join(checkout, "global", "AGENTS.md"), "policy\n")
-	init := exec.Command("git", "init", "-q", checkout)
-	init.Env = gitEnv()
-	if out, err := init.CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v\n%s", err, out)
-	}
-	lock := `{"skills":{"do-todo":{"source":"` + store + `","sourceType":"local","sourceUrl":"` + store + `","skillFolderHash":"` + hash + `"}}}`
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), lock)
-	entry := manifestEntry{Source: ".", Skills: []string{"do-todo"}, Path: store}
-	if _, foreign := foreignLock(store, home, ".", "do-todo"); foreign {
-		t.Fatal("a store-path lock must be the same component")
-	}
-	if !installSkills(checkout, home, []manifestEntry{entry}) {
-		t.Fatal("second sync")
-	}
-	if got := readString(t, filepath.Join(home, ".agents", ".skill-lock.json")); got != lock {
-		t.Fatal("second sync re-migrated a store-path install")
-	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"do-todo":{"source":"unrelated/legacy"}}}`)
-	if _, foreign := foreignLockEntry(checkout, home, entry, "do-todo"); foreign {
-		t.Fatal("pinned copies must use the pinned baseline, not legacy identity")
-	}
-	if ok, err := checkDrift(checkout, home, []manifestEntry{entry}); err != nil || !ok {
-		t.Fatalf("a stale legacy lock must not cause pinned-copy drift: %v %v", ok, err)
+	if entries := selectedEntries(component{Skills: []string{"x"}, SkillPath: "p"}, "/store", ""); len(entries) != 1 || entries[0].SkillPath != "p" {
+		t.Fatalf("selected entries must carry the component path: %+v", entries)
 	}
 }
 
@@ -330,323 +386,8 @@ func TestContentHashMatchesSkillsSh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// skills 1.7.2 recorded this for the tree above via `npx skills add <dir> -g -y -s demo`.
 	if got != "29e5ce5cf8661ae41df2a1b7e962d79d17a4fef5509975d6e7445367957e0801" {
 		t.Fatalf("content hash %s does not match skills.sh", got)
-	}
-}
-
-func TestSha256LockIsNotPermanentDrift(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_STATE_HOME", "")
-	dirs := skillDirs(home, "ext")
-	write(t, filepath.Join(dirs[0], "SKILL.md"), "installed\n")
-	if err := os.MkdirAll(filepath.Dir(dirs[1]), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	link, err := filepath.Rel(filepath.Dir(dirs[1]), dirs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(link, dirs[1]); err != nil {
-		t.Fatal(err)
-	}
-	hash, err := contentHash(dirs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
-	entries := []manifestEntry{{Source: "owner/repo", Skills: []string{"ext"}}}
-	ok, err := checkDrift(t.TempDir(), home, entries)
-	if err != nil || !ok {
-		t.Fatalf("a skills.sh content hash must match the installed copy: ok=%v err=%v", ok, err)
-	}
-	write(t, filepath.Join(dirs[0], "SKILL.md"), "hand edit\n")
-	ok, err = checkDrift(t.TempDir(), home, entries)
-	if err != nil || ok || readString(t, filepath.Join(dirs[0], "SKILL.md")) != "hand edit\n" {
-		t.Fatal("an edit against a content-hash baseline must be reported and left in place")
-	}
-
-	npx := filepath.Join(t.TempDir(), "npx")
-	write(t, npx, "#!/bin/sh\nmkdir -p \"$HOME/.agents/skills/good\" \"$HOME/.claude/skills\"\necho installed > \"$HOME/.agents/skills/good/SKILL.md\"\nln -sfn \"$HOME/.agents/skills/good\" \"$HOME/.claude/skills/good\"\n")
-	if err := os.Chmod(npx, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	baseline := t.TempDir()
-	write(t, filepath.Join(baseline, "SKILL.md"), "installed\n")
-	sum, err := contentHash(baseline)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fresh := t.TempDir()
-	t.Setenv("HOME", fresh)
-	write(t, filepath.Join(fresh, ".agents", ".skill-lock.json"), `{"skills":{"good":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+sum+`"}}}`)
-	if !skillsAdd(npx, t.TempDir(), fresh, manifestEntry{Source: "owner/repo"}, []string{"good"}) {
-		t.Fatal("a content-hash baseline must accept a matching install")
-	}
-}
-
-func TestForeignLockMigration(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", "")
-	for _, tc := range []struct {
-		name, body, recorded string
-		edited, symlink      bool
-	}{
-		{name: "edited", body: "hand edit\n", recorded: "from-old\n", edited: true},
-		{name: "unverifiable", body: "hand edit\n", edited: true},
-		{name: "unedited-symlink", body: "from-checkout\n", recorded: "from-checkout\n", symlink: true},
-		{name: "unedited-sha256", body: "from-checkout\n", recorded: "from-checkout\n"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			home, repo := t.TempDir(), t.TempDir()
-			t.Setenv("HOME", home)
-			skill := "do-x"
-			write(t, filepath.Join(repo, "skills", "global", "core", skill, "SKILL.md"), "from-checkout\n")
-			dirs := skillDirs(home, skill)
-			write(t, filepath.Join(dirs[0], "SKILL.md"), tc.body)
-			if tc.symlink {
-				if err := os.MkdirAll(filepath.Dir(dirs[1]), 0o755); err != nil {
-					t.Fatal(err)
-				}
-				link, err := filepath.Rel(filepath.Dir(dirs[1]), dirs[0])
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := os.Symlink(link, dirs[1]); err != nil {
-					t.Fatal(err)
-				}
-			} else {
-				write(t, filepath.Join(dirs[1], "SKILL.md"), tc.body)
-			}
-			hash := ""
-			if tc.recorded != "" {
-				baseline := t.TempDir()
-				write(t, filepath.Join(baseline, "SKILL.md"), tc.recorded)
-				var err error
-				if tc.name == "unedited-sha256" {
-					hash, err = contentHash(baseline)
-				} else {
-					hash, err = treeHash(baseline)
-				}
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-			write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"do-x":{"source":"edheltzel/Do-Skills","sourceType":"github","sourceUrl":"https://github.com/edheltzel/Do-Skills.git","skillPath":"skills/global/core/do-x/SKILL.md","skillFolderHash":"`+hash+`"}}}`)
-			npxDir := t.TempDir()
-			logPath := filepath.Join(npxDir, "npx.log")
-			write(t, filepath.Join(npxDir, "npx"), "#!/bin/sh\necho called >> "+logPath+"\n"+`prev=""
-src=""
-for arg in "$@"; do
-  if [ "$prev" = add ]; then src="$arg"; fi
-  if [ "$prev" = -s ]; then
-    mkdir -p "$HOME/.agents/skills/$arg" "$HOME/.claude/skills"
-    printf '%s\n' 'from-checkout' > "$HOME/.agents/skills/$arg/SKILL.md"
-    ln -sfn "$HOME/.agents/skills/$arg" "$HOME/.claude/skills/$arg"
-    python3 - "$HOME" "$arg" "$src" <<'PY'
-import json, sys
-home, name, src = sys.argv[1:]
-path = home + "/.agents/.skill-lock.json"
-lock = json.load(open(path))
-entry = lock["skills"][name]
-entry["source"] = src
-entry["sourceType"] = "local" if src.startswith("/") else "github"
-entry["sourceUrl"] = src if src.startswith("/") else "https://github.com/" + src + ".git"
-json.dump(lock, open(path, "w"))
-PY
-  fi
-  prev="$arg"
-done
-`)
-			if err := os.Chmod(filepath.Join(npxDir, "npx"), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv("PATH", npxDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-			installedOK := installSkills(repo, home, []manifestEntry{{Source: ".", Skills: []string{skill}}})
-			_, called := os.Stat(logPath)
-			if tc.edited {
-				if !installedOK {
-					t.Fatal("deferring an edited foreign skill must not fail install")
-				}
-				if called == nil {
-					t.Fatal("an edited foreign skill must not be reinstalled")
-				}
-				for _, dir := range dirs {
-					if readString(t, filepath.Join(dir, "SKILL.md")) != tc.body {
-						t.Fatal("edited foreign skill was overwritten")
-					}
-				}
-				ok, err := checkDrift(repo, home, []manifestEntry{{Source: ".", Skills: []string{skill}}})
-				if err != nil || ok {
-					t.Fatalf("non-interactive review must fail closed: ok=%v err=%v", ok, err)
-				}
-				for _, dir := range dirs {
-					if readString(t, filepath.Join(dir, "SKILL.md")) != tc.body {
-						t.Fatal("drift review overwrote the edit")
-					}
-				}
-				return
-			}
-			if !installedOK || called != nil {
-				t.Fatal("an unedited foreign skill must be migrated")
-			}
-			if readString(t, filepath.Join(dirs[0], "SKILL.md")) != "from-checkout\n" {
-				t.Fatal("migration did not install the manifest source")
-			}
-			backups, _ := filepath.Glob(filepath.Join(home, ".gap", "backups", "*", ".agents", "skills", skill, "SKILL.md"))
-			if len(backups) != 1 || readString(t, backups[0]) != tc.body {
-				t.Fatal("migration must keep a backup of the previous copy")
-			}
-			ok, err := checkDrift(repo, home, []manifestEntry{{Source: ".", Skills: []string{skill}}})
-			if err != nil || !ok {
-				t.Fatalf("after migration, drift check must pass: ok=%v err=%v", ok, err)
-			}
-		})
-	}
-}
-
-func TestMigrationRollbackRestoresLock(t *testing.T) {
-	for _, xdg := range []bool{false, true} {
-		t.Run(map[bool]string{false: "home", true: "xdg"}[xdg], func(t *testing.T) {
-			home, repo := t.TempDir(), t.TempDir()
-			t.Setenv("HOME", home)
-			if xdg {
-				t.Setenv("XDG_STATE_HOME", filepath.Join(home, "state"))
-			} else {
-				t.Setenv("XDG_STATE_HOME", "")
-			}
-			skill := "do-x"
-			write(t, filepath.Join(repo, "skills", "global", "core", skill, "SKILL.md"), "from-checkout\n")
-			dirs := skillDirs(home, skill)
-			for _, dir := range dirs {
-				write(t, filepath.Join(dir, "SKILL.md"), "old\n")
-			}
-			hash, err := treeHash(dirs[0])
-			if err != nil {
-				t.Fatal(err)
-			}
-			lockPath := skillLockPath(home)
-			write(t, lockPath, `{"version":3,"skills":{"do-x":{"source":"edheltzel/Do-Skills","sourceType":"github","sourceUrl":"https://github.com/edheltzel/Do-Skills.git","skillFolderHash":"`+hash+`","installedAt":"2020-01-01T00:00:00.000Z","pluginName":"keep"},"other":{"source":"stay","pluginName":"untouched"}},"dismissed":{"findSkillsPrompt":true}}`+"\n")
-			npxDir := t.TempDir()
-			logPath := filepath.Join(npxDir, "npx.log")
-			write(t, filepath.Join(npxDir, "npx"), "#!/bin/sh\necho called >> "+logPath+"\npython3 - "+lockPath+" "+skill+` <<'PY'
-import json, sys
-path, name = sys.argv[1:]
-lock = json.load(open(path))
-entry = lock["skills"][name]
-entry["source"] = "/tmp/gap-checkout"
-entry["sourceType"] = "local"
-entry["skillFolderHash"] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-entry.pop("pluginName", None)
-json.dump(lock, open(path, "w"))
-PY
-exit 1
-`)
-			if err := os.Chmod(filepath.Join(npxDir, "npx"), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv("PATH", npxDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-			if installSkills(repo, home, []manifestEntry{{Source: ".", Skills: []string{skill}}}) {
-				t.Fatal("a failed migration must not report success")
-			}
-			for _, dir := range dirs {
-				if readString(t, filepath.Join(dir, "SKILL.md")) != "old\n" {
-					t.Fatal("rollback must restore the skill bytes")
-				}
-			}
-			assertLockRestored(t, lockPath, hash)
-			if xdg {
-				if _, err := os.Stat(filepath.Join(home, ".agents", ".skill-lock.json")); !os.IsNotExist(err) {
-					t.Fatal("rollback wrote the home lock instead of XDG_STATE_HOME")
-				}
-			}
-			if installSkills(repo, home, []manifestEntry{{Source: ".", Skills: []string{skill}}}) {
-				t.Fatal("a second failed migration must still be a failure")
-			}
-			log, err := os.ReadFile(logPath)
-			if err != nil || strings.Count(string(log), "called") != 2 {
-				t.Fatalf("a restored foreign lock must be retried, log %q err %v", log, err)
-			}
-			assertLockRestored(t, lockPath, hash)
-		})
-	}
-}
-
-func assertLockRestored(t *testing.T, path, hash string) {
-	t.Helper()
-	var doc struct {
-		Skills    map[string]map[string]any `json:"skills"`
-		Dismissed map[string]bool           `json:"dismissed"`
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(b, &doc); err != nil {
-		t.Fatal(err)
-	}
-	got := doc.Skills["do-x"]
-	if got["source"] != "edheltzel/Do-Skills" || got["pluginName"] != "keep" || got["skillFolderHash"] != hash || got["installedAt"] != "2020-01-01T00:00:00.000Z" {
-		t.Fatalf("lock entry was not restored: %#v", got)
-	}
-	if doc.Skills["other"]["source"] != "stay" || doc.Skills["other"]["pluginName"] != "untouched" || !doc.Dismissed["findSkillsPrompt"] {
-		t.Fatalf("rollback changed the rest of the lock: %#v", doc)
-	}
-}
-
-func TestForeignExternalDiff(t *testing.T) {
-	fixture := t.TempDir()
-	write(t, filepath.Join(fixture, "skills", "global", "core", "gh-axi", "SKILL.md"), "upstream\n")
-	realGit, err := exec.LookPath("git")
-	if err != nil {
-		t.Fatal(err)
-	}
-	stub := t.TempDir()
-	write(t, filepath.Join(stub, "git"), "#!/bin/sh\nif [ \"$1\" = clone ]; then\n  if [ \"$FAIL_CLONE\" = 1 ]; then exit 1; fi\n  dest=\n  for a in \"$@\"; do dest=\"$a\"; done\n  rm -rf \"$dest\"\n  mkdir -p \"$dest\"\n  cp -R "+fixture+"/. \"$dest\"/\n  exit 0\nfi\nexec "+realGit+" \"$@\"\n")
-	if err := os.Chmod(filepath.Join(stub, "git"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", stub+string(os.PathListSeparator)+os.Getenv("PATH"))
-	dir, cleanup := openSourceSkill(manifestEntry{Source: "owner/gh-axi"}, "gh-axi")
-	if cleanup != nil {
-		defer cleanup()
-	}
-	if dir == "" {
-		t.Fatal("an external foreign skill must have a comparison directory")
-	}
-	installed := t.TempDir()
-	write(t, filepath.Join(installed, "SKILL.md"), "upstream\nhand\n")
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stdout = w
-	showDiff(dir, lockEntry{}, installed)
-	w.Close()
-	os.Stdout = old
-	out, _ := io.ReadAll(r)
-	if !strings.Contains(string(out), "hand") {
-		t.Fatalf("diff must show the edit take would replace, got %q", out)
-	}
-
-	t.Setenv("FAIL_CLONE", "1")
-	errR, errW, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldErr := os.Stderr
-	os.Stderr = errW
-	miss, missCleanup := openSourceSkill(manifestEntry{Source: "missing/repo"}, "gh-axi")
-	errW.Close()
-	os.Stderr = oldErr
-	msg, _ := io.ReadAll(errR)
-	if missCleanup != nil {
-		missCleanup()
-	}
-	if miss != "" || !strings.Contains(string(msg), "missing/repo") {
-		t.Fatalf("a failed fetch must name the source take would replace, dir %q msg %q", miss, msg)
 	}
 }
 
@@ -660,27 +401,17 @@ func TestNodeModulesSkillVerifies(t *testing.T) {
 	write(t, filepath.Join(src, "Tools", "node_modules", "pkg", "index.js"), "dep\n")
 	write(t, filepath.Join(src, "Tools", "__pycache__", "x.pyc"), "pyc\n")
 	write(t, filepath.Join(src, "metadata.json"), "meta\n")
-	dirs := skillDirs(home, "do-art")
-	write(t, filepath.Join(dirs[0], "SKILL.md"), "art\n")
-	write(t, filepath.Join(dirs[0], "Tools", "README.md"), "keep\n")
-	if err := os.MkdirAll(filepath.Dir(dirs[1]), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	link, err := filepath.Rel(filepath.Dir(dirs[1]), dirs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(link, dirs[1]); err != nil {
-		t.Fatal(err)
-	}
-	entries := []manifestEntry{{Source: ".", Skills: []string{"do-art"}}}
-	ok, err := checkDrift(repo, home, entries)
+	skillsShInstall(t, home, "do-art", "art\n")
+	write(t, filepath.Join(skillDirs(home, "do-art")[0], "Tools", "README.md"), "keep\n")
+	entries := []manifestEntry{{Path: repo, Skills: []string{"do-art"}}}
+	ok, err := checkDrift(home, entries)
 	if err != nil || !ok {
 		t.Fatalf("a do-art-like skill with node_modules must verify: ok=%v err=%v", ok, err)
 	}
-	write(t, filepath.Join(dirs[0], "Tools", "README.md"), "edit\n")
-	ok, err = checkDrift(repo, home, entries)
-	if err != nil || ok || readString(t, filepath.Join(dirs[0], "Tools", "README.md")) != "edit\n" {
+	dir := skillDirs(home, "do-art")[0]
+	write(t, filepath.Join(dir, "Tools", "README.md"), "edit\n")
+	ok, err = checkDrift(home, entries)
+	if err != nil || ok || readString(t, filepath.Join(dir, "Tools", "README.md")) != "edit\n" {
 		t.Fatal("a copied file edit must still be drift and must be left in place")
 	}
 }
@@ -768,17 +499,13 @@ func TestShadowJcode(t *testing.T) {
 }
 
 func TestEmpryoShadowKeepsDriftResult(t *testing.T) {
-	home := t.TempDir()
+	home, store := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_STATE_HOME", "")
-	dirs := skillDirs(home, "ext")
-	write(t, filepath.Join(dirs[0], "SKILL.md"), "installed\n")
-	write(t, filepath.Join(dirs[1], "SKILL.md"), "installed\n")
-	hash, err := contentHash(dirs[0])
-	if err != nil {
-		t.Fatal(err)
+	write(t, filepath.Join(store, "skills", "ext", "SKILL.md"), "installed\n")
+	for _, dir := range skillDirs(home, "ext") {
+		write(t, filepath.Join(dir, "SKILL.md"), "installed\n")
 	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/repo","sourceUrl":"https://github.com/owner/repo.git","skillFolderHash":"`+hash+`"}}}`)
 	write(t, filepath.Join(home, ".empryo", "skills", "ext", "SKILL.md"), "shadow edit\n")
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -786,7 +513,7 @@ func TestEmpryoShadowKeepsDriftResult(t *testing.T) {
 	}
 	old := os.Stderr
 	os.Stderr = w
-	ok, err := checkDrift(t.TempDir(), home, []manifestEntry{{Source: "owner/repo", Skills: []string{"ext"}}})
+	ok, err := checkDrift(home, []manifestEntry{{Path: store, Skills: []string{"ext"}}})
 	os.Stderr = old
 	w.Close()
 	out, _ := io.ReadAll(r)
@@ -801,44 +528,26 @@ func TestEmpryoShadowKeepsDriftResult(t *testing.T) {
 func TestEmpryoShadowAfterDriftResolution(t *testing.T) {
 	for _, tc := range []struct {
 		name, choice, shadow string
-		terminal, fail, ok   bool
+		terminal, ok         bool
 		warnings             int
 	}{
-		{"take source exposes shadow", "t", "old\n", true, false, true, 1},
-		{"take source resolves shadow", "t", "new\n", true, false, true, 0},
-		{"keep matching shadow", "k", "old\n", true, false, true, 0},
-		{"keep differing shadow", "k", "new\n", true, false, true, 1},
-		{"skip", "s", "new\n", true, false, false, 1},
-		{"no terminal", "", "new\n", false, false, false, 1},
-		{"failed repair restores matching shadow", "t", "old\n", true, true, false, 0},
-		{"failed repair retains differing shadow", "t", "new\n", true, true, false, 1},
+		{"take source exposes shadow", "t", "old\n", true, true, 1},
+		{"take source resolves shadow", "t", "new\n", true, true, 0},
+		{"keep matching shadow", "k", "old\n", true, true, 0},
+		{"keep differing shadow", "k", "new\n", true, true, 1},
+		{"skip", "s", "new\n", true, false, 1},
+		{"no terminal", "", "new\n", false, false, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			home, repo, bin := t.TempDir(), t.TempDir(), t.TempDir()
+			home, repo := t.TempDir(), t.TempDir()
 			t.Setenv("HOME", home)
 			t.Setenv("XDG_STATE_HOME", "")
-			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-			sourceDir := filepath.Join(repo, "skills", "global", "core", "do-x")
-			write(t, filepath.Join(sourceDir, "SKILL.md"), "new\n")
-			t.Setenv("GAP_TEST_SOURCE", sourceDir)
+			write(t, filepath.Join(repo, "skills", "global", "core", "do-x", "SKILL.md"), "new\n")
 			for _, dir := range skillDirs(home, "do-x") {
 				write(t, filepath.Join(dir, "SKILL.md"), "old\n")
 			}
 			shadow := filepath.Join(home, ".empryo", "skills", "do-x", "SKILL.md")
 			write(t, shadow, tc.shadow)
-			script := `#!/bin/sh
-mkdir -p "$HOME/.agents/skills/do-x" "$HOME/.claude/skills/do-x"
-cp "$GAP_TEST_SOURCE/SKILL.md" "$HOME/.agents/skills/do-x/SKILL.md"
-cp "$GAP_TEST_SOURCE/SKILL.md" "$HOME/.claude/skills/do-x/SKILL.md"
-`
-			if tc.fail {
-				script = "#!/bin/sh\nexit 1\n"
-			}
-			npx := filepath.Join(bin, "npx")
-			write(t, npx, script)
-			if err := os.Chmod(npx, 0o755); err != nil {
-				t.Fatal(err)
-			}
 			input := filepath.Join(home, "answer")
 			write(t, input, tc.choice+"\n")
 			in, err := os.Open(input)
@@ -855,7 +564,7 @@ cp "$GAP_TEST_SOURCE/SKILL.md" "$HOME/.claude/skills/do-x/SKILL.md"
 			os.Stdin, os.Stderr = in, out
 			termReady = func() bool { return tc.terminal }
 			t.Cleanup(func() { os.Stdin, os.Stderr, termReady = oldIn, oldErr, oldTerm })
-			ok, err := checkDrift(repo, home, []manifestEntry{{Source: ".", Skills: []string{"do-x"}}})
+			ok, err := checkDrift(home, []manifestEntry{{Path: repo, Skills: []string{"do-x"}}})
 			os.Stdin, os.Stderr, termReady = oldIn, oldErr, oldTerm
 			if err != nil || ok != tc.ok {
 				t.Fatalf("drift result: ok %v err %v", ok, err)
@@ -865,7 +574,7 @@ cp "$GAP_TEST_SOURCE/SKILL.md" "$HOME/.claude/skills/do-x/SKILL.md"
 				t.Fatalf("shadow warnings = %d, want %d: %q", count, tc.warnings, output)
 			}
 			want := "old\n"
-			if tc.choice == "t" && !tc.fail {
+			if tc.choice == "t" {
 				want = "new\n"
 			}
 			for _, dir := range skillDirs(home, "do-x") {

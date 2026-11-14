@@ -27,15 +27,6 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if dir := os.Getenv("GAP_TEST_CONTENT_HASH"); dir != "" {
-		h, err := contentHash(dir)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		fmt.Print(h)
-		os.Exit(0)
-	}
 	docsDir = "/repo/global/docs/agents"
 	os.Exit(m.Run())
 }
@@ -640,6 +631,7 @@ func TestCodexCleanupGates(t *testing.T) {
 // TestSyncEndToEnd builds the CLI inside a throwaway clone on its primary branch, then runs it
 // from outside any repo against a temp HOME. The clone gets this tree's Go files so uncommitted code is tested.
 func TestSyncEndToEnd(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", "")
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -674,7 +666,7 @@ func TestSyncEndToEnd(t *testing.T) {
 	commitMerged := func(msg string) {
 		t.Helper()
 		for _, args := range [][]string{
-			{"-C", clone, "add", "-A", "global", "skills"},
+			{"-C", clone, "add", "-A", "global", "skills", "gap.toml", "gap.lock"},
 			{"-C", clone, "-c", "user.name=gap", "-c", "user.email=gap@example.com", "commit", "-q", "-m", msg},
 			{"-C", clone, "update-ref", "refs/remotes/origin/master", "HEAD"},
 		} {
@@ -683,16 +675,19 @@ func TestSyncEndToEnd(t *testing.T) {
 			}
 		}
 	}
-	for _, f := range []string{"gap.toml", "gap.lock"} {
-		if out, err := exec.Command("git", "-C", clone, "rm", "-q", "--ignore-unmatch", f).CombinedOutput(); err != nil {
-			t.Fatalf("git rm %s: %v\n%s", f, err, out)
-		}
+	remote := filepath.Join(tmp, "remote")
+	for _, name := range []string{"do-a", "do-b", "ext"} {
+		write(t, filepath.Join(remote, "skills", name, "SKILL.md"), name+"\n")
 	}
-	write(t, filepath.Join(clone, "global", "skills.json"), `[{"source":".","skills":["do-a","do-b"]},{"source":"owner/ext","skills":["ext"]}]`+"\n")
+	commit, tree := gitFixture(t, remote, "unused\n")
+	write(t, filepath.Join(clone, "gap.toml"), "schema = \"2\"\n[components.local]\nrepo = \""+remote+"\"\nref = \"master\"\nnames = [\"do-a\", \"do-b\", \"ext\"]\n")
+	if err := writeLock(clone, lockFile{Components: map[string]lockEntryM1{"local": {Ref: "master", Commit: commit, Tree: tree}}}); err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range []string{"do-a", "do-b"} {
 		write(t, filepath.Join(clone, "skills", "global", "core", name, "SKILL.md"), name+"\n")
 	}
-	commitMerged("test manifest")
+	commitMerged("test components")
 	write(t, filepath.Join(clone, "global", "commands", "state-docs.md"), "published command\n")
 	commitMerged("test command")
 	home := filepath.Join(tmp, "home")
@@ -701,42 +696,15 @@ func TestSyncEndToEnd(t *testing.T) {
 	write(t, filepath.Join(codex, "AGENTS.md"), legacyFile)
 	unlisted := filepath.Join(home, ".agents", "skills", "mine", "SKILL.md")
 	write(t, unlisted, "mine\n")
-	extSource := t.TempDir()
-	write(t, filepath.Join(extSource, "SKILL.md"), "ext\n")
-	extHash, err := treeHash(extSource)
-	if err != nil {
-		t.Fatal(err)
-	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/ext","sourceUrl":"https://github.com/owner/ext.git","skillFolderHash":"`+extHash+`"}}}`)
+	skillsShInstall(t, home, "ext", "ext\n")
+	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/ext","sourceUrl":"https://github.com/owner/ext.git","skillFolderHash":"0000000000000000000000000000000000000000"},"mine":{"source":"me/mine"}}}`)
 
-	// Stub npx: logs its argv and installs each -s skill the way skills.sh does (folder + Claude symlink).
-	stub, npxLog := filepath.Join(tmp, "stub"), filepath.Join(tmp, "npx.log")
-	write(t, filepath.Join(stub, "npx"), `#!/bin/sh
-echo "$*" >> `+npxLog+`
-while [ $# -gt 0 ]; do
-  if [ "$1" = -s ]; then
-    mkdir -p "$HOME/.agents/skills/$2" "$HOME/.claude/skills"
-    echo "$2" > "$HOME/.agents/skills/$2/SKILL.md"
-    ln -sfn "$HOME/.agents/skills/$2" "$HOME/.claude/skills/$2"
-    shift
-  fi
-  shift
-done
-`)
-	if err := os.Chmod(filepath.Join(stub, "npx"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	pathEnv := "PATH=" + stub + string(os.PathListSeparator) + os.Getenv("PATH")
-	npxCalls := func() []string {
-		b, _ := os.ReadFile(npxLog)
-		return strings.Fields(strings.ReplaceAll(strings.TrimSpace(string(b)), " ", "_"))
-	}
 	var extraEnv []string
 	var lastOut string
 	cli := func(args ...string) int {
 		cmd := exec.Command(bin, append([]string{"sync"}, args...)...)
 		cmd.Dir = tmp
-		cmd.Env = append(append(os.Environ(), "HOME="+home, "CODEX_HOME=", "XDG_STATE_HOME=", pathEnv), extraEnv...)
+		cmd.Env = append(append(os.Environ(), "HOME="+home, "CODEX_HOME=", "XDG_STATE_HOME="), extraEnv...)
 		out, err := cmd.CombinedOutput()
 		lastOut = string(out)
 		var exit *exec.ExitError
@@ -764,14 +732,22 @@ done
 			t.Fatalf("command not published: %s", dest)
 		}
 	}
-	if calls := npxCalls(); len(calls) != 2 || !strings.Contains(calls[0], "add_"+clone+"_-g_-y_-a_claude-code_-a_codex_-s_do-a_-s_do-b") || !strings.Contains(calls[1], "add_owner/ext_") {
-		t.Fatalf("first run must install each source's missing skills once: %q", calls)
+	for _, name := range []string{"do-a", "do-b"} {
+		for _, dir := range skillDirs(home, name) {
+			if got := readString(t, filepath.Join(dir, "SKILL.md")); got != name+"\n" {
+				t.Fatalf("first run must install %s from the pinned store: %q", dir, got)
+			}
+		}
 	}
+	if !strings.Contains(lastOut, "Migrated ext from skills.sh (owner/ext) to local") {
+		t.Fatalf("a matching skills.sh install must be taken over:\n%s", lastOut)
+	}
+	assertSkillLock(t, home, `{"skills":{"mine":{"source":"me/mine"}}}`)
 	if readString(t, unlisted) != "mine\n" {
 		t.Fatal("unlisted skill changed")
 	}
-	if code := cli(); code != 0 || len(npxCalls()) != 2 {
-		t.Fatalf("second run must not call skills.sh (exit %d, calls %q)\n%s", code, npxCalls(), lastOut)
+	if code := cli(); code != 0 || strings.Contains(lastOut, "Migrated") || strings.Contains(lastOut, "Backed up") {
+		t.Fatalf("second run must change nothing (exit %d)\n%s", code, lastOut)
 	}
 	if readString(t, ompCmd) != "published command\n" || readString(t, claudeCmd) != "published command\n" {
 		t.Fatal("second run changed a published command")
@@ -796,9 +772,8 @@ done
 		if err := os.RemoveAll(missing); err != nil {
 			t.Fatal(err)
 		}
-		calls := len(npxCalls())
-		if code := cli(); code != 1 || len(npxCalls()) != calls {
-			t.Fatalf("partial installs must require review without running npx (exit %d)\n%s", code, lastOut)
+		if code := cli(); code != 1 {
+			t.Fatalf("partial installs must require review (exit %d)\n%s", code, lastOut)
 		}
 		remaining := canonical
 		want := "canonical edit\n"
@@ -817,31 +792,6 @@ done
 		}
 	}
 
-	// No Node: policy still publishes, the skills step is skipped, exit 1.
-	noNode := filepath.Join(tmp, "nonode")
-	gitPath, _ := exec.LookPath("git")
-	if err := os.MkdirAll(noNode, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(gitPath, filepath.Join(noNode, "git")); err != nil {
-		t.Fatal(err)
-	}
-	claudeRules := filepath.Join(home, ".claude", "rules", "global-agent-policy.md")
-	if err := os.RemoveAll(filepath.Join(home, ".agents", "skills", "ext")); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(claudeRules); err != nil {
-		t.Fatal(err)
-	}
-	extraEnv = []string{"PATH=" + noNode}
-	if code := cli(); code != 1 {
-		t.Fatalf("missing npx must exit 1, got %d", code)
-	}
-	if _, err := os.Stat(claudeRules); err != nil {
-		t.Fatal("policy must still publish without npx")
-	}
-	extraEnv = nil
-	write(t, filepath.Join(home, ".agents", "skills", "ext", "SKILL.md"), "ext\n")
 	hooks := decodeHooks(t, readString(t, filepath.Join(codex, "hooks.json")))
 	subs, sessions := hooks["SubagentStart"].([]any), hooks["SessionStart"].([]any)
 	if len(subs) != 2 || len(sessions) != 1 || subs[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)["command"] != "keep" {
@@ -879,11 +829,11 @@ done
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(clone, "skills", ".gitignore"), "ignored/\nnode_modules/\n")
-	write(t, filepath.Join(clone, "global", ".gitignore"), "ignored/\nskills.json\n.DS_Store\n")
+	write(t, filepath.Join(clone, "global", ".gitignore"), "ignored/\n.DS_Store\n")
 	commitMerged("ignore generated files")
 	write(t, filepath.Join(clone, "skills", "ignored", "payload"), "unmerged ignored content\n")
 	if code := cli(); code != 1 || !strings.Contains(lastOut, "global/ or skills/") {
-		t.Fatalf("an ignored file skills.sh would install must refuse (exit %d)\n%s", code, lastOut)
+		t.Fatalf("an ignored file under skills/ must refuse (exit %d)\n%s", code, lastOut)
 	}
 	if err := os.RemoveAll(filepath.Join(clone, "skills", "ignored")); err != nil {
 		t.Fatal(err)
@@ -903,43 +853,9 @@ done
 	if err := os.RemoveAll(filepath.Join(clone, "skills", "global", "core", "do-a", "node_modules")); err != nil {
 		t.Fatal(err)
 	}
-	for _, args := range [][]string{
-		{"-C", clone, "rm", "-q", "--cached", "global/skills.json"},
-		{"-C", clone, "-c", "user.name=gap", "-c", "user.email=gap@example.com", "commit", "-q", "-m", "untrack manifest for ignore"},
-		{"-C", clone, "update-ref", "refs/remotes/origin/master", "HEAD"},
-	} {
-		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	if code := cli(); code != 1 || !strings.Contains(lastOut, "global/") {
-		t.Fatalf("an ignored global/skills.json must refuse (exit %d)\n%s", code, lastOut)
-	}
-	if out, err := exec.Command("git", "-C", clone, "add", "--force", "global/skills.json").CombinedOutput(); err != nil {
-		t.Fatalf("restore manifest: %v\n%s", err, out)
-	}
-	commitMerged("restore ignored manifest")
 	if code := cli(); code != 0 {
 		t.Fatalf("merged skills must publish (exit %d)\n%s", code, lastOut)
 	}
-
-	// An untracked global/skills.json on a merged checkout would install unmerged sources; it must refuse.
-	for _, args := range [][]string{
-		{"-C", clone, "rm", "-q", "--cached", "global/skills.json"},
-		{"-C", clone, "-c", "user.name=gap", "-c", "user.email=gap@example.com", "commit", "-q", "-m", "untrack manifest"},
-		{"-C", clone, "update-ref", "refs/remotes/origin/master", "HEAD"},
-	} {
-		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	if code := cli(); code != 1 || !strings.Contains(lastOut, "global/") {
-		t.Fatalf("an untracked global/skills.json must refuse (exit %d)\n%s", code, lastOut)
-	}
-	if out, err := exec.Command("git", "-C", clone, "add", "--force", "global/skills.json").CombinedOutput(); err != nil {
-		t.Fatalf("restore manifest: %v\n%s", err, out)
-	}
-	commitMerged("restore manifest")
 
 	write(t, filepath.Join(clone, "global", "AGENTS.md"), "unmerged\n")
 	if code := cli(); code != 1 {
@@ -969,27 +885,19 @@ func TestCheckDriftWithoutTerminal(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "")
 	src := filepath.Join(repo, "skills", "global", "core", "do-x", "SKILL.md")
 	installedSkill := filepath.Join(home, ".agents", "skills", "do-x", "SKILL.md")
-	extSkill := filepath.Join(home, ".agents", "skills", "ext", "SKILL.md")
-	for _, p := range []string{src, installedSkill, extSkill} {
+	for _, p := range []string{src, installedSkill} {
 		write(t, p, "same\n")
 	}
 	if err := os.MkdirAll(filepath.Join(home, ".claude", "skills"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"do-x", "ext"} {
-		if err := os.Symlink(filepath.Join(home, ".agents", "skills", name), filepath.Join(home, ".claude", "skills", name)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	extHash, err := treeHash(filepath.Dir(extSkill))
-	if err != nil {
+	if err := os.Symlink(filepath.Join(home, ".agents", "skills", "do-x"), filepath.Join(home, ".claude", "skills", "do-x")); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(home, ".agents", ".skill-lock.json"), `{"skills":{"ext":{"source":"owner/ext","sourceUrl":"https://github.com/owner/ext.git","skillFolderHash":"`+extHash+`"}}}`)
-	entries := []manifestEntry{{Source: ".", Skills: []string{"do-x"}}, {Source: "owner/ext", Skills: []string{"ext"}}}
+	entries := []manifestEntry{{Path: repo, Skills: []string{"do-x"}}}
 	drift := func() bool {
 		t.Helper()
-		ok, err := checkDrift(repo, home, entries)
+		ok, err := checkDrift(home, entries)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1006,12 +914,7 @@ func TestCheckDriftWithoutTerminal(t *testing.T) {
 	if drift() {
 		t.Fatal("a later run must report the edit again")
 	}
-	write(t, extSkill, "external edit\n")
-	if drift() || readString(t, extSkill) != "external edit\n" {
-		t.Fatal("an external skill that no longer matches the skills.sh lock must be reported and left unchanged")
-	}
 	write(t, installedSkill, "same\n")
-	write(t, extSkill, "same\n")
 	mirror := skillDirs(home, "do-x")[1]
 	if err := os.Remove(mirror); err != nil {
 		t.Fatal(err)

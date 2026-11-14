@@ -1,5 +1,25 @@
 schema = "2"
 
+[components.agent-reviews]
+ref = "main"
+commit = "5c85f14cad5d2233883f991faf9312ddc807c063"
+tree = "9a41f788c0e74b3aca89eee906dda65a50125c88"
+
+[components.but-axi]
+ref = "master"
+commit = "855b90289d478f7ac64a778e784b282603f4290a"
+tree = "c3dee9d3d25b6f53060ccc2dcbe35cde93092b3e"
+
+[components.chrome-devtools-axi]
+ref = "main"
+commit = "1dbdac1ca1122e1d2b76d889bbc8a2dd2eb2dcd7"
+tree = "5f2811a9f699193984a6a680e037e802cb6ce344"
+
+[components.dev-skills]
+ref = "main"
+commit = "c7b061c9e3ddfdd1e86dca29cb8d6bcbc23e5dc0"
+tree = "c86337cff491632de7c9db74f7ce341467d3ab7f"
+
 [components.do-skills]
 ref = "master"
 commit = "bb8022806bc443cfaa079a3c750b92f93eaeaeb4"
@@ -15,7 +35,47 @@ ref = "master"
 commit = "ee40f94ef36f407564eae2ff01b82e979c9fe755"
 tree = "48aea6b1ed5efef23a574cff731aff2da2fbea06"
 
+[components.gh-axi]
+ref = "main"
+commit = "d84efb529bd986afb4b963b4f675a5dd2f6eab85"
+tree = "d0dd3be36a530fe29a4e185884bc7c06e9b0ec27"
+
+[components.gh-stack]
+ref = "main"
+commit = "bd0a32504f9ae9f795875a9e6bb90ff7408fda08"
+tree = "9f661011235f0c48a34ad2f1b0cfdc92dc486c1b"
+
+[components.gitbutler]
+ref = "8218481afa206ccba4db48ce2b4bc2edc85eb1cf"
+commit = "8218481afa206ccba4db48ce2b4bc2edc85eb1cf"
+tree = "c973ca4fe495b85307e9d6163a584687bb9b141c"
+
+[components.guides]
+ref = "main"
+commit = "3fc8c845ef66f0743ec472785aa5f9b7fcda9e21"
+tree = "1a886681ba8990d3c5c1f1633eda5270202cf912"
+
+[components.herdr]
+ref = "master"
+commit = "ee5bfb5041bb3e4a49d591c72308aae3c81ecdde"
+tree = "d2fc8428a9ce5be7e1d89a10b62be3e289b479dd"
+
+[components.impeccable]
+ref = "main"
+commit = "c4cd1924c389f68d37c687d9c2bbf13f12547c41"
+tree = "8722617c7bf3953e1c2923b57e53d22cc99a1e36"
+
 [components.recall]
 ref = "main"
 commit = "1a906296ab3b6c4711b8543be7d451fbaa806d86"
 tree = "3a90ff6f075d1fe3cf03214e4e89e9340ec60c29"
+
+[components.typesafe-ai]
+ref = "main"
+commit = "302eea662c54bca6730873fe245bec1d69ebc23d"
+tree = "0dbb16188f2248fca040c8a731fbb83a04d126a8"
+
+[components.visual-explainer]
+ref = "main"
+commit = "9d5f880b7e8e0a9a80c890b8e1bb6918b68481ad"
+tree = "4a988576aff027ba54986bf5b58722b952ec2494"

@@ -36,6 +36,7 @@ type component struct {
 	Commands    []string
 	MCP         []mcpServer
 	Store       string
+	SkillPath   string
 }
 
 // skillSpec is one skill's load level. WhenFiles names the repo files that make a
@@ -117,6 +118,13 @@ func parseComponent(id string, table map[string]any) (component, error) {
 		return component{}, fmt.Errorf("component %s: %w", id, err)
 	}
 	_, c.Named = table["names"]
+	if raw, set := table["path"]; set {
+		path, ok := raw.(string)
+		if !ok || path == "" || !filepath.IsLocal(path) {
+			return component{}, fmt.Errorf("component %s: path must be a nonempty relative folder inside the repo", id)
+		}
+		c.SkillPath = filepath.ToSlash(filepath.Clean(path))
+	}
 	sort.Strings(c.Skills)
 	return c, nil
 }
@@ -319,8 +327,7 @@ func storePath(home, id, commit string) string {
 	return filepath.Join(home, ".gap", "store", id, commit)
 }
 
-// componentSource is owner/repo for a GitHub component and "." for a local fixture.
-// "." installs through the store path the way a checkout skill does.
+// componentSource supplies a label for migration reports; skill lookup uses the pinned store.
 func componentSource(repo string) string {
 	owner, _, ok := githubIdentity(repo)
 	if ok && strings.HasPrefix(repo, "github.com/") {
@@ -460,7 +467,7 @@ func resolveRef(url, ref string) (string, error) {
 	for _, name := range refs {
 		args = append(args, name, name+"^{}")
 	}
-	out, err := git(".", args...)
+	out, err := spin("Resolving "+ref+" on "+url, func() (string, error) { return git(".", args...) })
 	if err != nil {
 		return "", fmt.Errorf("resolve %s: %w", ref, err)
 	}
@@ -619,6 +626,7 @@ func statusAll() error {
 	missing := false
 	changed := false
 	var pinSteps []string
+	var rows []statusRow
 	ids := sortedIDs(d.Components)
 	for _, id := range ids {
 		c := d.Components[id]
@@ -648,24 +656,30 @@ func statusAll() error {
 		if store == storeMissing {
 			missing = true
 		}
-		out.statusLine(id, ref, short, store)
-		if store != storeOK {
-			continue
+		row := statusRow{id: id, ref: ref, commit: short, store: store}
+		if !out.tty {
+			out.statusLine(id, ref, short, store)
 		}
-		dir := storePath(home, id, e.Commit)
-		var rows [][]string
-		for _, entry := range selectedEntries(c, dir, projectRoot) {
-			for _, name := range entry.Skills {
-				n := skillDriftCount(dir, entryHome(home, entry), name)
-				rows = append(rows, []string{name, fmt.Sprintf("drift=%d", n)})
-				if n > 0 {
-					bad = true
+		if store == storeOK {
+			dir := storePath(home, id, e.Commit)
+			for _, entry := range selectedEntries(c, dir, projectRoot) {
+				for _, name := range entry.Skills {
+					n := entryDriftCount(entry, entryHome(home, entry), name)
+					row.skills = append(row.skills, []string{name, fmt.Sprintf("drift=%d", n)})
+					if n > 0 {
+						row.drifted++
+						bad = true
+					}
 				}
 			}
+			if !out.tty && len(row.skills) > 0 {
+				out.driftTable(row.skills)
+			}
 		}
-		if len(rows) > 0 {
-			out.driftTable(rows)
-		}
+		rows = append(rows, row)
+	}
+	if out.tty {
+		out.statusSummary(rows)
 	}
 	var steps []string
 	steps = append(steps, pinSteps...)
@@ -680,25 +694,6 @@ func statusAll() error {
 		return errSkipped
 	}
 	return nil
-}
-
-func skillDriftCount(store, home, name string) int {
-	src := localSkillDir(store, name)
-	if src == "" {
-		return 1
-	}
-	want, err := treeHash(src)
-	if err != nil {
-		return 1
-	}
-	n := 0
-	for _, dir := range skillDirs(home, name) {
-		got, err := treeHash(dir)
-		if err != nil || got != want {
-			n++
-		}
-	}
-	return n
 }
 
 func restoreAll(id string) error {
@@ -747,10 +742,10 @@ func restoreAll(id string) error {
 			target := entryHome(home, entry)
 			for _, name := range entry.Skills {
 				checked++
-				if skillDriftCount(dir, target, name) == 0 {
+				if entryDriftCount(entry, target, name) == 0 {
 					continue
 				}
-				replaced, err := replaceSkill("", repoRoot, target, entry, name)
+				replaced, err := replaceSkill(target, entry, name)
 				if err != nil || !replaced {
 					fmt.Fprintf(os.Stderr, "Restoring %s: %v\n", name, err)
 					ok = false
@@ -902,11 +897,16 @@ func fetchCommit(home string, c component, l lockEntryM1) (string, error) {
 		os.RemoveAll(tmp)
 		return "", err
 	}
-	if _, err := git(tmp, "fetch", "--depth", "1", url, l.Commit); err != nil {
-		if _, err2 := git(tmp, "fetch", url, l.Commit); err2 != nil {
-			os.RemoveAll(tmp)
-			return "", fmt.Errorf("component %s: fetch %s: %w", c.ID, l.Commit, err2)
+	if _, err := spin("Fetching "+c.ID+" "+l.Commit[:min(7, len(l.Commit))], func() (string, error) {
+		if _, err := git(tmp, "fetch", "--depth", "1", url, l.Commit); err != nil {
+			if _, err2 := git(tmp, "fetch", url, l.Commit); err2 != nil {
+				return "", fmt.Errorf("component %s: fetch %s: %w", c.ID, l.Commit, err2)
+			}
 		}
+		return "", nil
+	}); err != nil {
+		os.RemoveAll(tmp)
+		return "", err
 	}
 	if _, err := git(tmp, "checkout", "--detach", "FETCH_HEAD"); err != nil {
 		os.RemoveAll(tmp)
@@ -965,8 +965,8 @@ func componentEntries(home, projectRoot string, d distro, pins map[string]lockEn
 }
 
 func selectedEntries(c component, store, projectRoot string) []manifestEntry {
-	global := manifestEntry{Source: componentSource(c.Repo), Path: store, Owner: c.ID}
-	project := manifestEntry{Source: componentSource(c.Repo), Path: store, Project: projectRoot}
+	global := manifestEntry{Source: componentSource(c.Repo), Path: store, SkillPath: c.SkillPath, Owner: c.ID}
+	project := manifestEntry{Source: componentSource(c.Repo), Path: store, SkillPath: c.SkillPath, Project: projectRoot}
 	for _, name := range c.Skills {
 		if !renderLoad(c, name, projectRoot) {
 			continue

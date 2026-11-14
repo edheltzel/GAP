@@ -204,29 +204,26 @@ func TestEnvReviewNativeReplacement(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "")
 	write(t, filepath.Join(store, "skills", "global", "core", "do-todo", "SKILL.md"), "pinned\n")
 	write(t, filepath.Join(bin, "git"), "#!/bin/sh\nprintf 'git\\n' >> \"$HOME/tool.log\"\nexit 71\n")
-	write(t, filepath.Join(bin, "npx"), "#!/bin/sh\nprintf 'npx\\n' >> \"$HOME/tool.log\"\nexit 71\n")
-	for _, name := range []string{"git", "npx"} {
-		if err := os.Chmod(filepath.Join(bin, name), 0o755); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.Chmod(filepath.Join(bin, "git"), 0o755); err != nil {
+		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin)
 	legacy := "{\"skills\":{\"unmanaged\":{\"source\":\"owner/repo\"}}}\n"
 	write(t, skillLockPath(home), legacy)
 	entry := manifestEntry{Source: "owner/tools", Skills: []string{"do-todo"}, Path: store}
-	if !installSkills(store, home, []manifestEntry{entry}) || !installSkills(store, home, []manifestEntry{entry}) {
+	if !installSkills(home, []manifestEntry{entry}) || !installSkills(home, []manifestEntry{entry}) {
 		t.Fatal("native install required an external tool")
 	}
 	write(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md"), "edited\n")
-	if ok, err := replaceSkill("", store, home, entry, "do-todo"); err != nil || !ok || readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")) != "pinned\n" {
+	if ok, err := replaceSkill(home, entry, "do-todo"); err != nil || !ok || readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")) != "pinned\n" {
 		t.Fatalf("native take source: %v %v", ok, err)
 	}
 	entry.Skills = []string{"missing"}
-	if installSkills(store, home, []manifestEntry{entry}) {
+	if installSkills(home, []manifestEntry{entry}) {
 		t.Fatal("missing pinned source was accepted")
 	}
 	if _, err := os.Stat(filepath.Join(home, "tool.log")); !os.IsNotExist(err) {
-		t.Fatal("pinned installs invoked npx or repeated drift hashing")
+		t.Fatal("pinned installs ran git or repeated drift hashing")
 	}
 	if readString(t, skillLockPath(home)) != legacy {
 		t.Fatal("native install changed the unmanaged lock")
@@ -236,7 +233,7 @@ func TestEnvReviewNativeReplacement(t *testing.T) {
 	}
 	write(t, filepath.Join(home, ".claude", "skills"), "blocked\n")
 	write(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md"), "keep my edit\n")
-	if ok, err := replaceSkill("", store, home, entry, "do-todo"); err == nil || ok {
+	if ok, err := replaceSkill(home, entry, "do-todo"); err == nil || ok {
 		t.Fatalf("replacement unexpectedly succeeded: %v %v", ok, err)
 	}
 	if readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")) != "keep my edit\n" || readString(t, filepath.Join(home, ".claude", "skills")) != "blocked\n" {
@@ -248,7 +245,6 @@ func readyEnvReviewDistro(t *testing.T, repo string) {
 	t.Helper()
 	t.Setenv("CODEX_HOME", "")
 	write(t, filepath.Join(repo, "global", "AGENTS.md"), "fixture policy\n")
-	write(t, filepath.Join(repo, "global", "skills.json"), "[]\n")
 	gitFixture(t, repo, "distro skill\n")
 	for _, args := range [][]string{
 		{"update-ref", "refs/remotes/origin/master", "HEAD"},

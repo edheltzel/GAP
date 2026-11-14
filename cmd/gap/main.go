@@ -99,11 +99,7 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
-	manifest, err := readManifest(repoRoot)
-	if err != nil {
-		return err
-	}
-	groups := syncGroups(d, pins, manifest, projectRoot, len(dests), commandCount(repoRoot))
+	groups := syncGroups(d, pins, projectRoot, len(dests), commandCount(repoRoot))
 	sel, err := chooseGroups(groups, opts.Only, opts.Skip, opts.Yes)
 	if err != nil {
 		return err
@@ -166,16 +162,11 @@ func syncAll(opts syncOptions) error {
 			return err
 		}
 	}
-	var entries []manifestEntry
-	if sel["manifest"] {
-		entries = manifest
-	}
-	componentSet, hooksOK, err := componentEntries(home, projectRoot, d, pins)
+	entries, hooksOK, err := componentEntries(home, projectRoot, d, pins)
 	if err != nil {
 		return err
 	}
 	skipped = skipped || !hooksOK
-	entries = append(entries, componentSet...)
 	ownedCommands, commandsOK, err := publishComponentCommands(repoRoot, home, d, ledger, ledgerPath)
 	if err != nil {
 		return err
@@ -189,13 +180,15 @@ func syncAll(opts syncOptions) error {
 	if len(entries) > 0 {
 		out.section("skills", "install missing skills, then check drift")
 	}
-	skillsOK := installSkills(repoRoot, home, entries)
-	driftOK, err := checkDrift(repoRoot, home, entries)
+	skillsOK := installSkills(home, entries)
+	driftOK, err := checkDrift(home, entries)
 	if err != nil {
 		return err
 	}
-	if err := recordDeclarativeInstalls(home, projectRoot, d, ownedCommands, mcpFailures); err != nil {
-		return err
+	if skillsOK {
+		if err := recordDeclarativeInstalls(home, projectRoot, d, ownedCommands, mcpFailures); err != nil {
+			return err
+		}
 	}
 	if len(entries) > 0 && skillsOK && driftOK {
 		out.result(true, "skill installation and drift review complete")
@@ -485,8 +478,8 @@ func resolveIn(root, path string) string {
 	return filepath.Join(root, path)
 }
 
-// ignoredBlocks reports whether an ignored path would change what gap publishes or what skills.sh installs.
-// node_modules and .DS_Store do not. An ignored global/skills.json still does.
+// ignoredBlocks reports whether an ignored path would change what gap publishes or installs.
+// node_modules and .DS_Store do not.
 func ignoredBlocks(list string) bool {
 	list = strings.TrimRight(list, "\x00")
 	if list == "" {
@@ -503,7 +496,7 @@ func ignoredBlocks(list string) bool {
 func ignoredPathBlocks(path string) bool {
 	path = filepath.ToSlash(path)
 	switch path {
-	case "global/AGENTS.md", "global/skills.json", "gap.toml", "gap.lock":
+	case "global/AGENTS.md", "gap.toml", "gap.lock":
 		return true
 	}
 	if filepath.Dir(path) == "global/commands" && strings.HasSuffix(path, ".md") {

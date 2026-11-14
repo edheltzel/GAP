@@ -718,7 +718,7 @@ func TestUtilityReviewPreview(t *testing.T) {
 		{component{Manifest: true, Commands: []string{"x.md"}}, "1 command"},
 		{component{User: true}, "fetch utility manifest"},
 	} {
-		groups := syncGroups(distro{Components: map[string]component{"util": tc.c}}, nil, nil, "", 6, 0)
+		groups := syncGroups(distro{Components: map[string]component{"util": tc.c}}, nil, "", 6, 0)
 		if !strings.Contains(groups[1].Summary, tc.want) {
 			t.Fatalf("preview hid utility work: %q", groups[1].Summary)
 		}

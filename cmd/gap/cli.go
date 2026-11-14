@@ -16,6 +16,7 @@ func main() {
 	if err := fang.Execute(context.Background(), rootCmd(),
 		fang.WithoutManpage(),
 		fang.WithoutCompletions(),
+		fang.WithColorSchemeFunc(gapColorScheme),
 		fang.WithErrorHandler(func(w io.Writer, _ fang.Styles, err error) {
 			fmt.Fprintln(w, err)
 		}),
@@ -32,13 +33,11 @@ func rootCmd() *cobra.Command {
 		Use:   "gap",
 		Short: "Publish one set of agent rules to every harness",
 		Long: `gap publishes global/AGENTS.md and each global/commands/*.md into the files
-those harnesses already read, installs the skills listed in global/skills.json,
-and installs each component pinned in gap.toml from gap.lock.
+those harnesses already read and installs each component pinned in gap.toml from gap.lock.
 
 Installation, source checkout requirements, and updates:
 https://gap.edheltzel.codes/docs/#install-gap
-Component skills install from the pinned store with no Node. Skills in
-global/skills.json that are not pinned still install through skills.sh, which needs Node (npx).
+Selected skills install directly from the pinned store without Node.
 sync never moves pins. pin is the only command that writes the distro's gap.lock.
 add, update, and remove manage utilities you add yourself: a GitHub repo with a
 gap-utility.toml, recorded in ~/.config/gap/gap.toml and pinned in ~/.config/gap/gap.lock.`,
@@ -74,9 +73,9 @@ func syncCmd() *cobra.Command {
 	var opts syncOptions
 	cmd := &cobra.Command{
 		Use:   "sync",
-		Short: "Preview, then publish the policy and commands, install component and manifest skills, check skills for drift",
-		Long: `sync prints what it will touch, grouped as policy, each component in gap.toml,
-and manifest (global/skills.json). On a terminal it opens a picker with every group
+		Short: "Preview, then publish the policy and commands, install component skills, check skills for drift",
+		Long: `sync prints what it will touch, grouped as policy and each component in gap.toml.
+On a terminal it opens a picker with every group
 checked: space toggles a group, enter syncs, ctrl+c quits before anything is written.
 --only, --skip, or --yes skip the picker. Without a terminal every group syncs unless
 a flag leaves it out.`,
@@ -87,7 +86,7 @@ a flag leaves it out.`,
 	}
 	cmd.Flags().BoolVar(&opts.RemoveLegacy, "remove-codex-legacy", false, "strip the old GAP text from Codex AGENTS.md once both hooks are trusted")
 	cmd.Flags().StringVar(&opts.Profile, "profile", "", "apply profiles/<name>.toml over the distro for this run")
-	cmd.Flags().StringSliceVar(&opts.Only, "only", nil, "sync only these groups (policy, manifest, or a component id)")
+	cmd.Flags().StringSliceVar(&opts.Only, "only", nil, "sync only these groups (policy or a component id)")
 	cmd.Flags().StringSliceVar(&opts.Skip, "skip", nil, "leave these groups out of this run")
 	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "sync every selected group without asking")
 	cmd.MarkFlagsMutuallyExclusive("only", "skip")
