@@ -1,8 +1,7 @@
 /** Site name and description. `gap` alone is ambiguous in search. */
 export const siteName = 'GAP: Global Agent Policies';
 
-export const siteDescription =
-  'One set of rules for every coding agent. Write the rules once in global/AGENTS.md. gap sync copies them into the file each agent already reads, and gap add installs any utility from GitHub.';
+export const siteDescription = 'One set of rules for every coding agent. Write the rules once in global/AGENTS.md. gap sync copies them into the file each agent already reads, installs pinned skills, and registers MCP servers; gap add installs any utility from GitHub.';
 
 /** Install line from the GAP README. The hero shows this and the copy button reads it. */
 export const installCommand =
