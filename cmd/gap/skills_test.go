@@ -187,6 +187,34 @@ func TestInstallSkillsAdoptsOnlyMatchingCopies(t *testing.T) {
 	}
 }
 
+func TestAdoptSkillRestoresLockWhenOwnershipWriteFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file permissions")
+	}
+	home, store := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
+	write(t, filepath.Join(store, "skills", "same", "SKILL.md"), "pinned\n")
+	skillsShInstall(t, home, "same", "pinned\n")
+	lockBody := `{"version":3,"skills":{"same":{"source":"a/b"}}}`
+	write(t, skillLockPath(home), lockBody)
+	gapDir := filepath.Join(home, ".gap")
+	if err := os.MkdirAll(gapDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(gapDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(gapDir, 0o755) })
+	entry := manifestEntry{Source: "github.com/a/b", Skills: []string{"same"}, Path: store, Owner: "ab"}
+	if err := adoptSkill(home, entry, "same"); err == nil {
+		t.Fatal("adoption must fail when GAP cannot record ownership")
+	}
+	if got := readString(t, skillLockPath(home)); got != lockBody {
+		t.Fatalf("a failed ownership write left the skill owned by nobody; lock is now %q", got)
+	}
+}
+
 func TestSkillMigrationFailurePreservesOwnership(t *testing.T) {
 	for _, command := range []string{"sync", "add", "update"} {
 		for _, failure := range []string{"malformed", "unreadable", "unwritable"} {

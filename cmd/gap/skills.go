@@ -71,10 +71,18 @@ func adoptSkill(home string, e manifestEntry, name string) error {
 	if !found || entryDriftCount(e, home, name) != 0 {
 		return nil
 	}
+	lockPath := skillLockPath(home)
+	before, err := os.ReadFile(lockPath)
+	if err != nil {
+		return fmt.Errorf("skills.sh lock %s: %w", lockPath, err)
+	}
 	if err := dropSkillLockEntry(home, name); err != nil {
 		return err
 	}
 	if err := recordOwnership(home, e.Owner, []string{name}, nil, e.Path); err != nil {
+		if restoreErr := writeAtomic(lockPath, string(before)); restoreErr != nil {
+			return fmt.Errorf("%w; restoring skills.sh lock %s also failed: %v", err, lockPath, restoreErr)
+		}
 		return err
 	}
 	fmt.Printf("Migrated %s from skills.sh (%s) to %s\n", name, lockLabel(locked), cmp.Or(e.Owner, e.Source))
