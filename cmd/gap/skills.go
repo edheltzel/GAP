@@ -71,10 +71,10 @@ func adoptSkill(home string, e manifestEntry, name string) error {
 	if !found || entryDriftCount(e, home, name) != 0 {
 		return nil
 	}
-	if err := recordOwnership(home, e.Owner, []string{name}, nil, e.Path); err != nil {
+	if err := dropSkillLockEntry(home, name); err != nil {
 		return err
 	}
-	if err := dropSkillLockEntry(home, name); err != nil {
+	if err := recordOwnership(home, e.Owner, []string{name}, nil, e.Path); err != nil {
 		return err
 	}
 	fmt.Printf("Migrated %s from skills.sh (%s) to %s\n", name, lockLabel(locked), cmp.Or(e.Owner, e.Source))

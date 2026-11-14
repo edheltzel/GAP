@@ -283,8 +283,10 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpIn
 	if err != nil {
 		return err
 	}
-	if err := recordDeclarativeInstalls(home, projectRoot, d, owned, mcpFailures); err != nil {
-		return err
+	if skillsOK {
+		if err := recordDeclarativeInstalls(home, projectRoot, d, owned, mcpFailures); err != nil {
+			return err
+		}
 	}
 	if !hooksOK || !commandsOK || len(mcpFailures) > 0 || !skillsOK || !driftOK {
 		return errSkipped

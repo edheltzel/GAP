@@ -185,8 +185,10 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
-	if err := recordDeclarativeInstalls(home, projectRoot, d, ownedCommands, mcpFailures); err != nil {
-		return err
+	if skillsOK {
+		if err := recordDeclarativeInstalls(home, projectRoot, d, ownedCommands, mcpFailures); err != nil {
+			return err
+		}
 	}
 	if len(entries) > 0 && skillsOK && driftOK {
 		out.result(true, "skill installation and drift review complete")
