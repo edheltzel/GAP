@@ -12,15 +12,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// version is set by the release build (-X main.version). Empty means a source build, where fang reads the module version.
+var version string
+
 func main() {
-	if err := fang.Execute(context.Background(), rootCmd(),
+	opts := []fang.Option{
 		fang.WithoutManpage(),
 		fang.WithoutCompletions(),
 		fang.WithColorSchemeFunc(gapColorScheme),
 		fang.WithErrorHandler(func(w io.Writer, _ fang.Styles, err error) {
 			fmt.Fprintln(w, err)
 		}),
-	); err != nil {
+	}
+	if version != "" {
+		opts = append(opts, fang.WithVersion(version))
+	}
+	if err := fang.Execute(context.Background(), rootCmd(), opts...); err != nil {
 		os.Exit(1)
 	}
 	if exitCode != 0 {
