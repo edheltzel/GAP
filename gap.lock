@@ -50,11 +50,6 @@ ref = "8218481afa206ccba4db48ce2b4bc2edc85eb1cf"
 commit = "8218481afa206ccba4db48ce2b4bc2edc85eb1cf"
 tree = "c973ca4fe495b85307e9d6163a584687bb9b141c"
 
-[components.guides]
-ref = "main"
-commit = "3fc8c845ef66f0743ec472785aa5f9b7fcda9e21"
-tree = "1a886681ba8990d3c5c1f1633eda5270202cf912"
-
 [components.herdr]
 ref = "master"
 commit = "ee5bfb5041bb3e4a49d591c72308aae3c81ecdde"

@@ -274,7 +274,7 @@ Render = pinned source file → frontmatter merge → patch → append → write
 1. M2 reads `~/.agents/.skill-lock.json` once, adopts entries whose bytes match the pinned source (no reinstall), and flags the rest as drift.
 2. Gap stops writing that lock. It leaves it in place for skills Gap doesn't manage.
 3. Replace the symlinks in `~/.claude/skills` with regular copies (backup first), one prompt for the batch.
-4. Do-Skills README install section changes from `npx skills add edheltzel/Do-Skills …` to: "Install with Gap: `gap add do-skills` (or it's already in the default distro). Project skills install automatically when the repo matches." Keep a short "without Gap" note pointing at skills.sh for outside users, if you want one. External skills (gitbutler, plannotator, codegraph, …) stay in the default distro (decision 8).
+4. Do-Skills README install section changes from `npx skills add edheltzel/Do-Skills …` to: "Install with Gap: `gap add do-skills` (or it's already in the default distro). Project skills install automatically when the repo matches." Keep a short "without Gap" note pointing at skills.sh for outside users, if you want one. External skills (gitbutler, codegraph, …) stay in the default distro (decision 8).
 5. Completed: see step 7 of the [plugin-manager plan](2026-11-12-gap-plugin-manager-plan.md#steps).
 
 ---
@@ -287,7 +287,8 @@ Render = pinned source file → frontmatter merge → patch → append → write
 5. **Recall writes**: yes. Gap leaves a setup breadcrumb in Recall when it provisions a project.
 6. **Herdr**: no Herdr dependency. `gap init` does not register projects with Herdr.
 7. **Grok skills** (`~/.grok/skills/`): shared. Gap and other tools may write there; Gap checks for existing skills and skips duplicates.
-8. **External skills** (gitbutler, plannotator, codegraph, …): stay in the default distro.
+8. **External skills** (gitbutler, codegraph, …): stay in the default distro.
+   2026-11-15 (ATL-GAP-INBOX-PR1): Plannotator's guides left the default distro because the Inbox plugin replaces them; gap sync does not remove copies already installed, so remove them by hand.
 9. **Echo pin**: wait for a tagged release. Don't pin `master`.
 10. **Overrides**: `~/.config/gap/` (personal) and `<repo>/.gap/` (project). Dotfiles may link to `~/.config/gap`.
 11. **Eight Sleep `APP_CLIENT_SECRET`** (commit `98ee113c`, public repo): replace it now, take it out of the repo, and load it from a secret.

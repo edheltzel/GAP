@@ -30,7 +30,6 @@ func TestFormerManifestSkillSelections(t *testing.T) {
 		"dev-skills":          {"codegraph"},
 		"agent-reviews":       {"resolve-agent-reviews", "resolve-human-reviews", "resolve-reviews"},
 		"impeccable":          {"impeccable"},
-		"guides":              {"guided-plan", "guided-review"},
 		"typesafe-ai":         {"typesafe-ai"},
 	} {
 		c := d.Components[id]
