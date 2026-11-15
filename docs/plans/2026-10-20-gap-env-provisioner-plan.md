@@ -288,6 +288,8 @@ Render = pinned source file → frontmatter merge → patch → append → write
 6. **Herdr**: no Herdr dependency. `gap init` does not register projects with Herdr.
 7. **Grok skills** (`~/.grok/skills/`): shared. Gap and other tools may write there; Gap checks for existing skills and skips duplicates.
 8. **External skills** (gitbutler, plannotator, codegraph, …): stay in the default distro.
+   Plannotator's guides were dropped from the default distro on 2026-11-15 (ATL-GAP-INBOX-PR1) because the Plannotator Inbox plugin replaces them.
+   Expected prune result: `gap sync` does not delete already-installed `~/.agents/skills/guided-*` copies or their `~/.claude/skills/guided-*` copies (GAP writes regular-file copies to both destinations, not Claude-only symlinks), because no prune logic for removed distro components was found in `skills.go` / `components.go`.
 9. **Echo pin**: wait for a tagged release. Don't pin `master`.
 10. **Overrides**: `~/.config/gap/` (personal) and `<repo>/.gap/` (project). Dotfiles may link to `~/.config/gap`.
 11. **Eight Sleep `APP_CLIENT_SECRET`** (commit `98ee113c`, public repo): replace it now, take it out of the repo, and load it from a secret.
