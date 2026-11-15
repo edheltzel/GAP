@@ -150,11 +150,6 @@ ref   = "main"
 path  = ".agents/skills"
 names = ["impeccable"]
 
-[components.guides]
-repo  = "github.com/plannotator/guides"
-ref   = "main"
-names = ["guided-plan", "guided-review"]
-
 [components.typesafe-ai]
 repo  = "github.com/typesafe-ai/skills"
 ref   = "main"
