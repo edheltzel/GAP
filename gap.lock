@@ -17,8 +17,8 @@ tree = "c86337cff491632de7c9db74f7ce341467d3ab7f"
 
 [components.do-skills]
 ref = "master"
-commit = "bb8022806bc443cfaa079a3c750b92f93eaeaeb4"
-tree = "205edbe889ed3a00775595d99bb092200132ac56"
+commit = "0bab2b02cc40518760974fc786037db2d5477892"
+tree = "82a66f5f81df25cc02ec3d23d53f42e1cf50d270"
 
 [components.echo]
 ref = "v0.13.0"
