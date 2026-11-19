@@ -34,7 +34,7 @@ func TestUpdateFeedbackPerUtility(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if err := addUtility(e.remote, "util"); err != nil {
+	if err := addUtility(e.remote, "util", false); err != nil {
 		t.Fatal(err)
 	}
 	first, _ := readLock(userConfigDir(e.home))
@@ -123,7 +123,7 @@ func TestUpdateFeedbackHookFailure(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n[hooks]\nupdate = \"exit 1\"\n")
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if err := addUtility(e.remote, "util"); err != nil {
+	if err := addUtility(e.remote, "util", false); err != nil {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(e.remote, "new-version"), "v2\n")

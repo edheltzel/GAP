@@ -65,7 +65,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap restore [id]` | Back up and replace selected missing or drifted component skills at the locked commit, reusing a verified store copy |
 | `gap pin <id>@<ref>` | Resolve a distro component's branch, tag, or commit and write it to the distro's `gap.lock` |
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
-| `gap add <owner/repo[@ref]> [--id <id>]` | Add a utility: pin a repo that ships a `gap-utility.toml` and install it. See [Add a utility](#add-a-utility) |
+| `gap add <owner/repo[@ref]> [--id <id>] [--global \| --project]` | Add a utility: pin a repo that ships a `gap-utility.toml` and install it, for every project (`--global`, the default) or only the current repo (`--project`, alias `--local`). See [Add a utility](#add-a-utility) and [Global vs project](#global-vs-project) |
 | `gap update [id]` | Update one utility, or every utility you added when the id is omitted. See [Add a utility](#add-a-utility) |
 | `gap remove <id>` | Remove a utility and its recorded installations. See [Add a utility](#add-a-utility) |
 | `gap uninstall [--yes] [--dry-run]` | Preview and remove recorded installations. See [Install `gap`](#install-gap) for removal rules and retained files |
@@ -199,6 +199,23 @@ Status and `gap restore [id]` use the same component overrides and skill selecti
 
 Restore names each repaired skill and its source pin, then reports the total restored. If nothing needs repair, it reports how many selected skills were checked, or that none were selected. An id limits that confirmation to the requested component.
 
+### Global vs project
+
+| Scope | Config | Where skills go | How to use it |
+| --- | --- | --- | --- |
+| Global | `~/.config/gap/gap.toml` | `~/.agents/skills`, `~/.claude/skills` | `gap add owner/repo` (same as `--global`), or a distro skill with the default `load` |
+| Project | `<repo>/.gap/gap.toml` | `<repo>/.agents/skills`, `<repo>/.claude/skills` | `gap add owner/repo --project` (or `--local`) inside the repo, or a distro skill with `load = "project"` and a matching `when.files` |
+
+```sh
+gap add owner/repo             # global: every project sees its skills
+cd ~/code/site
+gap add owner/repo --project   # only this repo gets its skills
+cd ~/code/app
+gap add owner/repo --project   # add the same utility to a second repo
+```
+
+`--project` records `load = "project"` under the utility in `~/.config/gap/gap.toml` and under `[components.<id>]` in the repo's `.gap/gap.toml`, creating that file the way `gap init` does when it is missing. `gap sync` and `gap update` inside an opted-in repo keep its copy current; elsewhere they install no skills for that utility. A utility's commands, hooks, and MCP servers stay machine-wide in both scopes. One id is either global or per project: `gap remove <id>` removes it from every repo it was added to, moving each project copy to `~/.gap/backups/<time>/projects/`, and then it can be added again in the other scope. A project file can also leave any component out of that repo with `enabled = false`.
+
 ### Load levels
 
 A component's skills are the `skills` in its `gap-utility.toml`, or its `names` array when its repo has no manifest. `names` beside a manifest narrows that list. An optional `[components.<id>.skills.<name>]` table selects how an existing name installs:
@@ -263,9 +280,10 @@ A utility is a GitHub repo with a [`gap-utility.toml`](#publish-a-utility) at it
 gap add owner/repo            # default branch
 gap add owner/repo@v1.2.0     # a branch, tag, or commit
 gap add owner/repo --id tools # another id; the default is the repo name, lowercased
+gap add owner/repo --project  # only the repo you run it in (alias --local)
 ```
 
-`gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs what it declares in the [manifest](#publish-a-utility). These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved ids. User utility skills install under home; `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
+`gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs what it declares in the [manifest](#publish-a-utility). These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved ids. A utility's skills install under home unless it was added with `--project` (see [Global vs project](#global-vs-project)); a per-skill `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
 
 Add confirms the utility id, ref, and commit on success, and flags skipped installation steps when registration succeeded but installation is incomplete.
 
