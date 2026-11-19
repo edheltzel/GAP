@@ -154,7 +154,7 @@ Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP r
 
 ## Manage skills
 
-The distro's `gap.toml` and your `~/.config/gap/gap.toml` select pinned [components](#components). Their skill lists and load levels are described under [Load levels](#load-levels). All former `global/skills.json` sources are now pinned components; the separate skills manifest is no longer used.
+The distro's `gap.toml` and your `~/.config/gap/gap.toml` select pinned [components](#components). Their skill lists and load levels are described under [Load levels](#load-levels). The separate `global/skills.json` manifest is no longer used.
 
 `gap sync` copies selected skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Harnesses that read neither folder get no skills from GAP; the policy still reaches them. GAP's skill copying, drift repair, and restore do not use Node or `npx`. Project skills use the same two paths under the invoking project instead of the home directory; see [load levels](#load-levels).
 
