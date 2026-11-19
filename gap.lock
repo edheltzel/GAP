@@ -50,6 +50,11 @@ ref = "main"
 commit = "c4cd1924c389f68d37c687d9c2bbf13f12547c41"
 tree = "8722617c7bf3953e1c2923b57e53d22cc99a1e36"
 
+[components.plotter]
+ref = "main"
+commit = "01df092aed163462ca5902c7b21a9c9f7c60e68f"
+tree = "d0f114914e9f763d2b52b4899aae57522e8b70ed"
+
 [components.recall]
 ref = "main"
 commit = "1a906296ab3b6c4711b8543be7d451fbaa806d86"

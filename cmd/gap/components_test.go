@@ -21,6 +21,7 @@ func TestFormerManifestSkillSelections(t *testing.T) {
 	}
 	for id, names := range map[string][]string{
 		"gh-stack":            {"gh-stack"},
+		"plotter":             {"plotter"},
 		"chrome-devtools-axi": {"chrome-devtools-axi"},
 		"gh-axi":              {"gh-axi"},
 		"visual-explainer":    {"visual-explainer"},
