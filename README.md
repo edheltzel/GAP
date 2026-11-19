@@ -89,7 +89,7 @@ Make your change in `global/AGENTS.md`. Longer notes it links to live in `global
 
 Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merged rules. It refuses when:
 
-- you're on a branch other than `master`, in the main checkout or a worktree
+- the checkout is on a branch other than `master`. The main checkout and a git worktree on `master` both publish.
 - `global/`, `skills/`, `gap.toml`, or `gap.lock` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when it is installable content under `skills/`, or when gap reads it (`global/AGENTS.md`, top-level `global/commands/*.md`, `gap.toml`, `gap.lock`). Ignored `node_modules` and `.DS_Store` do not block.
 
 ### Step 3: Run `gap sync`
