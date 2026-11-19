@@ -31,6 +31,8 @@ type component struct {
 	RefOverride bool
 	Named       bool
 	User        bool
+	ProjectOnly bool
+	InProject   bool
 	Manifest    bool
 	Update      string
 	Commands    []string
@@ -965,13 +967,16 @@ func componentEntries(home, projectRoot string, d distro, pins map[string]lockEn
 }
 
 func selectedEntries(c component, store, projectRoot string) []manifestEntry {
+	if c.ProjectOnly && (!c.InProject || projectRoot == "") {
+		return nil
+	}
 	global := manifestEntry{Source: componentSource(c.Repo), Path: store, SkillPath: c.SkillPath, Owner: c.ID}
 	project := manifestEntry{Source: componentSource(c.Repo), Path: store, SkillPath: c.SkillPath, Project: projectRoot}
 	for _, name := range c.Skills {
 		if !renderLoad(c, name, projectRoot) {
 			continue
 		}
-		if c.SkillSet[name].Load == "project" {
+		if c.ProjectOnly || c.SkillSet[name].Load == "project" {
 			project.Skills = append(project.Skills, name)
 		} else {
 			global.Skills = append(global.Skills, name)

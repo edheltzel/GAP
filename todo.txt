@@ -79,3 +79,4 @@ x 2026-11-19 2026-11-19 Move GAP checkout off gitbutler/workspace to master so g
 x 2026-11-19 2026-11-19 Pin do-skills@master after the Do-Skills plain-git rewrite lands +gap @waiting Do-Skills tab rewrite
 x 2026-11-19 2026-11-19 Remove leftover but-axi and gitbutler skills from ~/.agents/skills and ~/.claude/skills +gap @waiting user go
 2026-11-19 Update GAP docs and deploy the site, then merge the local-updates PR and run gap sync +gap
+x 2026-11-19 2026-11-19 Add gap add --global/--project (--local) scope flags +gap

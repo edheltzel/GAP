@@ -3,9 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 )
@@ -65,7 +67,7 @@ func userConfigFile(home string) string {
 	return filepath.Join(userConfigDir(home), "gap.toml")
 }
 
-func addUtility(spec, id string) error {
+func addUtility(spec, id string, project bool) error {
 	home, repoRoot, err := gapHomes()
 	if err != nil {
 		return err
@@ -73,6 +75,9 @@ func addUtility(spec, id string) error {
 	projectRoot, err := invokingProjectRoot()
 	if err != nil {
 		return err
+	}
+	if project && filepath.Clean(projectRoot) == filepath.Clean(home) {
+		return fmt.Errorf("gap add --project needs a project folder; run it inside the repo, or drop --project to add it globally")
 	}
 	repo, ref, defaultID, err := parseUtilitySpec(spec)
 	if err != nil {
@@ -88,11 +93,24 @@ func addUtility(spec, id string) error {
 	if err != nil {
 		return err
 	}
-	if c, taken := d.Components[id]; taken {
-		if c.User {
-			return fmt.Errorf("utility %s is already added; run gap update %s", id, id)
+	projectText := ""
+	if project {
+		if projectText, err = projectComponentText(projectRoot, id); err != nil {
+			return err
 		}
-		return fmt.Errorf("%s is already a distro component; pass --id to add this repo under another id", id)
+	}
+	if c, taken := d.Components[id]; taken {
+		switch {
+		case !c.User:
+			return fmt.Errorf("%s is already a distro component; pass --id to add this repo under another id", id)
+		case project && c.ProjectOnly:
+			return addToProject(home, repoRoot, projectRoot, id, projectText)
+		case project:
+			return fmt.Errorf("utility %s is already added globally; run gap remove %s first to add it per project", id, id)
+		case c.ProjectOnly:
+			return fmt.Errorf("utility %s is added per project; run gap add --project inside a repo to add it there", id)
+		}
+		return fmt.Errorf("utility %s is already added; run gap update %s", id, id)
 	}
 	config := userConfigFile(home)
 	text, err := readOptional(config)
@@ -139,6 +157,9 @@ func addUtility(spec, id string) error {
 	}
 	out := newReport(os.Stdout)
 	out.section(id, describeUtility(m)+pinLabel(pin))
+	if project && (len(m.Commands) > 0 || len(m.MCP) > 0 || m.Hooks.Install != "" || m.Hooks.Update != "" || m.Hooks.Uninstall != "") {
+		out.println("Its skills install into " + projectRoot + "; its commands, hooks, and MCP servers are machine-wide.")
+	}
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
@@ -146,6 +167,9 @@ func addUtility(spec, id string) error {
 		text += "\n"
 	}
 	text += fmt.Sprintf("[components.%s]\nrepo = %q\nref = %q\n", tomlKey(id), repo, ref)
+	if project {
+		text += "load = \"project\"\n"
+	}
 	if _, err := parseTOML(text); err != nil {
 		return fmt.Errorf("adding %s to %s: %w", id, config, err)
 	}
@@ -155,12 +179,75 @@ func addUtility(spec, id string) error {
 	if err := setUserPin(home, id, pin); err != nil {
 		return err
 	}
+	if project {
+		if err := writeAtomic(projectConfigFile(projectRoot), projectText); err != nil {
+			return err
+		}
+	}
 	err = installUtility(home, repoRoot, projectRoot, id, "", mcpInventory{})
+	where := ""
+	if project {
+		where = " to " + projectRoot
+	}
 	switch {
 	case err == nil:
-		out.done(true, id+" added"+pinLabel(pin))
+		out.done(true, id+" added"+where+pinLabel(pin))
 	case errors.Is(err, errSkipped):
-		out.done(false, id+" added"+pinLabel(pin)+"; some install steps were left over, see above")
+		out.done(false, id+" added"+where+pinLabel(pin)+"; some install steps were left over, see above")
+	}
+	return err
+}
+
+func projectConfigFile(root string) string {
+	return filepath.Join(root, ".gap", "gap.toml")
+}
+
+// projectComponentText returns the project's .gap/gap.toml with id opted in to this repo.
+// A missing file starts the way gap init writes it.
+func projectComponentText(root, id string) (string, error) {
+	config := projectConfigFile(root)
+	text, err := readOptional(config)
+	if err != nil {
+		return "", err
+	}
+	if text == "" {
+		text = "profile = \"project\"\nslug = " + strconv.Quote(filepath.Base(root)) + "\n"
+	}
+	doc, err := parseTOML(text)
+	if err != nil {
+		return "", fmt.Errorf("fix %s before gap add --project: %w", config, err)
+	}
+	if components, ok := doc["components"].(map[string]any); ok {
+		if table, exists := components[id].(map[string]any); exists {
+			if table["load"] == "project" {
+				return "", fmt.Errorf("utility %s is already added to %s; run gap update %s", id, root, id)
+			}
+			return "", fmt.Errorf("%s already declares components.%s; set load = \"project\" there, then run gap sync", config, tomlKey(id))
+		}
+	}
+	if !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	text += fmt.Sprintf("\n[components.%s]\nload = \"project\"\n", tomlKey(id))
+	if _, err := parseTOML(text); err != nil {
+		return "", fmt.Errorf("adding %s to %s: %w", id, config, err)
+	}
+	return text, nil
+}
+
+// addToProject opts one more repo in to a per-project utility that is already pinned.
+func addToProject(home, repoRoot, projectRoot, id, projectText string) error {
+	out := newReport(os.Stdout)
+	out.section(id, "add to "+projectRoot)
+	if err := writeAtomic(projectConfigFile(projectRoot), projectText); err != nil {
+		return err
+	}
+	err := installUtility(home, repoRoot, projectRoot, id, "", mcpInventory{})
+	switch {
+	case err == nil:
+		out.done(true, id+" added to "+projectRoot)
+	case errors.Is(err, errSkipped):
+		out.done(false, id+" added to "+projectRoot+"; some install steps were left over, see above")
 	}
 	return err
 }
@@ -654,7 +741,7 @@ func removeUtility(id string) error {
 	backup := backupPath(home, home)
 	var edited []string
 	moved := 0
-	moveOut := func(path string, changed bool) error {
+	move := func(path string, changed bool, project bool) error {
 		if _, err := os.Lstat(path); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil
@@ -662,7 +749,9 @@ func removeUtility(id string) error {
 			return err
 		}
 		rel, err := filepath.Rel(home, path)
-		if err != nil || strings.HasPrefix(rel, "..") {
+		if project {
+			rel = filepath.Join("projects", strings.TrimPrefix(path, string(filepath.Separator)))
+		} else if err != nil || strings.HasPrefix(rel, "..") {
 			return fmt.Errorf("refusing to remove %s: outside home", path)
 		}
 		dest := filepath.Join(backup, rel)
@@ -678,6 +767,7 @@ func removeUtility(id string) error {
 		}
 		return nil
 	}
+	moveOut := func(path string, changed bool) error { return move(path, changed, false) }
 	for _, name := range entry.Skills {
 		if shared[name] {
 			for _, owner := range sharedSkillOwners[name] {
@@ -696,6 +786,25 @@ func removeUtility(id string) error {
 		}
 		if err := restoreSkillLock(skillLockSnap{path: skillLockPath(home), name: name, hadFile: fileExists(skillLockPath(home))}); err != nil {
 			return err
+		}
+	}
+	for _, root := range slices.Sorted(maps.Keys(entry.ProjectSkills)) {
+		for _, name := range entry.ProjectSkills[root] {
+			if slices.ContainsFunc(slices.Collect(maps.Keys(gate.state.Components)), func(oid string) bool {
+				return oid != id && slices.Contains(gate.state.Components[oid].ProjectSkills[root], name)
+			}) {
+				fmt.Printf("Kept %s in %s: another utility also installs it there\n", name, root)
+				continue
+			}
+			changed := c.Store == "" || entryDriftCount(manifestEntry{Path: c.Store, SkillPath: c.SkillPath}, root, name) > 0
+			for _, dir := range skillDirs(root, name) {
+				if err := move(dir, changed, true); err != nil {
+					return err
+				}
+			}
+		}
+		if err := dropProjectComponent(root, id); err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %v; remove [components.%s] there by hand\n", root, err, tomlKey(id))
 		}
 	}
 	ledgerPath := filepath.Join(home, ".gap", "published.json")
@@ -777,6 +886,23 @@ func markUninstalled(home, id string) error {
 	entry.Installed = ""
 	state.Components[id] = entry
 	return writeState(home, state)
+}
+
+// dropProjectComponent removes id's table from a project's .gap/gap.toml. A missing file or table is fine.
+func dropProjectComponent(root, id string) error {
+	config := projectConfigFile(root)
+	text, err := readOptional(config)
+	if err != nil || text == "" {
+		return err
+	}
+	next, found := removeTOMLComponent(text, id)
+	if !found {
+		return nil
+	}
+	if _, err := parseTOML(next); err != nil {
+		return err
+	}
+	return writeAtomic(config, next)
 }
 
 func fileExists(path string) bool {

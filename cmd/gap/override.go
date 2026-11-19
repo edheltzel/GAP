@@ -106,6 +106,20 @@ func mergeOverride(d distro, path string, user bool) (distro, error) {
 		if enabled, ok := table["enabled"].(bool); ok {
 			c.Disabled = !enabled
 		}
+		if raw, set := table["load"]; set {
+			load, ok := raw.(string)
+			if !ok || (load != "global" && load != "project") {
+				return distro{}, fmt.Errorf("%s: components.%s load must be \"global\" or \"project\"", path, id)
+			}
+			if !c.User {
+				return distro{}, fmt.Errorf("%s: components.%s load is only for utilities added with gap add; set load on each skill instead", path, id)
+			}
+			if user {
+				c.ProjectOnly = load == "project"
+			} else {
+				c.InProject = load == "project"
+			}
+		}
 		if ref, ok := table["ref"].(string); ok && ref != "" {
 			c.Ref = ref
 			c.RefOverride = true

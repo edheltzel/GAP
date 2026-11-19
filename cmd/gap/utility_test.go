@@ -82,10 +82,10 @@ func readConfigComponents(t *testing.T, path string) map[string]any {
 func TestUtilityAdd(t *testing.T) {
 	e := newUtilityEnv(t, hookManifest)
 	quietStdout(t)
-	if err := addUtility("github.com/", ""); err == nil {
+	if err := addUtility("github.com/", "", false); err == nil {
 		t.Fatal("bad spec accepted")
 	}
-	if err := addUtility(e.remote, ""); !errors.Is(err, errSkipped) {
+	if err := addUtility(e.remote, "", false); !errors.Is(err, errSkipped) {
 		t.Fatalf("untrusted add with no terminal: %v", err)
 	}
 	if e.exists("installed") {
@@ -108,7 +108,7 @@ func TestUtilityAdd(t *testing.T) {
 			t.Fatalf("missing %s", rel)
 		}
 	}
-	if err := addUtility(e.remote, ""); err == nil || !strings.Contains(err.Error(), "already added") {
+	if err := addUtility(e.remote, "", false); err == nil || !strings.Contains(err.Error(), "already added") {
 		t.Fatalf("second add: %v", err)
 	}
 	e.tty, e.answers = true, []string{"y"}
@@ -124,7 +124,7 @@ func TestUtilityUpdate(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if err := addUtility(e.remote, "util"); err != nil {
+	if err := addUtility(e.remote, "util", false); err != nil {
 		t.Fatal(err)
 	}
 	first, _ := readLock(userConfigDir(e.home))
@@ -271,10 +271,10 @@ func TestUtilityBulkRefChange(t *testing.T) {
 	write(t, filepath.Join(other, utilityManifestName), "schema = \"1\"\nname = \"other\"\nskills = [\"other-skill\"]\n")
 	commitAll(t, other)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\", \""+other+"\"]\n")
-	if err := addUtility(e.remote, "util"); err != nil {
+	if err := addUtility(e.remote, "util", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := addUtility(other, "other"); err != nil {
+	if err := addUtility(other, "other", false); err != nil {
 		t.Fatal(err)
 	}
 	for _, dir := range []string{e.remote, other} {
@@ -380,7 +380,7 @@ func TestUtilityUpdateRetryKeepsBaseline(t *testing.T) {
 	e := newUtilityEnv(t, gate)
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if err := addUtility(e.remote, "util"); err != nil {
+	if err := addUtility(e.remote, "util", false); err != nil {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: v2\n---\n")
@@ -403,7 +403,7 @@ func TestUtilityList(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if err := addUtility(e.remote, "util"); err != nil {
+	if err := addUtility(e.remote, "util", false); err != nil {
 		t.Fatal(err)
 	}
 	r, w, _ := os.Pipe()
@@ -424,7 +424,7 @@ func TestUtilityRemove(t *testing.T) {
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[components.keep]\nenabled = false\n")
 	e.tty, e.answers = true, []string{"y"}
-	if err := addUtility(e.remote, "util"); err != nil {
+	if err := addUtility(e.remote, "util", false); err != nil {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(e.home, ".agents", "skills", "shared-skill", "SKILL.md"), "distro\n")
@@ -479,7 +479,7 @@ func TestUtilityRemoveWarnsWithoutUninstall(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n[hooks]\ninstall = \"true\"\n")
 	quietStdout(t)
 	e.tty, e.answers = true, []string{"y"}
-	if err := addUtility(e.remote, "util"); err != nil {
+	if err := addUtility(e.remote, "util", false); err != nil {
 		t.Fatal(err)
 	}
 	r, w, _ := os.Pipe()
@@ -492,6 +492,86 @@ func TestUtilityRemoveWarnsWithoutUninstall(t *testing.T) {
 	io.Copy(&buf, r)
 	if err != nil || !strings.Contains(buf.String(), "no uninstall hook") {
 		t.Fatalf("remove: %v\n%s", err, buf.String())
+	}
+}
+
+func TestUtilityProjectScope(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	quietStdout(t)
+	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
+	first, err := invokingProjectRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := addUtility(e.remote, "util", true); err != nil {
+		t.Fatal(err)
+	}
+	if e.exists(".agents/skills/util-skill") || e.exists(".claude/skills/util-skill") {
+		t.Fatal("--project installed the skill under home")
+	}
+	for _, dir := range skillDirs(first, "util-skill") {
+		if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil {
+			t.Fatalf("project skill missing: %v", err)
+		}
+	}
+	user, _ := readConfigComponents(t, userConfigFile(e.home))["util"].(map[string]any)
+	project, _ := readConfigComponents(t, projectConfigFile(first))["util"].(map[string]any)
+	if user["load"] != "project" || project["load"] != "project" {
+		t.Fatalf("scope records: user %+v project %+v", user, project)
+	}
+	if err := addUtility(e.remote, "util", true); err == nil || !strings.Contains(err.Error(), "already added to") {
+		t.Fatalf("repeat --project add: %v", err)
+	}
+	if err := addUtility(e.remote, "util", false); err == nil || !strings.Contains(err.Error(), "per project") {
+		t.Fatalf("global add of a per-project utility: %v", err)
+	}
+	t.Chdir(t.TempDir())
+	second, _ := invokingProjectRoot()
+	if err := addUtility(e.remote, "util", true); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := readState(e.home)
+	for _, root := range []string{first, second} {
+		if got := state.Components["util"].ProjectSkills[root]; len(got) != 1 || got[0] != "util-skill" {
+			t.Fatalf("project ownership for %s = %v", root, state.Components["util"].ProjectSkills)
+		}
+	}
+	t.Chdir(e.home)
+	if err := addUtility(e.remote, "util", true); err == nil || !strings.Contains(err.Error(), "project folder") {
+		t.Fatalf("--project at home: %v", err)
+	}
+	if err := removeUtility("util"); err != nil {
+		t.Fatal(err)
+	}
+	for _, root := range []string{first, second} {
+		for _, dir := range skillDirs(root, "util-skill") {
+			if _, err := os.Stat(dir); !os.IsNotExist(err) {
+				t.Fatalf("%s left behind", dir)
+			}
+		}
+		if _, remains := readConfigComponents(t, projectConfigFile(root))["util"]; remains {
+			t.Fatalf("%s still declares util", projectConfigFile(root))
+		}
+	}
+	backups, _ := filepath.Glob(filepath.Join(e.home, ".gap", "backups", "*", "projects", "*"))
+	if len(backups) == 0 {
+		t.Fatal("project copies were not backed up")
+	}
+}
+
+func TestUtilityProjectAfterGlobal(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	quietStdout(t)
+	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
+	if err := addUtility(e.remote, "util", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := addUtility(e.remote, "util", true); err == nil || !strings.Contains(err.Error(), "added globally") {
+		t.Fatalf("--project after a global add: %v", err)
+	}
+	write(t, filepath.Join(e.project, ".gap", "gap.toml"), "[components.util]\nload = \"bogus\"\n")
+	if _, _, err := effectivePins(e.repo, e.home, e.project, ""); err == nil {
+		t.Fatal("invalid component load accepted")
 	}
 }
 

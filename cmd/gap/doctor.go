@@ -16,13 +16,14 @@ type stateFile struct {
 }
 
 type stateEntry struct {
-	Commit      string                     `json:"commit"`
-	Adapters    []string                   `json:"adapters"`
-	Installed   string                     `json:"installed,omitempty"`
-	Skills      []string                   `json:"skills,omitempty"`
-	Commands    []string                   `json:"commands,omitempty"`
-	SkillCopies map[string]string          `json:"skillCopies,omitempty"`
-	MCP         map[string]mcpRegistration `json:"mcp,omitempty"`
+	Commit        string                     `json:"commit"`
+	Adapters      []string                   `json:"adapters"`
+	Installed     string                     `json:"installed,omitempty"`
+	Skills        []string                   `json:"skills,omitempty"`
+	Commands      []string                   `json:"commands,omitempty"`
+	SkillCopies   map[string]string          `json:"skillCopies,omitempty"`
+	ProjectSkills map[string][]string        `json:"projectSkills,omitempty"`
+	MCP           map[string]mcpRegistration `json:"mcp,omitempty"`
 }
 
 func statePath(home string) string {
@@ -73,6 +74,13 @@ func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[
 						entry.SkillCopies = map[string]string{}
 					}
 					entry.SkillCopies[name] = filepath.Base(c.Store)
+				}
+				if matches && selected.Project != "" && c.ProjectOnly && !slices.Contains(entry.ProjectSkills[selected.Project], name) {
+					if entry.ProjectSkills == nil {
+						entry.ProjectSkills = map[string][]string{}
+					}
+					entry.ProjectSkills[selected.Project] = append(entry.ProjectSkills[selected.Project], name)
+					slices.Sort(entry.ProjectSkills[selected.Project])
 				}
 			}
 		}
