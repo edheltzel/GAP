@@ -91,7 +91,7 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
-	if refusal := refuseCheckout(repoRoot, co); refusal != "" {
+	if refusal := refuseCheckout(co); refusal != "" {
 		return errors.New(refusal)
 	}
 
@@ -224,7 +224,7 @@ func commandCount(repoRoot string) int {
 }
 
 // empryoPins is the skill set GAP recommends for Empryo's skills.autoLoad. Pinned skills load in full into every prompt.
-var empryoPins = []string{"do-todo", "do-commit", "but-axi"}
+var empryoPins = []string{"do-todo", "do-commit"}
 
 // empryoPinAdvice reads Empryo's global config and, when skills.autoLoad differs from empryoPins, returns the settings call that fixes it. gap never writes Empryo's config.
 func empryoPinAdvice(home string) string {
@@ -433,8 +433,8 @@ func git(dir string, args ...string) (string, error) {
 }
 
 type checkout struct {
-	branch, primary, gitDir, commonDir string
-	unmerged                           bool
+	branch, primary string
+	unmerged        bool
 }
 
 func readCheckout(root string) (checkout, error) {
@@ -447,35 +447,19 @@ func readCheckout(root string) (checkout, error) {
 	untracked, untrackedErr := git(root, "ls-files", "--others", "--exclude-standard", "--", "global/", "skills/", "gap.toml", "gap.lock")
 	ignored, ignoredErr := git(root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", "global/", "skills/", "gap.toml", "gap.lock")
 	c.unmerged = diffErr != nil || untrackedErr != nil || ignoredErr != nil || untracked != "" || ignoredBlocks(ignored)
-	if c.branch, err = git(root, "rev-parse", "--abbrev-ref", "HEAD"); err != nil {
-		return c, err
-	}
-	if c.gitDir, err = git(root, "rev-parse", "--git-dir"); err != nil {
-		return c, err
-	}
-	c.commonDir, err = git(root, "rev-parse", "--git-common-dir")
+	c.branch, err = git(root, "rev-parse", "--abbrev-ref", "HEAD")
 	return c, err
 }
 
 // refuseCheckout returns why this checkout must not publish, or "" when it may.
-func refuseCheckout(root string, c checkout) string {
-	if c.branch != c.primary && c.branch != "gitbutler/workspace" {
+func refuseCheckout(c checkout) string {
+	if c.branch != c.primary {
 		return fmt.Sprintf("refusing to publish from %s; checkout %s", c.branch, c.primary)
-	}
-	if resolveIn(root, c.gitDir) != resolveIn(root, c.commonDir) {
-		return "refusing to publish from a worktree"
 	}
 	if c.unmerged {
 		return fmt.Sprintf("refusing to publish: global/ or skills/ differs from origin/%s (gap.toml and gap.lock are gated the same way); commit, merge and pull first", c.primary)
 	}
 	return ""
-}
-
-func resolveIn(root, path string) string {
-	if filepath.IsAbs(path) {
-		return filepath.Clean(path)
-	}
-	return filepath.Join(root, path)
 }
 
 // ignoredBlocks reports whether an ignored path would change what gap publishes or installs.

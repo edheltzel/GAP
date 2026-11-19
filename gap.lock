@@ -5,11 +5,6 @@ ref = "main"
 commit = "5c85f14cad5d2233883f991faf9312ddc807c063"
 tree = "9a41f788c0e74b3aca89eee906dda65a50125c88"
 
-[components.but-axi]
-ref = "master"
-commit = "855b90289d478f7ac64a778e784b282603f4290a"
-tree = "c3dee9d3d25b6f53060ccc2dcbe35cde93092b3e"
-
 [components.chrome-devtools-axi]
 ref = "main"
 commit = "1dbdac1ca1122e1d2b76d889bbc8a2dd2eb2dcd7"
@@ -44,11 +39,6 @@ tree = "d0dd3be36a530fe29a4e185884bc7c06e9b0ec27"
 ref = "main"
 commit = "bd0a32504f9ae9f795875a9e6bb90ff7408fda08"
 tree = "9f661011235f0c48a34ad2f1b0cfdc92dc486c1b"
-
-[components.gitbutler]
-ref = "8218481afa206ccba4db48ce2b4bc2edc85eb1cf"
-commit = "8218481afa206ccba4db48ce2b4bc2edc85eb1cf"
-tree = "c973ca4fe495b85307e9d6163a584687bb9b141c"
 
 [components.herdr]
 ref = "master"
