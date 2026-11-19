@@ -99,6 +99,12 @@ load = "project"
 [components.do-skills.skills.do-astro.when]
 files = ["astro.config.*"]
 
+[components.plotter]
+repo       = "github.com/pasqualevitiello/plotter"
+ref        = "main"
+skill_path = "skills/plotter"
+names      = ["plotter"]
+
 [components.gh-stack]
 repo  = "github.com/github/gh-stack"
 ref   = "main"
