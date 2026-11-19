@@ -20,8 +20,6 @@ func TestFormerManifestSkillSelections(t *testing.T) {
 		t.Fatal(err)
 	}
 	for id, names := range map[string][]string{
-		"but-axi":             {"but-axi"},
-		"gitbutler":           {"cli-commands", "lite-render-perf", "lite-screenshots", "tui-tests"},
 		"gh-stack":            {"gh-stack"},
 		"chrome-devtools-axi": {"chrome-devtools-axi"},
 		"gh-axi":              {"gh-axi"},

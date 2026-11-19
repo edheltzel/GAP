@@ -90,16 +90,14 @@ func TestRefuseCheckout(t *testing.T) {
 		c      checkout
 		refuse bool
 	}{
-		{"non-primary", checkout{"side", "master", ".git", ".git", false}, true},
-		{"main is not primary here", checkout{"main", "master", ".git", ".git", false}, true},
-		{"primary", checkout{"master", "master", ".git", ".git", false}, false},
-		{"GitButler workspace", checkout{"gitbutler/workspace", "master", ".git", ".git", false}, false},
-		{"unmerged workspace", checkout{"gitbutler/workspace", "master", ".git", ".git", true}, true},
-		{"worktree", checkout{"master", "master", ".git/worktrees/x", ".git", false}, true},
-		{"unmerged primary", checkout{"master", "master", ".git", ".git", true}, true},
+		{"non-primary", checkout{"side", "master", false}, true},
+		{"main is not primary here", checkout{"main", "master", false}, true},
+		{"primary", checkout{"master", "master", false}, false},
+		{"GitButler workspace", checkout{"gitbutler/workspace", "master", false}, true},
+		{"unmerged primary", checkout{"master", "master", true}, true},
 	}
 	for _, c := range cases {
-		if got := refuseCheckout("/repo", c.c) != ""; got != c.refuse {
+		if got := refuseCheckout(c.c) != ""; got != c.refuse {
 			t.Errorf("%s: refused = %v, want %v", c.name, got, c.refuse)
 		}
 	}
@@ -1698,9 +1696,10 @@ func TestEmpryoPinAdvice(t *testing.T) {
 		advise       bool
 	}{
 		{"no Empryo", "", false},
-		{"pins match", `{"skills":{"autoLoad":["do-todo","do-commit","but-axi"]}}`, false},
-		{"same pins, other order", `{"skills":{"autoLoad":["but-axi","do-todo","do-commit"]}}`, false},
-		{"a subset", `{"skills":{"autoLoad":["do-todo","do-commit"]}}`, true},
+		{"pins match", `{"skills":{"autoLoad":["do-todo","do-commit"]}}`, false},
+		{"same pins, other order", `{"skills":{"autoLoad":["do-commit","do-todo"]}}`, false},
+		{"a subset", `{"skills":{"autoLoad":["do-todo"]}}`, true},
+		{"a dropped pin", `{"skills":{"autoLoad":["do-todo","do-commit","but-axi"]}}`, true},
 		{"35 pins", `{"skills":{"autoLoad":["do-commit","do-art","do-todo"]}}`, true},
 		{"no pins", `{"theme":{}}`, true},
 		{"unreadable", `{`, false},
@@ -1715,7 +1714,7 @@ func TestEmpryoPinAdvice(t *testing.T) {
 			if (got != "") != tc.advise {
 				t.Fatalf("advice = %q, want %v", got, tc.advise)
 			}
-			if tc.advise && !strings.Contains(got, `value:'["do-todo","do-commit","but-axi"]', scope:"global"`) {
+			if tc.advise && !strings.Contains(got, `value:'["do-todo","do-commit"]', scope:"global"`) {
 				t.Fatalf("advice must carry the exact settings call: %q", got)
 			}
 			if tc.config != "" && readString(t, path) != tc.config {

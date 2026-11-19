@@ -89,8 +89,7 @@ Make your change in `global/AGENTS.md`. Longer notes it links to live in `global
 
 Commit the edit, merge it to `master`, and pull. `gap sync` publishes only merged rules. It refuses when:
 
-- you're on a branch other than `master` or GitButler's `gitbutler/workspace`
-- you're in a git worktree
+- you're on a branch other than `master`, in the main checkout or a worktree
 - `global/`, `skills/`, `gap.toml`, or `gap.lock` differs from `origin/HEAD`, including untracked files. An ignored file blocks only when it is installable content under `skills/`, or when gap reads it (`global/AGENTS.md`, top-level `global/commands/*.md`, `gap.toml`, `gap.lock`). Ignored `node_modules` and `.DS_Store` do not block.
 
 ### Step 3: Run `gap sync`
@@ -149,7 +148,7 @@ Look for `~/.claude/rules/global-agent-policy.md` in the global rules list. If i
 
 Empryo reads `~/.empryo/EMPRYO.md`, which already holds SoulStack's block. The first `gap sync` asks once to append the GAP block there, so run it from a terminal and type `y`. SoulStack's block and anything else in the file stay as they are.
 
-Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP recommends three: `do-todo` (the policy tracks tasks every turn), `do-commit` and `but-axi` (the GitButler flow). Everything else loads by name when a task needs it. Until your pins match, `gap sync` prints the exact `settings` call. Ask an agent inside Empryo to run it. gap never changes Empryo's settings; it only writes its block in `EMPRYO.md`.
+Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP recommends two: `do-todo` (the policy tracks tasks every turn) and `do-commit`. Everything else loads by name when a task needs it. Until your pins match, `gap sync` prints the exact `settings` call. Ask an agent inside Empryo to run it. gap never changes Empryo's settings; it only writes its block in `EMPRYO.md`.
 
 `gap sync` also warns when `~/.empryo/skills/<name>` differs from a managed skill. Empryo loads that copy first, so the managed one never runs there. For jcode's additional skill-copy warning and its home override, see the [drift-check contract](cmd/gap/AGENTS.md#sync-steps).
 
@@ -165,15 +164,13 @@ Sync checks every selected skill against its pinned store. Existing skills.sh in
 - `t` takes the source. Sync backs up both destinations under `~/.gap/backups/`, then reinstalls. A failed install restores the previous destinations.
 - `s` skips it for now. Sync exits `1`.
 
-With no terminal to ask in, sync lists the drifted skills, leaves those copies in place, and exits `1`. Skills outside the selected components are never touched.
+With no terminal to ask in, sync lists the drifted skills, leaves those copies in place, and exits `1`. Skills outside the selected components are never touched, including skills from a component that was removed from `gap.toml`; delete those copies by hand.
 
 ### Components
 
 A component is a utility pinned to one commit. [`gap.toml`](gap.toml) selects the distro's components; [`gap.lock`](gap.lock) records the exact commits and trees. A component whose pinned commit includes a [`gap-utility.toml`](#publish-a-utility) takes its installation declarations from that manifest, so its entry needs only `repo` and `ref`; keeping `install` or `doctor` in that entry is refused. A distro component whose pinned commit lacks one lists its skills in `names` and may set `install` and `doctor` commands in its entry.
 
 An optional `path` restricts skill lookup to that subtree of the pinned checkout. For example, `path = ".agents/skills"` selects that variant when a repository contains multiple copies. Without `path`, lookup tries `skills/` first, then the repository, choosing the shallowest matching folder and using lexical order to break ties.
-
-GitButler uses the commit before its Lite removal so the existing `lite-render-perf` and `lite-screenshots` selections remain available alongside `cli-commands` and `tui-tests`.
 
 The distro can narrow a manifest's skill list as described under [Load levels](#load-levels). For example:
 
