@@ -77,5 +77,5 @@ x 2026-11-14 2026-11-13 Output kit and prettier CLI: framed tables for list/stat
 x 2026-11-16 2026-11-14 Merge fix/release-version, then tag v0.5.1 so release binaries report their version (v0.5.0 says 'version unknown') +gap report:release v0.5.1 tagged 4be44469; darwin_arm64 binary verified against checksums, reports 'gap version 0.5.1'
 x 2026-11-19 2026-11-19 Move GAP checkout off gitbutler/workspace to master so gap sync can publish the plain-git policy +gap
 x 2026-11-19 2026-11-19 Pin do-skills@master after the Do-Skills plain-git rewrite lands +gap @waiting Do-Skills tab rewrite
-2026-11-19 Remove leftover but-axi and gitbutler skills from ~/.agents/skills and ~/.claude/skills +gap @waiting user go
+x 2026-11-19 2026-11-19 Remove leftover but-axi and gitbutler skills from ~/.agents/skills and ~/.claude/skills +gap @waiting user go
 2026-11-19 Update GAP docs and deploy the site, then merge the local-updates PR and run gap sync +gap
