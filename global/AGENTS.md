@@ -36,6 +36,7 @@ Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you t
 - Reproduce a bug the way an end user hits it before fixing it. A claim is not proof. Details: [verification.md](docs/agents/verification.md).
 - Before a non-trivial edit, use codegraph when the project has an index, and name the blast radius or why you skipped it. Details: [codegraph-blast.md](docs/agents/codegraph-blast.md).
 - Investigation is not permission to change code. Details: [scout.md](docs/agents/scout.md).
+- Read a folder's FOLDER.md before you edit it, and keep it matching the code after a real change. Details: [folder-docs.md](docs/agents/folder-docs.md).
 - Do not invent skills, slash commands, or APIs that are not installed. Ask before a large swarm. Details: [skills-honesty.md](docs/agents/skills-honesty.md).
 - Use plain git for branches, commits, and pushes. Do parallel or isolated work in a git worktree at `.worktrees/<name>` in the main checkout, one branch per worktree, and remove it after merge. A project contract that names other version-control tooling wins. Details: [vcs-project-wins.md](docs/agents/vcs-project-wins.md).
 - Every new repo uses `master` as its default branch, never `main`. This is mandatory for every creation path: local init, `gh repo create`, the GitHub UI, or a template. For a local repo, run `git init -b master`. If GitHub created the repo with `main`, rename it to `master` before any other work. After the first push, confirm the GitHub default branch is `master`.
