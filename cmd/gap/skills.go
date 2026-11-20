@@ -89,6 +89,62 @@ func adoptSkill(home string, e manifestEntry, name string) error {
 	return nil
 }
 
+// upgradeUntouched replaces installed copies that still match an earlier store of their component
+// with the pinned version, so a moved pin upgrades them without asking. A copy that matches no
+// earlier store was edited, and drift review handles it. A skills.sh install is adopted on the way.
+func upgradeUntouched(home string, entries []manifestEntry) bool {
+	ok := true
+	for _, e := range entries {
+		target := entryHome(home, e)
+		for _, name := range e.Skills {
+			if !installed(target, name) || entryDriftCount(e, target, name) == 0 || !matchesEarlierStore(e, target, name) {
+				continue
+			}
+			replaced, err := replaceSkill(target, e, name)
+			if err != nil || !replaced {
+				fmt.Fprintf(os.Stderr, "Updating %s: %v\n", name, err)
+				ok = false
+				continue
+			}
+			fmt.Printf("Updated %s to %s; it matched an earlier version with no local edits\n", name, short(filepath.Base(e.Path)))
+		}
+	}
+	return ok
+}
+
+// matchesEarlierStore reports whether every installed copy of name equals the skill in one
+// other verified commit of the same component under ~/.gap/store/<id>/.
+func matchesEarlierStore(e manifestEntry, home, name string) bool {
+	root := filepath.Dir(e.Path)
+	stores, err := os.ReadDir(root)
+	if err != nil {
+		return false
+	}
+	for _, s := range stores {
+		dir := filepath.Join(root, s.Name())
+		if !s.IsDir() || !isHexLen(s.Name(), 40) || dir == e.Path || !verifiedStore(dir, s.Name()) {
+			continue
+		}
+		earlier := e
+		earlier.Path = dir
+		if entrySkillDir(earlier, name) != "" && entryDriftCount(earlier, home, name) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// verifiedStore reports whether the checkout at dir still holds exactly the tree of commit,
+// so its files can stand in for an unedited earlier version.
+func verifiedStore(dir, commit string) bool {
+	tree, err := git(dir, "rev-parse", commit+"^{tree}")
+	if err != nil {
+		return false
+	}
+	state, err := storeState(dir, tree)
+	return err == nil && state == storeOK
+}
+
 // entryDriftCount is the number of installed copies of name that differ from the entry's pinned store.
 func entryDriftCount(e manifestEntry, home, name string) int {
 	src := entrySkillDir(e, name)

@@ -63,10 +63,11 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from Codex home's `AGENTS.md`; see [Set up Codex](#set-up-codex-once-per-machine) |
 | `gap status` | Show each component's pin, its store copy, and drift in its selected skills. Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
 | `gap restore [id]` | Back up and replace selected missing or drifted component skills at the locked commit, reusing a verified store copy |
+| `gap check [id]` | List the commits waiting on each component's ref after its pin. Changes no pin; `gap status` shows the counts from the last check as `new=N`. See [Update components](#update-components) |
 | `gap pin <id>@<ref>` | Resolve a distro component's branch, tag, or commit and write it to the distro's `gap.lock` |
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
 | `gap add <owner/repo[@ref]> [--id <id>] [--global \| --project]` | Add a utility: pin a repo that ships a `gap-utility.toml` and install it, for every project (`--global`, the default) or only the current repo (`--project`, alias `--local`). See [Add a utility](#add-a-utility) and [Global vs project](#global-vs-project) |
-| `gap update [id]` | Update one utility, or every utility you added when the id is omitted. See [Add a utility](#add-a-utility) |
+| `gap update [id]` | Move one component's pin, or every pin without `pin = true` when the id is omitted, to the newest commit on its ref. Distro pins go to `gap.lock` for a PR; utilities install right away. See [Update components](#update-components) |
 | `gap remove <id>` | Remove a utility and its recorded installations. See [Add a utility](#add-a-utility) |
 | `gap uninstall [--yes] [--dry-run]` | Preview and remove recorded installations. See [Install `gap`](#install-gap) for removal rules and retained files |
 | `gap search [query]` | Search `catalog.toml`, the list of known utilities, by id, tag, or description. Distro components show `included with GAP; gap sync installs it`; other matches show a `gap add` command |
@@ -187,6 +188,21 @@ names = ["do-commit", "do-todo"]
 
 Pin confirms the new pin, shows the old and new commits when it moves, or reports that it is already current. A new or moved pin includes a reminder to run `gap sync` to install it.
 
+### Update components
+
+GAP updates the way lazy.nvim does. `gap.toml` says what you want (a `ref`), `gap.lock` records the commit installed, and only an update moves the lock.
+
+| lazy.nvim | GAP |
+| --- | --- |
+| Startup installs from `lazy-lock.json` | `gap sync` installs from `gap.lock` and never moves a pin |
+| `:Lazy check` and its checker | `gap check [id]` fetches each ref into `~/.gap/cache/<id>.git` (history only, no file contents) and lists the commits after the pin. It records the counts in `~/.gap/check.json`; `gap status` shows them offline as `new=N` while the pin is unchanged |
+| `:Lazy update` | `gap update [id]` moves each pin to the newest commit on its ref and prints the commits it brings in |
+| `:Lazy restore` | `gap restore [id]` |
+| `pin = true` | `pin = true` in a component's table. Update and check skip it unless it is named |
+| Update refuses a plugin with local changes | Sync upgrades a skill copy without asking when it equals that skill in an earlier commit of the same component under `~/.gap/store/<id>/`, including a skills.sh install, which it adopts. A copy that matches no earlier commit was edited, and the [drift choices](#manage-skills) apply |
+
+A distro component's new pin is written to `gap.lock` in the GAP checkout, the same way `gap pin` writes it. Commit `gap.lock` and merge it; the merge gate refuses `gap sync` until then. After the merge, `gap sync` installs the new commit. A utility added with `gap add` keeps its pin in `~/.config/gap/gap.lock`, so `gap update` installs it right away.
+
 The distro includes Do-Skills, Forge, Echo, Recall, and the third-party skill sources declared in [`gap.toml`](gap.toml). Forge supplies `forge-interview`. Echo and Recall have empty skill lists: machine sync runs their `install` commands from their verified stores, and those installers own their skills and runtime prerequisites. Hook timing and state are described under [Hooks and trust](#hooks-and-trust). Gap copies no skills from them and never installs a harness.
 
 `gap doctor` runs each configured `doctor` command from its verified pinned store, then reports harness presence using `PATH`. Missing pins, missing or changed stores, and failed doctors produce exit `1`; doctor does not fetch missing components.
@@ -301,7 +317,7 @@ ref = "master"
 | See what is added | `gap list` | See [Commands](#commands) for listing fields and terminal output |
 | Remove | `gap remove <id>` | Runs the `uninstall` hook, unregisters its [MCP servers](#publish-a-utility), moves the skills and commands GAP placed for it into one `~/.gap/backups/<time>/` folder, and drops its config entry, pin, and record. An edited copy is named in the output |
 
-Update reports each utility's pin change or that it is up to date, then totals the utilities checked, updated, and up to date. Those counts describe pins; the summary also flags failed updates or skipped installation steps. Once utilities are selected, failures still print the summary and name utilities whose pins were not checked. With no added utilities, update explains there is nothing to update, shows `gap add owner/repo`, and lists any distro components with their `gap pin <id>@<ref>`, then `gap sync` update path.
+Update reports each utility's pin change or that it is up to date, then totals the utilities checked, updated, and up to date. Those counts describe pins; the summary also flags failed updates or skipped installation steps. Once utilities are selected, failures still print the summary and name utilities whose pins were not checked. Without an id, update first moves the distro pins as described in [Update components](#update-components). With no added utilities, it then says so and shows `gap add owner/repo`.
 
 Before installing any utility, update verifies every requested source checkout, including disabled utilities, and rebuilds missing or corrupt caches even when the pin is already current. Update compares each skill with its last copied version, tracked separately from hook completion in `~/.gap/state.json`. If an update hook fails, fix its cause and rerun `gap update [id]`: installation retries even when the pin is already current.
 

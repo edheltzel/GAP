@@ -201,7 +201,7 @@ func (r *report) next(steps ...string) {
 	}
 }
 
-func (r *report) statusLine(id, ref, commit, store string) {
+func (r *report) statusLine(id, ref, commit, store string, pending int) {
 	word := store
 	switch store {
 	case "ok":
@@ -209,7 +209,11 @@ func (r *report) statusLine(id, ref, commit, store string) {
 	case "missing", "changed", "unpinned":
 		word = r.tone(store, colorBad)
 	}
-	r.printf("%s ref=%s commit=%s store=%s\n", r.tone(id, colorAccent), ref, commit, word)
+	extra := ""
+	if pending > 0 {
+		extra = " " + r.tone(fmt.Sprintf("new=%d", pending), colorWarn)
+	}
+	r.printf("%s ref=%s commit=%s store=%s%s\n", r.tone(id, colorAccent), ref, commit, word, extra)
 }
 
 // doctorTable prints "name: detail" lines, as a table on a terminal.

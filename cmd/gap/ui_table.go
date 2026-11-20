@@ -33,6 +33,7 @@ type statusRow struct {
 	id, ref, commit, store string
 	skills                 [][]string
 	drifted                int
+	pending                int
 }
 
 // statusSummary prints gap status on a terminal: one table of components, then the drifted
@@ -55,7 +56,11 @@ func (r *report) statusSummary(rows []statusRow) {
 				drifted++
 			}
 		}
-		table = append(table, []string{r.tone(row.id, colorAccent), row.ref, row.commit, r.tone(row.store, hex), drift})
+		commit := row.commit
+		if row.pending > 0 {
+			commit += " " + r.tone(fmt.Sprintf("+%d new", row.pending), colorWarn)
+		}
+		table = append(table, []string{r.tone(row.id, colorAccent), row.ref, commit, r.tone(row.store, hex), drift})
 	}
 	r.framed([]string{"id", "ref", "commit", "store", "drift"}, table)
 	for _, row := range rows {

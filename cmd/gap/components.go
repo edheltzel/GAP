@@ -28,6 +28,7 @@ type component struct {
 	Doctor      string
 	Install     string
 	Disabled    bool
+	Pin         bool
 	RefOverride bool
 	Named       bool
 	User        bool
@@ -120,6 +121,13 @@ func parseComponent(id string, table map[string]any) (component, error) {
 		return component{}, fmt.Errorf("component %s: %w", id, err)
 	}
 	_, c.Named = table["names"]
+	if raw, set := table["pin"]; set {
+		pin, ok := raw.(bool)
+		if !ok {
+			return component{}, fmt.Errorf("component %s: pin must be true or false", id)
+		}
+		c.Pin = pin
+	}
 	if raw, set := table["path"]; set {
 		path, ok := raw.(string)
 		if !ok || path == "" || !filepath.IsLocal(path) {
@@ -624,9 +632,14 @@ func statusAll() error {
 		out.heading("crew: project files only")
 		return nil
 	}
+	checks, err := readChecks(home)
+	if err != nil {
+		return err
+	}
 	bad := false
 	missing := false
 	changed := false
+	behind := false
 	var pinSteps []string
 	var rows []statusRow
 	ids := sortedIDs(d.Components)
@@ -659,8 +672,12 @@ func statusAll() error {
 			missing = true
 		}
 		row := statusRow{id: id, ref: ref, commit: short, store: store}
+		if rec, found := checks[id]; found && pinned && rec.Pin == e.Commit {
+			row.pending = rec.New
+			behind = behind || rec.New > 0
+		}
 		if !out.tty {
-			out.statusLine(id, ref, short, store)
+			out.statusLine(id, ref, short, store, row.pending)
 		}
 		if store == storeOK {
 			dir := storePath(home, id, e.Commit)
@@ -685,6 +702,9 @@ func statusAll() error {
 	}
 	var steps []string
 	steps = append(steps, pinSteps...)
+	if behind {
+		steps = append(steps, "gap update    move the pins with new commits, as of the last gap check")
+	}
 	if missing {
 		steps = append(steps, "gap sync    fetch each missing source checkout and install it")
 	}

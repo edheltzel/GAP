@@ -57,7 +57,7 @@ func TestReportPreviewFitsTerminal(t *testing.T) {
 func TestReportStaysPlainWhenPiped(t *testing.T) {
 	var buf bytes.Buffer
 	out := newReport(&buf)
-	out.statusLine("recall", "main", "4319176", "changed")
+	out.statusLine("recall", "main", "4319176", "changed", 0)
 	out.driftTable([][]string{{"do-todo", "drift=1"}})
 	out.doctorTable([][]string{{"claude", "absent; install this harness separately if needed"}})
 	out.next("gap sync    fetch each missing store and install it")

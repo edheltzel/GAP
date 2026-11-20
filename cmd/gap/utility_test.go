@@ -148,8 +148,11 @@ func TestUtilityUpdate(t *testing.T) {
 		t.Fatal("unknown id updated")
 	}
 	write(t, filepath.Join(e.repo, "gap.toml"), "schema = \"2\"\n\n[components.distro]\nrepo = \""+e.remote+"\"\nref = \"master\"\n")
-	if err := updateUtilities("distro"); err == nil || !strings.Contains(err.Error(), "gap pin") {
+	if err := updateUtilities("distro"); err != nil {
 		t.Fatalf("distro update: %v", err)
+	}
+	if lk, err := readLock(e.repo); err != nil || lk.Components["distro"].Commit == "" {
+		t.Fatalf("distro update must pin it in the distro gap.lock: %+v %v", lk, err)
 	}
 }
 
