@@ -8,6 +8,7 @@
 - Project location rules still win. Write both files where the project keeps plans.
 - Revise the agent version, then refresh the human version in the same change. A stale human version fails the test below.
 - When a skill writes only the agent version, write the human version yourself right after it.
+- The paired-file rule overrides a skill's single-output limit, but only for the companion files (the `.human.md` and the optional `.human.html`); a skill's other limits still hold, so never overwrite or delete an older regroup file, and never edit todo.txt or done.txt.
 - Compare against the previous agent version, never the human version. Regroup diffs need the raw task lines.
 
 ## Human version
@@ -50,7 +51,7 @@ This previews the human version. Only when the human asks: "open this visually",
 - A request to review or approve the plan in Plannotator is not a preview. Open the agent version in Plannotator and follow the plan skill's approval gate.
 - Check the harness per [harness-detection.md](harness-detection.md).
 - In Empryo, use the native `show` tool.
-- Else, when `command -v plannotator` succeeds, use Plannotator.
+- Else, when `command -v plannotator` succeeds, use Plannotator: run `plannotator annotate <name>.human.md` and do not pass `--gate`, since `--gate` adds an approval action that belongs to the full-plan approval flow, which stays on the agent version.
 - Else, write a self-contained `<name>.human.html` from the human version, beside the human version, with the mermaid rendered, and open it with `open` (macOS) or `xdg-open`.
 - An uncertain harness falls back to the portable path.
 
