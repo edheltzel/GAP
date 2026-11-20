@@ -8,7 +8,7 @@
 - Project location rules still win. Write both files where the project keeps plans.
 - Revise the agent version, then refresh the human version in the same change. A stale human version fails the test below.
 - When a skill writes only the agent version, write the human version yourself right after it.
-- The paired-file rule overrides a skill's single-output limit, but only for the companion files (the `.human.md` and the optional `.human.html`); a skill's other limits still hold, so never overwrite or delete an older regroup file, and never edit todo.txt or done.txt.
+- The paired-file rule overrides a skill's single-output limit, but only for the companion files (the `.human.md` and the optional `.human.html`); never overwrite or delete an older regroup file; regroup never edits todo.txt or done.txt, but a plan or spec may still append its own follow-up tasks there.
 - Compare against the previous agent version, never the human version. Regroup diffs need the raw task lines.
 
 ## Human version
