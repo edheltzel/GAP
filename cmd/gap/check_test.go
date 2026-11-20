@@ -85,10 +85,56 @@ func TestLazyUpdateCycle(t *testing.T) {
 	}
 	stdout, _ = gap(0, "update", "tools")
 	wantLines(t, "update tools", stdout, "tools moved from "+c2[:7]+" to "+c3[:7])
+
+	old := filepath.Join(home, ".gap", "store", "tools", c1)
+	if !verifiedStore(old, c1) {
+		t.Fatal("an untouched earlier store must count as a baseline")
+	}
+	write(t, filepath.Join(old, "skills", "kept", "SKILL.md"), "my edit\n")
+	if verifiedStore(old, c1) {
+		t.Fatal("an earlier store with edited files must not count as a baseline")
+	}
 }
 
 func TestPinMustBeBool(t *testing.T) {
 	if _, err := parseComponent("tools", map[string]any{"repo": "github.com/o/r", "ref": "master", "pin": "yes"}); err == nil || !strings.Contains(err.Error(), "pin must be true or false") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestHeldUtilitySkipsUnnamedUpdate(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	quietStdout(t)
+	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
+	if err := addUtility(e.remote, "util", false); err != nil {
+		t.Fatal(err)
+	}
+	write(t, userConfigFile(e.home), readString(t, userConfigFile(e.home))+"pin = true\n")
+	first, _ := readLock(userConfigDir(e.home))
+	write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: v2\n---\n")
+	commit, _ := commitAll(t, e.remote)
+	if err := updateUtilities(""); err != nil {
+		t.Fatal(err)
+	}
+	if lk, _ := readLock(userConfigDir(e.home)); lk.Components["util"].Commit != first.Components["util"].Commit {
+		t.Fatal("unnamed update moved a utility with pin = true")
+	}
+	if err := updateUtilities("util"); err != nil {
+		t.Fatal(err)
+	}
+	if lk, _ := readLock(userConfigDir(e.home)); lk.Components["util"].Commit != commit {
+		t.Fatal("naming a held utility must update it")
+	}
+}
+
+func TestPendingCommitsPeelsAnnotatedTag(t *testing.T) {
+	home, remote := t.TempDir(), t.TempDir()
+	commit, _ := gitFixture(t, remote, "v1\n")
+	if _, err := git(remote, "-c", "user.name=gap", "-c", "user.email=gap@example.com", "tag", "-a", "v1", "-m", "v1"); err != nil {
+		t.Fatal(err)
+	}
+	tip, commits, diverged, err := pendingCommits(home, component{ID: "tools", Repo: remote, Ref: "v1"}, commit)
+	if err != nil || tip != commit || len(commits) != 0 || diverged {
+		t.Fatalf("tip=%s commits=%v diverged=%v err=%v, want %s", tip, commits, diverged, err, commit)
 	}
 }

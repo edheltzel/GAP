@@ -122,7 +122,7 @@ func matchesEarlierStore(e manifestEntry, home, name string) bool {
 	}
 	for _, s := range stores {
 		dir := filepath.Join(root, s.Name())
-		if !s.IsDir() || !isHexLen(s.Name(), 40) || dir == e.Path {
+		if !s.IsDir() || !isHexLen(s.Name(), 40) || dir == e.Path || !verifiedStore(dir, s.Name()) {
 			continue
 		}
 		earlier := e
@@ -132,6 +132,17 @@ func matchesEarlierStore(e manifestEntry, home, name string) bool {
 		}
 	}
 	return false
+}
+
+// verifiedStore reports whether the checkout at dir still holds exactly the tree of commit,
+// so its files can stand in for an unedited earlier version.
+func verifiedStore(dir, commit string) bool {
+	tree, err := git(dir, "rev-parse", commit+"^{tree}")
+	if err != nil {
+		return false
+	}
+	state, err := storeState(dir, tree)
+	return err == nil && state == storeOK
 }
 
 // entryDriftCount is the number of installed copies of name that differ from the entry's pinned store.

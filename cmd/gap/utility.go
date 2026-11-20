@@ -400,7 +400,7 @@ func updateUtilities(id string) (resultErr error) {
 	}
 	var ids []string
 	for _, cid := range sortedIDs(d.Components) {
-		if d.Components[cid].User && (id == "" || cid == id) {
+		if c := d.Components[cid]; c.User && ((id == "" && !c.Pin) || cid == id) {
 			ids = append(ids, cid)
 		}
 	}

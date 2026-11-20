@@ -68,7 +68,7 @@ func pendingCommits(home string, c component, from string) (tip string, commits 
 	}); err != nil {
 		return "", nil, false, fmt.Errorf("component %s: fetch %s: %w", c.ID, c.Ref, err)
 	}
-	tip, err = git(cache, "rev-parse", "FETCH_HEAD")
+	tip, err = git(cache, "rev-parse", "FETCH_HEAD^{commit}")
 	if err != nil {
 		return "", nil, false, err
 	}
