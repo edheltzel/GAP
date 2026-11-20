@@ -79,6 +79,7 @@ names = [
   "do-show-me",
   "do-simplify",
   "do-skill-craft",
+  "do-skill-drift",
   "do-teach-me",
   "do-tech-writing",
   "do-todo",
