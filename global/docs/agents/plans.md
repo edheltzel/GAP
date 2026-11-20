@@ -5,7 +5,7 @@
 - Every plan, spec, and regroup produces two files with the same stem.
 - `<name>.md` is for agents: full detail, plus the todo.txt section. See [todo-txt.md](todo-txt.md).
 - `<name>.human.md` is for the human: the same plan, short and visual.
-- When a request names the overview, resolve it to its full sibling (drop the `.human` before the extension) and hand that path to the skill that builds or executes the plan.
+- When a request names the overview, resolve it to its full sibling (strip only the trailing `.human` segment immediately before the extension) and hand that path to the skill that builds or executes the plan.
 - Project location rules still win. Write both files where the project keeps plans.
 - Revise the agent version, then refresh the human version in the same change. A stale human version fails the test below.
 - When a skill writes only the agent version, write the human version yourself right after it.
