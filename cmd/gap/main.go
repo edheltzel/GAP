@@ -180,7 +180,8 @@ func syncAll(opts syncOptions) error {
 	if len(entries) > 0 {
 		out.section("skills", "install missing skills, then check drift")
 	}
-	skillsOK := installSkills(home, entries)
+	skillsOK := upgradeUntouched(home, entries)
+	skillsOK = installSkills(home, entries) && skillsOK
 	driftOK, err := checkDrift(home, entries)
 	if err != nil {
 		return err

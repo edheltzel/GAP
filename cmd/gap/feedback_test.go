@@ -27,7 +27,12 @@ func TestUpdateFeedbackNoUtilities(t *testing.T) {
 			t.Errorf("update exit %d", code)
 		}
 	})
-	wantLines(t, "update", stdout, "No utilities added", "gap add owner/repo", "Distro components (tools)", "gap pin <id>@<ref>, then gap sync")
+	lk, err := readLock(e.repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin := lk.Components["tools"]
+	wantLines(t, "update", stdout, "tools pinned @ master ("+pin.Commit[:7]+")", "commit gap.lock", "No utilities added", "gap add owner/repo")
 }
 
 func TestUpdateFeedbackPerUtility(t *testing.T) {

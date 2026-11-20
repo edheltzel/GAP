@@ -406,22 +406,19 @@ func updateUtilities(id string) (resultErr error) {
 	}
 	if id != "" && len(ids) == 0 {
 		if _, distroID := d.Components[id]; distroID {
-			return fmt.Errorf("%s is a distro component; move its pin with gap pin %s@<ref>", id, id)
+			_, err := updateDistro(id)
+			return err
 		}
 		return fmt.Errorf("utility %s is not added; run gap add owner/repo", id)
 	}
+	if id == "" {
+		if _, err := updateDistro(""); err != nil {
+			return err
+		}
+	}
 	out := newReport(os.Stdout)
 	if len(ids) == 0 {
-		var distroIDs []string
-		for _, cid := range sortedIDs(d.Components) {
-			if !d.Components[cid].User {
-				distroIDs = append(distroIDs, cid)
-			}
-		}
-		out.println("No utilities added, so there is nothing to update; gap add owner/repo adds one.")
-		if len(distroIDs) > 0 {
-			out.println("Distro components (" + strings.Join(distroIDs, ", ") + ") update with gap pin <id>@<ref>, then gap sync.")
-		}
+		out.println("No utilities added; gap add owner/repo adds one.")
 		return nil
 	}
 	checked, updated := 0, 0

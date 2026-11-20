@@ -64,7 +64,7 @@ Commands, hooks, and MCP servers are always machine-wide.`,
 			return cmd.Help()
 		},
 	}
-	root.AddCommand(syncCmd(), statusCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd())
+	root.AddCommand(syncCmd(), statusCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd())
 	return root
 }
 
@@ -184,11 +184,34 @@ removes the utility everywhere, including every project copy.`,
 	return cmd
 }
 
+func checkCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "check [id]",
+		Short: "List the commits waiting on each component's ref. Changes no pin",
+		Long: `check fetches each component's ref into ~/.gap/cache and lists the commits after its pin.
+It changes no pin and installs nothing; gap status shows the counts from the last check.
+A component with pin = true is skipped unless it is named.`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id := ""
+			if len(args) == 1 {
+				id = args[0]
+			}
+			return finish(checkComponents(id))
+		},
+	}
+}
+
 func updateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "update [id]",
-		Short: "Move a utility's pin to the newest commit on its ref, then install it",
-		Args:  cobra.MaximumNArgs(1),
+		Short: "Move pins to the newest commit on each ref; install utilities, lock distro components for a PR",
+		Long: `update resolves the newest commit on each component's ref, like lazy.nvim's :Lazy update.
+A distro component's new pin is written to gap.lock in the GAP checkout with the commits it
+brings in; commit and merge gap.lock, then gap sync installs it. A utility added with gap add
+moves its pin in ~/.config/gap/gap.lock and installs right away. A component with pin = true
+is skipped unless it is named.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := ""
 			if len(args) == 1 {
