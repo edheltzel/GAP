@@ -20,3 +20,8 @@ tags        = ["macos", "voice", "notifications", "adapters"]
 repo        = "github.com/edheltzel/Recall"
 description = "Local memory for coding agents; installs its own do-recall skills"
 tags        = ["memory", "context", "mcp", "skills"]
+
+[utilities.muse]
+repo        = "github.com/edheltzel/Muse"
+description = "Visual explanations, diagrams, and reviewable plans (do-muse)"
+tags        = ["visual", "diagrams", "review", "skills"]
