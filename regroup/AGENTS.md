@@ -13,10 +13,10 @@ Dated status snapshots. The chat reply never replaces the file.
 ## Local Contracts
 
 - Do not overwrite or delete an older regroup file. If today's name exists, keep it and add a numeric suffix (`-2`, then `-3`).
-- Read the previous file of the same mode, and for one project the same project, when one exists.
+- Read the previous file of the same mode, and for one project the same project, when one exists. Read its agent version, never the `.human.md`.
 - Keep each todo.txt task's raw line so the next file can tell what changed.
 - Regroup reads `todo.txt` and `done.txt`. It does not edit them, complete a task, or archive one.
-- The only file a regroup run writes is the new snapshot.
+- A regroup run writes only the new snapshot and its human version: the same stem with `.human.md`, plus an optional `.human.html`. See `global/docs/agents/plans.md`.
 
 ## Work Guidance
 
