@@ -6,6 +6,7 @@
 - Read relevant memory before re-asking settled preferences.
 - Record durable preferences in the right AGENTS.md / DOX user-preferences section when asked to keep them.
 - Recall: follow its installed guide when one exists (Pi: `~/.pi/agent/Recall_GUIDE.md`) and the live MCP schemas. No guide means only the schemas.
+- The `<!-- recall:begin -->` … `<!-- recall:end -->` block is machine-written by `recall learn`. Never hand-edit it. Promote a note that holds across projects with the `do-recall-promote` skill.
 
 ## Done
 

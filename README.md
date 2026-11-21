@@ -61,7 +61,8 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap sync --skip <groups>` / `--only <groups>` / `--yes` | Leave groups out, sync only some, or sync without asking. Groups: `policy` or a component id |
 | `gap sync --profile crew` | Prepare project files for cloud agents without fetching components or writing to the home directory |
 | `gap sync --remove-codex-legacy` | Same, then strip the old policy copy from Codex home's `AGENTS.md`; see [Set up Codex](#set-up-codex-once-per-machine) |
-| `gap status` | Show each component's pin, its store copy, and drift in its selected skills. Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
+| `gap status` | Show each component's pin, its store copy, and drift in its selected skills. With `recall` on `PATH`, also prints `recall: N promotion candidates` (skipped after 5 seconds or on any Recall error). Writes nothing; exits `1` on skill drift or an unpinned, missing, changed, or unreadable source checkout |
+| `gap source` | Print the GAP checkout `gap sync` publishes from. Writes nothing |
 | `gap restore [id]` | Back up and replace selected missing or drifted component skills at the locked commit, reusing a verified store copy |
 | `gap check [id]` | List the commits waiting on each component's ref after its pin. Changes no pin; `gap status` shows the counts from the last check as `new=N`. See [Update components](#update-components) |
 | `gap pin <id>@<ref>` | Resolve a distro component's branch, tag, or commit and write it to the distro's `gap.lock` |

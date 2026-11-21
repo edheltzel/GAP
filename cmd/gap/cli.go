@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"charm.land/fang/v2"
 	"github.com/spf13/cobra"
@@ -70,7 +73,7 @@ Commands, hooks, and MCP servers are always machine-wide.`,
 			return cmd.Help()
 		},
 	}
-	root.AddCommand(tuiCmd(), syncCmd(), statusCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd())
+	root.AddCommand(tuiCmd(), syncCmd(), statusCmd(), sourceCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd())
 	return root
 }
 
@@ -147,7 +150,51 @@ func statusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show each component pin, store, and skill drift. Writes nothing",
 		Args:  cobra.NoArgs,
-		RunE:  func(cmd *cobra.Command, _ []string) error { return finish(statusAll()) },
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			err := finish(statusAll())
+			printRecallCandidates()
+			return err
+		},
+	}
+}
+
+var recallTimeout = 5 * time.Second
+
+func printRecallCandidates() {
+	recall, err := exec.LookPath("recall")
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), recallTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, recall, "promote", "--json")
+	cmd.WaitDelay = time.Second
+	out, err := cmd.Output()
+	if err != nil {
+		return
+	}
+	var report struct {
+		Candidates []json.RawMessage `json:"candidates"`
+	}
+	if json.Unmarshal(out, &report) != nil || report.Candidates == nil {
+		return
+	}
+	fmt.Printf("recall: %d promotion candidates\n", len(report.Candidates))
+}
+
+func sourceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "source",
+		Short: "Print the GAP checkout that sync publishes from. Writes nothing",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			root, err := sourceRoot()
+			if err != nil {
+				return err
+			}
+			fmt.Println(root)
+			return nil
+		},
 	}
 }
 

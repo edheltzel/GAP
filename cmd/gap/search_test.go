@@ -17,6 +17,7 @@ func TestSearchCatalogParsesRealCatalog(t *testing.T) {
 		"do-skills": "github.com/edheltzel/Do-Skills",
 		"echo":      "github.com/edheltzel/Echo",
 		"forge":     "github.com/edheltzel/Forge",
+		"muse":      "github.com/edheltzel/Muse",
 		"recall":    "github.com/edheltzel/Recall",
 	}
 	if len(entries) != len(want) {
@@ -99,8 +100,8 @@ func TestSearchIgnoresLocalStateAndStaysPlainWhenPiped(t *testing.T) {
 			t.Fatalf("missing %q in:\n%s", want, out)
 		}
 	}
-	if strings.Contains(out, "gap add") {
-		t.Fatalf("search suggested gap add for a distro component, which gap add refuses:\n%s", out)
+	if strings.Count(out, "gap add") != 1 || !strings.Contains(out, "gap add github.com/edheltzel/Muse\n") {
+		t.Fatalf("search must suggest gap add only for the non-distro utility muse:\n%s", out)
 	}
 	stdout.Reset()
 	stderr.Reset()
