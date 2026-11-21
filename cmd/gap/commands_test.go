@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestComponentCommandSync(t *testing.T) {
@@ -195,6 +196,150 @@ func TestCommandSync(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+const recallPair = "<!-- recall:begin -->\n- keep this note\n<!-- recall:end -->\n"
+
+// recallAround wraps the GAP block with a Recall pair on one side, so a sync or a removal
+// that rewrites anything outside the GAP markers fails the byte comparison.
+func recallAround(policy, side string) string {
+	block := "<!-- gap:begin -->\n" + policy + "<!-- gap:end -->\n"
+	if side == "before" {
+		return recallPair + block
+	}
+	return block + recallPair
+}
+
+func TestRecallPairSurvivesSync(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	for _, side := range []string{"before", "after"} {
+		t.Run(side, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("CODEX_HOME", "")
+			unsetEnv(t, "JCODE_HOME")
+			repo, _ := echoFixture(t, home, "#!/bin/sh\nexit 0\n")
+			sourceRootFor = repo
+			t.Cleanup(func() { sourceRootFor = "" })
+			gitFixture(t, repo, "distro skill\n")
+			for _, args := range [][]string{
+				{"update-ref", "refs/remotes/origin/master", "HEAD"},
+				{"symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master"},
+			} {
+				if _, err := git(repo, args...); err != nil {
+					t.Fatal(err)
+				}
+			}
+			policy := adapt(readString(t, filepath.Join(repo, "global", "AGENTS.md")), false)
+			dests, err := policyDests(home, filepath.Join(home, ".codex", "gap", "global-agent-policy.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]string{}
+			for _, c := range dests {
+				stale, text := recallAround("stale policy\n", side), recallAround(policy, side)
+				if c.cursor {
+					stale = "---\nalwaysApply: true\n---\n\n" + stale
+					text = "---\nalwaysApply: true\n---\n\n" + text
+				}
+				write(t, c.dest, stale)
+				want[c.dest] = text
+			}
+			if code := run([]string{"sync", "--yes", "--only", "policy"}); code != 0 {
+				t.Fatalf("sync exit %d", code)
+			}
+			for dest, text := range want {
+				if got := readString(t, dest); got != text {
+					t.Fatalf("%s recall pair changed:\n got %q\nwant %q", dest, got, text)
+				}
+			}
+		})
+	}
+}
+
+func TestRecallPairSurvivesUninstallStrip(t *testing.T) {
+	for _, side := range []string{"before", "after"} {
+		t.Run(side, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "AGENTS.md")
+			write(t, path, recallAround("policy\n", side))
+			action, rest, _, err := classifyPolicy(path, false, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if action != policyStrip || rest != recallPair {
+				t.Fatalf("uninstall strip: action %v, rest %q, want only %q", action, rest, recallPair)
+			}
+		})
+	}
+}
+
+func TestStatusPrintsRecallCandidates(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	repo, commit := echoFixture(t, home, "#!/bin/sh\nexit 0\n")
+	sourceRootFor = repo
+	t.Cleanup(func() { sourceRootFor = "" })
+	bin := t.TempDir()
+	write(t, filepath.Join(bin, "recall"), "#!/bin/sh\nprintf '%s\\n' '{\"candidates\":[{},{}]}'\n")
+	if err := os.Chmod(filepath.Join(bin, "recall"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out, stderr := captureStd(t, func() {
+		if code := run([]string{"status"}); code != 0 {
+			t.Fatalf("status exit %d", code)
+		}
+	})
+	want := fmt.Sprintf("echo ref=master commit=%s store=ok\nrecall: 2 promotion candidates\n", commit[:7])
+	if out != want || stderr != "" {
+		t.Fatalf("status with recall:\n got %q\nwant %q\nstderr %q", out, want, stderr)
+	}
+
+	write(t, filepath.Join(bin, "recall"), "#!/bin/sh\nexit 1\n")
+	out, stderr = captureStd(t, func() {
+		if code := run([]string{"status"}); code != 0 {
+			t.Fatalf("status exit %d", code)
+		}
+	})
+	if strings.Contains(out, "recall:") || stderr != "" {
+		t.Fatalf("a failing recall must print nothing: stdout %q stderr %q", out, stderr)
+	}
+}
+
+func TestStatusSkipsHungRecall(t *testing.T) {
+	bin := t.TempDir()
+	write(t, filepath.Join(bin, "recall"), "#!/bin/sh\nsleep 30\n")
+	if err := os.Chmod(filepath.Join(bin, "recall"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	old := recallTimeout
+	recallTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { recallTimeout = old })
+	began := time.Now()
+	out, _ := captureStd(t, printRecallCandidates)
+	if took := time.Since(began); took > 5*time.Second {
+		t.Fatalf("a hung recall blocked status for %v", took)
+	}
+	if out != "" {
+		t.Fatalf("a hung recall must print nothing, got %q", out)
+	}
+}
+
+func TestSourcePrintsCheckout(t *testing.T) {
+	repo := t.TempDir()
+	sourceRootFor = repo
+	t.Cleanup(func() { sourceRootFor = "" })
+	out, stderr := captureStd(t, func() {
+		if code := run([]string{"source"}); code != 0 {
+			t.Fatalf("source exit %d", code)
+		}
+	})
+	if out != repo+"\n" || stderr != "" {
+		t.Fatalf("source: got %q stderr %q, want %q", out, stderr, repo+"\n")
 	}
 }
 
