@@ -12,6 +12,7 @@ Implementation plans, requirements, and handoffs for this repo. One plan file is
 
 ## Local Contracts
 
+- A plan is a pair: `YYYY-MM-DD-<slug>-plan.md` for agents and `YYYY-MM-DD-<slug>-plan.human.md` for the human, with an optional `YYYY-MM-DD-<slug>-plan.human.html`. Follow [plans.md](../../global/docs/agents/plans.md).
 - A handoff name is timestamped and descriptive. Follow `global/docs/agents/handoffs.md`.
 - End a handoff with a `## Todo` section of todo.txt lines, and add those lines to `~/todo.txt` with tuxedo.
 - Never write a handoff only to `/tmp`, a harness install directory, or home scratch.

@@ -2,6 +2,8 @@
 
 How a skill or script decides it runs inside Empryo. Skills that switch to an Empryo-native feature cite this page instead of restating it.
 
+Consumers: [plans.md](plans.md) uses this check before opening a plan in Empryo `show`.
+
 ## Active, not installed
 
 Empryo sets no environment variable for its shell children. Use one of these signals:

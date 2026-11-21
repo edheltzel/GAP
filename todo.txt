@@ -80,3 +80,4 @@ x 2026-11-19 2026-11-19 Pin do-skills@master after the Do-Skills plain-git rewri
 x 2026-11-19 2026-11-19 Remove leftover but-axi and gitbutler skills from ~/.agents/skills and ~/.claude/skills +gap @waiting user go
 2026-11-19 Update GAP docs and deploy the site, then merge the local-updates PR and run gap sync +gap
 x 2026-11-19 2026-11-19 Add gap add --global/--project (--local) scope flags +gap
+2026-11-20 Update Do-Skills do-plan, do-regroup, and every spec-writing skill to emit the paired .human.md and refresh it after each revision per global/docs/agents/plans.md, keep regroup comparisons on the full previous snapshot, then re-pin do-skills with gap pin do-skills@master (lock is c3965ca) +gap
