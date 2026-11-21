@@ -242,7 +242,12 @@ A component's skills are the `skills` in its `gap-utility.toml`, or its `names` 
 | `project` | Install under the invoking project only when any `when.files` glob matches |
 | `command`, `off` | Not selected for installation by sync or restore |
 
-For example, the distro's `do-astro` selection uses `load = "project"` with `when.files = ["astro.config.*"]`. Globs are relative to the invoking project's Git root, or the current directory outside Git.
+For example, the distro's `do-astro` selection uses `load = "project"` with `when.files = ["astro.config.*"]`. Globs are relative to the invoking project's Git root, or the current directory outside Git. `do-no-comments` uses `load = "project"` with no `when.files`, so it installs only in a project whose `.gap/gap.toml` opts in:
+
+```toml
+[components.do-skills.skills.do-no-comments.when]
+files = ["*"]
+```
 
 ### Overrides
 

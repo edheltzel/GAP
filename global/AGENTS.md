@@ -36,6 +36,7 @@ Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you t
 - Reproduce a bug the way an end user hits it before fixing it. A claim is not proof. Details: [verification.md](docs/agents/verification.md).
 - Before a non-trivial edit, use codegraph when the project has an index, and name the blast radius or why you skipped it. Details: [codegraph-blast.md](docs/agents/codegraph-blast.md).
 - Investigation is not permission to change code. Details: [scout.md](docs/agents/scout.md).
+- Write no code comments. Keep only those about something you cannot change, and turn a "do not remove" constraint into a check. Details: [comments.md](docs/agents/comments.md).
 - Read a folder's FOLDER.md before you edit it, and keep it matching the code after a real change. Details: [folder-docs.md](docs/agents/folder-docs.md).
 - Do not invent skills, slash commands, or APIs that are not installed. Ask before a large swarm. Details: [skills-honesty.md](docs/agents/skills-honesty.md).
 - Use plain git for branches, commits, and pushes. Do parallel or isolated work in a git worktree at `.worktrees/<name>` in the main checkout, one branch per worktree, and remove it after merge. A project contract that names other version-control tooling wins. Details: [vcs-project-wins.md](docs/agents/vcs-project-wins.md).

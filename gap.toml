@@ -100,6 +100,9 @@ load = "project"
 [components.do-skills.skills.do-astro.when]
 files = ["astro.config.*"]
 
+[components.do-skills.skills.do-no-comments]
+load = "project"
+
 [components.plotter]
 repo       = "github.com/pasqualevitiello/plotter"
 ref        = "main"
