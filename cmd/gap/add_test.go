@@ -298,6 +298,22 @@ func TestAddRetiresAVerifiedLegacyCopy(t *testing.T) {
 	}
 }
 
+func TestAddKeepsTheLastUsableCopy(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf"}); code != 0 {
+		t.Fatalf("add exited %d", code)
+	}
+	write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "")
+	commitAll(t, e.remote)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(e.home, ".new-claude"))
+	run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf", "--copy"})
+	canonical := filepath.Join(e.home, ".agents", "skills", "util-skill", "SKILL.md")
+	if !exists(canonical) || readString(t, canonical) == "" {
+		t.Fatal("retirement moved the last usable copy")
+	}
+}
+
 func TestAddAdoptionLeavesForeignFolders(t *testing.T) {
 	e := newUtilityEnv(t, "")
 	skill := "---\nname: alpha\ndescription: alpha skill\n---\n"

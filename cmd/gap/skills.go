@@ -904,6 +904,7 @@ func backfillLegacyTrees(entry *stateEntry, e manifestEntry, root, name string) 
 	}
 	earlier := e
 	earlier.Path = filepath.Join(filepath.Dir(e.Path), commit)
+	earlier.Discover = !hasUtilityManifest(earlier.Path)
 	if !verifiedStore(earlier.Path, commit) || entrySkillDir(earlier, name) == "" {
 		return
 	}
@@ -984,7 +985,7 @@ func retireStaleDests(root string, e manifestEntry, name string) error {
 			}
 		}
 	}
-	if !slices.ContainsFunc(recorded, func(dir string) bool { return !needed[realOr(dir)] }) || !layoutReady(e, root, name) || entryDriftCount(e, root, name) != 0 {
+	if !slices.ContainsFunc(recorded, func(dir string) bool { return !needed[realOr(dir)] }) || !layoutReady(e, root, name) || !installed(root, e, name) || entryDriftCount(e, root, name) != 0 {
 		return nil
 	}
 	var keep []string
