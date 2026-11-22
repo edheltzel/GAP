@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"iter"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,23 +126,33 @@ func upgradeUntouched(home string, entries []manifestEntry) bool {
 // matchesEarlierStore reports whether every installed copy of name equals the skill in one
 // other verified commit of the same component under ~/.gap/store/<id>/.
 func matchesEarlierStore(e manifestEntry, home, name string) bool {
-	root := filepath.Dir(e.Path)
-	stores, err := os.ReadDir(root)
-	if err != nil {
-		return false
-	}
-	for _, s := range stores {
-		dir := filepath.Join(root, s.Name())
-		if !s.IsDir() || !isHexLen(s.Name(), 40) || dir == e.Path || !verifiedStore(dir, s.Name()) {
-			continue
-		}
-		earlier := e
-		earlier.Path = dir
+	for earlier := range earlierEntries(e) {
 		if entrySkillDir(earlier, name) != "" && entryDriftCount(earlier, home, name) == 0 {
 			return true
 		}
 	}
 	return false
+}
+
+func earlierEntries(e manifestEntry) iter.Seq[manifestEntry] {
+	return func(yield func(manifestEntry) bool) {
+		root := filepath.Dir(e.Path)
+		stores, err := os.ReadDir(root)
+		if err != nil {
+			return
+		}
+		for _, s := range stores {
+			dir := filepath.Join(root, s.Name())
+			if !s.IsDir() || !isHexLen(s.Name(), 40) || dir == e.Path || !verifiedStore(dir, s.Name()) {
+				continue
+			}
+			earlier := e
+			earlier.Path = dir
+			if !yield(earlier) {
+				return
+			}
+		}
+	}
 }
 
 // verifiedStore reports whether the checkout at dir still holds exactly the tree of commit,
@@ -960,7 +972,7 @@ func retireStaleDests(root string, e manifestEntry, name string) error {
 		if err != nil {
 			return err
 		}
-		if info.Mode()&os.ModeSymlink == 0 && ownedDrift(e, root, name, []string{dir}) {
+		if info.Mode()&os.ModeSymlink == 0 && editedCopy(e, root, name, dir) {
 			keep = append(keep, dir)
 			continue
 		}
@@ -979,6 +991,37 @@ func retireStaleDests(root string, e manifestEntry, name string) error {
 	entry.Dests[root][name] = keep
 	state.Components[e.ID] = entry
 	return writeState(home, state)
+}
+
+func editedCopy(e manifestEntry, root, name, dir string) bool {
+	if !ownedDrift(e, root, name, []string{dir}) {
+		return false
+	}
+	for earlier := range earlierEntries(e) {
+		if entrySkillDir(earlier, name) != "" && !ownedDrift(earlier, root, name, []string{dir}) {
+			return false
+		}
+	}
+	return true
+}
+
+func layoutReady(e manifestEntry, root, name string) bool {
+	dests := entryDests(root, e, name)
+	if len(dests) == 0 {
+		return false
+	}
+	for _, d := range dests {
+		info, err := os.Lstat(d.Dir)
+		if err != nil || wrongLayout(d, info) {
+			return false
+		}
+	}
+	return true
+}
+
+func wrongLayout(d skillDest, info fs.FileInfo) bool {
+	linked := info.Mode()&os.ModeSymlink != 0
+	return linked != (d.LinkTo != "") || linked && realOr(d.Dir) != realOr(d.LinkTo)
 }
 
 func ownedDrift(e manifestEntry, root, name string, dirs []string) bool {
@@ -1015,7 +1058,7 @@ func incompleteUnedited(e manifestEntry, home, name string) bool {
 		if err != nil {
 			return false
 		}
-		if linked := info.Mode()&os.ModeSymlink != 0; linked != (d.LinkTo != "") || linked && realOr(d.Dir) != realOr(d.LinkTo) {
+		if wrongLayout(d, info) {
 			incomplete = true
 		}
 		want, cached := wants[d.Eve]

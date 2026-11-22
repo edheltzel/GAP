@@ -1185,9 +1185,10 @@ func (r *addRun) install() error {
 	if err != nil {
 		return err
 	}
-	installed, failed := map[string][]destResult{}, map[string]error{}
+	placed, failed := map[string][]destResult{}, map[string]error{}
 	leftover := false
-	for _, entry := range selectedEntries(c, r.store, r.projectRoot) {
+	entries := selectedEntries(c, r.store, r.projectRoot)
+	for _, entry := range entries {
 		target := entryHome(r.home, entry)
 		for _, name := range entry.Skills {
 			chosen := slices.ContainsFunc(r.chosen, func(s addSkill) bool { return s.install == name })
@@ -1201,14 +1202,8 @@ func (r *addRun) install() error {
 			case err != nil:
 				fmt.Fprintf(os.Stderr, "Installing %s: %v\n", name, err)
 				leftover = true
-			default:
-				if chosen {
-					installed[name] = dests
-				}
-				if err := retireStaleDests(target, entry, name); err != nil {
-					fmt.Fprintf(os.Stderr, "Retiring old copies of %s: %v\n", name, err)
-					leftover = true
-				}
+			case chosen:
+				placed[name] = dests
 			}
 		}
 	}
@@ -1220,7 +1215,19 @@ func (r *addRun) install() error {
 	if installErr != nil && !errors.Is(installErr, errSkipped) {
 		return installErr
 	}
-	r.report(installed, failed)
+	for _, entry := range entries {
+		target := entryHome(r.home, entry)
+		for _, name := range entry.Skills {
+			if !layoutReady(entry, target, name) {
+				continue
+			}
+			if err := retireStaleDests(target, entry, name); err != nil {
+				fmt.Fprintf(os.Stderr, "Retiring old copies of %s: %v\n", name, err)
+				leftover = true
+			}
+		}
+	}
+	r.report(placed, failed)
 	where := ""
 	if r.scope == "project" {
 		where = " to " + r.projectRoot
