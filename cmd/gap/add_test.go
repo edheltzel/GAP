@@ -505,6 +505,100 @@ func TestAddManifestRenameRewritesTheName(t *testing.T) {
 	}
 }
 
+func TestAddListUsesTheProjectPin(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	if _, err := git(e.project, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-y", "-a", "codex"}); code != 0 {
+		t.Fatalf("add exited %d", code)
+	}
+	write(t, filepath.Join(e.remote, "skills", "fresh", "SKILL.md"), "---\nname: fresh\ndescription: added upstream\n---\n")
+	commitAll(t, e.remote)
+	stdout, _ := captureStd(t, func() {
+		if code := run([]string{"add", e.remote, "--list"}); code != 0 {
+			t.Errorf("list exited %d", code)
+		}
+	})
+	if strings.Contains(stdout, "fresh") {
+		t.Fatalf("--list showed a skill the pinned commit lacks:\n%s", stdout)
+	}
+}
+
+func TestAddReAddReportsAFailedConversion(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	write(t, filepath.Join(e.remote, "skills", "other", "SKILL.md"), "---\nname: other\ndescription: other skill\n---\n")
+	commitAll(t, e.remote)
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "codex", "-s", "util-skill"}); code != 0 {
+		t.Fatalf("add exited %d", code)
+	}
+	write(t, filepath.Join(e.home, ".gap", "backups"), "not a folder\n")
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "codex", "-s", "other", "--copy"}); code != 1 {
+		t.Fatalf("a failed conversion exited %d", code)
+	}
+	link := filepath.Join(e.home, ".claude", "skills", "util-skill")
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("a failed conversion lost %s: %v", link, err)
+	}
+}
+
+func TestAddCopyConversionRetiresTheCanonicalCopy(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	write(t, filepath.Join(e.remote, "skills", "other", "SKILL.md"), "---\nname: other\ndescription: other skill\n---\n")
+	commitAll(t, e.remote)
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf", "-s", "util-skill"}); code != 0 {
+		t.Fatalf("add exited %d", code)
+	}
+	canonical := filepath.Join(e.home, ".agents", "skills", "util-skill")
+	if !exists(filepath.Join(canonical, "SKILL.md")) {
+		t.Fatal("symlink mode wrote no canonical copy")
+	}
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf", "-s", "other", "--copy"}); code != 0 {
+		t.Fatalf("re-add exited %d", code)
+	}
+	if _, err := os.Lstat(canonical); !os.IsNotExist(err) {
+		t.Fatalf("the unused canonical copy is still live: %v", err)
+	}
+	for _, dir := range []string{filepath.Join(e.home, ".claude", "skills", "util-skill"), filepath.Join(e.home, ".codeium", "windsurf", "skills", "util-skill")} {
+		if info, err := os.Lstat(dir); err != nil || !info.IsDir() {
+			t.Fatalf("%s is not a copy: %v", dir, err)
+		}
+	}
+}
+
+func TestAddRetirementKeepsAliasedDestinations(t *testing.T) {
+	for _, kind := range []string{"symlink", "relative"} {
+		t.Run(kind, func(t *testing.T) {
+			e := newUtilityEnv(t, "")
+			write(t, filepath.Join(e.remote, "skills", "other", "SKILL.md"), "---\nname: other\ndescription: other skill\n---\n")
+			commitAll(t, e.remote)
+			quietStdout(t)
+			if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf", "-s", "util-skill"}); code != 0 {
+				t.Fatalf("add exited %d", code)
+			}
+			alias := ".agents"
+			if kind == "symlink" {
+				alias = filepath.Join(t.TempDir(), "claude")
+				if err := os.Symlink(filepath.Join(e.home, ".agents"), alias); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				t.Chdir(e.home)
+			}
+			t.Setenv("CLAUDE_CONFIG_DIR", alias)
+			if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf", "-s", "other", "--copy"}); code != 0 {
+				t.Fatalf("re-add exited %d", code)
+			}
+			if !exists(filepath.Join(e.home, ".agents", "skills", "util-skill", "SKILL.md")) {
+				t.Fatal("retirement moved the copy Claude Code now reads")
+			}
+		})
+	}
+}
+
 func TestAddRenameAndJSON(t *testing.T) {
 	e := newUtilityEnv(t, "")
 	webDesignRemote(t, e)

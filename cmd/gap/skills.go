@@ -923,6 +923,64 @@ func ownedDests(state stateFile, id, root, name string) []string {
 	return skillDirs(root, name)
 }
 
+func retireStaleDests(root string, e manifestEntry, name string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	entry := state.Components[e.ID]
+	recorded := entry.Dests[root][name]
+	project := e.Project != ""
+	needed := map[string]bool{}
+	for _, dir := range destDirs(entryDests(root, e, name)) {
+		needed[realOr(dir)] = true
+	}
+	for oid, other := range state.Components {
+		owns := project && slices.Contains(other.ProjectSkills[root], name) || !project && slices.Contains(other.Skills, name)
+		if oid != e.ID && owns {
+			for _, dir := range ownedDests(state, oid, root, name) {
+				needed[realOr(dir)] = true
+			}
+		}
+	}
+	var keep []string
+	for _, dir := range recorded {
+		if needed[realOr(dir)] {
+			keep = append(keep, dir)
+			continue
+		}
+		info, err := os.Lstat(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink == 0 && ownedDrift(e, root, name, []string{dir}) {
+			keep = append(keep, dir)
+			continue
+		}
+		backup := backupPath(dir, root)
+		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
+			return err
+		}
+		if err := os.Rename(dir, backup); err != nil {
+			return err
+		}
+		fmt.Println("Backed up to " + backup)
+	}
+	if len(keep) == len(recorded) {
+		return nil
+	}
+	entry.Dests[root][name] = keep
+	state.Components[e.ID] = entry
+	return writeState(home, state)
+}
+
 func ownedDrift(e manifestEntry, root, name string, dirs []string) bool {
 	eve := map[string]bool{}
 	for _, d := range entryDests(root, e, name) {

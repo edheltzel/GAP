@@ -31,10 +31,14 @@ func currentAgentEnv() agentEnv {
 }
 
 func (e agentEnv) envHome(key, fallback string) string {
-	if v := strings.TrimSpace(e.Getenv(key)); v != "" {
-		return v
+	v := strings.TrimSpace(e.Getenv(key))
+	if v == "" {
+		return filepath.Join(e.Home, fallback)
 	}
-	return filepath.Join(e.Home, fallback)
+	if abs, err := filepath.Abs(v); err == nil {
+		return abs
+	}
+	return v
 }
 
 func pathExists(path string) func(agentEnv) bool {

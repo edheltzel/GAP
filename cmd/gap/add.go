@@ -621,11 +621,16 @@ func (r *addRun) resolve() error {
 	}
 	r.prev = r.lk.Components[r.id]
 	existing := r.d.Components[r.id]
-	if !r.opts.List && r.readd && existing.ProjectOnly && r.prev.Commit != "" {
+	reuse := r.readd && existing.ProjectOnly && r.prev.Commit != ""
+	if r.opts.List {
+		reuse = reuse && r.prev.Ref == existing.Ref && sameRepo(existing.Repo, r.repo) && existing.SkillPath == cleanSubpath(r.src.Subpath) && (r.explicitRef == "" || r.explicitRef == existing.Ref)
+	}
+	if reuse {
 		if r.prev.Ref != existing.Ref {
 			return fmt.Errorf("utility %s tracks %s but is pinned on %s; run gap update %s first", r.id, existing.Ref, r.prev.Ref, r.id)
 		}
-		r.ref, r.commit = existing.Ref, r.prev.Commit
+		r.repo, r.ref, r.commit = existing.Repo, existing.Ref, r.prev.Commit
+		r.url, _ = cloneURL(existing.Repo)
 	} else if r.src.Kind != "local" {
 		if r.url, r.ref, r.commit, err = resolveRemote(r.url, r.ref); err != nil {
 			return err
@@ -896,7 +901,10 @@ func (r *addRun) recorded() (componentConfig, error) {
 	if err != nil {
 		return componentConfig{}, err
 	}
-	cc, _, err := readComponentConfig(text, r.id)
+	cc, declared, err := readComponentConfig(text, r.id)
+	if declared && len(cc.Agents) == 0 {
+		cc.Agents, cc.Copy = []string{"claude-code", "codex"}, true
+	}
 	return cc, err
 }
 
@@ -1178,21 +1186,29 @@ func (r *addRun) install() error {
 		return err
 	}
 	installed, failed := map[string][]destResult{}, map[string]error{}
+	leftover := false
 	for _, entry := range selectedEntries(c, r.store, r.projectRoot) {
 		target := entryHome(r.home, entry)
 		for _, name := range entry.Skills {
-			if !slices.ContainsFunc(r.chosen, func(s addSkill) bool { return s.install == name }) {
-				if incompleteUnedited(entry, target, name) {
-					if _, err := replaceSkill(target, entry, name); err != nil {
-						fmt.Fprintf(os.Stderr, "Installing %s: %v\n", name, err)
-					}
-				}
+			chosen := slices.ContainsFunc(r.chosen, func(s addSkill) bool { return s.install == name })
+			if !chosen && !incompleteUnedited(entry, target, name) {
 				continue
 			}
-			if dests, err := replaceSkill(target, entry, name); err != nil {
+			dests, err := replaceSkill(target, entry, name)
+			switch {
+			case err != nil && chosen:
 				failed[name] = err
-			} else {
-				installed[name] = dests
+			case err != nil:
+				fmt.Fprintf(os.Stderr, "Installing %s: %v\n", name, err)
+				leftover = true
+			default:
+				if chosen {
+					installed[name] = dests
+				}
+				if err := retireStaleDests(target, entry, name); err != nil {
+					fmt.Fprintf(os.Stderr, "Retiring old copies of %s: %v\n", name, err)
+					leftover = true
+				}
 			}
 		}
 	}
@@ -1209,12 +1225,13 @@ func (r *addRun) install() error {
 	if r.scope == "project" {
 		where = " to " + r.projectRoot
 	}
-	if installErr == nil && len(failed) == 0 {
+	complete := installErr == nil && len(failed) == 0 && !leftover
+	if complete {
 		r.out.done(true, r.id+" added"+where+pinLabel(r.pin))
 	} else {
 		r.out.done(false, r.id+" added"+where+pinLabel(r.pin)+"; some install steps were left over, see above")
 	}
-	if installErr != nil || len(failed) > 0 || slices.ContainsFunc(r.results, func(res any) bool { _, skipped := res.(addSkipped); return skipped }) {
+	if !complete || slices.ContainsFunc(r.results, func(res any) bool { _, skipped := res.(addSkipped); return skipped }) {
 		return errSkipped
 	}
 	return nil
