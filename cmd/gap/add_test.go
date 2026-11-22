@@ -279,6 +279,25 @@ func TestAddMigratesLegacyDestinations(t *testing.T) {
 	}
 }
 
+func TestAddRetiresAVerifiedLegacyCopy(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	write(t, userConfigFile(e.home), fmt.Sprintf("[components.util]\nrepo = %q\nref = \"master\"\n", e.remote))
+	quietStdout(t)
+	if code := run([]string{"update", "util"}); code != 0 {
+		t.Fatalf("legacy install exited %d", code)
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(e.home, ".new-claude"))
+	if code := run([]string{"add", e.remote, "--id", "util", "-g", "-y", "--copy"}); code != 0 {
+		t.Fatalf("re-add exited %d", code)
+	}
+	if _, err := os.Lstat(filepath.Join(e.home, ".claude", "skills", "util-skill")); !os.IsNotExist(err) {
+		t.Fatalf("the unused legacy copy is still live: %v", err)
+	}
+	if !exists(filepath.Join(e.home, ".new-claude", "skills", "util-skill", "SKILL.md")) {
+		t.Fatal("the re-add did not install for the new Claude Code folder")
+	}
+}
+
 func TestAddAdoptionLeavesForeignFolders(t *testing.T) {
 	e := newUtilityEnv(t, "")
 	skill := "---\nname: alpha\ndescription: alpha skill\n---\n"
@@ -549,6 +568,7 @@ func TestAddCopyConversionRetiresTheCanonicalCopy(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			e := newUtilityEnv(t, "")
 			write(t, filepath.Join(e.remote, "skills", "other", "SKILL.md"), "---\nname: other\ndescription: other skill\n---\n")
+			write(t, filepath.Join(e.remote, "skills", "util-skill", "ref.md"), "reference the skill needs\n")
 			commitAll(t, e.remote)
 			quietStdout(t)
 			if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf", "-s", "util-skill"}); code != 0 {
@@ -580,7 +600,7 @@ func TestAddCopyConversionRetiresTheCanonicalCopy(t *testing.T) {
 			switch kind {
 			case "unusable replacement":
 				for _, dir := range copies {
-					if err := os.Remove(filepath.Join(dir, "SKILL.md")); err != nil {
+					if err := os.Remove(filepath.Join(dir, "ref.md")); err != nil {
 						t.Fatal(err)
 					}
 				}

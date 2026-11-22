@@ -879,6 +879,7 @@ func recordDests(e manifestEntry, root, name string, dirs []string) error {
 	if len(e.Agents) == 0 && len(entry.Dests[root][name]) == 0 {
 		return nil
 	}
+	backfillLegacyTrees(&entry, e, root, name)
 	addInstalledDests(&entry, root, name, e.Project != "", dirs)
 	noteTrees(&entry, dirs)
 	state.Components[e.ID] = entry
@@ -893,6 +894,30 @@ func addInstalledDests(entry *stateEntry, root, name string, project bool, dirs 
 	addDests(entry, root, name, dirs)
 	if project {
 		addProjectSkill(entry, root, name)
+	}
+}
+
+func backfillLegacyTrees(entry *stateEntry, e manifestEntry, root, name string) {
+	commit := entry.SkillCopies[name]
+	if e.Project != "" || commit == "" || e.From[name] != "" || len(entry.Dests[root][name]) > 0 || !slices.Contains(entry.Skills, name) {
+		return
+	}
+	earlier := e
+	earlier.Path = filepath.Join(filepath.Dir(e.Path), commit)
+	if !verifiedStore(earlier.Path, commit) || entrySkillDir(earlier, name) == "" {
+		return
+	}
+	tree, err := expectedTree(earlier, name, false)
+	if err != nil {
+		return
+	}
+	for _, dir := range skillDirs(root, name) {
+		if info, err := os.Lstat(dir); err == nil && info.IsDir() {
+			if entry.DestTrees == nil {
+				entry.DestTrees = map[string]string{}
+			}
+			entry.DestTrees[realOr(dir)] = tree
+		}
 	}
 }
 
@@ -958,6 +983,9 @@ func retireStaleDests(root string, e manifestEntry, name string) error {
 				needed[realOr(dir)] = true
 			}
 		}
+	}
+	if !slices.ContainsFunc(recorded, func(dir string) bool { return !needed[realOr(dir)] }) || !layoutReady(e, root, name) || entryDriftCount(e, root, name) != 0 {
+		return nil
 	}
 	var keep []string
 	for _, dir := range recorded {

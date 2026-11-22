@@ -74,6 +74,7 @@ func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[
 				complete = matches && complete
 				if matches && (len(selected.Agents) > 0 || len(entry.Dests[target][name]) > 0) {
 					dirs := destDirs(entryDests(target, selected, name))
+					backfillLegacyTrees(&entry, selected, target, name)
 					addInstalledDests(&entry, target, name, selected.Project != "", dirs)
 					noteTrees(&entry, dirs)
 				}
