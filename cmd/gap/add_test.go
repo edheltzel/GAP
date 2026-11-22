@@ -545,7 +545,7 @@ func TestAddReAddReportsAFailedConversion(t *testing.T) {
 }
 
 func TestAddCopyConversionRetiresTheCanonicalCopy(t *testing.T) {
-	for _, kind := range []string{"same pin", "moved pin", "retried"} {
+	for _, kind := range []string{"same pin", "moved pin", "retried", "unusable replacement", "edit matches a cached revision"} {
 		t.Run(kind, func(t *testing.T) {
 			e := newUtilityEnv(t, "")
 			write(t, filepath.Join(e.remote, "skills", "other", "SKILL.md"), "---\nname: other\ndescription: other skill\n---\n")
@@ -558,12 +558,13 @@ func TestAddCopyConversionRetiresTheCanonicalCopy(t *testing.T) {
 			if !exists(filepath.Join(canonical, "SKILL.md")) {
 				t.Fatal("symlink mode wrote no canonical copy")
 			}
+			copies := []string{filepath.Join(e.home, ".claude", "skills", "util-skill"), filepath.Join(e.home, ".codeium", "windsurf", "skills", "util-skill")}
 			readd := []string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf", "-s", "other", "--copy"}
-			switch kind {
-			case "moved pin":
+			if kind == "moved pin" {
 				write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: newer upstream\n---\n")
 				commitAll(t, e.remote)
-			case "retried":
+			}
+			if kind != "same pin" && kind != "moved pin" {
 				parent := filepath.Dir(canonical)
 				if err := os.Chmod(parent, 0o555); err != nil {
 					t.Fatal(err)
@@ -576,21 +577,69 @@ func TestAddCopyConversionRetiresTheCanonicalCopy(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			switch kind {
+			case "unusable replacement":
+				for _, dir := range copies {
+					if err := os.Remove(filepath.Join(dir, "SKILL.md")); err != nil {
+						t.Fatal(err)
+					}
+				}
+				run(readd)
+				if !exists(filepath.Join(canonical, "SKILL.md")) {
+					t.Fatal("retirement took the only usable copy")
+				}
+				return
+			case "edit matches a cached revision":
+				intermediate := "---\nname: util-skill\ndescription: intermediate\n---\n"
+				write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), intermediate)
+				commitAll(t, e.remote)
+				if code := run([]string{"add", e.remote, "--list"}); code != 0 {
+					t.Fatalf("list exited %d", code)
+				}
+				write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: newest\n---\n")
+				commitAll(t, e.remote)
+				write(t, filepath.Join(canonical, "SKILL.md"), intermediate)
+				run(readd)
+				if got := readString(t, filepath.Join(canonical, "SKILL.md")); got != intermediate {
+					t.Fatalf("retirement moved an edited copy that matched a cached revision: %q", got)
+				}
+				return
+			}
 			if code := run(readd); code != 0 {
 				t.Fatalf("re-add exited %d", code)
 			}
 			if _, err := os.Lstat(canonical); !os.IsNotExist(err) {
 				t.Fatalf("the unused canonical copy is still live: %v", err)
 			}
-			for _, dir := range []string{filepath.Join(e.home, ".claude", "skills", "util-skill"), filepath.Join(e.home, ".codeium", "windsurf", "skills", "util-skill")} {
+			for _, dir := range copies {
 				if info, err := os.Lstat(dir); err != nil || !info.IsDir() {
 					t.Fatalf("%s is not a copy: %v", dir, err)
 				}
 			}
-			if kind == "moved pin" && !strings.Contains(readString(t, filepath.Join(e.home, ".claude", "skills", "util-skill", "SKILL.md")), "newer upstream") {
+			if kind == "moved pin" && !strings.Contains(readString(t, filepath.Join(copies[0], "SKILL.md")), "newer upstream") {
 				t.Fatal("the converted copy did not move to the new pin")
 			}
 		})
+	}
+}
+
+func TestAddRetiresAnOldLinkAndItsTarget(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	write(t, filepath.Join(e.remote, "skills", "other", "SKILL.md"), "---\nname: other\ndescription: other skill\n---\n")
+	commitAll(t, e.remote)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(e.home, ".000-claude"))
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf", "-s", "util-skill"}); code != 0 {
+		t.Fatalf("add exited %d", code)
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(e.home, ".new-claude"))
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "windsurf", "-s", "other", "--copy"}); code != 0 {
+		t.Fatalf("re-add exited %d", code)
+	}
+	for _, path := range []string{filepath.Join(e.home, ".000-claude", "skills", "util-skill"), filepath.Join(e.home, ".agents", "skills", "util-skill")} {
+		if _, err := os.Lstat(path); !os.IsNotExist(err) {
+			t.Fatalf("%s is still live: %v", path, err)
+		}
 	}
 }
 

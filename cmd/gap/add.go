@@ -1218,7 +1218,7 @@ func (r *addRun) install() error {
 	for _, entry := range entries {
 		target := entryHome(r.home, entry)
 		for _, name := range entry.Skills {
-			if !layoutReady(entry, target, name) {
+			if !layoutReady(entry, target, name) || !installed(target, entry, name) {
 				continue
 			}
 			if err := retireStaleDests(target, entry, name); err != nil {

@@ -26,6 +26,7 @@ type stateEntry struct {
 	ProjectSkills map[string][]string            `json:"projectSkills,omitempty"`
 	MCP           map[string]mcpRegistration     `json:"mcp,omitempty"`
 	Dests         map[string]map[string][]string `json:"dests,omitempty"`
+	DestTrees     map[string]string              `json:"destTrees,omitempty"`
 }
 
 func statePath(home string) string {
@@ -72,7 +73,9 @@ func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[
 				matches := installed(target, selected, name) && entryDriftCount(selected, target, name) == 0
 				complete = matches && complete
 				if matches && (len(selected.Agents) > 0 || len(entry.Dests[target][name]) > 0) {
-					addInstalledDests(&entry, target, name, selected.Project != "", destDirs(entryDests(target, selected, name)))
+					dirs := destDirs(entryDests(target, selected, name))
+					addInstalledDests(&entry, target, name, selected.Project != "", dirs)
+					noteTrees(&entry, dirs)
 				}
 				if matches && selected.Project == "" {
 					if entry.SkillCopies == nil {

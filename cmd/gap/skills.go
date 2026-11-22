@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"iter"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -126,33 +125,23 @@ func upgradeUntouched(home string, entries []manifestEntry) bool {
 // matchesEarlierStore reports whether every installed copy of name equals the skill in one
 // other verified commit of the same component under ~/.gap/store/<id>/.
 func matchesEarlierStore(e manifestEntry, home, name string) bool {
-	for earlier := range earlierEntries(e) {
+	root := filepath.Dir(e.Path)
+	stores, err := os.ReadDir(root)
+	if err != nil {
+		return false
+	}
+	for _, s := range stores {
+		dir := filepath.Join(root, s.Name())
+		if !s.IsDir() || !isHexLen(s.Name(), 40) || dir == e.Path || !verifiedStore(dir, s.Name()) {
+			continue
+		}
+		earlier := e
+		earlier.Path = dir
 		if entrySkillDir(earlier, name) != "" && entryDriftCount(earlier, home, name) == 0 {
 			return true
 		}
 	}
 	return false
-}
-
-func earlierEntries(e manifestEntry) iter.Seq[manifestEntry] {
-	return func(yield func(manifestEntry) bool) {
-		root := filepath.Dir(e.Path)
-		stores, err := os.ReadDir(root)
-		if err != nil {
-			return
-		}
-		for _, s := range stores {
-			dir := filepath.Join(root, s.Name())
-			if !s.IsDir() || !isHexLen(s.Name(), 40) || dir == e.Path || !verifiedStore(dir, s.Name()) {
-				continue
-			}
-			earlier := e
-			earlier.Path = dir
-			if !yield(earlier) {
-				return
-			}
-		}
-	}
 }
 
 // verifiedStore reports whether the checkout at dir still holds exactly the tree of commit,
@@ -891,6 +880,7 @@ func recordDests(e manifestEntry, root, name string, dirs []string) error {
 		return nil
 	}
 	addInstalledDests(&entry, root, name, e.Project != "", dirs)
+	noteTrees(&entry, dirs)
 	state.Components[e.ID] = entry
 	return writeState(home, state)
 }
@@ -923,7 +913,17 @@ func shareDests(home, from, to, root, name string, project bool) error {
 		return err
 	}
 	entry := state.Components[to]
-	addInstalledDests(&entry, root, name, project, ownedDests(state, from, root, name))
+	dirs := ownedDests(state, from, root, name)
+	addInstalledDests(&entry, root, name, project, dirs)
+	for _, dir := range dirs {
+		key := realOr(dir)
+		if tree := state.Components[from].DestTrees[key]; tree != "" && entry.DestTrees[key] == "" {
+			if entry.DestTrees == nil {
+				entry.DestTrees = map[string]string{}
+			}
+			entry.DestTrees[key] = tree
+		}
+	}
 	state.Components[to] = entry
 	return writeState(home, state)
 }
@@ -972,9 +972,12 @@ func retireStaleDests(root string, e manifestEntry, name string) error {
 		if err != nil {
 			return err
 		}
-		if info.Mode()&os.ModeSymlink == 0 && editedCopy(e, root, name, dir) {
-			keep = append(keep, dir)
-			continue
+		key := realOr(dir)
+		if info.Mode()&os.ModeSymlink == 0 {
+			if tree, err := treeHash(dir); err != nil || entry.DestTrees[key] == "" || tree != entry.DestTrees[key] {
+				keep = append(keep, dir)
+				continue
+			}
 		}
 		backup := backupPath(dir, root)
 		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
@@ -984,6 +987,9 @@ func retireStaleDests(root string, e manifestEntry, name string) error {
 			return err
 		}
 		fmt.Println("Backed up to " + backup)
+		if info.Mode()&os.ModeSymlink == 0 {
+			delete(entry.DestTrees, key)
+		}
 	}
 	if len(keep) == len(recorded) {
 		return nil
@@ -993,16 +999,21 @@ func retireStaleDests(root string, e manifestEntry, name string) error {
 	return writeState(home, state)
 }
 
-func editedCopy(e manifestEntry, root, name, dir string) bool {
-	if !ownedDrift(e, root, name, []string{dir}) {
-		return false
-	}
-	for earlier := range earlierEntries(e) {
-		if entrySkillDir(earlier, name) != "" && !ownedDrift(earlier, root, name, []string{dir}) {
-			return false
+func noteTrees(entry *stateEntry, dirs []string) {
+	for _, dir := range dirs {
+		info, err := os.Lstat(dir)
+		if err != nil || !info.IsDir() {
+			continue
 		}
+		tree, err := treeHash(dir)
+		if err != nil {
+			continue
+		}
+		if entry.DestTrees == nil {
+			entry.DestTrees = map[string]string{}
+		}
+		entry.DestTrees[realOr(dir)] = tree
 	}
-	return true
 }
 
 func layoutReady(e manifestEntry, root, name string) bool {
