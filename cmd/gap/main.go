@@ -368,7 +368,7 @@ func checkCommandOwners(repoRoot, home string, selected distro) error {
 		return err
 	}
 	for _, id := range sortedIDs(d.Components) {
-		if c := d.Components[id]; c.User && !c.Manifest {
+		if c := d.Components[id]; c.User && !c.Manifest && c.Store == "" {
 			return fmt.Errorf("cannot determine %s command ownership; run gap update %s before publishing commands", id, id)
 		}
 		seen := map[string]bool{}
@@ -416,10 +416,11 @@ var gitLocalEnv = []string{"GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GI
 
 // gitEnv is the environment minus gitLocalEnv, so git acts on the repo gap names, not an inherited one.
 func gitEnv() []string {
-	return slices.DeleteFunc(os.Environ(), func(kv string) bool {
+	env := slices.DeleteFunc(os.Environ(), func(kv string) bool {
 		name, _, _ := strings.Cut(kv, "=")
-		return slices.Contains(gitLocalEnv, name)
+		return slices.Contains(gitLocalEnv, name) || name == "GIT_TERMINAL_PROMPT"
 	})
+	return append(env, "GIT_TERMINAL_PROMPT=0")
 }
 
 func git(dir string, args ...string) (string, error) {

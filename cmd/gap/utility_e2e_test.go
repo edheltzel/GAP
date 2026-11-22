@@ -90,7 +90,7 @@ func TestUtilityLifecycle(t *testing.T) {
 	}
 	owned := []string{".agents/skills/util-skill/SKILL.md", ".claude/skills/util-skill/SKILL.md", ".claude/commands/util-cmd.md", ".omp/agent/commands/util-cmd.md", ".pi/agent/prompts/util-cmd.md"}
 
-	if out := gap(1, "add", remote, "--id", "util"); !strings.Contains(out, "not approved") {
+	if out := gap(1, addGlobalArgs("add", remote, "--id", "util")...); !strings.Contains(out, "not approved") {
 		t.Fatalf("untrusted add must skip the hook:\n%s", out)
 	}
 	if took("installed") {

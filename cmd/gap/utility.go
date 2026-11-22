@@ -12,29 +12,6 @@ import (
 	"text/tabwriter"
 )
 
-// parseUtilitySpec turns owner/repo[@ref], github.com/owner/repo[@ref], or a file:// URL or absolute path into a repo, ref, and default id.
-func parseUtilitySpec(spec string) (repo, ref, id string, err error) {
-	repo = spec
-	if i := strings.LastIndex(spec, "@"); i > 0 {
-		repo, ref = spec[:i], spec[i+1:]
-		if ref == "" {
-			return "", "", "", fmt.Errorf("usage: gap add owner/repo[@ref]")
-		}
-	}
-	switch {
-	case strings.HasPrefix(repo, "file://") || filepath.IsAbs(repo):
-	case strings.HasPrefix(repo, "github.com/"):
-	default:
-		repo = "github.com/" + repo
-	}
-	repo = strings.TrimSuffix(strings.TrimSuffix(repo, "/"), ".git")
-	if _, err := cloneURL(repo); err != nil {
-		return "", "", "", err
-	}
-	id = strings.ToLower(filepath.Base(strings.TrimPrefix(repo, "file://")))
-	return repo, ref, id, nil
-}
-
 // defaultBranch is the branch the remote's HEAD points at.
 func defaultBranch(url string) (string, error) {
 	out, err := spin("Reading the default branch of "+url, func() (string, error) { return git(".", "ls-remote", "--symref", url, "HEAD") })
@@ -48,7 +25,7 @@ func defaultBranch(url string) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("%s has no default branch; pass owner/repo@ref", url)
+	return "", fmt.Errorf("%s has no default branch; pass owner/repo#ref", url)
 }
 
 func validID(id string) bool {
@@ -67,189 +44,233 @@ func userConfigFile(home string) string {
 	return filepath.Join(userConfigDir(home), "gap.toml")
 }
 
-func addUtility(spec, id string, project bool) error {
-	home, repoRoot, err := gapHomes()
-	if err != nil {
-		return err
-	}
-	projectRoot, err := invokingProjectRoot()
-	if err != nil {
-		return err
-	}
-	if project && filepath.Clean(projectRoot) == filepath.Clean(home) {
-		return fmt.Errorf("gap add --project needs a project folder; run it inside the repo, or drop --project to add it globally")
-	}
-	repo, ref, defaultID, err := parseUtilitySpec(spec)
-	if err != nil {
-		return err
-	}
-	if id == "" {
-		id = defaultID
-	}
-	if !validID(id) {
-		return fmt.Errorf("id %q must use lowercase letters, digits, dot, dash, or underscore; policy and manifest are reserved; pass --id", id)
-	}
-	d, _, err := registeredPins(repoRoot, home)
-	if err != nil {
-		return err
-	}
-	projectText := ""
-	if project {
-		if projectText, err = projectComponentText(projectRoot, id); err != nil {
-			return err
-		}
-	}
-	if c, taken := d.Components[id]; taken {
-		switch {
-		case !c.User:
-			return fmt.Errorf("%s is already a distro component; pass --id to add this repo under another id", id)
-		case project && c.ProjectOnly:
-			return addToProject(home, repoRoot, projectRoot, id, projectText)
-		case project:
-			return fmt.Errorf("utility %s is already added globally; run gap remove %s first to add it per project", id, id)
-		case c.ProjectOnly:
-			return fmt.Errorf("utility %s is added per project; run gap add --project inside a repo to add it there", id)
-		}
-		return fmt.Errorf("utility %s is already added; run gap update %s", id, id)
-	}
-	config := userConfigFile(home)
-	text, err := readOptional(config)
-	if err != nil {
-		return err
-	}
+func projectConfigFile(root string) string {
+	return filepath.Join(root, ".gap", "gap.toml")
+}
+
+type componentConfig struct {
+	Repo, Ref, Path, Load    string
+	Enabled                  *bool
+	Pin                      bool
+	Names, Agents, Subagents []string
+	Copy                     bool
+	From                     map[string]string
+	Skills                   map[string]map[string]any
+}
+
+func readComponentConfig(text, id string) (componentConfig, bool, error) {
 	doc, err := parseTOML(text)
 	if err != nil {
-		return err
+		return componentConfig{}, false, err
 	}
-	if components, ok := doc["components"].(map[string]any); ok {
-		if _, exists := components[id]; exists {
-			return fmt.Errorf("%s already declares components.%s; pass --id to use another id", config, tomlKey(id))
+	components, _ := doc["components"].(map[string]any)
+	table, ok := components[id].(map[string]any)
+	if !ok {
+		return componentConfig{}, false, nil
+	}
+	cc := componentConfig{From: map[string]string{}, Skills: map[string]map[string]any{}}
+	cc.Repo, _ = table["repo"].(string)
+	cc.Ref, _ = table["ref"].(string)
+	cc.Path, _ = table["path"].(string)
+	cc.Load, _ = table["load"].(string)
+	if enabled, ok := table["enabled"].(bool); ok {
+		cc.Enabled = &enabled
+	}
+	cc.Pin, _ = table["pin"].(bool)
+	cc.Names, _ = table["names"].([]string)
+	cc.Agents, _ = table["agents"].([]string)
+	cc.Copy, _ = table["copy"].(bool)
+	cc.Subagents, _ = table["subagents"].([]string)
+	skills, _ := table["skills"].(map[string]any)
+	for name, raw := range skills {
+		spec, ok := raw.(map[string]any)
+		if strings.HasPrefix(name, "\x00") || !ok {
+			continue
+		}
+		rest := map[string]any{}
+		for key, value := range spec {
+			switch {
+			case strings.HasPrefix(key, "\x00"):
+			case key == "from":
+				if from, ok := value.(string); ok {
+					cc.From[name] = from
+				}
+			default:
+				rest[key] = value
+			}
+		}
+		cc.Skills[name] = rest
+	}
+	return cc, true, nil
+}
+
+func tomlString(s string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`).Replace(s) + `"`
+}
+
+func tomlStrings(list []string) string {
+	quoted := make([]string, len(list))
+	for i, s := range list {
+		quoted[i] = tomlString(s)
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
+}
+
+func componentTOML(id string, cc componentConfig) string {
+	var b strings.Builder
+	key := "components." + tomlKey(id)
+	b.WriteString("[" + key + "]\n")
+	for _, kv := range [][2]string{{"repo", cc.Repo}, {"ref", cc.Ref}, {"path", cc.Path}, {"load", cc.Load}} {
+		if kv[1] != "" {
+			b.WriteString(kv[0] + " = " + tomlString(kv[1]) + "\n")
 		}
 	}
-	url, err := cloneURL(repo)
-	if err != nil {
-		return err
+	if cc.Enabled != nil {
+		fmt.Fprintf(&b, "enabled = %t\n", *cc.Enabled)
 	}
-	if ref == "" {
-		if ref, err = defaultBranch(url); err != nil {
-			return err
+	if cc.Pin {
+		b.WriteString("pin = true\n")
+	}
+	for _, kv := range []struct {
+		key  string
+		list []string
+	}{{"names", cc.Names}, {"agents", cc.Agents}} {
+		if kv.list != nil {
+			b.WriteString(kv.key + " = " + tomlStrings(kv.list) + "\n")
 		}
 	}
-	commit, err := resolveRef(url, ref)
-	if err != nil {
-		return err
+	if cc.Copy {
+		b.WriteString("copy = true\n")
 	}
-	c := component{ID: id, Repo: repo, Ref: ref, User: true}
-	pin, err := pinCommit(home, c, ref, commit, lockEntryM1{})
-	if err != nil {
-		return err
+	if cc.Subagents != nil {
+		b.WriteString("subagents = " + tomlStrings(cc.Subagents) + "\n")
 	}
-	m, err := readUtilityManifest(storePath(home, id, commit))
-	if err != nil {
-		return fmt.Errorf("%s: %w", repo, err)
+	names := appendMissing(slices.Collect(maps.Keys(cc.Skills)), slices.Collect(maps.Keys(cc.From))...)
+	slices.Sort(names)
+	for _, name := range names {
+		b.WriteString("\n[" + key + ".skills." + tomlKey(name) + "]\n")
+		if from := cc.From[name]; from != "" {
+			b.WriteString("from = " + tomlString(from) + "\n")
+		}
+		spec := cc.Skills[name]
+		if load, ok := spec["load"].(string); ok {
+			b.WriteString("load = " + tomlString(load) + "\n")
+		}
+		if when, ok := spec["when"].(map[string]any); ok {
+			if files, ok := when["files"].([]string); ok {
+				b.WriteString("when.files = " + tomlStrings(files) + "\n")
+			}
+		}
 	}
-	c, err = applyManifest(c, storePath(home, id, commit))
-	if err != nil {
-		return err
-	}
-	if err := checkCommandOwners(repoRoot, home, distro{Components: map[string]component{id: c}}); err != nil {
-		return err
-	}
-	out := newReport(os.Stdout)
-	out.section(id, describeUtility(m)+pinLabel(pin))
-	if project && (len(m.Commands) > 0 || len(m.MCP) > 0 || m.Hooks.Install != "" || m.Hooks.Update != "" || m.Hooks.Uninstall != "") {
-		out.println("Its skills install into " + projectRoot + "; its commands, hooks, and MCP servers are machine-wide.")
-	}
+	return b.String()
+}
+
+func upsertComponent(text, id string, cc componentConfig) (string, error) {
+	text, _ = removeTOMLComponent(text, id)
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
 	if text != "" {
 		text += "\n"
 	}
-	text += fmt.Sprintf("[components.%s]\nrepo = %q\nref = %q\n", tomlKey(id), repo, ref)
-	if project {
-		text += "load = \"project\"\n"
-	}
+	text += componentTOML(id, cc)
 	if _, err := parseTOML(text); err != nil {
-		return fmt.Errorf("adding %s to %s: %w", id, config, err)
-	}
-	if err := writeAtomic(config, text); err != nil {
-		return err
-	}
-	if err := setUserPin(home, id, pin); err != nil {
-		return err
-	}
-	if project {
-		if err := writeAtomic(projectConfigFile(projectRoot), projectText); err != nil {
-			return err
-		}
-	}
-	err = installUtility(home, repoRoot, projectRoot, id, "", mcpInventory{})
-	where := ""
-	if project {
-		where = " to " + projectRoot
-	}
-	switch {
-	case err == nil:
-		out.done(true, id+" added"+where+pinLabel(pin))
-	case errors.Is(err, errSkipped):
-		out.done(false, id+" added"+where+pinLabel(pin)+"; some install steps were left over, see above")
-	}
-	return err
-}
-
-func projectConfigFile(root string) string {
-	return filepath.Join(root, ".gap", "gap.toml")
-}
-
-// projectComponentText returns the project's .gap/gap.toml with id opted in to this repo.
-// A missing file starts the way gap init writes it.
-func projectComponentText(root, id string) (string, error) {
-	config := projectConfigFile(root)
-	text, err := readOptional(config)
-	if err != nil {
 		return "", err
-	}
-	if text == "" {
-		text = "profile = \"project\"\nslug = " + strconv.Quote(filepath.Base(root)) + "\n"
-	}
-	doc, err := parseTOML(text)
-	if err != nil {
-		return "", fmt.Errorf("fix %s before gap add --project: %w", config, err)
-	}
-	if components, ok := doc["components"].(map[string]any); ok {
-		if table, exists := components[id].(map[string]any); exists {
-			if table["load"] == "project" {
-				return "", fmt.Errorf("utility %s is already added to %s; run gap update %s", id, root, id)
-			}
-			return "", fmt.Errorf("%s already declares components.%s; set load = \"project\" there, then run gap sync", config, tomlKey(id))
-		}
-	}
-	if !strings.HasSuffix(text, "\n") {
-		text += "\n"
-	}
-	text += fmt.Sprintf("\n[components.%s]\nload = \"project\"\n", tomlKey(id))
-	if _, err := parseTOML(text); err != nil {
-		return "", fmt.Errorf("adding %s to %s: %w", id, config, err)
 	}
 	return text, nil
 }
 
-// addToProject opts one more repo in to a per-project utility that is already pinned.
-func addToProject(home, repoRoot, projectRoot, id, projectText string) error {
-	out := newReport(os.Stdout)
-	out.section(id, "add to "+projectRoot)
-	if err := writeAtomic(projectConfigFile(projectRoot), projectText); err != nil {
+type addSelection struct {
+	names, agents, subagents, manifest []string
+	from                               map[string]string
+	copy                               bool
+}
+
+func mergeSelection(cc componentConfig, declared bool, sel addSelection) componentConfig {
+	names := slices.Clone(cc.Names)
+	if declared && cc.Names == nil && sel.manifest != nil {
+		names = slices.Clone(sel.manifest)
+	}
+	names = appendMissing(names, sel.names...)
+	slices.Sort(names)
+	if cc.From == nil {
+		cc.From = map[string]string{}
+	}
+	for _, name := range sel.names {
+		delete(cc.From, name)
+	}
+	maps.Copy(cc.From, sel.from)
+	covers := sel.manifest != nil && len(cc.From) == 0 && !slices.ContainsFunc(sel.manifest, func(m string) bool { return !slices.Contains(names, m) })
+	cc.Names = names
+	if covers {
+		cc.Names = nil
+	}
+	cc.Agents = appendMissing(cc.Agents, sel.agents...)
+	cc.Copy = sel.copy
+	cc.Subagents = appendMissing(cc.Subagents, sel.subagents...)
+	if len(cc.Subagents) == 0 || len(cc.Subagents) == 1 && cc.Subagents[0] == "" {
+		cc.Subagents = nil
+	}
+	return cc
+}
+
+func appendMissing(list []string, items ...string) []string {
+	for _, item := range items {
+		if !slices.Contains(list, item) {
+			list = append(list, item)
+		}
+	}
+	return list
+}
+
+func updatedConfig(path, initial, id string, update func(componentConfig, bool) componentConfig) (string, error) {
+	text, err := readOptional(path)
+	if err != nil {
+		return "", err
+	}
+	if text == "" {
+		text = initial
+	}
+	cc, declared, err := readComponentConfig(text, id)
+	if err != nil {
+		return "", fmt.Errorf("fix %s before gap add: %w", path, err)
+	}
+	next, err := upsertComponent(text, id, update(cc, declared))
+	if err != nil {
+		return "", fmt.Errorf("adding %s to %s: %w", id, path, err)
+	}
+	return next, nil
+}
+
+func writeAddConfig(home, projectRoot, id string, global bool, base componentConfig, sel addSelection) error {
+	user, err := updatedConfig(userConfigFile(home), "", id, func(cc componentConfig, declared bool) componentConfig {
+		cc.Repo, cc.Ref, cc.Path = base.Repo, base.Ref, base.Path
+		if global {
+			cc.Load = ""
+			return mergeSelection(cc, declared, sel)
+		}
+		cc.Load = "project"
+		cc.Names, cc.Agents, cc.Copy, cc.Subagents, cc.From = nil, nil, false, nil, nil
+		return cc
+	})
+	if err != nil {
 		return err
 	}
-	err := installUtility(home, repoRoot, projectRoot, id, "", mcpInventory{})
-	switch {
-	case err == nil:
-		out.done(true, id+" added to "+projectRoot)
-	case errors.Is(err, errSkipped):
-		out.done(false, id+" added to "+projectRoot+"; some install steps were left over, see above")
+	if global {
+		return writeAtomic(userConfigFile(home), user)
 	}
-	return err
+	initial := "profile = \"project\"\nslug = " + strconv.Quote(filepath.Base(projectRoot)) + "\n"
+	project, err := updatedConfig(projectConfigFile(projectRoot), initial, id, func(cc componentConfig, declared bool) componentConfig {
+		cc.Load = "project"
+		return mergeSelection(cc, declared, sel)
+	})
+	if err != nil {
+		return err
+	}
+	if err := writeAtomic(userConfigFile(home), user); err != nil {
+		return err
+	}
+	return writeAtomic(projectConfigFile(projectRoot), project)
 }
 
 func describeUtility(m utilityManifest) string {
@@ -345,7 +366,7 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpIn
 			if baseline == "" || baseline == entry.Path || !slices.Contains(state.Components[id].Skills, name) {
 				continue
 			}
-			if !installed(target, name) || entryDriftCount(entry, target, name) == 0 {
+			if !installed(target, entry, name) || entryDriftCount(entry, target, name) == 0 {
 				continue
 			}
 			previous := entry
@@ -355,7 +376,7 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpIn
 				skillsOK = false
 				continue
 			}
-			if replaced, err := replaceSkill(target, entry, name); err != nil || !replaced {
+			if _, err := replaceSkill(target, entry, name); err != nil {
 				fmt.Fprintf(os.Stderr, "Updating %s: %v\n", name, err)
 				skillsOK = false
 			}
@@ -474,7 +495,7 @@ func updateUtilities(id string) (resultErr error) {
 			if err != nil {
 				return err
 			}
-			if _, err := readUtilityManifest(storePath(home, cid, commit)); err != nil {
+			if _, err := storeHooks(storePath(home, cid, commit)); err != nil {
 				return fmt.Errorf("%s at %s: %w", cid, commit[:7], err)
 			}
 			lk.Components[cid] = pin
@@ -674,22 +695,22 @@ func removeUtility(id string) error {
 		if err != nil {
 			return err
 		}
-		manifest, err := readUtilityManifest(dir)
+		hooks, err := storeHooks(dir)
 		if err != nil {
 			return err
 		}
-		if manifest.Hooks.Uninstall != "" {
-			if !gate.approve(c, "uninstall", manifest.Hooks.Uninstall) {
+		if hooks.Uninstall != "" {
+			if !gate.approve(c, "uninstall", hooks.Uninstall) {
 				return fmt.Errorf("%s: uninstall hook not approved; nothing removed", id)
 			}
-			if err := runComponentCommand(dir, manifest.Hooks.Uninstall); err != nil {
+			if err := runComponentCommand(dir, hooks.Uninstall); err != nil {
 				return fmt.Errorf("%s uninstall hook failed; nothing removed: %w", id, err)
 			}
 			out.result(true, id+" uninstall hook finished")
 			if err := markUninstalled(home, id); err != nil {
 				return err
 			}
-		} else if manifest.Hooks.Install != "" && !gate.trusted(c) {
+		} else if hooks.Install != "" && !gate.trusted(c) {
 			fmt.Fprintf(os.Stderr, "%s has an install hook but no uninstall hook; gap cannot undo what its installer did.\n", id)
 		}
 	}
@@ -745,13 +766,11 @@ func removeUtility(id string) error {
 			}
 			return err
 		}
-		rel, err := filepath.Rel(home, path)
+		dest := backupTarget(home, backup, path)
 		if project {
-			rel = filepath.Join("projects", strings.TrimPrefix(path, string(filepath.Separator)))
-		} else if err != nil || strings.HasPrefix(rel, "..") {
-			return fmt.Errorf("refusing to remove %s: outside home", path)
+			dest = filepath.Join(backup, "projects", strings.TrimPrefix(path, string(filepath.Separator)))
 		}
-		dest := filepath.Join(backup, rel)
+		dest = unusedPath(dest)
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err
 		}
@@ -768,6 +787,9 @@ func removeUtility(id string) error {
 	for _, name := range entry.Skills {
 		if shared[name] {
 			for _, owner := range sharedSkillOwners[name] {
+				if err := shareDests(home, id, owner, home, name, false); err != nil {
+					return err
+				}
 				if err := recordOwnership(home, owner, []string{name}, nil, ""); err != nil {
 					return err
 				}
@@ -775,8 +797,9 @@ func removeUtility(id string) error {
 			fmt.Printf("Kept %s: another component also selects it\n", name)
 			continue
 		}
-		changed := c.Store == "" || entryDriftCount(manifestEntry{Path: c.Store, SkillPath: c.SkillPath}, home, name) > 0
-		for _, dir := range skillDirs(home, name) {
+		dirs := ownedDests(gate.state, id, home, name)
+		changed := c.Store == "" || ownedDrift(componentEntry(c, c.Store), home, name, dirs)
+		for _, dir := range dirs {
 			if err := moveOut(dir, changed); err != nil {
 				return err
 			}
@@ -787,14 +810,23 @@ func removeUtility(id string) error {
 	}
 	for _, root := range slices.Sorted(maps.Keys(entry.ProjectSkills)) {
 		for _, name := range entry.ProjectSkills[root] {
-			if slices.ContainsFunc(slices.Collect(maps.Keys(gate.state.Components)), func(oid string) bool {
-				return oid != id && slices.Contains(gate.state.Components[oid].ProjectSkills[root], name)
-			}) {
+			others := slices.DeleteFunc(slices.Sorted(maps.Keys(gate.state.Components)), func(oid string) bool {
+				return oid == id || !slices.Contains(gate.state.Components[oid].ProjectSkills[root], name)
+			})
+			if len(others) > 0 {
+				for _, owner := range others {
+					if err := shareDests(home, id, owner, root, name, true); err != nil {
+						return err
+					}
+				}
 				fmt.Printf("Kept %s in %s: another utility also installs it there\n", name, root)
 				continue
 			}
-			changed := c.Store == "" || entryDriftCount(manifestEntry{Path: c.Store, SkillPath: c.SkillPath}, root, name) > 0
-			for _, dir := range skillDirs(root, name) {
+			dirs := ownedDests(gate.state, id, root, name)
+			project := componentEntry(projectComponent(c, root), c.Store)
+			project.Project = root
+			changed := c.Store == "" || ownedDrift(project, root, name, dirs)
+			for _, dir := range dirs {
 				if err := move(dir, changed, true); err != nil {
 					return err
 				}
@@ -900,6 +932,14 @@ func dropProjectComponent(root, id string) error {
 		return err
 	}
 	return writeAtomic(config, next)
+}
+
+func projectComponent(c component, root string) component {
+	d, err := mergeOverride(distro{Components: map[string]component{c.ID: c}}, projectConfigFile(root), false)
+	if err != nil {
+		return c
+	}
+	return d.Components[c.ID]
 }
 
 func fileExists(path string) bool {

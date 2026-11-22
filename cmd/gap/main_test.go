@@ -23,10 +23,13 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	if err := os.Unsetenv("JCODE_HOME"); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	for _, key := range []string{"JCODE_HOME", "XDG_CONFIG_HOME", "GH_HOST", "INSTALL_INTERNAL_SKILLS", "AI_AGENT", "CURSOR_TRACE_ID", "CURSOR_AGENT", "CURSOR_EXTENSION_HOST_ROLE", "GEMINI_CLI", "CODEX_SANDBOX", "CODEX_CI", "CODEX_THREAD_ID", "ANTIGRAVITY_AGENT", "AUGMENT_AGENT", "OPENCODE", "OPENCODE_CLIENT", "CLAUDECODE", "CLAUDE_CODE", "CLAUDE_CODE_IS_COWORK", "REPL_ID", "COPILOT_MODEL", "COPILOT_ALLOW_ALL", "COPILOT_GITHUB_TOKEN"} {
+		if err := os.Unsetenv(key); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	}
+	devinMarker = filepath.Join(os.TempDir(), "gap-test-no-devin")
 	docsDir = "/repo/global/docs/agents"
 	os.Exit(m.Run())
 }

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -104,6 +105,16 @@ func backupTarget(home, backup, path string) string {
 	return filepath.Join(backup, rel)
 }
 
+func unusedPath(path string) string {
+	candidate := path
+	for n := 2; ; n++ {
+		if _, err := os.Lstat(candidate); err != nil {
+			return candidate
+		}
+		candidate = path + "." + strconv.Itoa(n)
+	}
+}
+
 var renameBackup = os.Rename
 
 // moveToBackup moves path into the backup folder. A missing path is not an error.
@@ -114,7 +125,7 @@ func moveToBackup(home, backup, path string) (bool, error) {
 		}
 		return false, err
 	}
-	dest := backupTarget(home, backup, path)
+	dest := unusedPath(backupTarget(home, backup, path))
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return false, err
 	}
@@ -319,7 +330,11 @@ func (p *uninstallPlan) preview(out *report) {
 	if len(p.skills) > 0 {
 		out.println(out.bold("Skills", colorAccent))
 		for _, name := range p.skills {
-			item(name + " in ~/.agents/skills and ~/.claude/skills")
+			var parents []string
+			for _, dir := range p.skillPaths(name) {
+				parents = append(parents, tildePath(filepath.Dir(dir)))
+			}
+			item(name + " in " + strings.Join(parents, " and "))
 		}
 	}
 	out.println(out.bold("Records", colorAccent))
@@ -368,6 +383,11 @@ func holdUtilityCleanup(home string, ids []string) error {
 		for _, path := range entry.Commands {
 			commands[path] = true
 		}
+		for root, names := range entry.Dests {
+			for name, dirs := range names {
+				addDests(&held, root, name, dirs)
+			}
+		}
 	}
 	if len(skills) == 0 && len(commands) == 0 {
 		return nil
@@ -376,6 +396,21 @@ func holdUtilityCleanup(home string, ids []string) error {
 	held.Commands = slices.Sorted(maps.Keys(commands))
 	state.Components[pendingUninstall] = held
 	return writeState(home, state)
+}
+
+func (p *uninstallPlan) skillPaths(name string) []string {
+	var out []string
+	for _, id := range slices.Sorted(maps.Keys(p.state.Components)) {
+		entry := p.state.Components[id]
+		if !slices.Contains(entry.Skills, name) && entry.SkillCopies[name] == "" && len(entry.Dests[p.home][name]) == 0 {
+			continue
+		}
+		out = appendMissing(out, ownedDests(p.state, id, p.home, name)...)
+	}
+	if len(out) == 0 {
+		return skillDirs(p.home, name)
+	}
+	return out
 }
 
 func uninstallAll(opts uninstallOptions) error {
@@ -533,7 +568,7 @@ func uninstallAll(opts uninstallOptions) error {
 
 	for _, name := range p.skills {
 		ok := true
-		for _, dir := range skillDirs(home, name) {
+		for _, dir := range p.skillPaths(name) {
 			if moved, err := moveToBackup(home, backup, dir); err != nil {
 				fail("%s: %v", dir, err)
 				ok = false

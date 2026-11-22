@@ -215,8 +215,8 @@ func TestEnvReviewNativeReplacement(t *testing.T) {
 		t.Fatal("native install required an external tool")
 	}
 	write(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md"), "edited\n")
-	if ok, err := replaceSkill(home, entry, "do-todo"); err != nil || !ok || readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")) != "pinned\n" {
-		t.Fatalf("native take source: %v %v", ok, err)
+	if _, err := replaceSkill(home, entry, "do-todo"); err != nil || readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")) != "pinned\n" {
+		t.Fatalf("native take source: %v", err)
 	}
 	entry.Skills = []string{"missing"}
 	if installSkills(home, []manifestEntry{entry}) {
@@ -233,8 +233,8 @@ func TestEnvReviewNativeReplacement(t *testing.T) {
 	}
 	write(t, filepath.Join(home, ".claude", "skills"), "blocked\n")
 	write(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md"), "keep my edit\n")
-	if ok, err := replaceSkill(home, entry, "do-todo"); err == nil || ok {
-		t.Fatalf("replacement unexpectedly succeeded: %v %v", ok, err)
+	if _, err := replaceSkill(home, entry, "do-todo"); err == nil {
+		t.Fatal("replacement unexpectedly succeeded")
 	}
 	if readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")) != "keep my edit\n" || readString(t, filepath.Join(home, ".claude", "skills")) != "blocked\n" {
 		t.Fatal("failed replacement lost existing files")

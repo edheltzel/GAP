@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -40,6 +41,9 @@ type component struct {
 	MCP         []mcpServer
 	Store       string
 	SkillPath   string
+	Agents      []string
+	Copy        bool
+	Subagents   []string
 }
 
 // skillSpec is one skill's load level. WhenFiles names the repo files that make a
@@ -47,6 +51,7 @@ type component struct {
 type skillSpec struct {
 	Load      string
 	WhenFiles []string
+	From      string
 }
 
 type lockFile struct {
@@ -121,6 +126,9 @@ func parseComponent(id string, table map[string]any) (component, error) {
 		return component{}, fmt.Errorf("component %s: %w", id, err)
 	}
 	_, c.Named = table["names"]
+	if err := applyTargets(&c, table); err != nil {
+		return component{}, fmt.Errorf("component %s: %w", id, err)
+	}
 	if raw, set := table["pin"]; set {
 		pin, ok := raw.(bool)
 		if !ok {
@@ -139,6 +147,36 @@ func parseComponent(id string, table map[string]any) (component, error) {
 	return c, nil
 }
 
+func applyTargets(c *component, table map[string]any) error {
+	if raw, set := table["agents"]; set {
+		list, ok := raw.([]string)
+		if !ok {
+			return fmt.Errorf("agents must be a string array")
+		}
+		for _, id := range list {
+			if _, known := agentByID(id); !known {
+				return fmt.Errorf("unknown agent %s", id)
+			}
+		}
+		c.Agents = list
+	}
+	if raw, set := table["copy"]; set {
+		value, ok := raw.(bool)
+		if !ok {
+			return fmt.Errorf("copy must be true or false")
+		}
+		c.Copy = value
+	}
+	if raw, set := table["subagents"]; set {
+		list, ok := raw.([]string)
+		if !ok {
+			return fmt.Errorf("subagents must be a string array")
+		}
+		c.Subagents = list
+	}
+	return nil
+}
+
 // applyManifest fills a component's skills, commands, and hooks from gap-utility.toml in its pinned store.
 // names in the spec narrows the manifest's skills.
 func applyManifest(c component, store string) (component, error) {
@@ -148,14 +186,15 @@ func applyManifest(c component, store string) (component, error) {
 	if c.Manifest {
 		return c, nil
 	}
-	if !hasUtilityManifest(store) {
-		if c.User || !c.Named {
+	manifest := hasUtilityManifest(store)
+	if (manifest || c.User) && (c.Install != "" || c.Doctor != "") {
+		return component{}, fmt.Errorf("component %s: install and doctor belong in the repo's %s, not in its spec", c.ID, utilityManifestName)
+	}
+	if !manifest {
+		if !c.Named && (!c.User || !c.ProjectOnly) {
 			return component{}, fmt.Errorf("component %s: no names in its spec and no %s in its repo", c.ID, utilityManifestName)
 		}
 		return c, nil
-	}
-	if c.Install != "" || c.Doctor != "" {
-		return component{}, fmt.Errorf("component %s: install and doctor belong in the repo's %s, not in its spec", c.ID, utilityManifestName)
 	}
 	m, err := readUtilityManifest(store)
 	if err != nil {
@@ -163,7 +202,7 @@ func applyManifest(c component, store string) (component, error) {
 	}
 	if c.Named {
 		for _, name := range c.Skills {
-			if !slices.Contains(m.Skills, name) {
+			if !slices.Contains(m.Skills, cmp.Or(c.SkillSet[name].From, name)) {
 				return component{}, fmt.Errorf("component %s: names lists %s, which its %s does not declare", c.ID, name, utilityManifestName)
 			}
 		}
@@ -231,6 +270,13 @@ func componentSkills(table map[string]any) ([]string, map[string]skillSpec, erro
 			} else if _, present := when["files"]; present {
 				return nil, nil, fmt.Errorf("skill %s when.files must be a string array", name)
 			}
+		}
+		if raw, set := spec["from"]; set {
+			from, ok := raw.(string)
+			if !ok || from == "" {
+				return nil, nil, fmt.Errorf("skill %s from must be a nonempty string", name)
+			}
+			s.From = from
 		}
 		if named && !seen[name] {
 			return nil, nil, fmt.Errorf("skill %s is not in names", name)
@@ -313,18 +359,19 @@ func lockFor(d distro, lk lockFile) (map[string]lockEntryM1, error) {
 
 // cloneURL turns a component repo into something git can fetch.
 // github.com/owner/repo becomes https://github.com/owner/repo.git.
-// file:// and an absolute path are kept for tests.
+// A git URL, a file:// URL, and an absolute path are kept as written.
 func cloneURL(repo string) (string, error) {
-	if strings.HasPrefix(repo, "file://") || filepath.IsAbs(repo) {
+	for _, prefix := range []string{"file://", "https://", "http://", "ssh://"} {
+		if strings.HasPrefix(repo, prefix) {
+			return repo, nil
+		}
+	}
+	if filepath.IsAbs(repo) || scpRemotePattern.MatchString(repo) {
 		return repo, nil
 	}
 	owner, _, ok := githubIdentity(repo)
-	if !ok {
-		return "", fmt.Errorf("component repo must be github.com/owner/repo, a file:// URL, or an absolute path: %s", repo)
-	}
-	// githubIdentity returns owner/repo with no host. Require the host form the distro writes.
-	if !strings.HasPrefix(repo, "github.com/") {
-		return "", fmt.Errorf("component repo must be github.com/owner/repo, a file:// URL, or an absolute path: %s", repo)
+	if !ok || !strings.HasPrefix(repo, "github.com/") {
+		return "", fmt.Errorf("component repo must be github.com/owner/repo, a git URL, a file:// URL, or an absolute path: %s", repo)
 	}
 	return "https://github.com/" + owner + ".git", nil
 }
@@ -767,8 +814,7 @@ func restoreAll(id string) error {
 				if entryDriftCount(entry, target, name) == 0 {
 					continue
 				}
-				replaced, err := replaceSkill(target, entry, name)
-				if err != nil || !replaced {
+				if _, err := replaceSkill(target, entry, name); err != nil {
 					fmt.Fprintf(os.Stderr, "Restoring %s: %v\n", name, err)
 					ok = false
 					continue
@@ -939,6 +985,14 @@ func fetchCommit(home string, c component, l lockEntryM1) (string, error) {
 		os.RemoveAll(tmp)
 		return "", fmt.Errorf("component %s: fetched %s, want %s", c.ID, head, l.Commit)
 	}
+	if fileExists(filepath.Join(tmp, ".gitmodules")) {
+		if _, err := spin("Fetching submodules of "+c.ID, func() (string, error) {
+			_, _ = git(tmp, "remote", "add", "origin", url)
+			return git(tmp, "submodule", "update", "--init", "--recursive", "--depth", "1")
+		}); err != nil {
+			fmt.Fprintln(os.Stderr, "Warning: failed to initialize Git submodules; installed skills may be incomplete.")
+		}
+	}
 	return tmp, nil
 }
 
@@ -986,12 +1040,25 @@ func componentEntries(home, projectRoot string, d distro, pins map[string]lockEn
 	return entries, ok, nil
 }
 
+func componentEntry(c component, store string) manifestEntry {
+	e := manifestEntry{Source: componentSource(c.Repo), Path: store, SkillPath: c.SkillPath, ID: c.ID, Agents: c.Agents, Copy: c.Copy, Subagents: c.Subagents, Discover: c.User && !c.Manifest}
+	for name, spec := range c.SkillSet {
+		if spec.From != "" {
+			if e.From == nil {
+				e.From = map[string]string{}
+			}
+			e.From[name] = spec.From
+		}
+	}
+	return e
+}
+
 func selectedEntries(c component, store, projectRoot string) []manifestEntry {
 	if c.ProjectOnly && (!c.InProject || projectRoot == "") {
 		return nil
 	}
-	global := manifestEntry{Source: componentSource(c.Repo), Path: store, SkillPath: c.SkillPath, Owner: c.ID}
-	project := manifestEntry{Source: componentSource(c.Repo), Path: store, SkillPath: c.SkillPath, Project: projectRoot}
+	global, project := componentEntry(c, store), componentEntry(c, store)
+	global.Owner, project.Project = c.ID, projectRoot
 	for _, name := range c.Skills {
 		if !renderLoad(c, name, projectRoot) {
 			continue

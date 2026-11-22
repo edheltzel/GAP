@@ -12,18 +12,20 @@ import (
 )
 
 type stateFile struct {
-	Components map[string]stateEntry `json:"components"`
+	Components         map[string]stateEntry `json:"components"`
+	LastSelectedAgents []string              `json:"lastSelectedAgents,omitempty"`
 }
 
 type stateEntry struct {
-	Commit        string                     `json:"commit"`
-	Adapters      []string                   `json:"adapters"`
-	Installed     string                     `json:"installed,omitempty"`
-	Skills        []string                   `json:"skills,omitempty"`
-	Commands      []string                   `json:"commands,omitempty"`
-	SkillCopies   map[string]string          `json:"skillCopies,omitempty"`
-	ProjectSkills map[string][]string        `json:"projectSkills,omitempty"`
-	MCP           map[string]mcpRegistration `json:"mcp,omitempty"`
+	Commit        string                         `json:"commit"`
+	Adapters      []string                       `json:"adapters"`
+	Installed     string                         `json:"installed,omitempty"`
+	Skills        []string                       `json:"skills,omitempty"`
+	Commands      []string                       `json:"commands,omitempty"`
+	SkillCopies   map[string]string              `json:"skillCopies,omitempty"`
+	ProjectSkills map[string][]string            `json:"projectSkills,omitempty"`
+	MCP           map[string]mcpRegistration     `json:"mcp,omitempty"`
+	Dests         map[string]map[string][]string `json:"dests,omitempty"`
 }
 
 func statePath(home string) string {
@@ -67,20 +69,19 @@ func recordDeclarativeInstalls(home, projectRoot string, d distro, commands map[
 		for _, selected := range selectedEntries(c, c.Store, projectRoot) {
 			for _, name := range selected.Skills {
 				target := entryHome(home, selected)
-				matches := installed(target, name) && entryDriftCount(selected, target, name) == 0
+				matches := installed(target, selected, name) && entryDriftCount(selected, target, name) == 0
 				complete = matches && complete
+				if matches && (len(selected.Agents) > 0 || len(entry.Dests[target][name]) > 0) {
+					addInstalledDests(&entry, target, name, selected.Project != "", destDirs(entryDests(target, selected, name)))
+				}
 				if matches && selected.Project == "" {
 					if entry.SkillCopies == nil {
 						entry.SkillCopies = map[string]string{}
 					}
 					entry.SkillCopies[name] = filepath.Base(c.Store)
 				}
-				if matches && selected.Project != "" && c.ProjectOnly && !slices.Contains(entry.ProjectSkills[selected.Project], name) {
-					if entry.ProjectSkills == nil {
-						entry.ProjectSkills = map[string][]string{}
-					}
-					entry.ProjectSkills[selected.Project] = append(entry.ProjectSkills[selected.Project], name)
-					slices.Sort(entry.ProjectSkills[selected.Project])
+				if matches && selected.Project != "" && c.ProjectOnly {
+					addProjectSkill(&entry, selected.Project, name)
 				}
 			}
 		}

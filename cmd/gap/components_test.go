@@ -570,9 +570,8 @@ func TestPinMovesStoreIdentity(t *testing.T) {
 	if err != nil || ok {
 		t.Fatalf("drift vs the new store must be ordinary drift: ok=%v err=%v", ok, err)
 	}
-	replaced, err := replaceSkill(home, entry, "do-todo")
-	if err != nil || !replaced {
-		t.Fatalf("reinstall: %v %v", replaced, err)
+	if _, err := replaceSkill(home, entry, "do-todo"); err != nil {
+		t.Fatalf("reinstall: %v", err)
 	}
 	if got := readString(t, filepath.Join(home, ".agents", "skills", "do-todo", "SKILL.md")); got != "second\n" {
 		t.Fatalf("reinstall body: %q", got)

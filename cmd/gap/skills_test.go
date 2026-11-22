@@ -266,7 +266,7 @@ func TestSkillMigrationFailurePreservesOwnership(t *testing.T) {
 					t.Cleanup(func() { os.Chmod(path, mode) })
 					args := []string{"sync", "--yes"}
 					if command == "add" {
-						args = []string{"add", e.remote, "--id", "util"}
+						args = addGlobalArgs("add", e.remote, "--id", "util")
 					} else if command == "update" {
 						args = []string{"update", "util"}
 					}
@@ -443,7 +443,7 @@ func TestEmpryoShadowWarning(t *testing.T) {
 				put(t, shadow, tc.shadow)
 			}
 			unsetEnv(t, "JCODE_HOME")
-			warnings := shadowWarnings(home, tc.skill)
+			warnings := shadowWarnings(home, manifestEntry{}, tc.skill)
 			got := strings.Join(warnings, "\n")
 			if (got != "") != tc.warn || len(warnings) > 1 {
 				t.Fatalf("warning = %q, want warn %v", got, tc.warn)
@@ -484,7 +484,7 @@ func TestShadowJcode(t *testing.T) {
 			if tc.shadow != "" {
 				put(t, shadow, tc.shadow)
 			}
-			got := shadowWarnings(home, "do-todo")
+			got := shadowWarnings(home, manifestEntry{}, "do-todo")
 			if (len(got) == 1) != tc.warn || len(got) > 1 {
 				t.Fatalf("warnings = %q, want warn %v", got, tc.warn)
 			}

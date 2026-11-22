@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"charm.land/fang/v2"
 	"github.com/spf13/cobra"
@@ -46,16 +47,18 @@ Installation, source checkout requirements, and updates:
 https://gap.edheltzel.codes/docs/#install-gap
 Selected skills install directly from the pinned store without Node.
 sync never moves pins. pin is the only command that writes the distro's gap.lock.
-add, update, and remove manage utilities you add yourself: a GitHub repo with a
-gap-utility.toml, recorded in ~/.config/gap/gap.toml and pinned in ~/.config/gap/gap.lock.
+add, update, and remove manage utilities you add yourself: any git repo or local folder
+of skills, recorded in ~/.config/gap/gap.toml and pinned in ~/.config/gap/gap.lock.
 
 Global vs project:
-  global   ~/.config/gap/gap.toml. Skills go to ~/.agents/skills and ~/.claude/skills.
-           gap add owner/repo (or --global) adds a utility here.
-  project  <repo>/.gap/gap.toml. Skills go to <repo>/.agents/skills and
-           <repo>/.claude/skills. gap add --project (or --local) inside the repo adds
-           a utility here. A distro skill with load = "project" installs here when
-           the repo matches its when.files. enabled = false leaves a component out.
+  global   ~/.config/gap/gap.toml. Distro skills go to ~/.agents/skills and ~/.claude/skills.
+           gap add -g owner/repo adds a utility here; its skills go to ~/.agents/skills,
+           linked into each agent's own folder.
+  project  <repo>/.gap/gap.toml. gap add owner/repo (the default, or -p) inside the repo
+           adds it here; its skills go to <repo>/.agents/skills, linked into each agent's
+           project folder. A distro skill with load = "project" installs into
+           <repo>/.agents/skills and <repo>/.claude/skills when the repo matches its
+           when.files. enabled = false leaves a component out.
 Commands, hooks, and MCP servers are always machine-wide.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -80,6 +83,10 @@ func finish(err error) error {
 	}
 	if errors.Is(err, errSyncCancelled) {
 		fmt.Println("Nothing synced.")
+		return nil
+	}
+	if errors.Is(err, errAddCancelled) {
+		fmt.Println("Installation cancelled")
 		return nil
 	}
 	return err
@@ -152,35 +159,56 @@ func doctorCmd() *cobra.Command {
 }
 
 func addCmd() *cobra.Command {
-	var id string
-	var global, project, local bool
 	cmd := &cobra.Command{
-		Use:   "add <owner/repo[@ref]>",
-		Short: "Add a utility: pin a repo with a gap-utility.toml and install it",
-		Long: `add reads the repo's gap-utility.toml, records the repo in ~/.config/gap/gap.toml,
-pins it in ~/.config/gap/gap.lock, and installs its skills, commands, and install hook.
-The ref defaults to the repo's default branch. A hook asks before it runs unless the
+		Use:     "add <source>",
+		Aliases: []string{"install", "i", "a"},
+		Short:   "Add skills from any git repo or local folder and install them for your agents",
+		Long: `add installs skills from any git repository or local folder, with the same flags as
+npx skills add. It records the repo in ~/.config/gap/gap.toml, pins it in
+~/.config/gap/gap.lock, and installs the skills you pick. A repo with a gap-utility.toml
+also installs its commands, MCP servers, and hooks; a hook asks before it runs unless the
 repo is listed under [trust] repos in ~/.config/gap/gap.toml.
 
+Sources:
+  owner/repo, owner/repo/path, owner/repo@skill, owner/repo@v1.2.3, owner/repo#ref[@skill],
+  GitHub, GitLab, and Azure Repos URLs (a tree URL picks the ref and path), git@host:path,
+  ssh:// and https:// git URLs, and a local folder inside a git repository.
+  Download, well-known, and Notion sources are refused.
+
 Scope:
-  --global (default)    skills go to ~/.agents/skills and ~/.claude/skills.
-  --project, --local    skills go to <repo>/.agents/skills and <repo>/.claude/skills
-                        of the repo you run it in, recorded as load = "project" in
-                        ~/.config/gap/gap.toml and in that repo's .gap/gap.toml.
-                        Run it again in another repo to add the same utility there;
-                        gap sync inside each repo keeps its copy current.
+  project (default, -p, --local)  skills go to <repo>/.agents/skills of the repo you run it
+                                  in, recorded with load = "project" in ~/.config/gap/gap.toml
+                                  and with the selection in that repo's .gap/gap.toml.
+  global (-g)                     skills go to ~/.agents/skills.
+  Without -g, -p, or -y, gap asks. Each agent outside .agents/skills gets a symlink to that
+  copy, or a copy of its own with --copy. gap sync keeps every copy current.
+
 Commands, hooks, and MCP servers are machine-wide in both scopes. gap remove <id>
 removes the utility everywhere, including every project copy.`,
-		Args: cobra.ExactArgs(1),
+		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return finish(addUtility(args[0], id, project || local))
+			if slices.Contains(args, "-h") || slices.Contains(args, "--help") {
+				return cmd.Help()
+			}
+			return finish(runAdd(args))
 		},
 	}
-	cmd.Flags().StringVar(&id, "id", "", "id to add the utility under (default: the repo name, lowercased)")
-	cmd.Flags().BoolVarP(&global, "global", "g", false, "install its skills under home for every project (default)")
-	cmd.Flags().BoolVarP(&project, "project", "p", false, "install its skills into the current repo only")
-	cmd.Flags().BoolVarP(&local, "local", "l", false, "same as --project")
-	cmd.MarkFlagsMutuallyExclusive("global", "project", "local")
+	flags := cmd.Flags()
+	flags.BoolP("global", "g", false, "install for every project, under home")
+	flags.BoolP("project", "p", false, "install into the current repo (the default)")
+	flags.Bool("local", false, "same as --project")
+	flags.BoolP("yes", "y", false, "install without prompts")
+	flags.BoolP("list", "l", false, "list the source's skills and exit")
+	flags.Bool("all", false, "every skill to every agent, without prompts")
+	flags.StringSliceP("agent", "a", nil, "agents to install to; '*' for all")
+	flags.StringSliceP("skill", "s", nil, "skills to install; '*' for all")
+	flags.String("metadata", "", "accepted for compatibility; unused")
+	flags.Bool("full-depth", false, "search the whole repo for skills")
+	flags.Bool("json", false, "print the results as JSON (needs -y or --all)")
+	flags.Bool("copy", false, "copy into each agent folder instead of linking")
+	flags.StringSlice("subagent", nil, "Eve subagents to install to")
+	flags.String("rename", "", "install the one selected skill under a new name")
+	flags.String("id", "", "utility id (default: the repo name, lowercased)")
 	return cmd
 }
 
@@ -279,7 +307,7 @@ func initCommand() *cobra.Command {
 It can set a component's enabled and ref, and a distro skill's load and when.files.
 A skill with load = "project" installs into <repo>/.agents/skills and
 <repo>/.claude/skills when gap sync runs inside a repo that matches its when.files.
-gap add --project writes this file too.`,
+gap add writes this file too when it adds a utility to this repo.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := "."

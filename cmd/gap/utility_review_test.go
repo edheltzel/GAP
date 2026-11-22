@@ -25,7 +25,7 @@ func TestUtilitySkillBaseline(t *testing.T) {
 				commitAll(t, e.remote)
 			}
 			e.tty, e.answers = true, []string{"y"}
-			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+			if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 				t.Fatal("initial installation failed")
 			}
 			original := readString(t, filepath.Join(e.home, ".agents", "skills", "util-skill", "SKILL.md"))
@@ -104,7 +104,7 @@ func TestUtilityCommandOwnersRequireManifests(t *testing.T) {
 			e := newUtilityEnv(t, declarativeUtility+"[hooks]\ninstall = \"exit 1\"\n")
 			quietStdout(t)
 			e.tty, e.answers = true, []string{"y"}
-			if run([]string{"add", e.remote, "--id", "a"}) != 1 {
+			if run(addGlobalArgs("add", e.remote, "--id", "a")) != 1 {
 				t.Fatal("failing install reported success")
 			}
 			lk, err := readLock(userConfigDir(e.home))
@@ -129,7 +129,7 @@ func TestUtilityCommandOwnersRequireManifests(t *testing.T) {
 			writeUtilityRepo(t, other, declarativeUtility)
 			commitAll(t, other)
 			e.tty = false
-			if run([]string{"add", other, "--id", "b"}) != 1 {
+			if run(addGlobalArgs("add", other, "--id", "b")) != 1 {
 				t.Error("add accepted unresolved command ownership")
 			}
 			if _, registered := readConfigComponents(t, userConfigFile(e.home))["b"]; registered {
@@ -158,7 +158,7 @@ func TestUtilityDoctorDoesNotProbeUserEcho(t *testing.T) {
 			if trusted {
 				write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
 			}
-			if run([]string{"add", e.remote, "--id", "echo"}) != 0 {
+			if run(addGlobalArgs("add", e.remote, "--id", "echo")) != 0 {
 				t.Fatal("adding custom Echo failed")
 			}
 			e.tty, e.answers = true, []string{"y"}
@@ -188,7 +188,7 @@ func TestUtilityDeclarativeRemovalVersion(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+			if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 				t.Fatal("initial declarative installation failed")
 			}
 			update := ""
@@ -243,11 +243,10 @@ func TestUtilityRemovalRejectsUnresolvedSharing(t *testing.T) {
 			e := newUtilityEnv(t, manifest)
 			quietStdout(t)
 			write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
-			for _, id := range []string{"a", "b"} {
-				if run([]string{"add", e.remote, "--id", id}) != 0 {
-					t.Fatalf("add %s failed", id)
-				}
+			if run(addGlobalArgs("add", e.remote, "--id", "a")) != 0 {
+				t.Fatal("add a failed")
 			}
+			shareUtility(t, e, "b")
 			lk, err := readLock(userConfigDir(e.home))
 			if err != nil {
 				t.Fatal(err)
@@ -297,7 +296,7 @@ func TestUtilityRemovalUsesInstalledHook(t *testing.T) {
 			e := newUtilityEnv(t, manifest("v1", "true"))
 			quietStdout(t)
 			e.tty, e.answers = true, []string{"y"}
-			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+			if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 				t.Fatal("initial install failed")
 			}
 			update := "mv \"$HOME/installed-v1\" \"$HOME/installed-v2\" && printf v2 > \"$HOME/installed-v2\""
@@ -359,7 +358,7 @@ func TestUtilityRemovalRecoversUnverifiedInstalledCache(t *testing.T) {
 			manifest := declarativeUtility + "[hooks]\nuninstall = \"touch \\\"$HOME/removed-v1\\\"\"\n"
 			e := newUtilityEnv(t, manifest)
 			quietStdout(t)
-			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+			if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 				t.Fatal("initial installation failed")
 			}
 			state, err := readState(e.home)
@@ -429,7 +428,7 @@ func TestUtilityRemovalWithoutInstalledHook(t *testing.T) {
 			if outcome == "failed" {
 				e.tty, e.answers = true, []string{"y"}
 			}
-			if run([]string{"add", e.remote, "--id", "util"}) != 1 {
+			if run(addGlobalArgs("add", e.remote, "--id", "util")) != 1 {
 				t.Fatal("initial installation should fail or skip its hook")
 			}
 			e.tty = true
@@ -474,7 +473,7 @@ func TestUtilityReviewCommandOwners(t *testing.T) {
 		t.Run(fmt.Sprint(disabled), func(t *testing.T) {
 			e := newUtilityEnv(t, declarativeUtility)
 			quietStdout(t)
-			if run([]string{"add", e.remote, "--id", "a"}) != 0 {
+			if run(addGlobalArgs("add", e.remote, "--id", "a")) != 0 {
 				t.Fatal("first add failed")
 			}
 			if disabled {
@@ -483,7 +482,7 @@ func TestUtilityReviewCommandOwners(t *testing.T) {
 			before := readString(t, commandDests(e.home, "util-cmd.md")[0])
 			write(t, filepath.Join(e.remote, "commands", "util-cmd.md"), "second owner's bytes\n")
 			commitAll(t, e.remote)
-			if run([]string{"add", e.remote, "--id", "b"}) == 0 {
+			if run(addGlobalArgs("add", e.remote, "--id", "b")) == 0 {
 				t.Fatal("second owner was accepted")
 			}
 			for _, path := range commandDests(e.home, "util-cmd.md") {
@@ -512,7 +511,7 @@ func TestUtilityReviewCollisionPreflight(t *testing.T) {
 func TestUtilityReviewRetiredOwnership(t *testing.T) {
 	e := newUtilityEnv(t, declarativeUtility)
 	quietStdout(t)
-	if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+	if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 		t.Fatal("add failed")
 	}
 	write(t, filepath.Join(e.remote, utilityManifestName), "schema = \"1\"\nname = \"util\"\ncommands = [\"commands/new.md\"]\n")
@@ -531,7 +530,7 @@ func TestUtilityReviewRetiredOwnership(t *testing.T) {
 func TestUtilityReviewDeclinedOwnership(t *testing.T) {
 	e := newUtilityEnv(t, declarativeUtility)
 	quietStdout(t)
-	if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+	if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 		t.Fatal("add failed")
 	}
 	for _, path := range commandDests(e.home, "util-cmd.md") {
@@ -555,16 +554,26 @@ func TestUtilityReviewForeignSkill(t *testing.T) {
 	for _, path := range skillDirs(e.home, "util-skill") {
 		write(t, filepath.Join(path, "SKILL.md"), "foreign skill\n")
 	}
-	if run([]string{"add", e.remote, "--id", "util"}) != 1 {
-		t.Error("add reported success over foreign skill copies")
-	}
-	if run([]string{"remove", "util"}) != 0 {
-		t.Fatal("remove failed")
+	if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
+		t.Fatal("add failed over foreign skill copies")
 	}
 	for _, path := range skillDirs(e.home, "util-skill") {
-		if got := readString(t, filepath.Join(path, "SKILL.md")); got != "foreign skill\n" {
-			t.Fatal("remove took a foreign skill")
+		rel, err := filepath.Rel(e.home, path)
+		if err != nil {
+			t.Fatal(err)
 		}
+		backups, _ := filepath.Glob(filepath.Join(e.home, ".gap", "backups", "*", rel, "SKILL.md"))
+		if len(backups) != 1 || readString(t, backups[0]) != "foreign skill\n" {
+			t.Errorf("add replaced %s without backing up the foreign copy: %v", path, backups)
+		}
+	}
+}
+
+func shareUtility(t *testing.T, e *utilityEnv, id string) {
+	t.Helper()
+	write(t, userConfigFile(e.home), readString(t, userConfigFile(e.home))+fmt.Sprintf("[components.%s]\nrepo = %q\nref = \"master\"\n", id, e.remote))
+	if run([]string{"update", id}) != 0 {
+		t.Fatalf("update %s failed", id)
 	}
 }
 
@@ -574,10 +583,10 @@ func TestUtilityReviewDisabledIdentity(t *testing.T) {
 	write(t, filepath.Join(e.repo, "gap.toml"), "schema = \"2\"\n[components.echo]\nrepo = \""+e.remote+"\"\nref = \"master\"\nnames = []\n")
 	write(t, userConfigFile(e.home), "[components.echo]\nenabled = false\n")
 	before := readString(t, userConfigFile(e.home))
-	if run([]string{"add", e.remote, "--id", "echo"}) != 1 || readString(t, userConfigFile(e.home)) != before {
+	if run(addGlobalArgs("add", e.remote, "--id", "echo")) != 1 || readString(t, userConfigFile(e.home)) != before {
 		t.Fatal("add corrupted a disabled distro identity")
 	}
-	if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+	if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 		t.Fatal("add failed")
 	}
 	write(t, filepath.Join(e.project, ".gap", "gap.toml"), "[components.util]\nenabled = false\n")
@@ -611,7 +620,7 @@ func TestUtilityReviewReservedIDs(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			e := newUtilityEnv(t, declarativeUtility)
 			quietStdout(t)
-			if run([]string{"add", e.remote, "--id", id}) != 1 {
+			if run(addGlobalArgs("add", e.remote, "--id", id)) != 1 {
 				t.Fatal("add accepted a sync group as an id")
 			}
 			write(t, userConfigFile(e.home), "[components."+id+"]\nrepo = \""+e.remote+"\"\nref = \"master\"\n")
@@ -625,7 +634,7 @@ func TestUtilityReviewReservedIDs(t *testing.T) {
 func TestUtilityReviewIncompleteUpdate(t *testing.T) {
 	e := newUtilityEnv(t, declarativeUtility)
 	quietStdout(t)
-	if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+	if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 		t.Fatal("add failed")
 	}
 	if err := os.RemoveAll(skillDirs(e.home, "util-skill")[1]); err != nil {
@@ -648,7 +657,7 @@ func TestUtilityReviewUpdateOnlyHook(t *testing.T) {
 	e := newUtilityEnv(t, manifest)
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if run([]string{"add", e.remote, "--id", "util"}) != 0 || e.exists("updated") {
+	if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 || e.exists("updated") {
 		t.Fatal("first declarative install must not run update")
 	}
 	write(t, filepath.Join(e.remote, "version"), "next")
@@ -731,7 +740,7 @@ func TestUtilityReviewHookApprovalExpires(t *testing.T) {
 	write(t, filepath.Join(e.remote, "install.sh"), "touch \"$HOME/first\"\n")
 	commitAll(t, e.remote)
 	e.tty, e.answers = true, []string{"y"}
-	if run([]string{"add", e.remote, "--id", "util"}) != 0 || !e.exists("first") {
+	if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 || !e.exists("first") {
 		t.Fatal("approved install failed")
 	}
 	write(t, filepath.Join(e.remote, "install.sh"), "touch \"$HOME/second\"\n")
@@ -742,15 +751,22 @@ func TestUtilityReviewHookApprovalExpires(t *testing.T) {
 	}
 }
 
-func TestUtilityReviewUserRequiresManifest(t *testing.T) {
+func TestUtilityReviewManifestlessNeedsNames(t *testing.T) {
 	store := t.TempDir()
-	c := component{ID: "util", User: true, Named: true, Skills: []string{"util-skill"}}
-	if _, err := applyManifest(c, store); err == nil {
-		t.Fatal("user utility bypassed its manifest")
-	}
-	c.User = false
-	if _, err := applyManifest(c, store); err != nil {
-		t.Fatalf("distro compatibility was removed: %v", err)
+	for _, tc := range []struct {
+		name string
+		c    component
+		ok   bool
+	}{
+		{"named utility", component{ID: "util", User: true, Named: true, Skills: []string{"util-skill"}}, true},
+		{"unnamed global utility", component{ID: "util", User: true}, false},
+		{"unnamed per-project utility", component{ID: "util", User: true, ProjectOnly: true}, true},
+		{"named distro component", component{ID: "util", Named: true, Skills: []string{"util-skill"}}, true},
+		{"unnamed distro component", component{ID: "util"}, false},
+	} {
+		if _, err := applyManifest(tc.c, store); (err == nil) != tc.ok {
+			t.Errorf("%s: err = %v, want ok %v", tc.name, err, tc.ok)
+		}
 	}
 }
 
@@ -797,7 +813,7 @@ func TestUtilityReviewSkillContainment(t *testing.T) {
 			if _, err := readUtilityManifest(e.remote); err == nil {
 				t.Error("manifest accepted a skill outside its checkout")
 			}
-			if run([]string{"add", e.remote, "--id", "private"}) != 1 {
+			if run(addGlobalArgs("add", e.remote, "--id", "private")) != 1 {
 				t.Error("add accepted an external skill")
 			}
 			for _, path := range skillDirs(e.home, "internal") {
@@ -826,7 +842,7 @@ func TestUtilityReviewLiteralGlobalCommands(t *testing.T) {
 				if commandCount(repo) != 0 {
 					t.Error("preview counted a directory as a command")
 				}
-				if run([]string{"add", e.remote, "--id", "util"}) != 0 || run([]string{"remove", "util"}) != 0 {
+				if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 || run([]string{"remove", "util"}) != 0 {
 					t.Fatal("a directory incorrectly reserved a command name")
 				}
 				for _, dest := range commandDests(e.home, "util-cmd.md") {
@@ -844,7 +860,7 @@ func TestUtilityReviewLiteralGlobalCommands(t *testing.T) {
 			if commandCount(repo) != 1 {
 				t.Error("preview omitted a literal checkout's command")
 			}
-			if run([]string{"add", e.remote, "--id", "util"}) != 1 {
+			if run(addGlobalArgs("add", e.remote, "--id", "util")) != 1 {
 				t.Error("global command collision was accepted")
 			}
 			for _, dest := range commandDests(e.home, "util-cmd.md") {
@@ -861,11 +877,13 @@ func TestUtilityReviewSharedOwnership(t *testing.T) {
 		t.Run(strings.Join(order, " then "), func(t *testing.T) {
 			e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 			quietStdout(t)
-			for _, id := range []string{"a", "b"} {
-				if run([]string{"add", e.remote, "--id", id}) != 0 {
-					t.Fatalf("add %s failed", id)
-				}
+			if run(addGlobalArgs("add", e.remote, "--id", "a")) != 0 {
+				t.Fatal("add a failed")
 			}
+			if run(addGlobalArgs("add", e.remote, "--id", "b")) != 1 {
+				t.Fatal("add b took a skill a installs")
+			}
+			shareUtility(t, e, "b")
 			if run([]string{"remove", order[0]}) != 0 {
 				t.Fatal("first removal failed")
 			}
@@ -889,10 +907,10 @@ func TestUtilityReviewSharedOwnership(t *testing.T) {
 func TestUtilityReviewSharedCommandOwnership(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\ncommands = [\"commands/util-cmd.md\"]\n")
 	quietStdout(t)
-	if run([]string{"add", e.remote, "--id", "a"}) != 0 {
+	if run(addGlobalArgs("add", e.remote, "--id", "a")) != 0 {
 		t.Fatal("first add failed")
 	}
-	if run([]string{"add", e.remote, "--id", "b"}) != 1 {
+	if run(addGlobalArgs("add", e.remote, "--id", "b")) != 1 {
 		t.Fatal("command collision was accepted")
 	}
 	lk, err := readLock(userConfigDir(e.home))
@@ -931,7 +949,7 @@ func TestUtilityReviewExistingOverrideIdentity(t *testing.T) {
 			e := newUtilityEnv(t, declarativeUtility)
 			quietStdout(t)
 			write(t, userConfigFile(e.home), declaration)
-			if run([]string{"add", e.remote, "--id", "tools"}) != 1 {
+			if run(addGlobalArgs("add", e.remote, "--id", "tools")) != 1 {
 				t.Error("add accepted an existing configuration identity")
 			}
 			if got := readString(t, userConfigFile(e.home)); got != declaration {
@@ -949,7 +967,7 @@ func TestUtilityReviewProjectUpdateRef(t *testing.T) {
 		t.Run(fmt.Sprint(disabled), func(t *testing.T) {
 			e := newUtilityEnv(t, declarativeUtility)
 			quietStdout(t)
-			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+			if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 				t.Fatal("add failed")
 			}
 			write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: beta\n---\n")
@@ -974,7 +992,7 @@ func TestUtilityReviewRemovalStatErrors(t *testing.T) {
 		t.Run(rel, func(t *testing.T) {
 			e := newUtilityEnv(t, declarativeUtility)
 			quietStdout(t)
-			if run([]string{"add", e.remote, "--id", "util"}) != 0 {
+			if run(addGlobalArgs("add", e.remote, "--id", "util")) != 0 {
 				t.Fatal("add failed")
 			}
 			beforeConfig := readString(t, userConfigFile(e.home))

@@ -106,7 +106,7 @@ func TestHeldUtilitySkipsUnnamedUpdate(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if err := addUtility(e.remote, "util", false); err != nil {
+	if err := runAdd(addGlobalArgs(e.remote, "--id", "util")); err != nil {
 		t.Fatal(err)
 	}
 	write(t, userConfigFile(e.home), readString(t, userConfigFile(e.home))+"pin = true\n")

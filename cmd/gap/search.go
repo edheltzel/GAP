@@ -76,19 +76,12 @@ func parseCatalog(text string) ([]catalogEntry, error) {
 	return entries, nil
 }
 
-// validCatalogRepo accepts only the canonical github.com/owner/repo that parseUtilitySpec resolves a spec to.
+// validCatalogRepo accepts only the canonical github.com/owner/repo that gap add records for a GitHub repo.
 func validCatalogRepo(repo string) error {
 	if repo == "" {
 		return fmt.Errorf("repo is required")
 	}
-	if strings.HasPrefix(repo, "file://") || filepath.IsAbs(repo) {
-		return fmt.Errorf("repo must be github.com/owner/repo: %s", repo)
-	}
-	got, ref, _, err := parseUtilitySpec(repo)
-	if err != nil {
-		return err
-	}
-	if _, sub, _ := githubIdentity(got); ref != "" || sub != "" || got != repo {
+	if owner, sub, ok := githubIdentity(repo); !ok || sub != "" || strings.Contains(repo, "@") || repo != "github.com/"+owner {
 		return fmt.Errorf("repo must be github.com/owner/repo: %s", repo)
 	}
 	return nil
@@ -121,7 +114,7 @@ func addCommand(e catalogEntry, distroIDs map[string]bool) string {
 	if distroIDs[e.ID] {
 		return "included with GAP; gap sync installs it"
 	}
-	if _, _, id, err := parseUtilitySpec(e.Repo); err == nil && id != e.ID {
+	if sourceID(e.Repo) != e.ID {
 		return "gap add " + e.Repo + " --id " + e.ID
 	}
 	return "gap add " + e.Repo
