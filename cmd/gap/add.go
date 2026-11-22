@@ -461,7 +461,7 @@ func eveSubagentDirs(root string) []string {
 
 type addSkill struct {
 	discoveredSkill
-	install, from string
+	install string
 }
 
 type addRun struct {
@@ -619,7 +619,14 @@ func (r *addRun) resolve() error {
 			return err
 		}
 	}
-	if r.src.Kind != "local" {
+	r.prev = r.lk.Components[r.id]
+	existing := r.d.Components[r.id]
+	if !r.opts.List && r.readd && existing.ProjectOnly && r.prev.Commit != "" {
+		if r.prev.Ref != existing.Ref {
+			return fmt.Errorf("utility %s tracks %s but is pinned on %s; run gap update %s first", r.id, existing.Ref, r.prev.Ref, r.id)
+		}
+		r.ref, r.commit = existing.Ref, r.prev.Commit
+	} else if r.src.Kind != "local" {
 		if r.url, r.ref, r.commit, err = resolveRemote(r.url, r.ref); err != nil {
 			return err
 		}
@@ -627,12 +634,12 @@ func (r *addRun) resolve() error {
 			r.repo = r.url
 		}
 	}
-	r.prev = r.lk.Components[r.id]
-	if r.pin, err = pinCommit(r.home, component{ID: r.id, Repo: r.repo, Ref: r.ref, User: true}, r.ref, r.commit, r.prev); err != nil {
+	c := component{ID: r.id, Repo: r.repo, Ref: r.ref, User: true}
+	if r.pin, err = pinCommit(r.home, c, r.ref, r.commit, r.prev); err != nil {
 		return err
 	}
-	r.store = storePath(r.home, r.id, r.commit)
-	return nil
+	r.store, err = ensureStore(r.home, c, r.pin)
+	return err
 }
 
 func (r *addRun) checkExisting() error {
@@ -781,10 +788,11 @@ func (r *addRun) chooseSkills() error {
 		if r.manifest == nil {
 			name = sanitizeName(s.Name)
 		}
-		if slices.ContainsFunc(r.chosen, func(c addSkill) bool { return c.from == name }) {
-			continue
+		install := cmp.Or(opts.Rename, name)
+		if i := slices.IndexFunc(r.chosen, func(c addSkill) bool { return c.install == install }); i >= 0 {
+			return fmt.Errorf("skills %q and %q both install as %s; select one of them, or install one under another name with --rename", r.chosen[i].Name, s.Name, install)
 		}
-		r.chosen = append(r.chosen, addSkill{discoveredSkill: s, install: cmp.Or(opts.Rename, name), from: name})
+		r.chosen = append(r.chosen, addSkill{discoveredSkill: s, install: install})
 	}
 	return nil
 }
@@ -1127,9 +1135,9 @@ func (r *addRun) persist() error {
 	skillSet := map[string]skillSpec{}
 	for _, c := range r.chosen {
 		sel.names = append(sel.names, c.install)
-		if c.install != c.from {
-			sel.from[c.install] = c.from
-			skillSet[c.install] = skillSpec{From: c.from}
+		if c.install != c.Name {
+			sel.from[c.install] = c.Name
+			skillSet[c.install] = skillSpec{From: c.Name}
 		}
 	}
 	if r.manifest != nil {

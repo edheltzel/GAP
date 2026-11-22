@@ -393,6 +393,118 @@ func TestAddDroppedAgentsKeepTheLedger(t *testing.T) {
 	}
 }
 
+func TestAddReAddVerifiesTheStore(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	webDesignRemote(t, e)
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code"}); code != 0 {
+		t.Fatalf("add exited %d", code)
+	}
+	lk, err := readLock(userConfigDir(e.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(storePath(e.home, "remote", lk.Components["remote"].Commit), "skills", "web", "SKILL.md"), "---\nname: Web Design\ndescription: tampered\n---\n")
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code"}); code != 0 {
+		t.Fatalf("re-add exited %d", code)
+	}
+	if got := readString(t, filepath.Join(e.home, ".claude", "skills", "web-design", "SKILL.md")); strings.Contains(got, "tampered") {
+		t.Fatal("re-add installed from a store that no longer matches the pin")
+	}
+}
+
+func TestAddKeepsTheSelectedSkill(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	webDesignRemote(t, e)
+	write(t, filepath.Join(e.remote, "skills", "web-lower", "SKILL.md"), "---\nname: web-design\ndescription: lowercase twin\n---\n")
+	commitAll(t, e.remote)
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-s", "Web Design", "-s", "web-design"}); code != 1 {
+		t.Fatalf("two skills for one folder exited %d", code)
+	}
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-s", "web-design"}); code != 0 {
+		t.Fatalf("add exited %d", code)
+	}
+	if got := readString(t, filepath.Join(e.home, ".claude", "skills", "web-design", "SKILL.md")); !strings.Contains(got, "lowercase twin") {
+		t.Fatalf("installed the other skill: %q", got)
+	}
+}
+
+func TestAddReAddAppliesCopyMode(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	write(t, filepath.Join(e.remote, "skills", "other", "SKILL.md"), "---\nname: other\ndescription: other skill\n---\n")
+	commitAll(t, e.remote)
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "codex", "-s", "util-skill"}); code != 0 {
+		t.Fatalf("add exited %d", code)
+	}
+	link := filepath.Join(e.home, ".claude", "skills", "util-skill")
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("first add did not link %s: %v", link, err)
+	}
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-a", "codex", "-s", "other", "--copy"}); code != 0 {
+		t.Fatalf("re-add exited %d", code)
+	}
+	if info, err := os.Lstat(link); err != nil || !info.IsDir() {
+		t.Fatalf("--copy left %s linked: %v", link, err)
+	}
+}
+
+func TestAddAnotherProjectKeepsThePin(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	second := t.TempDir()
+	for _, dir := range []string{e.project, second} {
+		if _, err := git(dir, "init", "-q"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-y", "-a", "codex"}); code != 0 {
+		t.Fatalf("first project add exited %d", code)
+	}
+	lk, err := readLock(userConfigDir(e.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned := lk.Components["remote"].Commit
+	write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: moved upstream\n---\n")
+	commitAll(t, e.remote)
+	t.Chdir(second)
+	if code := run([]string{"add", e.remote, "-y", "-a", "codex"}); code != 0 {
+		t.Fatalf("second project add exited %d", code)
+	}
+	if lk, err = readLock(userConfigDir(e.home)); err != nil || lk.Components["remote"].Commit != pinned {
+		t.Fatalf("adding another project moved the shared pin: %v", err)
+	}
+	root, err := filepath.EvalSymlinks(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readString(t, filepath.Join(root, ".agents", "skills", "util-skill", "SKILL.md")); strings.Contains(got, "moved upstream") {
+		t.Fatal("the second project got a commit the pin does not name")
+	}
+	if _, err := git(e.remote, "branch", "dev"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, userConfigFile(e.home), strings.Replace(readString(t, userConfigFile(e.home)), `ref = "master"`, `ref = "dev"`, 1))
+	if code := run([]string{"add", e.remote, "-y", "-a", "codex"}); code != 1 {
+		t.Fatalf("re-add with a ref the pin does not track exited %d", code)
+	}
+}
+
+func TestAddManifestRenameRewritesTheName(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"Web Design\"]\n")
+	write(t, filepath.Join(e.remote, "skills", "Web Design", "SKILL.md"), "---\nname: Web Design\ndescription: spaced folder\n---\n")
+	commitAll(t, e.remote)
+	quietStdout(t)
+	if code := run([]string{"add", e.remote, "-g", "-y", "-a", "claude-code", "-s", "Web Design", "--rename", "web-design"}); code != 0 {
+		t.Fatalf("add exited %d", code)
+	}
+	if got := readString(t, filepath.Join(e.home, ".claude", "skills", "web-design", "SKILL.md")); !strings.Contains(got, "name: web-design") {
+		t.Fatalf("a manifest rename kept the old name: %q", got)
+	}
+}
+
 func TestAddRenameAndJSON(t *testing.T) {
 	e := newUtilityEnv(t, "")
 	webDesignRemote(t, e)
@@ -528,5 +640,13 @@ func TestDiscoverSkills(t *testing.T) {
 	}
 	if _, err := discoverSkills(repo, "skills/../..", false, false, nil); err == nil {
 		t.Fatal("unsafe subpath accepted")
+	}
+	outside, linked := t.TempDir(), t.TempDir()
+	write(t, filepath.Join(outside, "escape", "SKILL.md"), skill("escape", ""))
+	if err := os.Symlink(outside, filepath.Join(linked, "skills")); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := discoverSkills(linked, "", true, false, nil); len(got) != 0 {
+		t.Fatalf("discovered skills outside the repository: %v", names(got))
 	}
 }

@@ -178,7 +178,7 @@ func entryDriftCount(e manifestEntry, home, name string) int {
 }
 
 func renamedTo(e manifestEntry, name string) string {
-	if e.From[name] != "" {
+	if from := e.From[name]; from != "" && (!e.Discover || sanitizeName(from) != name) {
 		return name
 	}
 	return ""
@@ -576,13 +576,19 @@ func localSkillDir(repoRoot, name string) string {
 
 func entrySkillDir(e manifestEntry, name string) string {
 	want := cmp.Or(e.From[name], name)
-	if e.Discover {
-		return discoverByName(e.Path, e.SkillPath, want)
+	var dir string
+	switch {
+	case e.Discover:
+		dir = discoverByName(e.Path, e.SkillPath, want)
+	case e.SkillPath != "":
+		dir = findSkillDir(filepath.Join(e.Path, filepath.FromSlash(e.SkillPath)), "", want)
+	default:
+		dir = localSkillDir(e.Path, want)
 	}
-	if e.SkillPath != "" {
-		return findSkillDir(filepath.Join(e.Path, filepath.FromSlash(e.SkillPath)), "", want)
+	if dir == "" || !insideCheckout(e.Path, dir) {
+		return ""
 	}
-	return localSkillDir(e.Path, want)
+	return dir
 }
 
 // treeHash is the Git tree id of dir, without the paths indexPathExcluded names.
@@ -940,16 +946,22 @@ func ownedDrift(e manifestEntry, root, name string, dirs []string) bool {
 }
 
 func incompleteUnedited(e manifestEntry, home, name string) bool {
-	missing := false
+	incomplete := false
 	wants := map[bool]string{}
 	for _, d := range entryDests(home, e, name) {
-		if _, err := os.Lstat(d.Dir); errors.Is(err, os.ErrNotExist) {
-			missing = true
+		info, err := os.Lstat(d.Dir)
+		if errors.Is(err, os.ErrNotExist) {
+			incomplete = true
 			continue
+		}
+		if err != nil {
+			return false
+		}
+		if linked := info.Mode()&os.ModeSymlink != 0; linked != (d.LinkTo != "") || linked && realOr(d.Dir) != realOr(d.LinkTo) {
+			incomplete = true
 		}
 		want, cached := wants[d.Eve]
 		if !cached {
-			var err error
 			if want, err = expectedTree(e, name, d.Eve); err != nil {
 				return false
 			}
@@ -959,7 +971,7 @@ func incompleteUnedited(e manifestEntry, home, name string) bool {
 			return false
 		}
 	}
-	return missing
+	return incomplete
 }
 
 // shadowWarnings reports harness-only skill copies that differ from the managed copy. gap never writes them.

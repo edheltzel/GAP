@@ -260,6 +260,12 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 		return parseSkillMD(file, includeInternal, warn)
 	}
 	add := func(m skillMeta) {
+		if !insideCheckout(base, m.Dir) {
+			if warn != nil {
+				warn(fmt.Sprintf("Skipping %s: it resolves outside the repository", m.Dir))
+			}
+			return
+		}
 		skills = append(skills, discoveredSkill{Name: m.Name, Description: m.Description, Dir: m.Dir, Plugin: groups[m.Dir]})
 		seen[m.Name] = true
 	}
@@ -329,7 +335,28 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 
 var discoveredBySource = map[string][]discoveredSkill{}
 
+func insideCheckout(root, dir string) bool {
+	resolve := func(path string) (string, error) {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return "", err
+		}
+		return filepath.EvalSymlinks(abs)
+	}
+	realRoot, err := resolve(root)
+	if err != nil {
+		return false
+	}
+	for _, path := range []string{dir, filepath.Join(dir, "SKILL.md")} {
+		if real, err := resolve(path); err != nil || !withinRoot(realRoot, real) {
+			return false
+		}
+	}
+	return true
+}
+
 func discoverByName(base, subpath, want string) string {
+	fallback := ""
 	for _, fullDepth := range []bool{false, true} {
 		key := fmt.Sprintf("%s\x00%s\x00%t", base, subpath, fullDepth)
 		skills, cached := discoveredBySource[key]
@@ -338,12 +365,15 @@ func discoverByName(base, subpath, want string) string {
 			discoveredBySource[key] = skills
 		}
 		for _, s := range skills {
-			if sanitizeName(s.Name) == sanitizeName(want) {
+			if s.Name == want {
 				return s.Dir
+			}
+			if fallback == "" && sanitizeName(s.Name) == sanitizeName(want) {
+				fallback = s.Dir
 			}
 		}
 	}
-	return ""
+	return fallback
 }
 
 func filterSkills(all []discoveredSkill, requested []string) []discoveredSkill {
