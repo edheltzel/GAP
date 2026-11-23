@@ -554,6 +554,15 @@ func TestJcodeShadowRefreshesFromStore(t *testing.T) {
 	if got := readString(t, filepath.Join(category, "topic", "child", "SKILL.md")); got != "nested\n" {
 		t.Fatalf("nested skill = %q, a directory without a root SKILL.md was replaced", got)
 	}
+	if err := os.Mkdir(filepath.Join(category, "SKILL.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshJcodeShadows(home, grouped, "do-group"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(category, "topic", "child", "SKILL.md")); err != nil {
+		t.Fatalf("a directory named SKILL.md was treated as a skill: %v", err)
+	}
 
 	shared := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(home, ".empryo", "skills"), 0o755); err != nil {
