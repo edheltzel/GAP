@@ -131,6 +131,83 @@ func TestUtilityAdd(t *testing.T) {
 	}
 }
 
+func TestUtilityAddSubmoduleFailure(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		name := "new"
+		if existing {
+			name = "existing"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := newUtilityEnv(t, "")
+			quietStdout(t)
+			t.Setenv("GIT_ALLOW_PROTOCOL", "file")
+			args := addGlobalArgs(e.remote, "--id", "util")
+			paths := []string{
+				userConfigFile(e.home),
+				filepath.Join(userConfigDir(e.home), "gap.lock"),
+				filepath.Join(e.home, ".gap", "state.json"),
+				filepath.Join(e.home, ".agents", "skills", "util-skill", "SKILL.md"),
+				filepath.Join(e.home, ".claude", "skills", "util-skill", "SKILL.md"),
+			}
+			before := make(map[string]string)
+			if existing {
+				if err := runAdd(args); err != nil {
+					t.Fatal(err)
+				}
+				for _, path := range paths {
+					before[path] = readString(t, path)
+				}
+			}
+			child := t.TempDir()
+			write(t, filepath.Join(child, "data"), "submodule data\n")
+			commitAll(t, child)
+			if _, err := git(e.remote, "submodule", "add", child, "deps/child"); err != nil {
+				t.Fatal(err)
+			}
+			missing := filepath.Join(t.TempDir(), "unavailable.git")
+			if _, err := git(e.remote, "config", "-f", ".gitmodules", "submodule.deps/child.url", missing); err != nil {
+				t.Fatal(err)
+			}
+			write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: must not install\n---\n")
+			commit, _ := commitAll(t, e.remote)
+			err := runAdd(args)
+			if err == nil {
+				t.Fatal("add accepted an unavailable submodule")
+			}
+			for _, detail := range []string{"component util", "submodule", missing} {
+				if !strings.Contains(err.Error(), detail) {
+					t.Errorf("error %q does not contain %q", err, detail)
+				}
+			}
+			for _, path := range paths {
+				if existing {
+					if got := readString(t, path); got != before[path] {
+						t.Errorf("failed add changed %s", path)
+					}
+				} else if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Errorf("failed add left %s: %v", path, err)
+				}
+			}
+			if _, err := os.Stat(storePath(e.home, "util", commit)); !os.IsNotExist(err) {
+				t.Errorf("failed add published an incomplete store: %v", err)
+			}
+			staging, err := filepath.Glob(filepath.Join(e.home, ".gap", "store", "util", "fetch-*"))
+			if err != nil || len(staging) != 0 {
+				t.Errorf("failed add left staging directories: %v (%v)", staging, err)
+			}
+			if existing {
+				pins, err := readLock(userConfigDir(e.home))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := os.Stat(storePath(e.home, "util", pins.Components["util"].Commit)); err != nil {
+					t.Errorf("failed add removed the existing store: %v", err)
+				}
+			}
+		})
+	}
+}
+
 func TestUtilityUpdate(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)

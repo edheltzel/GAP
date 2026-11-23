@@ -963,7 +963,8 @@ func fetchCommit(home string, c component, l lockEntryM1) (string, error) {
 			_, _ = git(tmp, "remote", "add", "origin", url)
 			return git(tmp, "submodule", "update", "--init", "--recursive", "--depth", "1")
 		}); err != nil {
-			fmt.Fprintln(os.Stderr, "Warning: failed to initialize Git submodules; installed skills may be incomplete.")
+			os.RemoveAll(tmp)
+			return "", fmt.Errorf("component %s: initialize submodules for %s: %w", c.ID, l.Commit, err)
 		}
 	}
 	return tmp, nil
