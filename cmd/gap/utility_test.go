@@ -283,6 +283,44 @@ func TestUtilityCompleteCachedSubmodulesWorkOffline(t *testing.T) {
 	}
 }
 
+func TestUtilitySubmoduleDriftReportsRepair(t *testing.T) {
+	for _, mode := range []string{"uninitialized", "different-commit"} {
+		t.Run(mode, func(t *testing.T) {
+			e := newUtilityEnv(t, "")
+			quietStdout(t)
+			t.Setenv("GIT_ALLOW_PROTOCOL", "file")
+			child := t.TempDir()
+			write(t, filepath.Join(child, "data"), "submodule data\n")
+			commitAll(t, child)
+			if _, err := git(e.remote, "submodule", "add", child, "deps/child"); err != nil {
+				t.Fatal(err)
+			}
+			commit, tree := commitAll(t, e.remote)
+			if err := runAdd(addGlobalArgs(e.remote, "--id", "util")); err != nil {
+				t.Fatal(err)
+			}
+			dest := storePath(e.home, "util", commit)
+			if mode == "uninitialized" {
+				if _, err := git(dest, "submodule", "deinit", "-f", "--", "deps/child"); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				write(t, filepath.Join(dest, "deps", "child", "data"), "changed\n")
+				commitAll(t, filepath.Join(dest, "deps", "child"))
+			}
+			state, err := storeState(dest, tree)
+			if err != nil || state != storeChanged {
+				t.Fatalf("store state = %q, %v; want readable drift", state, err)
+			}
+			var code int
+			out, stderr := captureStd(t, func() { code = run([]string{"status"}) })
+			if code != 1 || !strings.Contains(out, "store=changed") || !strings.Contains(out, "gap sync") || stderr != "" {
+				t.Fatalf("status code=%d, stdout=%q, stderr=%q", code, out, stderr)
+			}
+		})
+	}
+}
+
 func TestUtilityUpdate(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)

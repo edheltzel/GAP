@@ -455,6 +455,8 @@ func placeStore(tmp, dest string) error {
 }
 
 // worktreeID hashes tracked files and non-ignored additions, not just HEAD.
+var errStoreSubmoduleDrift = errors.New("store submodules differ from the pinned checkout")
+
 func worktreeID(dir string) (string, error) {
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		return "", err
@@ -466,7 +468,7 @@ func worktreeID(dir string) (string, error) {
 		}
 		for _, line := range strings.Split(status, "\n") {
 			if strings.HasPrefix(line, "-") || strings.HasPrefix(line, "+") || strings.HasPrefix(line, "U") {
-				return "", fmt.Errorf("store has an incomplete or mismatched submodule: %s", strings.TrimSpace(line))
+				return "", fmt.Errorf("%w: %s", errStoreSubmoduleDrift, strings.TrimSpace(line))
 			}
 		}
 	}
@@ -513,6 +515,9 @@ func storeState(dir, tree string) (string, error) {
 		return "", err
 	}
 	got, err := worktreeID(dir)
+	if errors.Is(err, errStoreSubmoduleDrift) {
+		return storeChanged, nil
+	}
 	if err != nil {
 		return "", fmt.Errorf("reading store %s: %w", dir, err)
 	}
