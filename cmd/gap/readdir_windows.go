@@ -1,6 +1,6 @@
 //go:build windows
 
-package readdir
+package main
 
 import (
 	"errors"
@@ -10,15 +10,15 @@ import (
 	"strings"
 )
 
-func Only(root *os.Root, name string) ([]fs.DirEntry, error) {
-	info, err := root.Lstat(name)
+func readDirOnly(root *os.Root, name string) ([]fs.DirEntry, error) {
+	info, err := root.Stat(name)
 	if err != nil {
 		return nil, err
 	}
 	if !info.IsDir() {
 		return nil, &os.PathError{Op: "readdir", Path: name, Err: errors.New("not a directory")}
 	}
-	f, err := root.Open(name)
+	f, err := root.OpenFile(name, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}

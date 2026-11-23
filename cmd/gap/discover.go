@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/edheltzel/gap/cmd/gap/readdir"
 	"io/fs"
 	"maps"
 	"os"
@@ -223,7 +222,7 @@ func findSkillDirs(root *os.Root, dir string, depth int) []string {
 	if hasSkillMD(root.FS(), dir) {
 		out = append(out, dir)
 	}
-	entries, _ := readdir.Only(root, dir)
+	entries, _ := readDirOnly(root, dir)
 	for _, entry := range entries {
 		if entry.IsDir() && !slices.Contains(discoverSkipDirs, entry.Name()) {
 			out = append(out, findSkillDirs(root, path.Join(dir, entry.Name()), depth+1)...)
@@ -319,7 +318,7 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 	}
 	var walk func(dir string, maxDepth, depth int)
 	walk = func(dir string, maxDepth, depth int) {
-		entries, err := readdir.Only(root, at(dir))
+		entries, err := readDirOnly(root, at(dir))
 		if err != nil {
 			return
 		}

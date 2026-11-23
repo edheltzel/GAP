@@ -1,6 +1,6 @@
 //go:build !windows
 
-package readdir
+package main
 
 import (
 	"io/fs"
@@ -10,7 +10,7 @@ import (
 	"syscall"
 )
 
-func Only(root *os.Root, name string) ([]fs.DirEntry, error) {
+func readDirOnly(root *os.Root, name string) ([]fs.DirEntry, error) {
 	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err

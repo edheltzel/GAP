@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/edheltzel/gap/cmd/gap/readdir"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -556,7 +555,7 @@ func findSkillDir(checkout, name string, bases ...string) string {
 			if best >= 0 && depth >= best {
 				return
 			}
-			entries, err := readdir.Only(root, dir)
+			entries, err := readDirOnly(root, dir)
 			if err != nil {
 				return
 			}
