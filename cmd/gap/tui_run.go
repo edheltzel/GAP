@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -79,22 +80,21 @@ func (c *childCmd) interrupt() error {
 	return interruptGroup(pgid)
 }
 
-func (c *childCmd) settle(cancelled bool) {
-	if cancelled {
-		c.interrupt()
-	}
+func (c *childCmd) settle(cancelled bool) bool {
+	c.interrupt()
 	c.mu.Lock()
 	kill := c.kill
 	c.mu.Unlock()
-	if kill == nil {
-		return
-	}
 	pgid := c.Process.Pid
-	if !groupGone(pgid, tuiStopGrace+time.Second) {
+	gone := groupGone(pgid, tuiStopGrace+time.Second)
+	if !gone {
 		killGroup(pgid)
-		groupGone(pgid, 2*time.Second)
+		gone = groupGone(pgid, 2*time.Second)
 	}
-	kill.Stop()
+	if kill != nil {
+		kill.Stop()
+	}
+	return gone
 }
 
 type jobRunner interface {
@@ -161,10 +161,15 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 			cancelled := r.stopped || ctx.Err() != nil || signalled
 			r.stop, r.child = nil, nil
 			r.mu.Unlock()
+			lingering := false
 			if child != nil {
-				child.settle(cancelled)
+				lingering = !child.settle(cancelled)
 			}
 			stop()
+			if lingering && !cancelled {
+				code = 1
+				err = fmt.Errorf("a hook process kept running after the command exited")
+			}
 			send(jobDoneMsg{i: i, code: code, err: err, cancelled: cancelled && code != 0})
 		}
 		send(jobsFinishedMsg{})

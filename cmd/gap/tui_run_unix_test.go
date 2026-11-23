@@ -51,6 +51,33 @@ func TestTUIRunCancelStopsDescendants(t *testing.T) {
 	}
 }
 
+func TestTUIRunCleanExitStopsDescendants(t *testing.T) {
+	oldExe, oldGrace := tuiExecutable, tuiStopGrace
+	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
+	tuiStopGrace = 300 * time.Millisecond
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "pid")
+	script := filepath.Join(dir, "gap")
+	write(t, script, "#!/bin/sh\n(trap '' INT TERM; exec /bin/sleep 30) >/dev/null 2>&1 &\necho $! > \""+pidFile+"\"\n")
+	if err := os.Chmod(script, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tuiExecutable = func() (string, error) { return script, nil }
+	msgs := collect(t, &execRunner{}, []tuiJob{{label: "update ua", args: []string{"update", "--", "ua"}}}, nil)
+	done := doneOf(msgs)
+	if len(done) != 1 || done[0].cancelled {
+		t.Fatalf("done = %+v", done)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(readString(t, pidFile)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { syscall.Kill(pid, syscall.SIGKILL) })
+	if syscall.Kill(pid, 0) == nil {
+		t.Fatalf("descendant %d still runs after the step was reported done", pid)
+	}
+}
+
 func TestTUIRunCancelEndsWithinOneGrace(t *testing.T) {
 	oldExe, oldGrace := tuiExecutable, tuiStopGrace
 	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
