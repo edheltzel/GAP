@@ -57,6 +57,7 @@ type childCmd struct {
 	in        io.Closer
 	escalated bool
 	done      bool
+	signalled bool
 }
 
 func gapCommand(ctx context.Context, args ...string) (*childCmd, error) {
@@ -80,6 +81,7 @@ func (c *childCmd) interrupt() error {
 		return nil
 	}
 	pgid := c.Process.Pid
+	c.signalled = true
 	c.kill = time.AfterFunc(tuiStopGrace, func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
@@ -98,14 +100,14 @@ func (c *childCmd) wasEscalated() bool {
 	return c.escalated
 }
 
-func (c *childCmd) settle(cancelled bool) (gone, forced bool) {
+func (c *childCmd) settle(cancelled bool) (gone, forced, signalled bool) {
 	if c.Process == nil {
-		return true, false
+		return true, false, false
 	}
 	pgid := c.Process.Pid
 	if groupGone(pgid, 0) {
 		c.disarm()
-		return true, false
+		return true, false, false
 	}
 	c.interrupt()
 	gone = groupGone(pgid, tuiStopGrace)
@@ -117,7 +119,10 @@ func (c *childCmd) settle(cancelled bool) (gone, forced bool) {
 		gone = groupGone(pgid, 2*time.Second)
 	}
 	c.disarm()
-	return gone, c.wasEscalated()
+	c.mu.Lock()
+	signalled = c.signalled
+	c.mu.Unlock()
+	return gone, c.wasEscalated(), signalled
 }
 
 func (c *childCmd) closeIn() {
@@ -205,10 +210,10 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 			cancelled := r.stopped || ctx.Err() != nil || signalled
 			r.stop, r.child = nil, nil
 			r.mu.Unlock()
-			lingering, forced := false, false
+			lingering, forced, signalledGroup := false, false, false
 			if child != nil {
 				var gone bool
-				gone, forced = child.settle(cancelled)
+				gone, forced, signalledGroup = child.settle(cancelled)
 				lingering = !gone
 			}
 			stop()
@@ -220,9 +225,12 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 					<-drained
 				}
 			}
-			if !cancelled && (forced || lingering) {
+			if !cancelled && (forced || lingering || signalledGroup) {
 				code = 1
-				why := "had to be killed"
+				why := "was interrupted"
+				if forced {
+					why = "had to be killed"
+				}
 				if lingering {
 					why = "could not be killed"
 				}

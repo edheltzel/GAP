@@ -89,6 +89,26 @@ func TestTUIRunCleanExitStopsDescendants(t *testing.T) {
 	}
 }
 
+func TestTUIRunCleanExitFailsWhenAHookExitsOnSignal(t *testing.T) {
+	oldExe, oldGrace := tuiExecutable, tuiStopGrace
+	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
+	tuiStopGrace = 300 * time.Millisecond
+	t.Setenv("GAP_TEST_AS_GAP", "")
+	dir := t.TempDir()
+	script := filepath.Join(dir, "gap")
+	body := "#!/bin/sh\n(trap 'exit 0' TERM; /bin/echo ready >/dev/null; while :; do /bin/sleep 0.2; done) >/dev/null 2>&1 &\n"
+	write(t, script, body)
+	if err := os.Chmod(script, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tuiExecutable = func() (string, error) { return script, nil }
+	msgs := collect(t, &execRunner{}, []tuiJob{{label: "update ua", args: []string{"update", "--", "ua"}}}, nil)
+	done := doneOf(msgs)
+	if len(done) != 1 || done[0].code == 0 || done[0].err == nil || !strings.Contains(done[0].err.Error(), "interrupted") {
+		t.Fatalf("done = %+v err %v", done, done[0].err)
+	}
+}
+
 func TestTUIRunForeignGroupDoesNotHoldTheBatch(t *testing.T) {
 	oldExe, oldGrace := tuiExecutable, tuiStopGrace
 	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
@@ -97,7 +117,7 @@ func TestTUIRunForeignGroupDoesNotHoldTheBatch(t *testing.T) {
 	ready := filepath.Join(dir, "ready")
 	pidFile := filepath.Join(dir, "pid")
 	script := filepath.Join(dir, "gap")
-	write(t, script, "#!/bin/sh\n(/bin/sh -c 'echo $$ >> \""+pidFile+"\"; echo ready >> \""+ready+"\"; exec /bin/sleep 30') &\n")
+	write(t, script, "#!/bin/sh\n(trap '' TERM; /bin/sh -c 'echo $$ >> \""+pidFile+"\"; echo ready >> \""+ready+"\"; exec /bin/sleep 30') &\n")
 	if err := os.Chmod(script, 0o755); err != nil {
 		t.Fatal(err)
 	}
