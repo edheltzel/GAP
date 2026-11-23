@@ -550,22 +550,31 @@ func findSkillDir(checkout, name string, bases ...string) string {
 	defer root.Close()
 	for _, base := range bases {
 		found, best := "", -1
-		_ = fs.WalkDir(root.FS(), base, func(p string, d fs.DirEntry, err error) error {
+		var walk func(dir string, depth int)
+		walk = func(dir string, depth int) {
+			if best >= 0 && depth >= best {
+				return
+			}
+			entries, err := readDirOnly(root, dir)
 			if err != nil {
-				return err
+				return
 			}
-			depth := strings.Count(p, "/") - strings.Count(base, "/")
-			if d.IsDir() {
-				if d.Name() == "node_modules" || d.Name() == ".git" || (best >= 0 && depth >= best) {
-					return fs.SkipDir
+			slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+			if depth > 0 && best < 0 || depth < best {
+				for _, entry := range entries {
+					if entry.Name() == "SKILL.md" && entry.Type().IsRegular() && path.Base(dir) == name {
+						found, best = dir, depth
+						break
+					}
 				}
-				return nil
 			}
-			if d.Name() == "SKILL.md" && d.Type().IsRegular() && path.Base(path.Dir(p)) == name && (best < 0 || depth-1 < best) {
-				found, best = path.Dir(p), depth-1
+			for _, entry := range entries {
+				if entry.IsDir() && entry.Name() != "node_modules" && entry.Name() != ".git" {
+					walk(path.Join(dir, entry.Name()), depth+1)
+				}
 			}
-			return nil
-		})
+		}
+		walk(base, 0)
 		if found != "" {
 			return filepath.Join(checkout, filepath.FromSlash(found))
 		}

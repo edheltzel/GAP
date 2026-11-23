@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 )
 
 type discoveredSkill struct {
@@ -214,18 +215,29 @@ func skillsShSearchDirs(checkout, base string) []string {
 	return dirs
 }
 
-func findSkillDirs(checkout fs.FS, dir string, depth int) []string {
+func readDirOnly(root *os.Root, name string) ([]fs.DirEntry, error) {
+	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	entries, err := f.ReadDir(-1)
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+	return entries, err
+}
+
+func findSkillDirs(root *os.Root, dir string, depth int) []string {
 	if depth > 5 {
 		return nil
 	}
 	var out []string
-	if hasSkillMD(checkout, dir) {
+	if hasSkillMD(root.FS(), dir) {
 		out = append(out, dir)
 	}
-	entries, _ := fs.ReadDir(checkout, dir)
+	entries, _ := readDirOnly(root, dir)
 	for _, entry := range entries {
 		if entry.IsDir() && !slices.Contains(discoverSkipDirs, entry.Name()) {
-			out = append(out, findSkillDirs(checkout, path.Join(dir, entry.Name()), depth+1)...)
+			out = append(out, findSkillDirs(root, path.Join(dir, entry.Name()), depth+1)...)
 		}
 	}
 	return out
@@ -318,7 +330,7 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 	}
 	var walk func(dir string, maxDepth, depth int)
 	walk = func(dir string, maxDepth, depth int) {
-		entries, err := fs.ReadDir(checkout, at(dir))
+		entries, err := readDirOnly(root, at(dir))
 		if err != nil {
 			return
 		}
@@ -341,7 +353,7 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 		walk(dir, maxDepth, 1)
 	}
 	if len(skills) == 0 || fullDepth {
-		for _, dir := range findSkillDirs(checkout, at(search), 0) {
+		for _, dir := range findSkillDirs(root, at(search), 0) {
 			if m, ok := parseAt(filepath.Join(base, filepath.FromSlash(dir))); ok && !seen[m.Name] && !installedProjectSkill(m) {
 				add(m)
 			}
