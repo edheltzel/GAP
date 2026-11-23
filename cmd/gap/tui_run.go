@@ -38,9 +38,9 @@ type jobDoneMsg struct {
 type jobsFinishedMsg struct{}
 
 type statusTextMsg struct {
-	gen  int
-	text string
-	err  error
+	gen, req int
+	text     string
+	err      error
 }
 
 var (
@@ -105,6 +105,7 @@ type jobRunner interface {
 type execRunner struct {
 	mu      sync.Mutex
 	stop    context.CancelFunc
+	child   *childCmd
 	stopped bool
 	batch   sync.WaitGroup
 }
@@ -115,10 +116,24 @@ func (r *execRunner) wait() {
 
 func (r *execRunner) cancel() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.stopped = true
 	if r.stop != nil {
 		r.stop()
+	}
+	child := r.child
+	r.mu.Unlock()
+	if child != nil {
+		child.interrupt()
+	}
+}
+
+func (r *execRunner) started(c *childCmd) {
+	r.mu.Lock()
+	r.child = c
+	stopped := r.stopped
+	r.mu.Unlock()
+	if stopped {
+		c.interrupt()
 	}
 }
 
@@ -139,12 +154,12 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 			r.stop = stop
 			r.mu.Unlock()
 			send(jobStartedMsg{i: i})
-			child, code, err := runJob(ctx, i, job, send)
+			child, code, err := runJob(ctx, i, job, send, r.started)
 			r.mu.Lock()
 			var exit *exec.ExitError
 			signalled := errors.As(err, &exit) && exit.ExitCode() == -1
 			cancelled := r.stopped || ctx.Err() != nil || signalled
-			r.stop = nil
+			r.stop, r.child = nil, nil
 			r.mu.Unlock()
 			if child != nil {
 				child.settle(cancelled)
@@ -156,7 +171,7 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 	}()
 }
 
-func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg)) (*childCmd, int, error) {
+func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg), started func(*childCmd)) (*childCmd, int, error) {
 	if job.fn != nil {
 		if err := job.fn(); err != nil {
 			send(jobOutputMsg{i: i, line: err.Error()})
@@ -176,6 +191,7 @@ func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg)) (*childC
 		send(jobOutputMsg{i: i, line: err.Error()})
 		return nil, 1, err
 	}
+	started(cmd)
 	done := make(chan struct{})
 	go func() {
 		lines := bufio.NewScanner(pr)
@@ -238,10 +254,16 @@ func statusText(g *childGroup, req context.Context) tea.Cmd {
 		ctx, cancel := context.WithCancel(group)
 		defer cancel()
 		defer context.AfterFunc(req, cancel)()
+		tmp, err := os.MkdirTemp("", "gap-status-")
+		if err != nil {
+			return statusTextMsg{err: err}
+		}
+		defer os.RemoveAll(tmp)
 		cmd, err := gapCommand(ctx, "status")
 		if err != nil {
 			return statusTextMsg{err: err}
 		}
+		cmd.Env = append(cmd.Env, "TMPDIR="+tmp)
 		out, err := cmd.CombinedOutput()
 		cmd.settle(ctx.Err() != nil)
 		if req.Err() != nil {

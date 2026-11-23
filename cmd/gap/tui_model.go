@@ -111,6 +111,7 @@ type tuiModel struct {
 	projAsked    bool
 	projDone     bool
 	statusAsked  bool
+	statusReq    int
 	gen          int
 	stores       *storeCache
 	marked       map[string]bool
@@ -229,12 +230,13 @@ func (m *tuiModel) statusCmd() tea.Cmd {
 		stop()
 		return nil
 	}
+	m.statusReq++
 	m.statusStop, m.statusLoading = stop, true
-	gen := m.gen
+	gen, req := m.gen, m.statusReq
 	return func() tea.Msg {
 		msg := fetch()
 		if s, ok := msg.(statusTextMsg); ok {
-			s.gen = gen
+			s.gen, s.req = gen, req
 			return s
 		}
 		return msg
@@ -315,7 +317,7 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshPane()
 		return m, next
 	case statusTextMsg:
-		if msg.gen != m.gen {
+		if msg.gen != m.gen || msg.req != m.statusReq {
 			return m, nil
 		}
 		if m.statusStop != nil {
@@ -471,17 +473,17 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		m.quitting = true
 		return tea.Quit
 	case key.Matches(msg, m.keys.Tab):
-		if m.tab == tabStatus {
-			m.stopStatus()
-		}
+		next := (m.tab + 1) % len(tabNames)
 		switch msg.String() {
 		case "1", "2", "3":
-			m.tab = int(msg.String()[0] - '1')
+			next = int(msg.String()[0] - '1')
 		case "shift+tab":
-			m.tab = (m.tab + len(tabNames) - 1) % len(tabNames)
-		default:
-			m.tab = (m.tab + 1) % len(tabNames)
+			next = (m.tab + len(tabNames) - 1) % len(tabNames)
 		}
+		if m.tab == tabStatus && next != tabStatus {
+			m.stopStatus()
+		}
+		m.tab = next
 		m.refreshPane()
 		return tea.Batch(m.projectsCmd(), m.statusCmd())
 	case m.tab == tabStatus && key.Matches(msg, m.keys.Up, m.keys.Down, m.keys.Top, m.keys.Bottom):

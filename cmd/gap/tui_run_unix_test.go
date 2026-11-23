@@ -117,6 +117,45 @@ func TestTUIRunLateCancelStopsDescendants(t *testing.T) {
 	}
 }
 
+func TestTUIRunStopDuringOutputStartsGraceAtOnce(t *testing.T) {
+	oldExe, oldGrace := tuiExecutable, tuiStopGrace
+	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
+	tuiStopGrace = time.Second
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "pid")
+	script := filepath.Join(dir, "gap")
+	write(t, script, "#!/bin/sh\n(trap '' INT TERM; exec /bin/sleep 30) >/dev/null 2>&1 &\necho $! > \""+pidFile+"\"\necho started\n")
+	if err := os.Chmod(script, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tuiExecutable = func() (string, error) { return script, nil }
+	r := &execRunner{}
+	ch := make(chan tea.Msg, 64)
+	var stopped time.Time
+	var dead time.Duration
+	r.start([]tuiJob{{label: "remove ua", args: []string{"remove", "--", "ua"}}}, func(msg tea.Msg) {
+		if _, ok := msg.(jobOutputMsg); ok {
+			time.Sleep(300 * time.Millisecond)
+			stopped = time.Now()
+			r.cancel()
+			pid, _ := strconv.Atoi(strings.TrimSpace(readString(t, pidFile)))
+			for syscall.Kill(pid, 0) == nil && time.Since(stopped) < 3*time.Second {
+				time.Sleep(20 * time.Millisecond)
+			}
+			dead = time.Since(stopped)
+		}
+		ch <- msg
+	})
+	for msg := range ch {
+		if _, ok := msg.(jobsFinishedMsg); ok {
+			break
+		}
+	}
+	if dead > 1600*time.Millisecond {
+		t.Fatalf("descendant outlived the %v grace by running %v after Stop while output was still delivered", tuiStopGrace, dead)
+	}
+}
+
 func TestTUIReadyNeedsTerminalStdout(t *testing.T) {
 	null, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	if err != nil {

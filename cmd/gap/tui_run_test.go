@@ -213,7 +213,8 @@ func TestTUIStatusRequestStopsWhenCancelled(t *testing.T) {
 	old := tuiExecutable
 	t.Cleanup(func() { tuiExecutable = old })
 	slow := filepath.Join(t.TempDir(), "gap")
-	write(t, slow, "#!/bin/sh\nexec /bin/sleep 30\n")
+	record := filepath.Join(t.TempDir(), "tmpdir")
+	write(t, slow, "#!/bin/sh\necho \"$TMPDIR\" > \""+record+"\"\ntouch \"$TMPDIR/index.lock\"\nexec /bin/sleep 30\n")
 	if err := os.Chmod(slow, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -232,6 +233,13 @@ func TestTUIStatusRequestStopsWhenCancelled(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("cancelling the request did not stop gap status")
+	}
+	tmp := strings.TrimSpace(readString(t, record))
+	if tmp == "" || filepath.Clean(tmp) == filepath.Clean(os.TempDir()) {
+		t.Fatalf("gap status ran with the shared temp dir %q", tmp)
+	}
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Fatalf("status temp dir %s left behind: %v", tmp, err)
 	}
 }
 

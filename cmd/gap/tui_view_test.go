@@ -34,7 +34,7 @@ func TestTUIRenderFitsWidth(t *testing.T) {
 		}
 		check("items")
 		press(m, "2")
-		m.Update(statusTextMsg{text: long + "\nshort"})
+		m.Update(statusTextMsg{req: m.statusReq, text: long + "\nshort"})
 		check("status")
 		press(m, "3")
 		check("projects")

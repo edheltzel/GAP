@@ -464,6 +464,42 @@ func TestTUIStatusStopsWhenLeft(t *testing.T) {
 	}
 }
 
+func TestTUIStatusSupersededResponseIgnored(t *testing.T) {
+	m, _ := tuiFixture(t)
+	var reqs []context.Context
+	n := 0
+	m.fetchStatus = func(ctx context.Context) tea.Cmd {
+		reqs = append(reqs, ctx)
+		n++
+		text := fmt.Sprintf("report %d", n)
+		return func() tea.Msg { return statusTextMsg{text: text} }
+	}
+	_, first := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	press(m, "1")
+	_, second := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	m.Update(statusOf(t, first))
+	if reqs[1].Err() != nil || !m.statusLoading || strings.Contains(screen(m), "report 1") {
+		t.Fatalf("a superseded response took over: loading %v\n%s", m.statusLoading, screen(m))
+	}
+	m.Update(statusOf(t, second))
+	if s := screen(m); !strings.Contains(s, "report 2") || m.statusLoading {
+		t.Fatalf("current response not shown:\n%s", s)
+	}
+}
+
+func TestTUIStatusSameTabKeepsRequest(t *testing.T) {
+	m, _ := tuiFixture(t)
+	var reqs []context.Context
+	m.fetchStatus = func(ctx context.Context) tea.Cmd {
+		reqs = append(reqs, ctx)
+		return func() tea.Msg { return statusTextMsg{text: "report"} }
+	}
+	press(m, "2", "2")
+	if len(reqs) != 1 || reqs[0].Err() != nil || !m.statusLoading {
+		t.Fatalf("pressing 2 on Status restarted it: %d requests", len(reqs))
+	}
+}
+
 func TestTUIQuickLoadClearsOldRegistryError(t *testing.T) {
 	m, _ := tuiFixture(t)
 	m.fetchStatus = func(context.Context) tea.Cmd { return nil }
