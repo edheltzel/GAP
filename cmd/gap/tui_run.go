@@ -80,21 +80,28 @@ func (c *childCmd) interrupt() error {
 	return interruptGroup(pgid)
 }
 
-func (c *childCmd) settle(cancelled bool) bool {
+func (c *childCmd) settle(cancelled bool) (gone, forced bool) {
+	if c.Process == nil {
+		return true, false
+	}
+	pgid := c.Process.Pid
+	if groupGone(pgid, 0) {
+		return true, false
+	}
 	c.interrupt()
 	c.mu.Lock()
 	kill := c.kill
 	c.mu.Unlock()
-	pgid := c.Process.Pid
-	gone := groupGone(pgid, tuiStopGrace+time.Second)
+	gone = groupGone(pgid, tuiStopGrace)
 	if !gone {
 		killGroup(pgid)
+		forced = true
 		gone = groupGone(pgid, 2*time.Second)
 	}
 	if kill != nil {
 		kill.Stop()
 	}
-	return gone
+	return gone, forced
 }
 
 type jobRunner interface {
@@ -154,21 +161,30 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 			r.stop = stop
 			r.mu.Unlock()
 			send(jobStartedMsg{i: i})
-			child, code, err := runJob(ctx, i, job, send, r.started)
+			child, code, err, drained := runJob(ctx, i, job, send, r.started)
 			r.mu.Lock()
 			var exit *exec.ExitError
 			signalled := errors.As(err, &exit) && exit.ExitCode() == -1
 			cancelled := r.stopped || ctx.Err() != nil || signalled
 			r.stop, r.child = nil, nil
 			r.mu.Unlock()
-			lingering := false
+			lingering, forced := false, false
 			if child != nil {
-				lingering = !child.settle(cancelled)
+				var gone bool
+				gone, forced = child.settle(cancelled)
+				lingering = !gone
 			}
 			stop()
-			if lingering && !cancelled {
+			if drained != nil {
+				<-drained
+			}
+			if !cancelled && (forced || lingering) {
 				code = 1
-				err = fmt.Errorf("a hook process kept running after the command exited")
+				why := "had to be killed"
+				if lingering {
+					why = "could not be killed"
+				}
+				err = fmt.Errorf("a hook process kept running after the command exited and %s", why)
 			}
 			send(jobDoneMsg{i: i, code: code, err: err, cancelled: cancelled && code != 0})
 		}
@@ -176,48 +192,51 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 	}()
 }
 
-func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg), started func(*childCmd)) (*childCmd, int, error) {
+func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg), started func(*childCmd)) (*childCmd, int, error, <-chan struct{}) {
 	if job.fn != nil {
 		if err := job.fn(); err != nil {
 			send(jobOutputMsg{i: i, line: err.Error()})
-			return nil, 1, err
+			return nil, 1, err, nil
 		}
-		return nil, 0, nil
+		return nil, 0, nil, nil
 	}
 	cmd, err := gapCommand(ctx, job.args...)
 	if err != nil {
-		return nil, 1, err
+		return nil, 1, err, nil
 	}
-	pr, pw := io.Pipe()
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return nil, 1, err, nil
+	}
 	cmd.Stdout, cmd.Stderr = pw, pw
 	if err := cmd.Start(); err != nil {
 		pw.Close()
 		pr.Close()
 		send(jobOutputMsg{i: i, line: err.Error()})
-		return nil, 1, err
+		return nil, 1, err, nil
 	}
+	pw.Close()
 	started(cmd)
 	done := make(chan struct{})
 	go func() {
+		defer close(done)
+		defer pr.Close()
 		lines := bufio.NewScanner(pr)
 		lines.Buffer(make([]byte, 64*1024), 1024*1024)
 		for lines.Scan() {
 			send(jobOutputMsg{i: i, line: lines.Text()})
 		}
 		io.Copy(io.Discard, pr)
-		close(done)
 	}()
 	err = cmd.Wait()
-	pw.Close()
-	<-done
 	var exit *exec.ExitError
 	switch {
 	case err == nil:
-		return cmd, 0, nil
+		return cmd, 0, nil, done
 	case errors.As(err, &exit):
-		return cmd, max(exit.ExitCode(), 1), err
+		return cmd, max(exit.ExitCode(), 1), err, done
 	}
-	return cmd, 1, err
+	return cmd, 1, err, done
 }
 
 type childGroup struct {

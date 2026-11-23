@@ -3,6 +3,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -56,25 +57,35 @@ func TestTUIRunCleanExitStopsDescendants(t *testing.T) {
 	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
 	tuiStopGrace = 300 * time.Millisecond
 	dir := t.TempDir()
-	pidFile := filepath.Join(dir, "pid")
+	life := filepath.Join(dir, "life")
+	if err := syscall.Mkfifo(life, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	script := filepath.Join(dir, "gap")
-	write(t, script, "#!/bin/sh\n(trap '' INT TERM; exec /bin/sleep 30) >/dev/null 2>&1 &\necho $! > \""+pidFile+"\"\n")
+	write(t, script, "#!/bin/sh\n(trap '' INT TERM; exec 3>\""+life+"\"; exec /bin/sleep 30) >/dev/null 2>&1 &\n")
 	if err := os.Chmod(script, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	tuiExecutable = func() (string, error) { return script, nil }
+	ended := make(chan struct{})
+	go func() {
+		held, err := os.OpenFile(life, os.O_RDONLY, 0)
+		if err != nil {
+			return
+		}
+		defer held.Close()
+		io.Copy(io.Discard, held)
+		close(ended)
+	}()
 	msgs := collect(t, &execRunner{}, []tuiJob{{label: "update ua", args: []string{"update", "--", "ua"}}}, nil)
 	done := doneOf(msgs)
-	if len(done) != 1 || done[0].cancelled {
+	if len(done) != 1 || done[0].cancelled || done[0].code == 0 {
 		t.Fatalf("done = %+v", done)
 	}
-	pid, err := strconv.Atoi(strings.TrimSpace(readString(t, pidFile)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { syscall.Kill(pid, syscall.SIGKILL) })
-	if syscall.Kill(pid, 0) == nil {
-		t.Fatalf("descendant %d still runs after the step was reported done", pid)
+	select {
+	case <-ended:
+	case <-time.After(2 * time.Second):
+		t.Fatal("descendant still holds its pipe after the step was reported done")
 	}
 }
 
