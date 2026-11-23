@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/edheltzel/gap/cmd/gap/readdir"
 	"io/fs"
 	"maps"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 )
 
 type discoveredSkill struct {
@@ -215,17 +215,6 @@ func skillsShSearchDirs(checkout, base string) []string {
 	return dirs
 }
 
-func readDirOnly(root *os.Root, name string) ([]fs.DirEntry, error) {
-	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NONBLOCK, 0)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	entries, err := f.ReadDir(-1)
-	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
-	return entries, err
-}
-
 func findSkillDirs(root *os.Root, dir string, depth int) []string {
 	if depth > 5 {
 		return nil
@@ -234,7 +223,7 @@ func findSkillDirs(root *os.Root, dir string, depth int) []string {
 	if hasSkillMD(root.FS(), dir) {
 		out = append(out, dir)
 	}
-	entries, _ := readDirOnly(root, dir)
+	entries, _ := readdir.Only(root, dir)
 	for _, entry := range entries {
 		if entry.IsDir() && !slices.Contains(discoverSkipDirs, entry.Name()) {
 			out = append(out, findSkillDirs(root, path.Join(dir, entry.Name()), depth+1)...)
@@ -330,7 +319,7 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 	}
 	var walk func(dir string, maxDepth, depth int)
 	walk = func(dir string, maxDepth, depth int) {
-		entries, err := readDirOnly(root, at(dir))
+		entries, err := readdir.Only(root, at(dir))
 		if err != nil {
 			return
 		}

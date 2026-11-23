@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/edheltzel/gap/cmd/gap/readdir"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -555,12 +556,12 @@ func findSkillDir(checkout, name string, bases ...string) string {
 			if best >= 0 && depth >= best {
 				return
 			}
-			entries, err := readDirOnly(root, dir)
+			entries, err := readdir.Only(root, dir)
 			if err != nil {
 				return
 			}
 			slices.SortFunc(entries, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
-			if depth > 0 && best < 0 || depth < best {
+			if best < 0 || depth < best {
 				for _, entry := range entries {
 					if entry.Name() == "SKILL.md" && entry.Type().IsRegular() && path.Base(dir) == name {
 						found, best = dir, depth

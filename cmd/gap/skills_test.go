@@ -344,6 +344,9 @@ func TestFindSkillDirIsDeterministic(t *testing.T) {
 	if got := entrySkillDir(manifestEntry{Path: root, SkillPath: "plugin/skills"}, "x"); got != filepath.Join(root, "plugin", "skills", "x") {
 		t.Fatalf("entry path: %s", got)
 	}
+	if got := entrySkillDir(manifestEntry{Path: root, SkillPath: "z/x"}, "x"); got != filepath.Join(root, "z", "x") {
+		t.Fatalf("skill path pointing at the skill directory itself: %s", got)
+	}
 }
 
 func TestComponentPathKey(t *testing.T) {
