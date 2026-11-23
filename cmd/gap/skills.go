@@ -1151,6 +1151,8 @@ func shadowWarnings(home string, e manifestEntry, name string) []string {
 	return out
 }
 
+var renameJcodeShadow = os.Rename
+
 func refreshJcodeShadows(home string, e manifestEntry, name string) error {
 	if len(entryDests(home, e, name)) == 0 {
 		return nil
@@ -1163,7 +1165,7 @@ func refreshJcodeShadows(home string, e manifestEntry, name string) error {
 	if info, err := os.Stat(shadow); err != nil || !info.IsDir() {
 		return nil
 	}
-	if info, err := os.Lstat(filepath.Join(shadow, "SKILL.md")); err != nil || !info.Mode().IsRegular() {
+	if info, err := os.Stat(filepath.Join(shadow, "SKILL.md")); err != nil || !info.Mode().IsRegular() || !insideCheckout(shadow, shadow) {
 		return nil
 	}
 	if sameFile(shadow, filepath.Join(home, ".empryo", "skills", name)) {
@@ -1192,19 +1194,19 @@ func refreshJcodeShadows(home string, e manifestEntry, name string) error {
 		return err
 	}
 	saved := filepath.Join(stage, "saved")
-	if err := os.Rename(shadow, saved); err != nil {
+	if err := renameJcodeShadow(shadow, saved); err != nil {
 		os.RemoveAll(stage)
 		return err
 	}
-	if err := os.Rename(staged, shadow); err != nil {
-		if back := os.Rename(saved, shadow); back != nil {
+	if err := renameJcodeShadow(staged, shadow); err != nil {
+		if back := renameJcodeShadow(saved, shadow); back != nil {
 			return errors.Join(err, fmt.Errorf("the old copy is still at %s: %w", saved, back))
 		}
 		os.RemoveAll(stage)
 		return err
 	}
 	if err := os.RemoveAll(stage); err != nil {
-		return fmt.Errorf("refreshed %s, but the old copy is still at %s: %w", shadow, stage, err)
+		return fmt.Errorf("refreshed %s, but could not remove staging directory %s: %w", shadow, stage, err)
 	}
 	return nil
 }
