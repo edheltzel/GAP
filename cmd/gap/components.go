@@ -455,9 +455,22 @@ func placeStore(tmp, dest string) error {
 }
 
 // worktreeID hashes tracked files and non-ignored additions, not just HEAD.
+var errStoreSubmoduleDrift = errors.New("store submodules differ from the pinned checkout")
+
 func worktreeID(dir string) (string, error) {
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		return "", err
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".gitmodules")); err == nil {
+		status, err := git(dir, "submodule", "status", "--recursive")
+		if err != nil {
+			return "", fmt.Errorf("checking store submodules: %w", err)
+		}
+		for _, line := range strings.Split(status, "\n") {
+			if strings.HasPrefix(line, "-") || strings.HasPrefix(line, "+") || strings.HasPrefix(line, "U") {
+				return "", fmt.Errorf("%w: %s", errStoreSubmoduleDrift, strings.TrimSpace(line))
+			}
+		}
 	}
 	tmp, err := os.MkdirTemp("", "gap-store-index-")
 	if err != nil {
@@ -502,6 +515,9 @@ func storeState(dir, tree string) (string, error) {
 		return "", err
 	}
 	got, err := worktreeID(dir)
+	if errors.Is(err, errStoreSubmoduleDrift) {
+		return storeChanged, nil
+	}
 	if err != nil {
 		return "", fmt.Errorf("reading store %s: %w", dir, err)
 	}
@@ -963,7 +979,8 @@ func fetchCommit(home string, c component, l lockEntryM1) (string, error) {
 			_, _ = git(tmp, "remote", "add", "origin", url)
 			return git(tmp, "submodule", "update", "--init", "--recursive", "--depth", "1")
 		}); err != nil {
-			fmt.Fprintln(os.Stderr, "Warning: failed to initialize Git submodules; installed skills may be incomplete.")
+			os.RemoveAll(tmp)
+			return "", fmt.Errorf("component %s: initialize submodules for %s: %w", c.ID, l.Commit, err)
 		}
 	}
 	return tmp, nil

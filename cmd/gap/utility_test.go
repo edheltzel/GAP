@@ -131,6 +131,196 @@ func TestUtilityAdd(t *testing.T) {
 	}
 }
 
+func TestUtilityAddSubmoduleFailure(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		name := "new"
+		if existing {
+			name = "existing"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := newUtilityEnv(t, "")
+			quietStdout(t)
+			t.Setenv("GIT_ALLOW_PROTOCOL", "file")
+			args := addGlobalArgs(e.remote, "--id", "util")
+			paths := []string{
+				userConfigFile(e.home),
+				filepath.Join(userConfigDir(e.home), "gap.lock"),
+				filepath.Join(e.home, ".gap", "state.json"),
+				filepath.Join(e.home, ".agents", "skills", "util-skill", "SKILL.md"),
+				filepath.Join(e.home, ".claude", "skills", "util-skill", "SKILL.md"),
+			}
+			before := make(map[string]string)
+			if existing {
+				if err := runAdd(args); err != nil {
+					t.Fatal(err)
+				}
+				for _, path := range paths {
+					before[path] = readString(t, path)
+				}
+			}
+			child := t.TempDir()
+			write(t, filepath.Join(child, "data"), "submodule data\n")
+			commitAll(t, child)
+			if _, err := git(e.remote, "submodule", "add", child, "deps/child"); err != nil {
+				t.Fatal(err)
+			}
+			missing := filepath.Join(t.TempDir(), "unavailable.git")
+			if _, err := git(e.remote, "config", "-f", ".gitmodules", "submodule.deps/child.url", missing); err != nil {
+				t.Fatal(err)
+			}
+			write(t, filepath.Join(e.remote, "skills", "util-skill", "SKILL.md"), "---\nname: util-skill\ndescription: must not install\n---\n")
+			commit, _ := commitAll(t, e.remote)
+			err := runAdd(args)
+			if err == nil {
+				t.Fatal("add accepted an unavailable submodule")
+			}
+			for _, detail := range []string{"component util", "submodule", missing} {
+				if !strings.Contains(err.Error(), detail) {
+					t.Errorf("error %q does not contain %q", err, detail)
+				}
+			}
+			for _, path := range paths {
+				if existing {
+					if got := readString(t, path); got != before[path] {
+						t.Errorf("failed add changed %s", path)
+					}
+				} else if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Errorf("failed add left %s: %v", path, err)
+				}
+			}
+			if _, err := os.Stat(storePath(e.home, "util", commit)); !os.IsNotExist(err) {
+				t.Errorf("failed add published an incomplete store: %v", err)
+			}
+			staging, err := filepath.Glob(filepath.Join(e.home, ".gap", "store", "util", "fetch-*"))
+			if err != nil || len(staging) != 0 {
+				t.Errorf("failed add left staging directories: %v (%v)", staging, err)
+			}
+			if existing {
+				pins, err := readLock(userConfigDir(e.home))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := os.Stat(storePath(e.home, "util", pins.Components["util"].Commit)); err != nil {
+					t.Errorf("failed add removed the existing store: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestUtilityAddRejectsIncompleteCachedSubmodule(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	quietStdout(t)
+	t.Setenv("GIT_ALLOW_PROTOCOL", "file")
+	child := t.TempDir()
+	write(t, filepath.Join(child, "data"), "submodule data\n")
+	commitAll(t, child)
+	if _, err := git(e.remote, "submodule", "add", child, "deps/child"); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(t.TempDir(), "unavailable.git")
+	if _, err := git(e.remote, "config", "-f", ".gitmodules", "submodule.deps/child.url", missing); err != nil {
+		t.Fatal(err)
+	}
+	commit, _ := commitAll(t, e.remote)
+	dest := storePath(e.home, "util", commit)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := git(e.home, "clone", "--no-recurse-submodules", e.remote, dest); err != nil {
+		t.Fatal(err)
+	}
+	tree, err := git(dest, "rev-parse", "HEAD^{tree}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := component{ID: "util", Repo: e.remote}
+	if _, err := ensureStore(e.home, c, lockEntryM1{Commit: commit, Tree: tree}); err == nil {
+		t.Fatal("ensureStore accepted an uninitialized cached submodule")
+	}
+	if err := runAdd(addGlobalArgs(e.remote, "--id", "util")); err == nil {
+		t.Fatal("add reused an incomplete checkout for the exact requested commit")
+	}
+	for _, path := range []string{userConfigFile(e.home), filepath.Join(userConfigDir(e.home), "gap.lock"), filepath.Join(e.home, ".agents", "skills", "util-skill")} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("failed add left %s: %v", path, err)
+		}
+	}
+}
+
+func TestUtilityCompleteCachedSubmodulesWorkOffline(t *testing.T) {
+	e := newUtilityEnv(t, "")
+	quietStdout(t)
+	t.Setenv("GIT_ALLOW_PROTOCOL", "file")
+	child := t.TempDir()
+	write(t, filepath.Join(child, "data"), "submodule data\n")
+	commitAll(t, child)
+	if _, err := git(e.remote, "submodule", "add", child, "deps/child"); err != nil {
+		t.Fatal(err)
+	}
+	commit, _ := commitAll(t, e.remote)
+	dest := storePath(e.home, "util", commit)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := git(e.home, "clone", "--recurse-submodules", e.remote, dest); err != nil {
+		t.Fatal(err)
+	}
+	tree, err := git(dest, "rev-parse", "HEAD^{tree}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(e.remote, e.remote+"-offline"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(child, child+"-offline"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Rename(child+"-offline", child) })
+	got, err := ensureStore(e.home, component{ID: "util", Repo: e.remote}, lockEntryM1{Commit: commit, Tree: tree})
+	if err != nil || got != dest {
+		t.Fatalf("complete offline store was not reused: %q %v", got, err)
+	}
+}
+
+func TestUtilitySubmoduleDriftReportsRepair(t *testing.T) {
+	for _, mode := range []string{"uninitialized", "different-commit"} {
+		t.Run(mode, func(t *testing.T) {
+			e := newUtilityEnv(t, "")
+			quietStdout(t)
+			t.Setenv("GIT_ALLOW_PROTOCOL", "file")
+			child := t.TempDir()
+			write(t, filepath.Join(child, "data"), "submodule data\n")
+			commitAll(t, child)
+			if _, err := git(e.remote, "submodule", "add", child, "deps/child"); err != nil {
+				t.Fatal(err)
+			}
+			commit, tree := commitAll(t, e.remote)
+			if err := runAdd(addGlobalArgs(e.remote, "--id", "util")); err != nil {
+				t.Fatal(err)
+			}
+			dest := storePath(e.home, "util", commit)
+			if mode == "uninitialized" {
+				if _, err := git(dest, "submodule", "deinit", "-f", "--", "deps/child"); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				write(t, filepath.Join(dest, "deps", "child", "data"), "changed\n")
+				commitAll(t, filepath.Join(dest, "deps", "child"))
+			}
+			state, err := storeState(dest, tree)
+			if err != nil || state != storeChanged {
+				t.Fatalf("store state = %q, %v; want readable drift", state, err)
+			}
+			var code int
+			out, stderr := captureStd(t, func() { code = run([]string{"status"}) })
+			if code != 1 || !strings.Contains(out, "store=changed") || !strings.Contains(out, "gap sync") || stderr != "" {
+				t.Fatalf("status code=%d, stdout=%q, stderr=%q", code, out, stderr)
+			}
+		})
+	}
+}
+
 func TestUtilityUpdate(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)

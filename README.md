@@ -79,6 +79,10 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 
 Use `gap --help` or `gap <command> --help` for usage and flags. Help and terminal reports use GAP's light or dark palette; status, list, and search show framed tables with totals. Git ref lookups and store fetching show spinners on terminal stderr; long titles are truncated to the terminal width measured at the start of the operation, when available. Set `NO_COLOR=1` or `TERM=dumb` to suppress report colors and spinners while keeping terminal layouts. Redirected reports use plain text. Add, update, restore, pin, remove, and uninstall outcome lines also appear when redirected.
 
+## Breaking changes
+
+`gap add -l` now means `--list`, not `--local`. Use `-p`, `--project`, or `--local` for a project install.
+
 ## Terminal UI
 
 `gap tui` opens a terminal UI with three views:
