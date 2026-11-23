@@ -51,8 +51,10 @@ var (
 
 type childCmd struct {
 	*exec.Cmd
-	mu   sync.Mutex
-	kill *time.Timer
+	mu        sync.Mutex
+	kill      *time.Timer
+	out       io.Closer
+	escalated bool
 }
 
 func gapCommand(ctx context.Context, args ...string) (*childCmd, error) {
@@ -76,8 +78,19 @@ func (c *childCmd) interrupt() error {
 		return nil
 	}
 	pgid := c.Process.Pid
-	c.kill = time.AfterFunc(tuiStopGrace, func() { killGroup(pgid) })
+	c.kill = time.AfterFunc(tuiStopGrace, func() {
+		c.mu.Lock()
+		c.escalated = true
+		killGroup(pgid)
+		c.mu.Unlock()
+	})
 	return interruptGroup(pgid)
+}
+
+func (c *childCmd) wasEscalated() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.escalated
 }
 
 func (c *childCmd) settle(cancelled bool) (gone, forced bool) {
@@ -86,22 +99,40 @@ func (c *childCmd) settle(cancelled bool) (gone, forced bool) {
 	}
 	pgid := c.Process.Pid
 	if groupGone(pgid, 0) {
+		c.disarm()
 		return true, false
 	}
 	c.interrupt()
-	c.mu.Lock()
-	kill := c.kill
-	c.mu.Unlock()
 	gone = groupGone(pgid, tuiStopGrace)
 	if !gone {
+		c.mu.Lock()
+		c.escalated = true
+		c.mu.Unlock()
 		killGroup(pgid)
-		forced = true
 		gone = groupGone(pgid, 2*time.Second)
 	}
+	c.disarm()
+	return gone, c.wasEscalated()
+}
+
+func (c *childCmd) closeOut() {
+	c.mu.Lock()
+	out := c.out
+	c.out = nil
+	c.mu.Unlock()
+	if out != nil {
+		out.Close()
+	}
+}
+
+func (c *childCmd) disarm() {
+	c.mu.Lock()
+	kill := c.kill
+	c.kill = nil
+	c.mu.Unlock()
 	if kill != nil {
 		kill.Stop()
 	}
-	return gone, forced
 }
 
 type jobRunner interface {
@@ -176,7 +207,12 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 			}
 			stop()
 			if drained != nil {
-				<-drained
+				select {
+				case <-drained:
+				case <-time.After(2 * time.Second):
+					child.closeOut()
+					<-drained
+				}
 			}
 			if !cancelled && (forced || lingering) {
 				code = 1
@@ -209,6 +245,7 @@ func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg), started 
 		return nil, 1, err, nil
 	}
 	cmd.Stdout, cmd.Stderr = pw, pw
+	cmd.out = pw
 	if err := cmd.Start(); err != nil {
 		pw.Close()
 		pr.Close()

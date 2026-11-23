@@ -347,6 +347,9 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			j.state = jobOK
 			if msg.code != 0 || msg.err != nil {
 				j.state = jobFailed
+				if msg.err != nil {
+					j.lines = append(j.lines, msg.err.Error())
+				}
 			}
 			m.refreshPane()
 		}
