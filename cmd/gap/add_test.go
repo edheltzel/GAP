@@ -280,21 +280,48 @@ func TestAddMigratesLegacyDestinations(t *testing.T) {
 }
 
 func TestAddRetiresAVerifiedLegacyCopy(t *testing.T) {
-	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
-	write(t, userConfigFile(e.home), fmt.Sprintf("[components.util]\nrepo = %q\nref = \"master\"\n", e.remote))
-	quietStdout(t)
-	if code := run([]string{"update", "util"}); code != 0 {
-		t.Fatalf("legacy install exited %d", code)
-	}
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(e.home, ".new-claude"))
-	if code := run([]string{"add", e.remote, "--id", "util", "-g", "-y", "--copy"}); code != 0 {
-		t.Fatalf("re-add exited %d", code)
-	}
-	if _, err := os.Lstat(filepath.Join(e.home, ".claude", "skills", "util-skill")); !os.IsNotExist(err) {
-		t.Fatalf("the unused legacy copy is still live: %v", err)
-	}
-	if !exists(filepath.Join(e.home, ".new-claude", "skills", "util-skill", "SKILL.md")) {
-		t.Fatal("the re-add did not install for the new Claude Code folder")
+	twin := "---\nname: util-skill\ndescription: a same-name folder\n---\n"
+	for _, tc := range []struct {
+		name, edit   string
+		dropManifest bool
+		retired      bool
+	}{
+		{name: "unedited", retired: true},
+		{name: "edited", edit: "edited\n"},
+		{name: "edit matches a same-name folder after the manifest is dropped", edit: twin, dropManifest: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+			write(t, filepath.Join(e.remote, "skills", "aaa", "SKILL.md"), twin)
+			commitAll(t, e.remote)
+			write(t, userConfigFile(e.home), fmt.Sprintf("[components.util]\nrepo = %q\nref = \"master\"\n", e.remote))
+			quietStdout(t)
+			if code := run([]string{"update", "util"}); code != 0 {
+				t.Fatalf("legacy install exited %d", code)
+			}
+			legacy := filepath.Join(e.home, ".claude", "skills", "util-skill")
+			if tc.edit != "" {
+				write(t, filepath.Join(legacy, "SKILL.md"), tc.edit)
+			}
+			if tc.dropManifest {
+				for _, rel := range []string{utilityManifestName, filepath.Join("skills", "aaa")} {
+					if err := os.RemoveAll(filepath.Join(e.remote, rel)); err != nil {
+						t.Fatal(err)
+					}
+				}
+				commitAll(t, e.remote)
+			}
+			t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(e.home, ".new-claude"))
+			if code := run([]string{"add", e.remote, "--id", "util", "-g", "-y", "--copy"}); code != 0 {
+				t.Fatalf("re-add exited %d", code)
+			}
+			if _, err := os.Lstat(legacy); os.IsNotExist(err) != tc.retired {
+				t.Fatalf("legacy copy retired = %v, want %v", os.IsNotExist(err), tc.retired)
+			}
+			if !exists(filepath.Join(e.home, ".new-claude", "skills", "util-skill", "SKILL.md")) {
+				t.Fatal("the re-add did not install for the new Claude Code folder")
+			}
+		})
 	}
 }
 
