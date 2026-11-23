@@ -545,14 +545,14 @@ func TestJcodeShadowRefreshesFromStore(t *testing.T) {
 	}
 
 	category := filepath.Join(home, ".jcode", "skills", "do-group")
-	write(t, filepath.Join(category, "nested", "SKILL.md"), "nested\n")
+	write(t, filepath.Join(category, "topic", "child", "SKILL.md"), "nested\n")
 	grouped := manifestEntry{Path: store, Skills: []string{"do-group"}}
 	write(t, filepath.Join(store, "skills", "do-group", "SKILL.md"), "managed\n")
-	if err := refreshJcodeShadows(home, grouped, "do-group"); err == nil || !strings.Contains(err.Error(), "category directory") {
-		t.Fatalf("category refresh = %v, want a refusal", err)
+	if err := refreshJcodeShadows(home, grouped, "do-group"); err != nil {
+		t.Fatal(err)
 	}
-	if got := readString(t, filepath.Join(category, "nested", "SKILL.md")); got != "nested\n" {
-		t.Fatalf("nested skill = %q, the refusal changed it", got)
+	if got := readString(t, filepath.Join(category, "topic", "child", "SKILL.md")); got != "nested\n" {
+		t.Fatalf("nested skill = %q, a directory without a root SKILL.md was replaced", got)
 	}
 
 	shared := t.TempDir()
