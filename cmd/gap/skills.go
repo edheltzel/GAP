@@ -1163,11 +1163,16 @@ func refreshJcodeShadows(home string, e manifestEntry, name string) error {
 	if info, err := os.Stat(shadow); err != nil || !info.IsDir() {
 		return nil
 	}
-	if same, _ := samePath(shadow, filepath.Join(home, ".empryo", "skills", name)); same {
+	if !fileExists(filepath.Join(shadow, "SKILL.md")) {
 		return nil
 	}
-	if skills := categoryConflict(shadow); len(skills) > 0 {
-		return categoryConflictError(shadow, skills)
+	if sameFile(shadow, filepath.Join(home, ".empryo", "skills", name)) {
+		return nil
+	}
+	for _, d := range entryDests(home, e, name) {
+		if sameFile(shadow, d.Dir) {
+			return nil
+		}
 	}
 	rendered, cleanup, err := renderExpected(e, name, false)
 	if err != nil {
@@ -1177,36 +1182,38 @@ func refreshJcodeShadows(home string, e manifestEntry, name string) error {
 	if !differs(shadow, rendered) {
 		return nil
 	}
-	staged := shadow + ".gap-new"
-	os.RemoveAll(staged)
-	if err := renderSkill(rendered, staged, renderOpts{Quiet: true}); err != nil {
-		os.RemoveAll(staged)
+	stage, err := os.MkdirTemp(filepath.Dir(shadow), ".gap-refresh-")
+	if err != nil {
 		return err
 	}
-	saved := shadow + ".gap-old"
-	os.RemoveAll(saved)
+	defer os.RemoveAll(stage)
+	staged := filepath.Join(stage, name)
+	if err := renderSkill(rendered, staged, renderOpts{Quiet: true}); err != nil {
+		return err
+	}
+	saved := filepath.Join(stage, "old")
 	if err := os.Rename(shadow, saved); err != nil {
-		os.RemoveAll(staged)
 		return err
 	}
 	if err := os.Rename(staged, shadow); err != nil {
-		os.Rename(saved, shadow)
-		os.RemoveAll(staged)
+		if back := os.Rename(saved, shadow); back != nil {
+			return errors.Join(err, fmt.Errorf("the old copy is still at %s: %w", saved, back))
+		}
 		return err
 	}
-	return os.RemoveAll(saved)
+	return nil
 }
 
-func samePath(a, b string) (bool, error) {
-	left, err := filepath.EvalSymlinks(a)
+func sameFile(a, b string) bool {
+	left, err := os.Stat(a)
 	if err != nil {
-		return false, err
+		return false
 	}
-	right, err := filepath.EvalSymlinks(b)
+	right, err := os.Stat(b)
 	if err != nil {
-		return false, err
+		return false
 	}
-	return left == right, nil
+	return os.SameFile(left, right)
 }
 
 func differs(shadow, managed string) bool {
