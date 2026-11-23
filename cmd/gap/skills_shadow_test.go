@@ -26,6 +26,31 @@ func TestJcodeRefreshLinkedDefinition(t *testing.T) {
 	}
 }
 
+func TestJcodeRefreshExternalLinkedDefinition(t *testing.T) {
+	home := t.TempDir()
+	unsetEnv(t, "JCODE_HOME")
+	store := filepath.Join(home, "store")
+	write(t, filepath.Join(store, "skills", "linked", "SKILL.md"), "managed\n")
+	definition := filepath.Join(t.TempDir(), "definition.md")
+	write(t, definition, "external original\n")
+	shadow := filepath.Join(home, ".jcode", "skills", "linked")
+	if err := os.MkdirAll(shadow, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(definition, filepath.Join(shadow, "SKILL.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshJcodeShadows(home, manifestEntry{Path: store, Skills: []string{"linked"}}, "linked"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readString(t, filepath.Join(shadow, "SKILL.md")); got != "managed\n" {
+		t.Fatalf("external linked definition was not refreshed: %q", got)
+	}
+	if got := readString(t, definition); got != "external original\n" {
+		t.Fatalf("refresh modified the external target: %q", got)
+	}
+}
+
 func TestJcodeRefreshKeepsRecoveryAfterRollbackFailure(t *testing.T) {
 	home := t.TempDir()
 	unsetEnv(t, "JCODE_HOME")

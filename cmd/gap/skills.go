@@ -1165,7 +1165,7 @@ func refreshJcodeShadows(home string, e manifestEntry, name string) error {
 	if info, err := os.Stat(shadow); err != nil || !info.IsDir() {
 		return nil
 	}
-	if info, err := os.Stat(filepath.Join(shadow, "SKILL.md")); err != nil || !info.Mode().IsRegular() || !insideCheckout(shadow, shadow) {
+	if info, err := os.Stat(filepath.Join(shadow, "SKILL.md")); err != nil || !info.Mode().IsRegular() {
 		return nil
 	}
 	if sameFile(shadow, filepath.Join(home, ".empryo", "skills", name)) {
