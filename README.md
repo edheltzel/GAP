@@ -183,7 +183,7 @@ Empryo reads `~/.empryo/EMPRYO.md`, which already holds SoulStack's block. The f
 
 Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP recommends two: `do-todo` (the policy tracks tasks every turn) and `do-commit`. Everything else loads by name when a task needs it. Until your pins match, `gap sync` prints the exact `settings` call. Ask an agent inside Empryo to run it. gap never changes Empryo's settings; it only writes its block in `EMPRYO.md`.
 
-`gap sync` also warns when `~/.empryo/skills/<name>` differs from a managed skill. Empryo loads that copy first, so the managed one never runs there. For jcode's additional skill-copy warning and its home override, see the [drift-check contract](cmd/gap/AGENTS.md#sync-steps).
+`gap sync` warns when `~/.empryo/skills/<name>` differs from a managed skill and never changes that copy, because Empryo loads it first. A jcode copy that differs from the pinned store is replaced with it. The [drift-check contract](cmd/gap/AGENTS.md#sync-steps) says when, and what is left alone.
 
 ## Manage skills
 
