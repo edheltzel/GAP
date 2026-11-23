@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 )
 
@@ -15,7 +16,12 @@ func interruptGroup(pid int) error {
 	if err != nil {
 		return err
 	}
-	return p.Signal(os.Interrupt)
+	term := p.Signal(syscall.SIGTERM)
+	intr := p.Signal(os.Interrupt)
+	if term != nil {
+		return intr
+	}
+	return term
 }
 
 func killGroup(pid int) {

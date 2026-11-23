@@ -13,7 +13,12 @@ func ownGroup(cmd *exec.Cmd) {
 }
 
 func interruptGroup(pgid int) error {
-	return syscall.Kill(-pgid, syscall.SIGINT)
+	term := syscall.Kill(-pgid, syscall.SIGTERM)
+	intr := syscall.Kill(-pgid, syscall.SIGINT)
+	if term != nil {
+		return intr
+	}
+	return term
 }
 
 func killGroup(pgid int) {
