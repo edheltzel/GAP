@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -137,7 +138,8 @@ type tuiModel struct {
 	loadQuick    func() loadedMsg
 	loadFull     func(*storeCache) loadedMsg
 	loadProjects func(*storeCache) loadedMsg
-	fetchStatus  func() tea.Cmd
+	fetchStatus  func(context.Context) tea.Cmd
+	statusStop   context.CancelFunc
 }
 
 func newTUIModel(home, repoRoot, projectRoot string, p palette) *tuiModel {
@@ -159,7 +161,7 @@ func newTUIModel(home, repoRoot, projectRoot string, p palette) *tuiModel {
 	m.loadQuick = func() loadedMsg { return quickTUIData(home, repoRoot) }
 	m.loadFull = func(stores *storeCache) loadedMsg { return loadTUIItems(home, repoRoot, projectRoot, stores) }
 	m.loadProjects = func(stores *storeCache) loadedMsg { return loadTUIProjects(home, repoRoot, stores) }
-	m.fetchStatus = func() tea.Cmd { return statusText(m.children) }
+	m.fetchStatus = func(ctx context.Context) tea.Cmd { return statusText(m.children, ctx) }
 	return m
 }
 
@@ -202,8 +204,18 @@ func (m *tuiModel) reload() tea.Cmd {
 	m.gen++
 	m.stores = newStoreCache()
 	m.loading = true
-	m.projAsked, m.projDone, m.statusAsked = false, false, false
+	m.projAsked, m.projDone = false, false
+	m.stopStatus()
+	m.statusAsked = false
 	return tea.Batch(m.loadCmd(m.loadQuick, true), m.statusCmd())
+}
+
+func (m *tuiModel) stopStatus() {
+	if m.statusStop != nil {
+		m.statusStop()
+		m.statusStop = nil
+		m.statusAsked, m.statusLoading = false, false
+	}
 }
 
 func (m *tuiModel) statusCmd() tea.Cmd {
@@ -211,11 +223,13 @@ func (m *tuiModel) statusCmd() tea.Cmd {
 		return nil
 	}
 	m.statusAsked = true
-	fetch := m.fetchStatus()
+	ctx, stop := context.WithCancel(context.Background())
+	fetch := m.fetchStatus(ctx)
 	if fetch == nil {
+		stop()
 		return nil
 	}
-	m.statusLoading = true
+	m.statusStop, m.statusLoading = stop, true
 	gen := m.gen
 	return func() tea.Msg {
 		msg := fetch()
@@ -303,6 +317,10 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusTextMsg:
 		if msg.gen != m.gen {
 			return m, nil
+		}
+		if m.statusStop != nil {
+			m.statusStop()
+			m.statusStop = nil
 		}
 		m.statusLoading = false
 		m.status, m.statusErr = msg.text, msg.err
@@ -453,6 +471,9 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		m.quitting = true
 		return tea.Quit
 	case key.Matches(msg, m.keys.Tab):
+		if m.tab == tabStatus {
+			m.stopStatus()
+		}
 		switch msg.String() {
 		case "1", "2", "3":
 			m.tab = int(msg.String()[0] - '1')

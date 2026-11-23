@@ -10,8 +10,12 @@ import (
 
 func ownGroup(*exec.Cmd) {}
 
-func interruptGroup(cmd *exec.Cmd) error {
-	return cmd.Process.Signal(os.Interrupt)
+func interruptGroup(pid int) error {
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return p.Signal(os.Interrupt)
 }
 
 func killGroup(pid int) {

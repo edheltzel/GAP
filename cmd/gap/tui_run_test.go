@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -188,7 +189,7 @@ func TestTUIStatusChildStopsOnClose(t *testing.T) {
 	tuiExecutable = func() (string, error) { return slow, nil }
 	g := newChildGroup()
 	got := make(chan tea.Msg, 1)
-	go func() { got <- statusText(g)() }()
+	go func() { got <- statusText(g, context.Background())() }()
 	time.Sleep(300 * time.Millisecond)
 	began := time.Now()
 	g.close()
@@ -203,8 +204,34 @@ func TestTUIStatusChildStopsOnClose(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("close returned before the status child exited")
 	}
-	if msg := statusText(g)(); msg != nil {
+	if msg := statusText(g, context.Background())(); msg != nil {
 		t.Fatalf("status after close = %#v", msg)
+	}
+}
+
+func TestTUIStatusRequestStopsWhenCancelled(t *testing.T) {
+	old := tuiExecutable
+	t.Cleanup(func() { tuiExecutable = old })
+	slow := filepath.Join(t.TempDir(), "gap")
+	write(t, slow, "#!/bin/sh\nexec /bin/sleep 30\n")
+	if err := os.Chmod(slow, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tuiExecutable = func() (string, error) { return slow, nil }
+	g := newChildGroup()
+	t.Cleanup(g.close)
+	req, stop := context.WithCancel(context.Background())
+	got := make(chan tea.Msg, 1)
+	go func() { got <- statusText(g, req)() }()
+	time.Sleep(300 * time.Millisecond)
+	stop()
+	select {
+	case msg := <-got:
+		if msg != nil {
+			t.Fatalf("a cancelled status request reported %#v", msg)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("cancelling the request did not stop gap status")
 	}
 }
 
@@ -260,7 +287,7 @@ func TestTUIRunStatusMatchesGapStatus(t *testing.T) {
 	write(t, filepath.Join(e.home, ".agents", "skills", "ua-skill", "SKILL.md"), "edited\n")
 	actAsGap(t, e.repo)
 	want, _ := captureStd(t, func() { _ = statusAll() })
-	got := statusText(newChildGroup())().(statusTextMsg)
+	got := statusText(newChildGroup(), context.Background())().(statusTextMsg)
 	if got.err != nil || got.text != strings.TrimRight(want, "\n") {
 		t.Fatalf("status tab text:\n%s\nwant:\n%s\nerr %v", got.text, want, got.err)
 	}

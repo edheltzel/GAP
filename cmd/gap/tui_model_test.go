@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -229,7 +230,7 @@ func twoPhaseFixture(t *testing.T) (*tuiModel, *int) {
 	t.Helper()
 	m, _ := tuiFixture(t)
 	here := filepath.Join(m.home, "here")
-	m.fetchStatus = func() tea.Cmd { return nil }
+	m.fetchStatus = func(context.Context) tea.Cmd { return nil }
 	m.loadQuick = func() loadedMsg {
 		return loadedMsg{
 			items: []itemRow{
@@ -389,7 +390,7 @@ func statusOf(t *testing.T, cmd tea.Cmd) statusTextMsg {
 func TestTUIStaleStatusIgnored(t *testing.T) {
 	m, _ := tuiFixture(t)
 	text := "before the update"
-	m.fetchStatus = func() tea.Cmd {
+	m.fetchStatus = func(context.Context) tea.Cmd {
 		now := text
 		return func() tea.Msg { return statusTextMsg{text: now} }
 	}
@@ -409,7 +410,7 @@ func TestTUIStaleStatusIgnored(t *testing.T) {
 func TestTUIStatusRunsOnlyWhenShown(t *testing.T) {
 	m, _ := tuiFixture(t)
 	calls := 0
-	m.fetchStatus = func() tea.Cmd {
+	m.fetchStatus = func(context.Context) tea.Cmd {
 		calls++
 		return func() tea.Msg { return statusTextMsg{text: "status"} }
 	}
@@ -439,9 +440,33 @@ func TestTUIStatusRunsOnlyWhenShown(t *testing.T) {
 	}
 }
 
+func TestTUIStatusStopsWhenLeft(t *testing.T) {
+	m, _ := tuiFixture(t)
+	var reqs []context.Context
+	m.fetchStatus = func(ctx context.Context) tea.Cmd {
+		reqs = append(reqs, ctx)
+		return func() tea.Msg { return statusTextMsg{text: "report"} }
+	}
+	press(m, "2", "1")
+	if len(reqs) != 1 || reqs[0].Err() == nil {
+		t.Fatalf("leaving Status did not cancel its request: %d requests", len(reqs))
+	}
+	_, second := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	if len(reqs) != 2 || second == nil {
+		t.Fatalf("reopening Status did not restart it: %d requests", len(reqs))
+	}
+	for _, msg := range cmdMsgs(second) {
+		m.Update(msg)
+	}
+	press(m, "1")
+	if _, cmd := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"}); cmd != nil || len(reqs) != 2 || !strings.Contains(screen(m), "report") {
+		t.Fatalf("a finished report was not reused: %d requests\n%s", len(reqs), screen(m))
+	}
+}
+
 func TestTUIQuickLoadClearsOldRegistryError(t *testing.T) {
 	m, _ := tuiFixture(t)
-	m.fetchStatus = func() tea.Cmd { return nil }
+	m.fetchStatus = func(context.Context) tea.Cmd { return nil }
 	m.tab = tabProjects
 	m.Update(loadedMsg{projectsOnly: true, projErr: fmt.Errorf("projects.json: broken")})
 	if !strings.Contains(screen(m), "projects.json: broken") {
@@ -480,6 +505,10 @@ func TestTUIStepResultSurvivesLongLabels(t *testing.T) {
 	press(m, "k")
 	if s := screen(m); strings.Count(s, "failed (exit 1)") != 2 {
 		t.Fatalf("wide summary hid the result:\n%s", s)
+	}
+	m.Update(tea.WindowSizeMsg{Width: 24, Height: 20})
+	if s := screen(m); !strings.Contains(s, "exit 1") || !strings.Contains(s, "1/2") {
+		t.Fatalf("24-column summary hid the result or step:\n%s", s)
 	}
 }
 
@@ -583,7 +612,7 @@ func TestTUIDashIDIsNotAFlag(t *testing.T) {
 
 func TestTUIProjectsLoadOnlyWhenShown(t *testing.T) {
 	m, _ := tuiFixture(t)
-	m.fetchStatus = func() tea.Cmd { return nil }
+	m.fetchStatus = func(context.Context) tea.Cmd { return nil }
 	m.loadQuick = func() loadedMsg {
 		return loadedMsg{items: m.items, projects: []projectView{{Root: filepath.Join(m.home, "here")}}}
 	}

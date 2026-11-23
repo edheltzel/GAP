@@ -228,6 +228,64 @@ func TestProjectsRegistryCoalescesAliases(t *testing.T) {
 	}
 }
 
+func TestProjectsRegistryDropsHomeAlias(t *testing.T) {
+	home := t.TempDir()
+	alias := filepath.Join(t.TempDir(), "home")
+	if err := os.Symlink(home, alias); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeProjects(home, []projectRecord{{Root: alias, Added: "2020-01-01"}}); err != nil {
+		t.Fatal(err)
+	}
+	repo := t.TempDir()
+	if err := recordProject(home, repo); err != nil {
+		t.Fatal(err)
+	}
+	if got := registryRoots(t, home); len(got) != 1 || got[0] != canonicalRoot(repo) {
+		t.Fatalf("registry = %v, want only %s", got, canonicalRoot(repo))
+	}
+}
+
+func TestProjectsRegistrySyncDriftErrorStillRecords(t *testing.T) {
+	home, distroRoot, project, remote := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	write(t, filepath.Join(remote, "skills", "global", "core", "other", "SKILL.md"), "---\nname: other\ndescription: test\n---\n")
+	commit, tree := gitFixture(t, remote, "project skill\n")
+	write(t, filepath.Join(distroRoot, "gap.toml"), "schema = \"2\"\n[components.tools]\nrepo = \""+remote+"\"\nref = \"master\"\nnames = [\"do-todo\", \"other\"]\n[components.tools.skills.do-todo]\nload = \"project\"\n[components.tools.skills.do-todo.when]\nfiles = [\"astro.config.*\"]\n")
+	if err := writeLock(distroRoot, lockFile{Components: map[string]lockEntryM1{"tools": {Ref: "master", Commit: commit, Tree: tree}}}); err != nil {
+		t.Fatal(err)
+	}
+	readyEnvReviewDistro(t, distroRoot)
+	if _, err := git(project, "init", "-q", "-b", "master"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(project, "astro.config.mjs"), "export default {}\n")
+	if err := recordProject(home, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range skillDirs(home, "other") {
+		if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(dir, dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(project)
+	var code int
+	stdout, stderr := captureStd(t, func() { code = run([]string{"sync"}) })
+	if code == 0 {
+		t.Fatalf("sync passed over a symlink loop:\n%s%s", stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(project, ".agents", "skills", "do-todo", "SKILL.md")); err != nil {
+		t.Fatalf("project skill not installed: %v\n%s%s", err, stdout, stderr)
+	}
+	if got := registryRoots(t, home); !slices.Contains(got, canonicalRoot(project)) {
+		t.Fatalf("registry = %v after the project skill installed\n%s%s", got, stdout, stderr)
+	}
+}
+
 func TestProjectsRegistryRecallFailureRecordsNothing(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

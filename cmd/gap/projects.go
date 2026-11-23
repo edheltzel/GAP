@@ -94,7 +94,7 @@ func recordProject(home, root string) error {
 	if err != nil {
 		return err
 	}
-	merged := coalesceProjects(list)
+	merged := coalesceProjects(list, canonicalRoot(home))
 	known := slices.ContainsFunc(merged, func(p projectRecord) bool { return p.Root == root })
 	if _, statErr := os.Stat(projectsPath(home)); statErr == nil && known && slices.Equal(merged, list) {
 		return nil
@@ -105,10 +105,13 @@ func recordProject(home, root string) error {
 	return writeProjects(home, merged)
 }
 
-func coalesceProjects(list []projectRecord) []projectRecord {
+func coalesceProjects(list []projectRecord, home string) []projectRecord {
 	byRoot := map[string]projectRecord{}
 	for _, p := range list {
 		root := canonicalRoot(p.Root)
+		if root == home {
+			continue
+		}
 		prev, seen := byRoot[root]
 		if !seen || (p.Added != "" && (prev.Added == "" || p.Added < prev.Added)) {
 			byRoot[root] = projectRecord{Root: root, Added: p.Added}

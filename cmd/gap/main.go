@@ -188,11 +188,11 @@ func syncAll(opts syncOptions) error {
 	skillsOK := upgradeUntouched(home, entries)
 	skillsOK = installSkills(home, entries) && skillsOK
 	driftOK, err := checkDrift(home, entries)
-	if err != nil {
-		return err
-	}
 	if !configured && slices.ContainsFunc(entries, projectSkillInPlace) {
 		noteProject(projectRoot)
+	}
+	if err != nil {
+		return err
 	}
 	if skillsOK {
 		if err := recordDeclarativeInstalls(home, projectRoot, d, ownedCommands, mcpFailures); err != nil {

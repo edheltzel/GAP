@@ -63,18 +63,26 @@ func gapCommand(ctx context.Context, args ...string) (*childCmd, error) {
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
 	ownGroup(cmd)
 	c := &childCmd{Cmd: cmd}
-	cmd.Cancel = func() error {
-		pgid := cmd.Process.Pid
-		c.mu.Lock()
-		c.kill = time.AfterFunc(tuiStopGrace, func() { killGroup(pgid) })
-		c.mu.Unlock()
-		return interruptGroup(cmd)
-	}
+	cmd.Cancel = c.interrupt
 	cmd.WaitDelay = tuiStopGrace + time.Second
 	return c, nil
 }
 
-func (c *childCmd) settle() {
+func (c *childCmd) interrupt() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.kill != nil || c.Process == nil {
+		return nil
+	}
+	pgid := c.Process.Pid
+	c.kill = time.AfterFunc(tuiStopGrace, func() { killGroup(pgid) })
+	return interruptGroup(pgid)
+}
+
+func (c *childCmd) settle(cancelled bool) {
+	if cancelled {
+		c.interrupt()
+	}
 	c.mu.Lock()
 	kill := c.kill
 	c.mu.Unlock()
@@ -131,13 +139,16 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 			r.stop = stop
 			r.mu.Unlock()
 			send(jobStartedMsg{i: i})
-			code, err := runJob(ctx, i, job, send)
+			child, code, err := runJob(ctx, i, job, send)
 			r.mu.Lock()
 			var exit *exec.ExitError
 			signalled := errors.As(err, &exit) && exit.ExitCode() == -1
 			cancelled := r.stopped || ctx.Err() != nil || signalled
 			r.stop = nil
 			r.mu.Unlock()
+			if child != nil {
+				child.settle(cancelled)
+			}
 			stop()
 			send(jobDoneMsg{i: i, code: code, err: err, cancelled: cancelled && code != 0})
 		}
@@ -145,17 +156,17 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 	}()
 }
 
-func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg)) (int, error) {
+func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg)) (*childCmd, int, error) {
 	if job.fn != nil {
 		if err := job.fn(); err != nil {
 			send(jobOutputMsg{i: i, line: err.Error()})
-			return 1, err
+			return nil, 1, err
 		}
-		return 0, nil
+		return nil, 0, nil
 	}
 	cmd, err := gapCommand(ctx, job.args...)
 	if err != nil {
-		return 1, err
+		return nil, 1, err
 	}
 	pr, pw := io.Pipe()
 	cmd.Stdout, cmd.Stderr = pw, pw
@@ -163,7 +174,7 @@ func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg)) (int, er
 		pw.Close()
 		pr.Close()
 		send(jobOutputMsg{i: i, line: err.Error()})
-		return 1, err
+		return nil, 1, err
 	}
 	done := make(chan struct{})
 	go func() {
@@ -178,15 +189,14 @@ func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg)) (int, er
 	err = cmd.Wait()
 	pw.Close()
 	<-done
-	cmd.settle()
 	var exit *exec.ExitError
 	switch {
 	case err == nil:
-		return 0, nil
+		return cmd, 0, nil
 	case errors.As(err, &exit):
-		return max(exit.ExitCode(), 1), err
+		return cmd, max(exit.ExitCode(), 1), err
 	}
-	return 1, err
+	return cmd, 1, err
 }
 
 type childGroup struct {
@@ -218,19 +228,25 @@ func (g *childGroup) close() {
 	g.active.Wait()
 }
 
-func statusText(g *childGroup) tea.Cmd {
+func statusText(g *childGroup, req context.Context) tea.Cmd {
 	return func() tea.Msg {
-		ctx, done, ok := g.join()
+		group, done, ok := g.join()
 		if !ok {
 			return nil
 		}
 		defer done()
+		ctx, cancel := context.WithCancel(group)
+		defer cancel()
+		defer context.AfterFunc(req, cancel)()
 		cmd, err := gapCommand(ctx, "status")
 		if err != nil {
 			return statusTextMsg{err: err}
 		}
 		out, err := cmd.CombinedOutput()
-		cmd.settle()
+		cmd.settle(ctx.Err() != nil)
+		if req.Err() != nil {
+			return nil
+		}
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
 			err = nil

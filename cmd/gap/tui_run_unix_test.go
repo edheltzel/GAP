@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestTUIRunCancelStopsDescendants(t *testing.T) {
@@ -74,6 +76,44 @@ func TestTUIRunCancelEndsWithinOneGrace(t *testing.T) {
 	}
 	if took > 1700*time.Millisecond {
 		t.Fatalf("stop took %v with a %v grace", took, tuiStopGrace)
+	}
+}
+
+func TestTUIRunLateCancelStopsDescendants(t *testing.T) {
+	oldExe, oldGrace := tuiExecutable, tuiStopGrace
+	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
+	tuiStopGrace = 300 * time.Millisecond
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "pid")
+	script := filepath.Join(dir, "gap")
+	write(t, script, "#!/bin/sh\n(trap '' INT TERM; exec /bin/sleep 30) >/dev/null 2>&1 &\necho $! > \""+pidFile+"\"\necho started\n")
+	if err := os.Chmod(script, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tuiExecutable = func() (string, error) { return script, nil }
+	r := &execRunner{}
+	ch := make(chan tea.Msg, 64)
+	r.start([]tuiJob{{label: "remove ua", args: []string{"remove", "--", "ua"}}}, func(msg tea.Msg) {
+		if _, ok := msg.(jobOutputMsg); ok {
+			time.Sleep(300 * time.Millisecond)
+			r.cancel()
+		}
+		ch <- msg
+	})
+	for msg := range ch {
+		if _, ok := msg.(jobsFinishedMsg); ok {
+			break
+		}
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(readString(t, pidFile)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { syscall.Kill(pid, syscall.SIGKILL) })
+	for end := time.Now().Add(2 * time.Second); syscall.Kill(pid, 0) == nil; time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(end) {
+			t.Fatalf("descendant %d still runs after a stop that came while output was delivered", pid)
+		}
 	}
 }
 

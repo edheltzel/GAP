@@ -85,8 +85,11 @@ func (m *tuiModel) stepTitle(inner int, lead string, j jobView, suffix string) s
 
 func fitLabel(inner int, lead, label, suffix string) string {
 	inner = max(inner, 1)
-	room := max(inner-ansi.StringWidth(lead)-ansi.StringWidth(suffix), 1)
-	return ansi.Truncate(lead+ansi.Truncate(label, room, "\u2026")+suffix, inner, "\u2026")
+	room := inner - ansi.StringWidth(lead) - ansi.StringWidth(suffix)
+	if room < 1 {
+		return ansi.Truncate(lead+suffix, inner, "\u2026")
+	}
+	return lead + ansi.Truncate(label, room, "\u2026") + suffix
 }
 
 func (m *tuiModel) header() string {
@@ -585,6 +588,13 @@ func (m *tuiModel) result(j jobView) string {
 	return m.st.faint.Render("not run")
 }
 
+func (m *tuiModel) shortResult(j jobView) string {
+	if j.state == jobFailed && !j.cancelled {
+		return m.st.bad.Render(fmt.Sprintf("exit %d", j.code))
+	}
+	return m.result(j)
+}
+
 func (m *tuiModel) tally() string {
 	ok, bad := 0, 0
 	for _, j := range m.jobs {
@@ -608,7 +618,12 @@ func (m *tuiModel) summaryView() string {
 		title := ""
 		if m.jobSel < len(m.jobs) {
 			j := m.jobs[m.jobSel]
-			title = m.stepTitle(inner, "", j, " "+m.result(j)+m.st.faint.Render(fmt.Sprintf("  %d/%d", m.jobSel+1, len(m.jobs))))
+			step := m.st.faint.Render(fmt.Sprintf("  %d/%d", m.jobSel+1, len(m.jobs)))
+			suffix := " " + m.result(j) + step
+			if inner-ansi.StringWidth(suffix) < 4 {
+				suffix = " " + m.shortResult(j) + step
+			}
+			title = m.stepTitle(inner, "", j, suffix)
 		}
 		return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(title + "\n" + m.vp.View() + "\n" + ansi.Truncate(m.tally(), inner, "\u2026"))
 	}
