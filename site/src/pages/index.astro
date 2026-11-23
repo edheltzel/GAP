@@ -3,6 +3,20 @@ import Base from '../layouts/Landing.astro';
 import ThemeToggle from '../components/landing/ThemeToggle.astro';
 import { installCommand } from '../site.js';
 import '../styles/landing/landing.css';
+import { Image } from 'astro:assets';
+import items from '../../../docs/images/tui-items.png';
+import status from '../../../docs/images/tui-status.png';
+import projects from '../../../docs/images/tui-projects.png';
+import update from '../../../docs/images/tui-update.png';
+import removal from '../../../docs/images/tui-delete.png';
+
+const screens = [
+  { image: items, label: 'Items', detail: 'Pins, scope, and skill drift.' },
+  { image: status, label: 'Status', detail: 'The output of gap status.' },
+  { image: projects, label: 'Projects', detail: 'Registered repos and their skills.' },
+  { image: update, label: 'Update', detail: 'A running step and its output.' },
+  { image: removal, label: 'Remove', detail: 'Confirm before files move to backups.' },
+];
 ---
 
 <Base>
@@ -124,6 +138,22 @@ import '../styles/landing/landing.css';
           <a class="ghost" href="/docs/#publish-a-utility">Publish your own</a>
         </div>
       </section>
+      <section id="terminal" aria-labelledby="terminal-title">
+        <div class="sec-eye">Terminal UI</div>
+        <h2 id="terminal-title">Your installs. <span>In one terminal.</span></h2>
+        <p class="lead">Run <code>gap tui</code> to inspect pins, check drift, update an item, or review a removal before it runs.</p>
+        <div class="tui-gallery">
+          {screens.map(({ image, label, detail }) => (
+            <figure>
+              <a href={image.src} aria-label={`Open ${label} screenshot at full size`}>
+                <Image src={image} alt={`${label}: ${detail}`} loading="lazy" />
+              </a>
+              <figcaption><b>{label}</b> {detail}</figcaption>
+            </figure>
+          ))}
+        </div>
+        <p class="lead">Real TUI captures in an isolated demo home, using local example utilities. <a href="/docs/#terminal-ui">Keys and commands</a>.</p>
+      </section>
       <section id="safe" aria-labelledby="safe-title">
         <div class="sec-eye"><b>§ 03</b> Guarantees</div>
         <h2 id="safe-title">Quiet by default. <span>Nothing moves on its own.</span></h2>
@@ -179,6 +209,15 @@ import '../styles/landing/landing.css';
     </nav>
   </footer>
 </Base>
+
+<style>
+  .tui-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 27rem), 1fr)); gap: 1.5rem; margin-block: 2rem; }
+  .tui-gallery figure { margin: 0; min-width: 0; }
+  .tui-gallery figure:first-child { grid-column: 1 / -1; }
+  .tui-gallery a { display: block; }
+  .tui-gallery img { width: 100%; height: auto; border-radius: 0.5rem; }
+  .tui-gallery figcaption { margin-top: 0.75rem; line-height: 1.6; }
+</style>
 
 <script>
   import '../scripts/hero.ts';

@@ -83,6 +83,23 @@ Use `gap --help` or `gap <command> --help` for usage and flags. Help and termina
 
 `gap tui` opens a terminal UI with three views:
 
+![Items lists installed utilities, their scope and pin, with the selected skill and drift on the right.](docs/images/tui-items.png)
+
+Captured from the real TUI in an isolated demo home with two local example utilities.
+
+<details>
+<summary>Status, Projects, an update, and removal confirmation</summary>
+
+![Status shows the pinned commits, verified stores, and skill drift.](docs/images/tui-status.png)
+
+![Projects shows a registered website repo and its project-scoped skill.](docs/images/tui-projects.png)
+
+![A running update shows its output beside the selected step.](docs/images/tui-update.png)
+
+![Removing a utility requires confirmation and moves its files to backups.](docs/images/tui-delete.png)
+
+</details>
+
 - **Items**: every component and utility with its source, scope, effective ref and commit, store state, drift, and `new=N` from the last `gap check`. Distro components show as locked. An item this repo turns off shows `off here` beside its real pin and store state.
 - **Status**: the output of `gap status`.
 - **Projects**: each repo in `~/.gap/projects.json` with its profile and project-scope skill drift. A folder that no longer exists is flagged missing. A project item whose pinned store is missing or changed stays listed and the project shows `unchecked`. Project drift is checked only when this view opens, once per refresh. Items and Projects verify each pinned store once per refresh, and the Status view runs `gap status` only while it is shown.
