@@ -46,9 +46,10 @@ func (m *tuiModel) refreshPane() {
 			m.vp.SetHeight(inner)
 		}
 		if m.jobSel < len(m.jobs) {
-			lines := m.jobs[m.jobSel].lines
+			j := m.jobs[m.jobSel]
+			lines := j.lines
 			if len(lines) == 0 {
-				lines = []string{m.st.faint.Render("Waiting to run.")}
+				lines = []string{m.st.faint.Render(m.emptyOutput(j))}
 			}
 			m.vp.SetContentLines(lines)
 			if m.running() {
@@ -64,6 +65,28 @@ func (m *tuiModel) refreshPane() {
 		m.vp.SetHeight(inner + 1)
 		m.vp.SetContentLines(strings.Split(m.status, "\n"))
 	}
+}
+
+func (m *tuiModel) emptyOutput(j jobView) string {
+	switch {
+	case j.state == jobPending && m.mode == modeSummary:
+		return "Not run."
+	case j.state == jobPending:
+		return "Waiting to run."
+	case j.state == jobRunning:
+		return "No output yet."
+	}
+	return "No output."
+}
+
+func (m *tuiModel) stepTitle(inner int, lead string, j jobView, suffix string) string {
+	return fitLabel(inner, lead, m.st.selected.Render(j.label), suffix)
+}
+
+func fitLabel(inner int, lead, label, suffix string) string {
+	inner = max(inner, 1)
+	room := max(inner-ansi.StringWidth(lead)-ansi.StringWidth(suffix), 1)
+	return ansi.Truncate(lead+ansi.Truncate(label, room, "\u2026")+suffix, inner, "\u2026")
 }
 
 func (m *tuiModel) header() string {
@@ -510,10 +533,10 @@ func (m *tuiModel) runView() string {
 		title := ""
 		if m.jobSel < len(m.jobs) {
 			j := m.jobs[m.jobSel]
-			title = m.jobMark(j) + " " + m.st.selected.Render(j.label) + m.st.faint.Render(fmt.Sprintf("  %d/%d", m.jobSel+1, len(m.jobs)))
+			title = m.stepTitle(m.width-4, m.jobMark(j)+" ", j, m.st.faint.Render(fmt.Sprintf("  %d/%d", m.jobSel+1, len(m.jobs))))
 		}
 		inner := max(m.width-4, 1)
-		return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(ansi.Truncate(title, inner, "\u2026") + "\n" + m.vp.View() + "\n" + m.meter(inner))
+		return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(title + "\n" + m.vp.View() + "\n" + m.meter(inner))
 	}
 	w := m.listWidth()
 	var lines []string
@@ -580,24 +603,28 @@ func (m *tuiModel) tally() string {
 }
 
 func (m *tuiModel) summaryView() string {
-	title := ""
-	if m.jobSel < len(m.jobs) {
-		j := m.jobs[m.jobSel]
-		title = m.st.selected.Render(j.label) + " " + m.result(j)
-	}
 	if m.stacked() {
 		inner := max(m.width-4, 1)
-		title += m.st.faint.Render(fmt.Sprintf("  %d/%d", m.jobSel+1, len(m.jobs)))
-		return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(ansi.Truncate(title, inner, "\u2026") + "\n" + m.vp.View() + "\n" + ansi.Truncate(m.tally(), inner, "\u2026"))
+		title := ""
+		if m.jobSel < len(m.jobs) {
+			j := m.jobs[m.jobSel]
+			title = m.stepTitle(inner, "", j, " "+m.result(j)+m.st.faint.Render(fmt.Sprintf("  %d/%d", m.jobSel+1, len(m.jobs))))
+		}
+		return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(title + "\n" + m.vp.View() + "\n" + ansi.Truncate(m.tally(), inner, "\u2026"))
 	}
 	w := m.listWidth()
 	var lines []string
 	start, end := m.window(len(m.jobs), m.jobSel, m.bodyHeight()-4)
 	for i := start; i < end; i++ {
 		j := m.jobs[i]
-		lines = append(lines, m.pointer(i == m.jobSel)+m.jobMark(j)+" "+j.label+"  "+m.result(j))
+		lines = append(lines, fitLabel(w-4, m.pointer(i == m.jobSel)+m.jobMark(j)+" ", j.label, "  "+m.result(j)))
 	}
 	lines = append(lines, "", m.tally())
-	right := m.st.pane.Width(m.width - w).Height(m.bodyHeight()).Render(ansi.Truncate(title, max(m.width-w-4, 1), "\u2026") + "\n" + m.vp.View())
+	title := ""
+	if m.jobSel < len(m.jobs) {
+		j := m.jobs[m.jobSel]
+		title = m.stepTitle(m.width-w-4, "", j, " "+m.result(j))
+	}
+	right := m.st.pane.Width(m.width - w).Height(m.bodyHeight()).Render(title + "\n" + m.vp.View())
 	return lipgloss.JoinHorizontal(lipgloss.Top, m.paneOf(w, lines), right)
 }

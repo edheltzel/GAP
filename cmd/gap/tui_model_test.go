@@ -394,15 +394,92 @@ func TestTUIStaleStatusIgnored(t *testing.T) {
 		return func() tea.Msg { return statusTextMsg{text: now} }
 	}
 	m.loadQuick = func() loadedMsg { return loadedMsg{} }
+	press(m, "2")
 	_, older := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	text = "after the update"
 	_, newer := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	stale, fresh := statusOf(t, older), statusOf(t, newer)
 	m.Update(fresh)
 	m.Update(stale)
-	press(m, "2")
 	if s := screen(m); !strings.Contains(s, "after the update") || strings.Contains(s, "before the update") || m.statusLoading {
 		t.Fatalf("status:\n%s", s)
+	}
+}
+
+func TestTUIStatusRunsOnlyWhenShown(t *testing.T) {
+	m, _ := tuiFixture(t)
+	calls := 0
+	m.fetchStatus = func() tea.Cmd {
+		calls++
+		return func() tea.Msg { return statusTextMsg{text: "status"} }
+	}
+	m.loadQuick = func() loadedMsg { return loadedMsg{} }
+	run := func(cmd tea.Cmd) {
+		for _, msg := range cmdMsgs(cmd) {
+			m.Update(msg)
+		}
+	}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	if calls != 0 {
+		t.Fatalf("refresh on Items ran gap status %d times", calls)
+	}
+	_, cmd = m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	run(cmd)
+	if calls != 1 || !strings.Contains(screen(m), "status") {
+		t.Fatalf("opening Status ran it %d times", calls)
+	}
+	press(m, "1")
+	if _, cmd = m.Update(tea.KeyPressMsg{Code: '2', Text: "2"}); cmd != nil || calls != 1 {
+		t.Fatalf("Status ran again in the same refresh: %d", calls)
+	}
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	run(cmd)
+	if calls != 2 {
+		t.Fatalf("refresh on Status ran it %d times, want 2", calls)
+	}
+}
+
+func TestTUIQuickLoadClearsOldRegistryError(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.fetchStatus = func() tea.Cmd { return nil }
+	m.tab = tabProjects
+	m.Update(loadedMsg{projectsOnly: true, projErr: fmt.Errorf("projects.json: broken")})
+	if !strings.Contains(screen(m), "projects.json: broken") {
+		t.Fatalf("registry error not shown:\n%s", screen(m))
+	}
+	m.tab = tabItems
+	m.loadQuick = func() loadedMsg { return loadedMsg{items: m.items} }
+	m.Update(refresh(t, m))
+	m.note = ""
+	if s := screen(m); strings.Contains(s, "broken") {
+		t.Fatalf("repaired registry still reports an error:\n%s", s)
+	}
+}
+
+func TestTUIStepResultSurvivesLongLabels(t *testing.T) {
+	long := "remove " + strings.Repeat("x", 60)
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 40, Height: 20})
+	m.run([]tuiJob{{label: long}, {label: "disable echo", fn: func() error { return nil }}})
+	m.Update(jobStartedMsg{i: 0})
+	if s := screen(m); !strings.Contains(s, "1/2") {
+		t.Fatalf("run title lost the step number:\n%s", s)
+	}
+	m.Update(jobDoneMsg{i: 0, code: 1})
+	m.Update(jobStartedMsg{i: 1})
+	m.Update(jobDoneMsg{i: 1})
+	m.Update(jobsFinishedMsg{})
+	if s := screen(m); !strings.Contains(s, "failed (exit 1)") || !strings.Contains(s, "1/2") {
+		t.Fatalf("narrow summary hid the result:\n%s", s)
+	}
+	press(m, "j")
+	if s := screen(m); !strings.Contains(s, "No output.") || strings.Contains(s, "Waiting to run.") {
+		t.Fatalf("finished step without output:\n%s", s)
+	}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+	press(m, "k")
+	if s := screen(m); strings.Count(s, "failed (exit 1)") != 2 {
+		t.Fatalf("wide summary hid the result:\n%s", s)
 	}
 }
 

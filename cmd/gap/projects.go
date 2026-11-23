@@ -94,14 +94,31 @@ func recordProject(home, root string) error {
 	if err != nil {
 		return err
 	}
-	known := slices.ContainsFunc(list, func(p projectRecord) bool { return canonicalRoot(p.Root) == root })
-	if _, statErr := os.Stat(projectsPath(home)); statErr == nil && known {
+	merged := coalesceProjects(list)
+	known := slices.ContainsFunc(merged, func(p projectRecord) bool { return p.Root == root })
+	if _, statErr := os.Stat(projectsPath(home)); statErr == nil && known && slices.Equal(merged, list) {
 		return nil
 	}
 	if !known {
-		list = append(list, projectRecord{Root: root, Added: time.Now().Format(time.DateOnly)})
+		merged = append(merged, projectRecord{Root: root, Added: time.Now().Format(time.DateOnly)})
 	}
-	return writeProjects(home, list)
+	return writeProjects(home, merged)
+}
+
+func coalesceProjects(list []projectRecord) []projectRecord {
+	byRoot := map[string]projectRecord{}
+	for _, p := range list {
+		root := canonicalRoot(p.Root)
+		prev, seen := byRoot[root]
+		if !seen || (p.Added != "" && (prev.Added == "" || p.Added < prev.Added)) {
+			byRoot[root] = projectRecord{Root: root, Added: p.Added}
+		}
+	}
+	out := make([]projectRecord, 0, len(byRoot))
+	for _, p := range byRoot {
+		out = append(out, p)
+	}
+	return sortProjects(out)
 }
 
 func forgetProject(home, root string) error {

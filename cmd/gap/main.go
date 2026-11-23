@@ -187,12 +187,12 @@ func syncAll(opts syncOptions) error {
 	}
 	skillsOK := upgradeUntouched(home, entries)
 	skillsOK = installSkills(home, entries) && skillsOK
-	if !configured && skillsOK && slices.ContainsFunc(entries, func(e manifestEntry) bool { return e.Project != "" }) {
-		noteProject(projectRoot)
-	}
 	driftOK, err := checkDrift(home, entries)
 	if err != nil {
 		return err
+	}
+	if !configured && slices.ContainsFunc(entries, projectSkillInPlace) {
+		noteProject(projectRoot)
 	}
 	if skillsOK {
 		if err := recordDeclarativeInstalls(home, projectRoot, d, ownedCommands, mcpFailures); err != nil {
@@ -224,6 +224,13 @@ func syncAll(opts syncOptions) error {
 		out.result(true, "Sync complete.")
 	}
 	return nil
+}
+
+func projectSkillInPlace(e manifestEntry) bool {
+	if e.Project == "" {
+		return false
+	}
+	return slices.ContainsFunc(e.Skills, func(name string) bool { return entryDriftCount(e, e.Project, name) == 0 })
 }
 
 // commandCount is the number of top-level global/commands/*.md files publishCommands writes.

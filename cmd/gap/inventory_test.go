@@ -166,6 +166,23 @@ func TestInventoryProjectDisabledKeepsPinAndStore(t *testing.T) {
 	}
 }
 
+func TestInventoryDamagedInactiveStoreKeepsOtherRows(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	pin := addedUtility(t, e, addGlobalArgs(e.remote, "--id", "util"))
+	write(t, filepath.Join(e.repo, "gap.toml"), "schema = \"2\"\n\n[components.dist]\nrepo = \""+e.remote+"\"\nref = \"master\"\n")
+	write(t, projectConfigFile(e.project), "[components.util]\nenabled = false\n")
+	if err := os.RemoveAll(filepath.Join(storePath(e.home, "util", pin.Commit), ".git")); err != nil {
+		t.Fatal(err)
+	}
+	rows := mustInventory(t, e)
+	if r := inventoryRow(t, rows, "util"); !r.Inactive || r.Store != storeUnreadable {
+		t.Fatalf("util row = %+v", r)
+	}
+	if r := inventoryRow(t, rows, "dist"); r.Store != storeUnpinned || r.Inactive {
+		t.Fatalf("dist row = %+v", r)
+	}
+}
+
 func mustInventory(t *testing.T, e *utilityEnv) []itemRow {
 	t.Helper()
 	rows, err := inventory(e.home, e.repo, e.project, nil)

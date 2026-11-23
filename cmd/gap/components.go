@@ -674,7 +674,8 @@ func statusAll() error {
 	if err != nil {
 		return err
 	}
-	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
+	stores := newStoreCache()
+	d, lk, err := effectivePinsWith(repoRoot, home, projectRoot, "", stores)
 	if err != nil {
 		return err
 	}
@@ -697,7 +698,7 @@ func statusAll() error {
 	for _, id := range ids {
 		c := d.Components[id]
 		e, pinned := lk.Components[id]
-		row, err := componentStatus(home, projectRoot, id, c, e, pinned, checks, nil)
+		row, err := componentStatus(home, projectRoot, id, c, e, pinned, checks, stores)
 		if err != nil {
 			return err
 		}

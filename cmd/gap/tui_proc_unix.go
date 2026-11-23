@@ -16,12 +16,8 @@ func interruptGroup(cmd *exec.Cmd) error {
 	return syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
 }
 
-func stopGroup(pgid int, grace time.Duration) {
-	if groupGone(pgid, grace) {
-		return
-	}
+func killGroup(pgid int) {
 	syscall.Kill(-pgid, syscall.SIGKILL)
-	groupGone(pgid, 2*time.Second)
 }
 
 func groupGone(pgid int, wait time.Duration) bool {

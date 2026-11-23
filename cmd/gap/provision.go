@@ -79,8 +79,11 @@ func initProject(root, profile string, adopt bool) error {
 	if crew {
 		return nil
 	}
+	if err := provisionBreadcrumb(slug); err != nil {
+		return err
+	}
 	noteProject(root)
-	return provisionBreadcrumb(slug)
+	return nil
 }
 
 func runComponentCommand(dir, command string) error {

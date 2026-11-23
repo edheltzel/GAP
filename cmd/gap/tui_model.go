@@ -57,6 +57,7 @@ type loadedMsg struct {
 	items        []itemRow
 	projects     []projectView
 	err          error
+	projErr      error
 }
 
 type tuiKeys struct {
@@ -108,6 +109,7 @@ type tuiModel struct {
 	projChecking bool
 	projAsked    bool
 	projDone     bool
+	statusAsked  bool
 	gen          int
 	stores       *storeCache
 	marked       map[string]bool
@@ -172,7 +174,7 @@ func quickTUIData(home, repoRoot string) loadedMsg {
 		}
 		projects = append(projects, v)
 	}
-	return loadedMsg{items: items, projects: projects, err: errors.Join(err, perr)}
+	return loadedMsg{items: items, projects: projects, err: err, projErr: perr}
 }
 
 func loadTUIItems(home, repoRoot, projectRoot string, stores *storeCache) loadedMsg {
@@ -193,22 +195,27 @@ func loadTUIProjects(home, repoRoot string, stores *storeCache) loadedMsg {
 	for _, p := range list {
 		projects = append(projects, projectInventory(home, repoRoot, p, stores))
 	}
-	return loadedMsg{projects: projects, err: err}
+	return loadedMsg{projects: projects, projErr: err}
 }
 
 func (m *tuiModel) reload() tea.Cmd {
 	m.gen++
 	m.stores = newStoreCache()
-	m.loading, m.statusLoading = true, true
-	m.projAsked, m.projDone = false, false
+	m.loading = true
+	m.projAsked, m.projDone, m.statusAsked = false, false, false
 	return tea.Batch(m.loadCmd(m.loadQuick, true), m.statusCmd())
 }
 
 func (m *tuiModel) statusCmd() tea.Cmd {
+	if m.tab != tabStatus || m.statusAsked {
+		return nil
+	}
+	m.statusAsked = true
 	fetch := m.fetchStatus()
 	if fetch == nil {
 		return nil
 	}
+	m.statusLoading = true
 	gen := m.gen
 	return func() tea.Msg {
 		msg := fetch()
@@ -267,20 +274,20 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var next tea.Cmd
 		switch {
 		case msg.projectsOnly:
-			m.projects, m.projErr = msg.projects, msg.err
+			m.projects, m.projErr = msg.projects, msg.projErr
 			m.projChecking, m.projDone = false, true
 		case msg.quick:
 			m.items, m.loadErr = msg.items, msg.err
 			m.loading, m.checking = true, true
 			if !m.projDone {
-				m.projects, m.projChecking = msg.projects, true
+				m.projects, m.projErr, m.projChecking = msg.projects, msg.projErr, true
 			}
 			next = tea.Batch(m.itemsCmd(), m.projectsCmd())
 		default:
 			m.items, m.loadErr = msg.items, msg.err
 			m.loading, m.checking = false, false
 			if msg.projects != nil {
-				m.projects, m.projChecking, m.projDone = msg.projects, false, true
+				m.projects, m.projErr, m.projChecking, m.projDone = msg.projects, msg.projErr, false, true
 			}
 		}
 		for id := range m.marked {
@@ -455,7 +462,7 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 			m.tab = (m.tab + 1) % len(tabNames)
 		}
 		m.refreshPane()
-		return m.projectsCmd()
+		return tea.Batch(m.projectsCmd(), m.statusCmd())
 	case m.tab == tabStatus && key.Matches(msg, m.keys.Up, m.keys.Down, m.keys.Top, m.keys.Bottom):
 		m.scroll(msg)
 	case key.Matches(msg, m.keys.Up):

@@ -139,7 +139,7 @@ func inventory(home, repoRoot, projectRoot string, stores *storeCache) ([]itemRo
 			if e, ok := machine.Components[row.ID]; ok {
 				state, err := stores.state(storePath(home, row.ID, e.Commit), e.Tree)
 				if err != nil {
-					return nil, err
+					state = storeUnreadable
 				}
 				rows[i].Store = state
 			}
@@ -168,6 +168,20 @@ type projectItem struct {
 	Store  string
 	Skills [][]string
 	Drift  int
+}
+
+const storeUnreadable = "unreadable"
+
+func projectApplies(c component, root string) bool {
+	if c.ProjectOnly {
+		return c.InProject
+	}
+	for name, spec := range c.SkillSet {
+		if spec.Load == "project" && (!c.Named || slices.Contains(c.Skills, name)) && projectMatches(root, spec.WhenFiles) {
+			return true
+		}
+	}
+	return false
 }
 
 func (v projectView) unchecked() bool {
@@ -205,10 +219,10 @@ func projectInventory(home, repoRoot string, p projectRecord, stores *storeCache
 		dir := storePath(home, id, e.Commit)
 		store, err := stores.state(dir, e.Tree)
 		if err != nil {
-			store = "unreadable"
+			store = storeUnreadable
 		}
 		if store != storeOK {
-			if (c.ProjectOnly && c.InProject) || len(state.Components[id].ProjectSkills[p.Root]) > 0 {
+			if projectApplies(c, p.Root) || len(state.Components[id].ProjectSkills[p.Root]) > 0 {
 				v.Items = append(v.Items, projectItem{ID: id, Store: store})
 			}
 			continue

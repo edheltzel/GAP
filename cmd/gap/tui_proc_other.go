@@ -14,4 +14,10 @@ func interruptGroup(cmd *exec.Cmd) error {
 	return cmd.Process.Signal(os.Interrupt)
 }
 
-func stopGroup(int, time.Duration) {}
+func killGroup(pid int) {
+	if p, err := os.FindProcess(pid); err == nil {
+		p.Kill()
+	}
+}
+
+func groupGone(int, time.Duration) bool { return true }

@@ -49,6 +49,34 @@ func TestTUIRunCancelStopsDescendants(t *testing.T) {
 	}
 }
 
+func TestTUIRunCancelEndsWithinOneGrace(t *testing.T) {
+	oldExe, oldGrace := tuiExecutable, tuiStopGrace
+	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
+	tuiStopGrace = time.Second
+	script := filepath.Join(t.TempDir(), "gap")
+	write(t, script, "#!/bin/sh\ntrap '' INT\n(trap '' INT; exec /bin/sleep 30) &\necho started\nwait\n")
+	if err := os.Chmod(script, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tuiExecutable = func() (string, error) { return script, nil }
+	r := &execRunner{}
+	at := make(chan time.Time, 1)
+	msgs := collect(t, r, []tuiJob{{label: "remove ua", args: []string{"remove", "--", "ua"}}}, func(int) {
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			at <- time.Now()
+			r.cancel()
+		}()
+	})
+	took := time.Since(<-at)
+	if done := doneOf(msgs); len(done) != 1 || !done[0].cancelled {
+		t.Fatalf("done = %+v", done)
+	}
+	if took > 1700*time.Millisecond {
+		t.Fatalf("stop took %v with a %v grace", took, tuiStopGrace)
+	}
+}
+
 func TestTUIReadyNeedsTerminalStdout(t *testing.T) {
 	null, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	if err != nil {

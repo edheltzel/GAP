@@ -117,7 +117,13 @@ func TestProjectsRegistrySyncRecordsOnlyAfterProceeding(t *testing.T) {
 	}
 }
 
-func TestProjectsRegistrySyncRecordsProjectSkillInstall(t *testing.T) {
+type astroEnv struct {
+	home, distroRoot, project string
+	commit                    string
+}
+
+func newAstroEnv(t *testing.T) astroEnv {
+	t.Helper()
 	home, distroRoot, project, remote := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_STATE_HOME", "")
@@ -131,21 +137,109 @@ func TestProjectsRegistrySyncRecordsProjectSkillInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(project, "astro.config.mjs"), "export default {}\n")
-	other := t.TempDir()
-	if err := recordProject(home, other); err != nil {
+	if err := recordProject(home, t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
 	t.Chdir(project)
+	return astroEnv{home: home, distroRoot: distroRoot, project: project, commit: commit}
+}
+
+func (a astroEnv) sync(t *testing.T) int {
+	t.Helper()
 	var code int
 	captureStd(t, func() { code = run([]string{"sync"}) })
-	if code != 0 {
+	return code
+}
+
+func TestProjectsRegistrySyncRecordsProjectSkillInstall(t *testing.T) {
+	a := newAstroEnv(t)
+	if code := a.sync(t); code != 0 {
 		t.Fatalf("sync: %d", code)
 	}
-	if _, err := os.Stat(filepath.Join(project, ".agents", "skills", "do-todo", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(a.project, ".agents", "skills", "do-todo", "SKILL.md")); err != nil {
 		t.Fatalf("project skill not installed: %v", err)
 	}
-	if got := registryRoots(t, home); !slices.Contains(got, canonicalRoot(project)) || len(got) != 2 {
-		t.Fatalf("registry = %v, want it to include %s", got, canonicalRoot(project))
+	if got := registryRoots(t, a.home); !slices.Contains(got, canonicalRoot(a.project)) || len(got) != 2 {
+		t.Fatalf("registry = %v, want it to include %s", got, canonicalRoot(a.project))
+	}
+}
+
+func TestProjectsRegistrySyncSkipsKeptProjectDrift(t *testing.T) {
+	a := newAstroEnv(t)
+	edited := filepath.Join(a.project, ".agents", "skills", "do-todo", "SKILL.md")
+	write(t, edited, "mine\n")
+	a.sync(t)
+	if readString(t, edited) != "mine\n" {
+		t.Fatal("sync replaced an edited project copy without a terminal")
+	}
+	if got := registryRoots(t, a.home); slices.Contains(got, canonicalRoot(a.project)) {
+		t.Fatalf("registry %v includes a repo whose project copy was kept edited", got)
+	}
+	if err := os.RemoveAll(filepath.Dir(edited)); err != nil {
+		t.Fatal(err)
+	}
+	if code := a.sync(t); code != 0 {
+		t.Fatalf("second sync: %d", code)
+	}
+	if got := registryRoots(t, a.home); !slices.Contains(got, canonicalRoot(a.project)) {
+		t.Fatalf("registry = %v after the install", got)
+	}
+}
+
+func TestProjectInventoryDistroSkillWithoutStore(t *testing.T) {
+	a := newAstroEnv(t)
+	if code := a.sync(t); code != 0 {
+		t.Fatalf("sync: %d", code)
+	}
+	if err := os.RemoveAll(storePath(a.home, "tools", a.commit)); err != nil {
+		t.Fatal(err)
+	}
+	v := projectInventory(a.home, a.distroRoot, projectRecord{Root: canonicalRoot(a.project)}, nil)
+	if v.Err != nil || len(v.Items) != 1 || v.Items[0].ID != "tools" || v.Items[0].Store != storeMissing || !v.unchecked() {
+		t.Fatalf("view = %+v", v)
+	}
+}
+
+func TestProjectsRegistryCoalescesAliases(t *testing.T) {
+	home := t.TempDir()
+	real := filepath.Join(t.TempDir(), "repo")
+	if err := os.Mkdir(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "repo")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	gone := filepath.Join(t.TempDir(), "gone")
+	if err := writeProjects(home, []projectRecord{{Root: link, Added: "2020-01-01"}, {Root: real, Added: "2021-02-02"}, {Root: gone, Added: "2019-03-03"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := recordProject(home, real); err != nil {
+		t.Fatal(err)
+	}
+	list, err := readProjects(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []projectRecord{{Root: canonicalRoot(real), Added: "2020-01-01"}, {Root: gone, Added: "2019-03-03"}}
+	slices.SortFunc(want, func(a, b projectRecord) int { return strings.Compare(a.Root, b.Root) })
+	if !slices.Equal(list, want) {
+		t.Fatalf("registry = %+v, want %+v", list, want)
+	}
+}
+
+func TestProjectsRegistryRecallFailureRecordsNothing(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	recallStub(t, "exit 1\n")
+	repo := t.TempDir()
+	var code int
+	captureStd(t, func() { code = run([]string{"init", repo}) })
+	if code == 0 {
+		t.Fatal("init succeeded while Recall failed")
+	}
+	if exists(projectsPath(home)) {
+		t.Fatalf("failed init recorded the project: %v", registryRoots(t, home))
 	}
 }
 

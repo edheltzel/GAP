@@ -48,7 +48,13 @@ var (
 	tuiStopGrace  = 5 * time.Second
 )
 
-func gapCommand(ctx context.Context, args ...string) (*exec.Cmd, error) {
+type childCmd struct {
+	*exec.Cmd
+	mu   sync.Mutex
+	kill *time.Timer
+}
+
+func gapCommand(ctx context.Context, args ...string) (*childCmd, error) {
 	exe, err := tuiExecutable()
 	if err != nil {
 		return nil, err
@@ -56,9 +62,31 @@ func gapCommand(ctx context.Context, args ...string) (*exec.Cmd, error) {
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
 	ownGroup(cmd)
-	cmd.Cancel = func() error { return interruptGroup(cmd) }
-	cmd.WaitDelay = tuiStopGrace
-	return cmd, nil
+	c := &childCmd{Cmd: cmd}
+	cmd.Cancel = func() error {
+		pgid := cmd.Process.Pid
+		c.mu.Lock()
+		c.kill = time.AfterFunc(tuiStopGrace, func() { killGroup(pgid) })
+		c.mu.Unlock()
+		return interruptGroup(cmd)
+	}
+	cmd.WaitDelay = tuiStopGrace + time.Second
+	return c, nil
+}
+
+func (c *childCmd) settle() {
+	c.mu.Lock()
+	kill := c.kill
+	c.mu.Unlock()
+	if kill == nil {
+		return
+	}
+	pgid := c.Process.Pid
+	if !groupGone(pgid, tuiStopGrace+time.Second) {
+		killGroup(pgid)
+		groupGone(pgid, 2*time.Second)
+	}
+	kill.Stop()
 }
 
 type jobRunner interface {
@@ -150,9 +178,7 @@ func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg)) (int, er
 	err = cmd.Wait()
 	pw.Close()
 	<-done
-	if ctx.Err() != nil {
-		stopGroup(cmd.Process.Pid, tuiStopGrace)
-	}
+	cmd.settle()
 	var exit *exec.ExitError
 	switch {
 	case err == nil:
@@ -204,9 +230,7 @@ func statusText(g *childGroup) tea.Cmd {
 			return statusTextMsg{err: err}
 		}
 		out, err := cmd.CombinedOutput()
-		if ctx.Err() != nil && cmd.Process != nil {
-			stopGroup(cmd.Process.Pid, tuiStopGrace)
-		}
+		cmd.settle()
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
 			err = nil
