@@ -459,6 +459,17 @@ func worktreeID(dir string) (string, error) {
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		return "", err
 	}
+	if _, err := os.Stat(filepath.Join(dir, ".gitmodules")); err == nil {
+		status, err := git(dir, "submodule", "status", "--recursive")
+		if err != nil {
+			return "", fmt.Errorf("checking store submodules: %w", err)
+		}
+		for _, line := range strings.Split(status, "\n") {
+			if strings.HasPrefix(line, "-") || strings.HasPrefix(line, "+") || strings.HasPrefix(line, "U") {
+				return "", fmt.Errorf("store has an incomplete or mismatched submodule: %s", strings.TrimSpace(line))
+			}
+		}
+	}
 	tmp, err := os.MkdirTemp("", "gap-store-index-")
 	if err != nil {
 		return "", fmt.Errorf("creating store index: %w", err)
