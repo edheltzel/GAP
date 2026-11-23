@@ -331,14 +331,14 @@ func TestFindSkillDirIsDeterministic(t *testing.T) {
 	for _, dir := range []string{".agent/skills/x", ".agents/skills/x", "plugin/skills/x", "a/b/c/d/x"} {
 		write(t, filepath.Join(root, filepath.FromSlash(dir), "SKILL.md"), dir+"\n")
 	}
-	if got := findSkillDir(root, "", "x"); got != filepath.Join(root, ".agent", "skills", "x") {
+	if got := findSkillDir(root, "x", "."); got != filepath.Join(root, ".agent", "skills", "x") {
 		t.Fatalf("shallowest match, then lexical order: %s", got)
 	}
-	if got := findSkillDir(root, ".agents/skills", "x"); got != filepath.Join(root, ".agents", "skills", "x") {
+	if got := findSkillDir(root, "x", ".agents/skills", "."); got != filepath.Join(root, ".agents", "skills", "x") {
 		t.Fatalf("component path must be searched first: %s", got)
 	}
 	write(t, filepath.Join(root, "z", "x", "SKILL.md"), "shallow\n")
-	if got := findSkillDir(root, "", "x"); got != filepath.Join(root, "z", "x") {
+	if got := findSkillDir(root, "x", "."); got != filepath.Join(root, "z", "x") {
 		t.Fatalf("a shallower match must win over lexical order: %s", got)
 	}
 	if got := entrySkillDir(manifestEntry{Path: root, SkillPath: "plugin/skills"}, "x"); got != filepath.Join(root, "plugin", "skills", "x") {

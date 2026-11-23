@@ -945,8 +945,7 @@ func TestDiscoveryReadsNothingOutsideTheRepository(t *testing.T) {
 		}()
 		select {
 		case names := <-done:
-			seen := strings.Join(warnings, "\n")
-			if !slices.Equal(names, tc.want) || strings.Contains(seen, "YAML") || strings.Contains(seen, filepath.Join(".claude", "skills", "x")) {
+			if !slices.Equal(names, tc.want) || strings.Contains(strings.Join(warnings, "\n"), "YAML") {
 				t.Fatalf("subpath %q: skills %v, warnings %q", tc.subpath, names, warnings)
 			}
 		case <-time.After(10 * time.Second):

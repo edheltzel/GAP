@@ -205,18 +205,14 @@ func installInternalSkills() bool {
 	return v == "1" || v == "true"
 }
 
-func parseSkillMD(path string, includeInternal bool, warn func(string)) (skillMeta, bool) {
+func parseSkillMD(path string, raw []byte, includeInternal bool, warn func(string)) (skillMeta, bool) {
 	skip := func(reason string) (skillMeta, bool) {
 		if warn != nil {
 			warn(fmt.Sprintf("⚠ Skipped %s — %s", sanitizeMetadata(path), stripTerminalEscapes(reason)))
 		}
 		return skillMeta{}, false
 	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return skip("failed to read file: " + err.Error())
-	}
-	data, _, err := parseFrontmatter(string(b))
+	data, _, err := parseFrontmatter(string(raw))
 	if err != nil {
 		return skip("YAML parse error: " + err.Error())
 	}

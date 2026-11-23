@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path"
@@ -38,8 +39,8 @@ func unsafeSubpath(sub string) error {
 	return nil
 }
 
-func hasSkillMD(dir string) bool {
-	info, err := os.Stat(filepath.Join(dir, "SKILL.md"))
+func hasSkillMD(checkout fs.FS, dir string) bool {
+	info, err := fs.Stat(checkout, path.Join(dir, "SKILL.md"))
 	return err == nil && info.Mode().IsRegular()
 }
 
@@ -213,18 +214,18 @@ func skillsShSearchDirs(checkout, base string) []string {
 	return dirs
 }
 
-func findSkillDirs(dir string, depth int) []string {
+func findSkillDirs(checkout fs.FS, dir string, depth int) []string {
 	if depth > 5 {
 		return nil
 	}
 	var out []string
-	if hasSkillMD(dir) {
+	if hasSkillMD(checkout, dir) {
 		out = append(out, dir)
 	}
-	entries, _ := os.ReadDir(dir)
+	entries, _ := fs.ReadDir(checkout, dir)
 	for _, entry := range entries {
 		if entry.IsDir() && !slices.Contains(discoverSkipDirs, entry.Name()) {
-			out = append(out, findSkillDirs(filepath.Join(dir, entry.Name()), depth+1)...)
+			out = append(out, findSkillDirs(checkout, path.Join(dir, entry.Name()), depth+1)...)
 		}
 	}
 	return out
@@ -242,17 +243,15 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 	if subpath != "" {
 		search = filepath.Join(base, filepath.FromSlash(subpath))
 	}
-	escapes := func(path string) bool {
-		if _, err := os.Stat(path); err != nil || resolvesInside(base, path) {
-			return false
-		}
-		if warn != nil {
-			warn(fmt.Sprintf("Skipping %s: it resolves outside the repository", path))
-		}
-		return true
+	root, err := os.OpenRoot(base)
+	if err != nil {
+		return nil, err
 	}
-	if escapes(search) {
-		return nil, nil
+	defer root.Close()
+	checkout := root.FS()
+	at := func(p string) string {
+		rel, _ := relativeInside(base, p)
+		return rel
 	}
 	locked := sourceLockedSkillNames(base)
 	groups := pluginGroupings(base, search)
@@ -277,16 +276,17 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 			return skillMeta{}, false
 		}
 		parsed[file] = true
-		if escapes(dir) || escapes(file) {
+		raw, err := fs.ReadFile(checkout, at(file))
+		if err != nil {
 			return skillMeta{}, false
 		}
-		return parseSkillMD(file, includeInternal, warn)
+		return parseSkillMD(file, raw, includeInternal, warn)
 	}
 	add := func(m skillMeta) {
 		skills = append(skills, discoveredSkill{Name: m.Name, Description: m.Description, Dir: m.Dir, Plugin: groups[m.Dir]})
 		seen[m.Name] = true
 	}
-	if hasSkillMD(search) {
+	if hasSkillMD(checkout, at(search)) {
 		if m, ok := parseAt(search); ok && !installedProjectSkill(m) {
 			add(m)
 			if !fullDepth {
@@ -308,7 +308,7 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 	}
 	priority = append(priority, pluginSkillPaths(base, search)...)
 	tryAdd := func(dir string) bool {
-		if !hasSkillMD(dir) {
+		if !hasSkillMD(checkout, at(dir)) {
 			return false
 		}
 		if m, ok := parseAt(dir); ok && !seen[m.Name] && !installedProjectSkill(m) {
@@ -318,7 +318,7 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 	}
 	var walk func(dir string, maxDepth, depth int)
 	walk = func(dir string, maxDepth, depth int) {
-		entries, err := os.ReadDir(dir)
+		entries, err := fs.ReadDir(checkout, at(dir))
 		if err != nil {
 			return
 		}
@@ -334,9 +334,6 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 		}
 	}
 	for _, dir := range priority {
-		if escapes(dir) {
-			continue
-		}
 		maxDepth := 1
 		if deep[dir] {
 			maxDepth = 3
@@ -344,8 +341,8 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 		walk(dir, maxDepth, 1)
 	}
 	if len(skills) == 0 || fullDepth {
-		for _, dir := range findSkillDirs(search, 0) {
-			if m, ok := parseAt(dir); ok && !seen[m.Name] && !installedProjectSkill(m) {
+		for _, dir := range findSkillDirs(checkout, at(search), 0) {
+			if m, ok := parseAt(filepath.Join(base, filepath.FromSlash(dir))); ok && !seen[m.Name] && !installedProjectSkill(m) {
 				add(m)
 			}
 		}
@@ -356,10 +353,6 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 var discoveredBySource = map[string][]discoveredSkill{}
 
 func insideCheckout(root, dir string) bool {
-	return resolvesInside(root, dir) && resolvesInside(root, filepath.Join(dir, "SKILL.md"))
-}
-
-func resolvesInside(root, path string) bool {
 	resolve := func(path string) (string, error) {
 		abs, err := filepath.Abs(path)
 		if err != nil {
@@ -371,8 +364,12 @@ func resolvesInside(root, path string) bool {
 	if err != nil {
 		return false
 	}
-	real, err := resolve(path)
-	return err == nil && withinRoot(realRoot, real)
+	for _, path := range []string{dir, filepath.Join(dir, "SKILL.md")} {
+		if real, err := resolve(path); err != nil || !withinRoot(realRoot, real) {
+			return false
+		}
+	}
+	return true
 }
 
 func discoverByName(base, subpath, want string) string {

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -538,41 +539,42 @@ func restoreSkillLock(snap skillLockSnap) error {
 	return os.WriteFile(snap.path, append(out, '\n'), 0o644)
 }
 
-// findSkillDir returns the folder named name that holds a regular SKILL.md, searching root/sub before root.
+// findSkillDir returns the folder named name that holds a regular SKILL.md, searching each base under checkout in order.
 // Within one base the shallowest match wins, and a tie goes to the first path in lexical order,
 // so a repo that ships several copies of a skill always resolves to the same one.
-func findSkillDir(root, sub, name string) string {
-	bases := []string{root}
-	if sub != "" {
-		bases = []string{filepath.Join(root, filepath.FromSlash(sub)), root}
+func findSkillDir(checkout, name string, bases ...string) string {
+	root, err := os.OpenRoot(checkout)
+	if err != nil {
+		return ""
 	}
+	defer root.Close()
 	for _, base := range bases {
 		found, best := "", -1
-		_ = filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
+		_ = fs.WalkDir(root.FS(), base, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			depth := strings.Count(filepath.ToSlash(strings.TrimPrefix(path, base)), "/")
+			depth := strings.Count(p, "/") - strings.Count(base, "/")
 			if d.IsDir() {
 				if d.Name() == "node_modules" || d.Name() == ".git" || (best >= 0 && depth >= best) {
-					return filepath.SkipDir
+					return fs.SkipDir
 				}
 				return nil
 			}
-			if d.Name() == "SKILL.md" && d.Type().IsRegular() && filepath.Base(filepath.Dir(path)) == name && (best < 0 || depth-1 < best) {
-				found, best = filepath.Dir(path), depth-1
+			if d.Name() == "SKILL.md" && d.Type().IsRegular() && path.Base(path.Dir(p)) == name && (best < 0 || depth-1 < best) {
+				found, best = path.Dir(p), depth-1
 			}
 			return nil
 		})
 		if found != "" {
-			return found
+			return filepath.Join(checkout, filepath.FromSlash(found))
 		}
 	}
 	return ""
 }
 
 func localSkillDir(repoRoot, name string) string {
-	return findSkillDir(repoRoot, "skills", name)
+	return findSkillDir(repoRoot, name, "skills", ".")
 }
 
 func entrySkillDir(e manifestEntry, name string) string {
@@ -582,7 +584,7 @@ func entrySkillDir(e manifestEntry, name string) string {
 	case e.Discover:
 		dir = discoverByName(e.Path, e.SkillPath, want)
 	case e.SkillPath != "":
-		dir = findSkillDir(filepath.Join(e.Path, filepath.FromSlash(e.SkillPath)), "", want)
+		dir = findSkillDir(e.Path, want, e.SkillPath)
 	default:
 		dir = localSkillDir(e.Path, want)
 	}
