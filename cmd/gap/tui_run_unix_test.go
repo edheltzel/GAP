@@ -1,0 +1,67 @@
+//go:build unix
+
+package main
+
+import (
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+)
+
+func TestTUIRunCancelStopsDescendants(t *testing.T) {
+	oldExe, oldGrace := tuiExecutable, tuiStopGrace
+	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
+	tuiStopGrace = 300 * time.Millisecond
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "pid")
+	script := filepath.Join(dir, "gap")
+	write(t, script, "#!/bin/sh\n(trap '' INT TERM; exec /bin/sleep 30) >/dev/null 2>&1 &\necho $! > \""+pidFile+".tmp\"\nmv \""+pidFile+".tmp\" \""+pidFile+"\"\nwait\n")
+	if err := os.Chmod(script, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tuiExecutable = func() (string, error) { return script, nil }
+	r := &execRunner{}
+	msgs := collect(t, r, []tuiJob{{label: "remove ua", args: []string{"remove", "--", "ua"}}}, func(int) {
+		go func() {
+			for !exists(pidFile) {
+				time.Sleep(20 * time.Millisecond)
+			}
+			r.cancel()
+		}()
+	})
+	done := doneOf(msgs)
+	if len(done) != 1 || !done[0].cancelled {
+		t.Fatalf("done = %+v", done)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(readString(t, pidFile)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { syscall.Kill(pid, syscall.SIGKILL) })
+	for end := time.Now().Add(2 * time.Second); syscall.Kill(pid, 0) == nil; time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(end) {
+			t.Fatalf("descendant %d still runs after the step was reported cancelled", pid)
+		}
+	}
+}
+
+func TestTUIReadyNeedsTerminalStdout(t *testing.T) {
+	null, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer null.Close()
+	if !isTerminal(null) {
+		t.Skip("/dev/null is not a character device here")
+	}
+	old := os.Stdout
+	os.Stdout = null
+	defer func() { os.Stdout = old }()
+	if stdoutIsTerminal() {
+		t.Fatal("/dev/null on stdout counts as a terminal")
+	}
+}

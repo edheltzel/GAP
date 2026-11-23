@@ -21,7 +21,7 @@ func TestSetComponentEnabled(t *testing.T) {
 	if err := setComponentEnabled(e.home, e.repo, "echo", false); err != nil || readString(t, config) != want {
 		t.Fatalf("repeat changed the file: %v\n%s", err, readString(t, config))
 	}
-	rows, err := inventory(e.home, e.repo, e.project)
+	rows, err := inventory(e.home, e.repo, e.project, nil)
 	if err != nil || !inventoryRow(t, rows, "echo").Disabled {
 		t.Fatalf("inventory after disable: %+v %v", rows, err)
 	}
@@ -50,5 +50,34 @@ func TestSetComponentEnabledNewTableAndUtility(t *testing.T) {
 	})
 	if err := setComponentEnabled(e.home, e.repo, "util", false); err == nil || !strings.Contains(err.Error(), "gap remove util") {
 		t.Fatalf("utility disable: %v", err)
+	}
+}
+
+func TestSetComponentEnabledKeyForms(t *testing.T) {
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	write(t, filepath.Join(e.repo, "gap.toml"), "schema = \"2\"\n\n[components.echo]\nrepo = \""+e.remote+"\"\nref = \"master\"\n")
+	for _, tc := range []struct{ name, in, want string }{
+		{"bare with comment", "[components.echo]\nenabled = true # keep\n", "[components.echo]\nenabled = false # keep\n"},
+		{"quoted key", "[components.echo]\n\"enabled\" = true # mine\n", "[components.echo]\n\"enabled\" = false # mine\n"},
+		{"quoted header", "[components.\"echo\"]\nenabled = true\n", "[components.\"echo\"]\nenabled = false\n"},
+		{"dotted under components", "[components]\necho.enabled = true # c\necho.ref = \"master\"\n", "[components]\necho.enabled = false # c\necho.ref = \"master\"\n"},
+		{"dotted from root", "components.echo.enabled = true\n", "components.echo.enabled = false\n"},
+		{"dotted table without enabled", "[components]\necho.ref = \"master\"\n", "[components]\necho.ref = \"master\"\necho.enabled = false\n"},
+		{"subtable only", "[components.echo.skills.x]\nload = \"off\"\n", "[components.echo.skills.x]\nload = \"off\"\n\n[components.echo]\nenabled = false\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := userConfigFile(e.home)
+			write(t, config, tc.in)
+			if err := setComponentEnabled(e.home, e.repo, "echo", false); err != nil {
+				t.Fatal(err)
+			}
+			if got := readString(t, config); got != tc.want {
+				t.Fatalf("config:\n%s\nwant:\n%s", got, tc.want)
+			}
+			rows, err := inventory(e.home, e.repo, e.project, nil)
+			if err != nil || !inventoryRow(t, rows, "echo").Disabled {
+				t.Fatalf("inventory after disable: %+v %v", rows, err)
+			}
+		})
 	}
 }

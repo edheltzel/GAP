@@ -34,11 +34,118 @@ func TestProjectsRegistryInit(t *testing.T) {
 			t.Fatalf("init: %d", code)
 		}
 	}
-	if got := registryRoots(t, home); len(got) != 1 || got[0] != repo {
-		t.Fatalf("registry = %v, want [%s]", got, repo)
+	real := canonicalRoot(repo)
+	if got := registryRoots(t, home); len(got) != 1 || got[0] != real {
+		t.Fatalf("registry = %v, want [%s]", got, real)
 	}
-	if strings.Count(readString(t, projectsPath(home)), repo) != 1 {
+	if strings.Count(readString(t, projectsPath(home)), real) != 1 {
 		t.Fatal("a second init duplicated the root")
+	}
+}
+
+func TestProjectsRegistryFailedInitRecordsNothing(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", "/usr/bin:/bin")
+	repo := t.TempDir()
+	if err := os.Mkdir(filepath.Join(repo, "AGENTS.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var code int
+	captureStd(t, func() { code = run([]string{"init", repo}) })
+	if code == 0 {
+		t.Fatal("init succeeded with a directory named AGENTS.md")
+	}
+	if _, err := os.Stat(projectsPath(home)); !os.IsNotExist(err) {
+		t.Fatalf("failed init recorded the project: %v", registryRoots(t, home))
+	}
+}
+
+func TestProjectsRegistrySymlinkedRoots(t *testing.T) {
+	home := t.TempDir()
+	real := filepath.Join(t.TempDir(), "repo")
+	if err := os.Mkdir(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	links := t.TempDir()
+	link, homeLink := filepath.Join(links, "repo"), filepath.Join(links, "home")
+	for target, name := range map[string]string{real: link, home: homeLink} {
+		if err := os.Symlink(target, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, root := range []string{link, real, homeLink} {
+		if err := recordProject(home, root); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := registryRoots(t, home); len(got) != 1 || got[0] != canonicalRoot(real) {
+		t.Fatalf("registry = %v, want only %s", got, canonicalRoot(real))
+	}
+	if err := forgetProject(home, link); err != nil {
+		t.Fatal(err)
+	}
+	if got := registryRoots(t, home); len(got) != 0 {
+		t.Fatalf("forget through the link left %v", got)
+	}
+}
+
+func TestProjectsRegistrySyncRecordsOnlyAfterProceeding(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		answer string
+		want   bool
+	}{{"quit", "q\n", false}, {"all", "\n", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := selectionFixture(t)
+			project, err := os.Getwd()
+			if err != nil {
+				t.Fatal(err)
+			}
+			write(t, projectConfigFile(project), "profile = \"project\"\nslug = \"p\"\n")
+			answers(t, true, tc.answer)
+			captureStd(t, func() { run([]string{"sync"}) })
+			if exists(projectsPath(home)) != tc.want {
+				t.Fatalf("registry written = %v, want %v", exists(projectsPath(home)), tc.want)
+			}
+			if tc.want {
+				if got := registryRoots(t, home); len(got) != 1 || got[0] != canonicalRoot(project) {
+					t.Fatalf("registry = %v", got)
+				}
+			}
+		})
+	}
+}
+
+func TestProjectsRegistrySyncRecordsProjectSkillInstall(t *testing.T) {
+	home, distroRoot, project, remote := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_STATE_HOME", "")
+	commit, tree := gitFixture(t, remote, "project skill\n")
+	write(t, filepath.Join(distroRoot, "gap.toml"), "schema = \"2\"\n[components.tools]\nrepo = \""+remote+"\"\nref = \"master\"\nnames = [\"do-todo\"]\n[components.tools.skills.do-todo]\nload = \"project\"\n[components.tools.skills.do-todo.when]\nfiles = [\"astro.config.*\"]\n")
+	if err := writeLock(distroRoot, lockFile{Components: map[string]lockEntryM1{"tools": {Ref: "master", Commit: commit, Tree: tree}}}); err != nil {
+		t.Fatal(err)
+	}
+	readyEnvReviewDistro(t, distroRoot)
+	if _, err := git(project, "init", "-q", "-b", "master"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(project, "astro.config.mjs"), "export default {}\n")
+	other := t.TempDir()
+	if err := recordProject(home, other); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(project)
+	var code int
+	captureStd(t, func() { code = run([]string{"sync"}) })
+	if code != 0 {
+		t.Fatalf("sync: %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(project, ".agents", "skills", "do-todo", "SKILL.md")); err != nil {
+		t.Fatalf("project skill not installed: %v", err)
+	}
+	if got := registryRoots(t, home); !slices.Contains(got, canonicalRoot(project)) || len(got) != 2 {
+		t.Fatalf("registry = %v, want it to include %s", got, canonicalRoot(project))
 	}
 }
 
@@ -61,7 +168,7 @@ func TestProjectsRegistryImportsLegacyRoots(t *testing.T) {
 	if err := forgetProject(home, legacy); err != nil {
 		t.Fatal(err)
 	}
-	if got := registryRoots(t, home); len(got) != 1 || got[0] != fresh {
+	if got := registryRoots(t, home); len(got) != 1 || got[0] != canonicalRoot(fresh) {
 		t.Fatalf("after forget = %v; a forgotten legacy root must not come back", got)
 	}
 }

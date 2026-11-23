@@ -552,6 +552,10 @@ func resolveRef(url, ref string) (string, error) {
 }
 
 func effectivePins(repoRoot, home, projectRoot, profile string) (distro, lockFile, error) {
+	return effectivePinsWith(repoRoot, home, projectRoot, profile, nil)
+}
+
+func effectivePinsWith(repoRoot, home, projectRoot, profile string, stores *storeCache) (distro, lockFile, error) {
 	d, lk, err := readPins(repoRoot)
 	if err != nil {
 		return distro{}, lockFile{}, err
@@ -583,20 +587,20 @@ func effectivePins(repoRoot, home, projectRoot, profile string) (distro, lockFil
 			return distro{}, lockFile{}, fmt.Errorf("component %s requests ref %s but gap.lock pins %s; run `gap pin %s@%s`", id, c.Ref, pin.Ref, id, c.Ref)
 		}
 	}
-	if err := loadLocalManifests(home, d, lk); err != nil {
+	if err := loadLocalManifests(home, d, lk, stores); err != nil {
 		return distro{}, lockFile{}, err
 	}
 	return d, lk, nil
 }
 
-func loadLocalManifests(home string, d distro, lk lockFile) error {
+func loadLocalManifests(home string, d distro, lk lockFile, stores *storeCache) error {
 	for id, c := range d.Components {
 		pin, pinned := lk.Components[id]
 		if !pinned {
 			continue
 		}
 		dir := storePath(home, id, pin.Commit)
-		if state, err := storeState(dir, pin.Tree); err != nil || state != storeOK {
+		if state, err := stores.state(dir, pin.Tree); err != nil || state != storeOK {
 			continue
 		}
 		resolved, err := applyManifest(c, dir)
@@ -693,7 +697,7 @@ func statusAll() error {
 	for _, id := range ids {
 		c := d.Components[id]
 		e, pinned := lk.Components[id]
-		row, err := componentStatus(home, projectRoot, id, c, e, pinned, checks)
+		row, err := componentStatus(home, projectRoot, id, c, e, pinned, checks, nil)
 		if err != nil {
 			return err
 		}

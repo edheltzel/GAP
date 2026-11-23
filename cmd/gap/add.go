@@ -1034,7 +1034,7 @@ func (r *addRun) root() string {
 
 func (r *addRun) guard() error {
 	global := r.scope == "global"
-	if err := loadLocalManifests(r.home, r.d, r.lk); err != nil {
+	if err := loadLocalManifests(r.home, r.d, r.lk, nil); err != nil {
 		return err
 	}
 	for _, c := range r.chosen {

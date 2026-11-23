@@ -30,6 +30,7 @@ const (
 	modeRun
 	modeAsk
 	modeSummary
+	modeDetail
 )
 
 type jobState int
@@ -50,15 +51,16 @@ type jobView struct {
 }
 
 type loadedMsg struct {
-	gen      int
-	quick    bool
-	items    []itemRow
-	projects []projectView
-	err      error
+	gen          int
+	quick        bool
+	projectsOnly bool
+	items        []itemRow
+	projects     []projectView
+	err          error
 }
 
 type tuiKeys struct {
-	Up, Down, Top, Bottom, Tab, Mark, Check, CheckAll, Update, Delete, Disable, Forget, Refresh, Quit, Confirm, Back key.Binding
+	Up, Down, Top, Bottom, Tab, Mark, Check, CheckAll, Update, Delete, Disable, Forget, Refresh, Quit, Confirm, Open, Back key.Binding
 }
 
 func newTUIKeys() tuiKeys {
@@ -81,28 +83,34 @@ func newTUIKeys() tuiKeys {
 		Refresh:  b("r", "refresh", "r"),
 		Quit:     b("q", "quit", "q", "ctrl+c"),
 		Confirm:  b("enter", "confirm", "enter"),
+		Open:     b("enter", "details", "enter"),
 		Back:     b("esc", "back", "esc"),
 	}
 }
 
 type tuiModel struct {
-	home, repoRoot, projectRoot string
-	st                          tuiStyles
-	keys                        tuiKeys
-	help                        help.Model
-	spin                        spinner.Model
-	vp                          viewport.Model
-	width, height               int
+	home, homeReal, repoRoot, projectRoot string
+	st                                    tuiStyles
+	keys                                  tuiKeys
+	help                                  help.Model
+	spin                                  spinner.Model
+	vp                                    viewport.Model
+	width, height                         int
 
-	tab      int
-	sel      [3]int
-	items    []itemRow
-	projects []projectView
-	loadErr  error
-	loading  bool
-	checking bool
-	gen      int
-	marked   map[string]bool
+	tab          int
+	sel          [3]int
+	items        []itemRow
+	projects     []projectView
+	loadErr      error
+	projErr      error
+	loading      bool
+	checking     bool
+	projChecking bool
+	projAsked    bool
+	projDone     bool
+	gen          int
+	stores       *storeCache
+	marked       map[string]bool
 
 	status        string
 	statusErr     error
@@ -121,17 +129,19 @@ type tuiModel struct {
 	note         string
 	quitting     bool
 
-	runner      jobRunner
-	children    *childGroup
-	send        func(tea.Msg)
-	loadQuick   func() loadedMsg
-	loadFull    func() loadedMsg
-	fetchStatus func() tea.Cmd
+	runner       jobRunner
+	children     *childGroup
+	send         func(tea.Msg)
+	loadQuick    func() loadedMsg
+	loadFull     func(*storeCache) loadedMsg
+	loadProjects func(*storeCache) loadedMsg
+	fetchStatus  func() tea.Cmd
 }
 
 func newTUIModel(home, repoRoot, projectRoot string, p palette) *tuiModel {
 	m := &tuiModel{
-		home: home, repoRoot: repoRoot, projectRoot: projectRoot,
+		home: home, homeReal: canonicalRoot(home), repoRoot: repoRoot, projectRoot: projectRoot,
+		stores:   newStoreCache(),
 		st:       newTUIStyles(p),
 		keys:     newTUIKeys(),
 		help:     help.New(),
@@ -145,7 +155,8 @@ func newTUIModel(home, repoRoot, projectRoot string, p palette) *tuiModel {
 	}
 	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(m.st.accent))
 	m.loadQuick = func() loadedMsg { return quickTUIData(home, repoRoot) }
-	m.loadFull = func() loadedMsg { return loadTUIData(home, repoRoot, projectRoot) }
+	m.loadFull = func(stores *storeCache) loadedMsg { return loadTUIItems(home, repoRoot, projectRoot, stores) }
+	m.loadProjects = func(stores *storeCache) loadedMsg { return loadTUIProjects(home, repoRoot, stores) }
 	m.fetchStatus = func() tea.Cmd { return statusText(m.children) }
 	return m
 }
@@ -164,26 +175,67 @@ func quickTUIData(home, repoRoot string) loadedMsg {
 	return loadedMsg{items: items, projects: projects, err: errors.Join(err, perr)}
 }
 
-func loadTUIData(home, repoRoot, projectRoot string) loadedMsg {
-	items, err := inventory(home, repoRoot, projectRoot)
-	if err != nil {
-		if items, err = registeredRows(home, repoRoot); err != nil {
-			return loadedMsg{err: err}
-		}
-		err = fmt.Errorf("status unavailable: %w", err)
+func loadTUIItems(home, repoRoot, projectRoot string, stores *storeCache) loadedMsg {
+	items, ierr := inventory(home, repoRoot, projectRoot, stores)
+	if ierr == nil {
+		return loadedMsg{items: items}
 	}
-	list, perr := readProjects(home)
+	items, err := registeredRows(home, repoRoot)
+	if err != nil {
+		return loadedMsg{err: errors.Join(ierr, err)}
+	}
+	return loadedMsg{items: items, err: fmt.Errorf("status unavailable: %w", ierr)}
+}
+
+func loadTUIProjects(home, repoRoot string, stores *storeCache) loadedMsg {
+	list, err := readProjects(home)
 	var projects []projectView
 	for _, p := range list {
-		projects = append(projects, projectInventory(home, repoRoot, p))
+		projects = append(projects, projectInventory(home, repoRoot, p, stores))
 	}
-	return loadedMsg{items: items, projects: projects, err: errors.Join(err, perr)}
+	return loadedMsg{projects: projects, err: err}
 }
 
 func (m *tuiModel) reload() tea.Cmd {
 	m.gen++
+	m.stores = newStoreCache()
 	m.loading, m.statusLoading = true, true
-	return tea.Batch(m.loadCmd(m.loadQuick, true), m.fetchStatus())
+	m.projAsked, m.projDone = false, false
+	return tea.Batch(m.loadCmd(m.loadQuick, true), m.statusCmd())
+}
+
+func (m *tuiModel) statusCmd() tea.Cmd {
+	fetch := m.fetchStatus()
+	if fetch == nil {
+		return nil
+	}
+	gen := m.gen
+	return func() tea.Msg {
+		msg := fetch()
+		if s, ok := msg.(statusTextMsg); ok {
+			s.gen = gen
+			return s
+		}
+		return msg
+	}
+}
+
+func (m *tuiModel) itemsCmd() tea.Cmd {
+	load, stores := m.loadFull, m.stores
+	return m.loadCmd(func() loadedMsg { return load(stores) }, false)
+}
+
+func (m *tuiModel) projectsCmd() tea.Cmd {
+	if m.tab != tabProjects || m.projDone || m.projAsked {
+		return nil
+	}
+	m.projAsked = true
+	load, stores, gen := m.loadProjects, m.stores, m.gen
+	return func() tea.Msg {
+		msg := load(stores)
+		msg.gen, msg.projectsOnly = gen, true
+		return msg
+	}
 }
 
 func (m *tuiModel) loadCmd(load func() loadedMsg, quick bool) tea.Cmd {
@@ -212,8 +264,25 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen != m.gen {
 			return m, nil
 		}
-		m.loading, m.checking = msg.quick, msg.quick
-		m.items, m.projects, m.loadErr = msg.items, msg.projects, msg.err
+		var next tea.Cmd
+		switch {
+		case msg.projectsOnly:
+			m.projects, m.projErr = msg.projects, msg.err
+			m.projChecking, m.projDone = false, true
+		case msg.quick:
+			m.items, m.loadErr = msg.items, msg.err
+			m.loading, m.checking = true, true
+			if !m.projDone {
+				m.projects, m.projChecking = msg.projects, true
+			}
+			next = tea.Batch(m.itemsCmd(), m.projectsCmd())
+		default:
+			m.items, m.loadErr = msg.items, msg.err
+			m.loading, m.checking = false, false
+			if msg.projects != nil {
+				m.projects, m.projChecking, m.projDone = msg.projects, false, true
+			}
+		}
 		for id := range m.marked {
 			if !slices.ContainsFunc(m.items, func(r itemRow) bool { return r.ID == id && r.user() }) {
 				delete(m.marked, id)
@@ -223,10 +292,11 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sel[t] = min(m.sel[t], max(m.count(t)-1, 0))
 		}
 		m.refreshPane()
-		if msg.quick {
-			return m, m.loadCmd(m.loadFull, false)
-		}
+		return m, next
 	case statusTextMsg:
+		if msg.gen != m.gen {
+			return m, nil
+		}
 		m.statusLoading = false
 		m.status, m.statusErr = msg.text, msg.err
 		m.refreshPane()
@@ -254,8 +324,12 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshPane()
 		}
 	case jobsFinishedMsg:
-		m.mode = modeSummary
+		m.mode, m.follow = modeSummary, false
+		if i := slices.IndexFunc(m.jobs, func(j jobView) bool { return j.state == jobFailed }); i >= 0 {
+			m.jobSel = i
+		}
 		m.refreshPane()
+		m.vp.GotoBottom()
 	case tea.KeyPressMsg:
 		return m, m.key(msg)
 	}
@@ -289,19 +363,35 @@ func (m *tuiModel) project() (projectView, bool) {
 func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 	switch m.mode {
 	case modeConfirm:
+		_, rows, _, shown := m.confirmParts()
 		switch {
 		case key.Matches(msg, m.keys.Confirm):
+			if len(rows) > 0 && shown == 0 {
+				m.note = "Enlarge the terminal to see what this removes."
+				return nil
+			}
 			jobs := m.pending
 			m.pending = nil
 			return m.run(jobs)
 		case key.Matches(msg, m.keys.Back), key.Matches(msg, m.keys.Quit), msg.String() == "n":
 			m.mode, m.pending, m.note = modeBrowse, nil, "Nothing changed."
 		case key.Matches(msg, m.keys.Down):
-			_, _, shown := m.confirmParts()
-			m.confirmTop = min(m.confirmTop+1, len(m.confirmIDs)-shown)
+			m.confirmTop = max(min(m.confirmTop+1, len(rows)-shown), 0)
 		case key.Matches(msg, m.keys.Up):
-			_, _, shown := m.confirmParts()
-			m.confirmTop = max(min(m.confirmTop, len(m.confirmIDs)-shown)-1, 0)
+			m.confirmTop = max(min(m.confirmTop, len(rows)-shown)-1, 0)
+		}
+		return nil
+	case modeDetail:
+		switch {
+		case key.Matches(msg, m.keys.Back, m.keys.Confirm, m.keys.Quit):
+			m.mode = modeBrowse
+			m.refreshPane()
+		case key.Matches(msg, m.keys.Up, m.keys.Down, m.keys.Top, m.keys.Bottom):
+			m.scroll(msg)
+		default:
+			var cmd tea.Cmd
+			m.vp, cmd = m.vp.Update(msg)
+			return cmd
 		}
 		return nil
 	case modeRun:
@@ -335,9 +425,18 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	case modeSummary:
-		if key.Matches(msg, m.keys.Confirm, m.keys.Back, m.keys.Quit) {
+		switch {
+		case key.Matches(msg, m.keys.Confirm, m.keys.Back, m.keys.Quit):
 			m.mode, m.jobs = modeBrowse, nil
 			return m.reload()
+		case key.Matches(msg, m.keys.Up, m.keys.Down, m.keys.Top, m.keys.Bottom):
+			m.jobSel = m.step(msg, m.jobSel, len(m.jobs))
+			m.refreshPane()
+			m.vp.GotoBottom()
+		default:
+			var cmd tea.Cmd
+			m.vp, cmd = m.vp.Update(msg)
+			return cmd
 		}
 		return nil
 	}
@@ -356,6 +455,9 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 			m.tab = (m.tab + 1) % len(tabNames)
 		}
 		m.refreshPane()
+		return m.projectsCmd()
+	case m.tab == tabStatus && key.Matches(msg, m.keys.Up, m.keys.Down, m.keys.Top, m.keys.Bottom):
+		m.scroll(msg)
 	case key.Matches(msg, m.keys.Up):
 		m.move(-1)
 	case key.Matches(msg, m.keys.Down):
@@ -367,6 +469,12 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 	case key.Matches(msg, m.keys.Refresh):
 		m.note = "Refreshing."
 		return m.reload()
+	case m.tab != tabStatus && key.Matches(msg, m.keys.Open):
+		if m.count(m.tab) > 0 {
+			m.mode = modeDetail
+			m.refreshPane()
+			m.vp.GotoTop()
+		}
 	case m.tab == tabItems:
 		return m.itemKey(msg)
 	case m.tab == tabProjects && key.Matches(msg, m.keys.Forget):
@@ -405,11 +513,11 @@ func (m *tuiModel) itemKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		m.move(1)
 	case key.Matches(msg, m.keys.Check):
-		return m.run([]tuiJob{{label: "check " + r.ID, args: []string{"check", r.ID}}})
+		return m.run([]tuiJob{{label: "check " + r.ID, args: []string{"check", "--", r.ID}}})
 	case key.Matches(msg, m.keys.CheckAll):
 		return m.run([]tuiJob{{label: "check all", args: []string{"check"}}})
 	case key.Matches(msg, m.keys.Update):
-		return m.run([]tuiJob{{label: "update " + r.ID, args: []string{"update", r.ID}}})
+		return m.run([]tuiJob{{label: "update " + r.ID, args: []string{"update", "--", r.ID}}})
 	case key.Matches(msg, m.keys.Delete):
 		ids := m.markedIDs()
 		if len(ids) == 0 {
@@ -421,7 +529,7 @@ func (m *tuiModel) itemKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		var jobs []tuiJob
 		for _, id := range ids {
-			jobs = append(jobs, tuiJob{label: "remove " + id, args: []string{"remove", id}})
+			jobs = append(jobs, tuiJob{label: "remove " + id, args: []string{"remove", "--", id}, removes: id})
 		}
 		m.confirmTitle = "Remove 1 utility?"
 		if len(ids) > 1 {
@@ -465,14 +573,41 @@ func (m *tuiModel) run(jobs []tuiJob) tea.Cmd {
 		m.jobs = append(m.jobs, jobView{tuiJob: j})
 	}
 	for _, j := range jobs {
-		if len(j.args) > 0 && j.args[0] == "remove" {
-			delete(m.marked, j.args[1])
+		if j.removes != "" {
+			delete(m.marked, j.removes)
 		}
 	}
 	m.mode, m.jobSel, m.follow, m.note = modeRun, 0, true, ""
 	m.refreshPane()
 	m.runner.start(jobs, m.send)
 	return nil
+}
+
+func (m *tuiModel) step(msg tea.KeyPressMsg, sel, n int) int {
+	switch {
+	case key.Matches(msg, m.keys.Up):
+		sel--
+	case key.Matches(msg, m.keys.Down):
+		sel++
+	case key.Matches(msg, m.keys.Top):
+		sel = 0
+	case key.Matches(msg, m.keys.Bottom):
+		sel = n - 1
+	}
+	return min(max(sel, 0), max(n-1, 0))
+}
+
+func (m *tuiModel) scroll(msg tea.KeyPressMsg) {
+	switch {
+	case key.Matches(msg, m.keys.Up):
+		m.vp.ScrollUp(1)
+	case key.Matches(msg, m.keys.Down):
+		m.vp.ScrollDown(1)
+	case key.Matches(msg, m.keys.Top):
+		m.vp.GotoTop()
+	case key.Matches(msg, m.keys.Bottom):
+		m.vp.GotoBottom()
+	}
 }
 
 func (m *tuiModel) move(d int) {
@@ -514,7 +649,7 @@ func runTUI() error {
 }
 
 func tuiReadyDefault() bool {
-	return stdinIsTerminal() && isTerminal(os.Stdout) && !plainEnv()
+	return stdinIsTerminal() && stdoutIsTerminal() && !plainEnv()
 }
 
 var tuiReady = tuiReadyDefault

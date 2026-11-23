@@ -73,9 +73,8 @@ func syncAll(opts syncOptions) error {
 		}
 		return initProject(projectRoot, "crew", false)
 	}
-	if _, err := os.Stat(projectConfigFile(projectRoot)); err == nil {
-		noteProject(projectRoot)
-	}
+	_, statErr := os.Stat(projectConfigFile(projectRoot))
+	configured := statErr == nil
 	pins, err := lockFor(d, lk)
 	if err != nil {
 		return err
@@ -109,6 +108,9 @@ func syncAll(opts syncOptions) error {
 	}
 	if opts.RemoveLegacy && !sel["policy"] {
 		return errors.New("--remove-codex-legacy needs the policy group")
+	}
+	if configured {
+		noteProject(projectRoot)
 	}
 	maps.DeleteFunc(d.Components, func(id string, _ component) bool { return !sel[id] })
 	if err := prepareComponentSources(home, d, pins); err != nil {
@@ -185,6 +187,9 @@ func syncAll(opts syncOptions) error {
 	}
 	skillsOK := upgradeUntouched(home, entries)
 	skillsOK = installSkills(home, entries) && skillsOK
+	if !configured && skillsOK && slices.ContainsFunc(entries, func(e manifestEntry) bool { return e.Project != "" }) {
+		noteProject(projectRoot)
+	}
 	driftOK, err := checkDrift(home, entries)
 	if err != nil {
 		return err
@@ -345,7 +350,7 @@ func checkCommandOwners(repoRoot, home string, selected distro) error {
 	for id := range selected.Components {
 		delete(d.Components, id)
 	}
-	if err := loadLocalManifests(home, d, lk); err != nil {
+	if err := loadLocalManifests(home, d, lk, nil); err != nil {
 		return err
 	}
 	for id, c := range selected.Components {

@@ -1,15 +1,16 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/table"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -50,8 +51,14 @@ func (m *tuiModel) refreshPane() {
 				lines = []string{m.st.faint.Render("Waiting to run.")}
 			}
 			m.vp.SetContentLines(lines)
-			m.vp.GotoBottom()
+			if m.running() {
+				m.vp.GotoBottom()
+			}
 		}
+	case m.mode == modeDetail:
+		m.vp.SetWidth(max(m.width-4, 1))
+		m.vp.SetHeight(inner + 1)
+		m.vp.SetContentLines(m.wrapLines(m.detailLines()))
 	case m.tab == tabStatus:
 		m.vp.SetWidth(max(m.width-4, 1))
 		m.vp.SetHeight(inner + 1)
@@ -98,6 +105,8 @@ func (m *tuiModel) render() string {
 		body = m.askView()
 	case modeSummary:
 		body = m.summaryView()
+	case modeDetail:
+		body = m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(m.vp.View())
 	default:
 		switch m.tab {
 		case tabItems:
@@ -109,8 +118,8 @@ func (m *tuiModel) render() string {
 		}
 	}
 	note := " " + m.note
-	if m.loadErr != nil && m.note == "" {
-		note = " " + m.st.bad.Render(firstLine(m.loadErr.Error()))
+	if err := errors.Join(m.loadErr, m.projErr); err != nil && m.note == "" {
+		note = " " + m.st.bad.Render(firstLine(err.Error()))
 	}
 	m.help.SetWidth(max(m.width-1, 1))
 	fit := func(s string) string { return ansi.Truncate(s, m.width, "\u2026") }
@@ -132,15 +141,17 @@ func (m *tuiModel) helpKeys() []key.Binding {
 	case modeAsk:
 		return []key.Binding{k.Up, k.Confirm, k.Back}
 	case modeSummary:
-		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "close"))}
+		return []key.Binding{k.Up, k.Down, key.NewBinding(key.WithKeys("pgup", "pgdown"), key.WithHelp("pgup/pgdn", "output")), key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "close"))}
+	case modeDetail:
+		return []key.Binding{k.Up, k.Down, k.Top, k.Bottom, k.Back}
 	}
 	switch m.tab {
 	case tabItems:
-		return []key.Binding{k.Up, k.Down, k.Mark, k.Update, k.Check, k.CheckAll, k.Delete, k.Disable, k.Refresh, k.Tab, k.Quit}
+		return []key.Binding{k.Up, k.Down, k.Open, k.Mark, k.Update, k.Check, k.CheckAll, k.Delete, k.Disable, k.Refresh, k.Tab, k.Quit}
 	case tabProjects:
-		return []key.Binding{k.Up, k.Down, k.Forget, k.Refresh, k.Tab, k.Quit}
+		return []key.Binding{k.Up, k.Down, k.Open, k.Forget, k.Refresh, k.Tab, k.Quit}
 	}
-	return []key.Binding{k.Up, k.Down, k.Refresh, k.Tab, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Top, k.Bottom, k.Refresh, k.Tab, k.Quit}
 }
 
 func (m *tuiModel) window(n, sel, h int) (int, int) {
@@ -224,6 +235,9 @@ func (m *tuiModel) badges(r itemRow) string {
 	default:
 		parts = append(parts, m.st.bad.Render(r.Store))
 	}
+	if r.Inactive {
+		parts = append(parts, m.st.faint.Render("off here"))
+	}
 	if r.Drift > 0 {
 		parts = append(parts, m.st.warn.Render(fmt.Sprintf("drift=%d", r.Drift)))
 	}
@@ -239,11 +253,21 @@ func (m *tuiModel) badges(r itemRow) string {
 	return strings.Join(parts, " ")
 }
 
+func (m *tuiModel) detailLines() []string {
+	if m.tab == tabProjects {
+		return m.projectDetailLines()
+	}
+	return m.itemDetailLines()
+}
+
 func (m *tuiModel) itemDetail() string {
-	w := m.width - m.listWidth()
+	return m.paneOf(m.width-m.listWidth(), m.itemDetailLines())
+}
+
+func (m *tuiModel) itemDetailLines() []string {
 	r, ok := m.item()
 	if !ok {
-		return m.paneOf(w, nil)
+		return nil
 	}
 	field := func(k, v string) string { return m.st.faint.Render(fmt.Sprintf("%-7s", k)) + " " + v }
 	lines := []string{
@@ -270,7 +294,7 @@ func (m *tuiModel) itemDetail() string {
 	} else {
 		lines = append(lines, m.st.faint.Render("Distro component: locked, it cannot be removed."), m.st.faint.Render("u moves its pin in gap.lock. x disables or enables it."))
 	}
-	return m.paneOf(w, lines)
+	return lines
 }
 
 func (m *tuiModel) statusView() string {
@@ -288,8 +312,10 @@ func (m *tuiModel) statusView() string {
 }
 
 func (m *tuiModel) shortRoot(root string) string {
-	if rel, err := filepath.Rel(m.home, root); err == nil && !strings.HasPrefix(rel, "..") {
-		return filepath.Join("~", rel)
+	for _, home := range []string{m.home, m.homeReal} {
+		if rel, err := filepath.Rel(home, root); err == nil && !strings.HasPrefix(rel, "..") {
+			return filepath.Join("~", rel)
+		}
 	}
 	return root
 }
@@ -300,7 +326,7 @@ func (m *tuiModel) projectBadges(p projectView) string {
 		return m.st.bad.Render("missing")
 	case p.Err != nil:
 		return m.st.bad.Render("error")
-	case m.checking:
+	case m.projChecking:
 		return m.st.faint.Render("checking")
 	}
 	drift := 0
@@ -310,7 +336,11 @@ func (m *tuiModel) projectBadges(p projectView) string {
 	parts := []string{m.st.faint.Render(p.Profile)}
 	if drift > 0 {
 		parts = append(parts, m.st.warn.Render(fmt.Sprintf("drift=%d", drift)))
-	} else {
+	}
+	switch {
+	case p.unchecked():
+		parts = append(parts, m.st.warn.Render("unchecked"))
+	case drift == 0:
 		parts = append(parts, m.st.ok.Render("ok"))
 	}
 	return strings.Join(parts, " ")
@@ -334,25 +364,25 @@ func (m *tuiModel) projectList() string {
 }
 
 func (m *tuiModel) projectDetail() string {
-	w := m.width - m.listWidth()
+	return m.paneOf(m.width-m.listWidth(), m.projectDetailLines())
+}
+
+func (m *tuiModel) projectDetailLines() []string {
 	p, ok := m.project()
 	if !ok {
-		return m.paneOf(w, nil)
+		return nil
 	}
 	lines := []string{m.st.selected.Render(m.shortRoot(p.Root)) + " " + m.projectBadges(p)}
 	if p.Added != "" {
 		lines = append(lines, m.st.faint.Render("added  ")+p.Added)
 	}
 	switch {
-	case m.checking && !p.Missing:
-		lines = append(lines, "", m.loadingLine("Checking project-scope skills")[0])
-		return m.paneOf(w, lines)
+	case m.projChecking && !p.Missing:
+		return append(lines, "", m.loadingLine("Checking project-scope skills")[0])
 	case p.Missing:
-		lines = append(lines, "", m.st.bad.Render("This folder no longer exists."), m.st.faint.Render("f forgets it."))
-		return m.paneOf(w, lines)
+		return append(lines, "", m.st.bad.Render("This folder no longer exists."), m.st.faint.Render("f forgets it."))
 	case p.Err != nil:
-		lines = append(lines, "", m.st.bad.Render(firstLine(p.Err.Error())))
-		return m.paneOf(w, lines)
+		return append(lines, "", m.st.bad.Render(firstLine(p.Err.Error())))
 	}
 	lines = append(lines, m.st.faint.Render("profile ")+p.Profile, "")
 	if len(p.Items) == 0 {
@@ -360,6 +390,9 @@ func (m *tuiModel) projectDetail() string {
 	}
 	for _, it := range p.Items {
 		lines = append(lines, it.ID)
+		if it.Store != storeOK {
+			lines = append(lines, "  "+m.st.warn.Render("store "+it.Store+": drift not checked"))
+		}
 		for _, s := range it.Skills {
 			tone := m.st.ok
 			if s[1] != "drift=0" {
@@ -368,8 +401,7 @@ func (m *tuiModel) projectDetail() string {
 			lines = append(lines, "  "+s[0]+" "+tone.Render(s[1]))
 		}
 	}
-	lines = append(lines, "", m.st.faint.Render("gap sync inside the repo installs and repairs its copies. f forgets it."))
-	return m.paneOf(w, lines)
+	return append(lines, "", m.st.faint.Render("gap sync inside the repo installs and repairs its copies. f forgets it."))
 }
 
 func (m *tuiModel) wrapLines(lines []string) []string {
@@ -393,32 +425,44 @@ func (m *tuiModel) centered(lines []string) string {
 	return m.boxed(m.wrapLines(lines))
 }
 
-func (m *tuiModel) confirmParts() (head, foot []string, shown int) {
-	head = m.wrapLines([]string{m.st.selected.Render(m.confirmTitle), ""})
-	var tail []string
-	if len(m.confirmIDs) > 0 {
-		tail = append(tail, "")
+func (m *tuiModel) confirmParts() (head, rows, foot []string, shown int) {
+	for _, id := range m.confirmIDs {
+		rows = append(rows, m.wrapLines([]string{"  " + id})...)
 	}
-	tail = append(append(tail, m.confirmNote...), "", m.st.faint.Render("enter confirms, esc goes back"))
-	foot = m.wrapLines(tail)
-	n := len(m.confirmIDs)
-	if room := m.bodyHeight() - 2 - len(head) - len(foot); n > room {
-		return head, foot, max(room-1, 0)
+	title := m.st.selected.Render(m.confirmTitle)
+	hint := m.st.faint.Render("enter confirms, esc goes back")
+	for _, compact := range []bool{false, true} {
+		if compact {
+			head, foot = m.wrapLines([]string{title}), m.wrapLines([]string{hint})
+		} else {
+			head = m.wrapLines([]string{title, ""})
+			var tail []string
+			if len(rows) > 0 {
+				tail = append(tail, "")
+			}
+			foot = m.wrapLines(append(append(tail, m.confirmNote...), "", hint))
+		}
+		room := m.bodyHeight() - 2 - len(head) - len(foot)
+		if len(rows) == 0 || len(rows) <= room {
+			return head, rows, foot, len(rows)
+		}
+		if room >= 2 || compact {
+			return head, rows, foot, max(room-1, 0)
+		}
 	}
-	return head, foot, n
+	return head, rows, foot, 0
 }
 
 func (m *tuiModel) confirmView() string {
-	head, foot, shown := m.confirmParts()
-	n := len(m.confirmIDs)
-	top := max(min(m.confirmTop, n-shown), 0)
+	head, rows, foot, shown := m.confirmParts()
+	top := max(min(m.confirmTop, len(rows)-shown), 0)
 	w := max(m.width-4, 1)
-	lines := head
-	for _, id := range m.confirmIDs[top : top+shown] {
-		lines = append(lines, ansi.Truncate("  "+id, w, "\u2026"))
-	}
-	if shown < n {
-		lines = append(lines, m.st.faint.Render(ansi.Truncate(fmt.Sprintf("  \u2026 and %d more (j/k scrolls)", n-shown), w, "\u2026")))
+	lines := append(slices.Clone(head), rows[top:top+shown]...)
+	switch {
+	case len(rows) > 0 && shown == 0:
+		lines = append(lines, m.st.bad.Render(ansi.Truncate("Too small to list them; enlarge the terminal.", w, "\u2026")))
+	case shown < len(rows):
+		lines = append(lines, m.st.faint.Render(ansi.Truncate(fmt.Sprintf("  \u2026 and %d more (j/k scrolls)", len(rows)-shown), w, "\u2026")))
 	}
 	return m.boxed(append(lines, foot...))
 }
@@ -506,45 +550,54 @@ func lastLine(lines []string) string {
 	return ""
 }
 
-func (m *tuiModel) summaryView() string {
-	t := table.New().Border(lipgloss.RoundedBorder()).BorderStyle(m.st.border).Headers("Step", "Result", "Detail").
-		Wrap(false).Width(m.width).FitContent().
-		StyleFunc(func(row, _ int) lipgloss.Style {
-			if row == table.HeaderRow {
-				return lipgloss.NewStyle().Bold(true).Padding(0, 1)
-			}
-			return lipgloss.NewStyle().Padding(0, 1)
-		})
+func (m *tuiModel) result(j jobView) string {
+	switch {
+	case j.state == jobOK:
+		return m.st.ok.Render("ok")
+	case j.state == jobFailed && j.cancelled:
+		return m.st.bad.Render("cancelled")
+	case j.state == jobFailed:
+		return m.st.bad.Render(fmt.Sprintf("failed (exit %d)", j.code))
+	}
+	return m.st.faint.Render("not run")
+}
+
+func (m *tuiModel) tally() string {
 	ok, bad := 0, 0
-	stepW, resW := len("Step"), len("Result")
-	var rows [][3]string
 	for _, j := range m.jobs {
-		res, detail := m.st.faint.Render("not run"), ""
-		switch {
-		case j.state == jobOK:
+		switch j.state {
+		case jobOK:
 			ok++
-			res = m.st.ok.Render("ok")
-		case j.state == jobFailed && j.cancelled:
+		case jobFailed:
 			bad++
-			res = m.st.bad.Render("cancelled")
-		case j.state == jobFailed:
-			bad++
-			res = m.st.bad.Render(fmt.Sprintf("failed (exit %d)", j.code))
-			detail = lastLine(j.lines)
 		}
-		stepW, resW = max(stepW, ansi.StringWidth(j.label)), max(resW, ansi.StringWidth(res))
-		rows = append(rows, [3]string{j.label, res, detail})
-	}
-	detailW := max(m.width-10-stepW-resW, 1)
-	for _, r := range rows {
-		t.Row(r[0], r[1], ansi.Truncate(r[2], detailW, "\u2026"))
-	}
-	if h := m.bodyHeight() - 2; len(rows)+4 > h {
-		t.Height(h)
 	}
 	line := fmt.Sprintf("%d ok, %d failed, %d not run.", ok, bad, len(m.jobs)-ok-bad)
 	if bad > 0 {
-		line = m.st.bad.Render(line)
+		return m.st.bad.Render(line)
 	}
-	return lipgloss.NewStyle().Height(m.bodyHeight()).Render(lipgloss.JoinVertical(lipgloss.Left, t.String(), " "+line, m.st.faint.Render(" enter goes back and refreshes")))
+	return line
+}
+
+func (m *tuiModel) summaryView() string {
+	title := ""
+	if m.jobSel < len(m.jobs) {
+		j := m.jobs[m.jobSel]
+		title = m.st.selected.Render(j.label) + " " + m.result(j)
+	}
+	if m.stacked() {
+		inner := max(m.width-4, 1)
+		title += m.st.faint.Render(fmt.Sprintf("  %d/%d", m.jobSel+1, len(m.jobs)))
+		return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(ansi.Truncate(title, inner, "\u2026") + "\n" + m.vp.View() + "\n" + ansi.Truncate(m.tally(), inner, "\u2026"))
+	}
+	w := m.listWidth()
+	var lines []string
+	start, end := m.window(len(m.jobs), m.jobSel, m.bodyHeight()-4)
+	for i := start; i < end; i++ {
+		j := m.jobs[i]
+		lines = append(lines, m.pointer(i == m.jobSel)+m.jobMark(j)+" "+j.label+"  "+m.result(j))
+	}
+	lines = append(lines, "", m.tally())
+	right := m.st.pane.Width(m.width - w).Height(m.bodyHeight()).Render(ansi.Truncate(title, max(m.width-w-4, 1), "\u2026") + "\n" + m.vp.View())
+	return lipgloss.JoinHorizontal(lipgloss.Top, m.paneOf(w, lines), right)
 }

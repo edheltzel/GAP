@@ -83,14 +83,15 @@ Use `gap --help` or `gap <command> --help` for usage and flags. Help and termina
 
 `gap tui` opens a terminal UI with three views:
 
-- **Items**: every component and utility with its source, scope, commit, store state, drift, and `new=N` from the last `gap check`. Distro components show as locked.
+- **Items**: every component and utility with its source, scope, effective ref and commit, store state, drift, and `new=N` from the last `gap check`. Distro components show as locked. An item this repo turns off shows `off here` beside its real pin and store state.
 - **Status**: the output of `gap status`.
-- **Projects**: each repo in `~/.gap/projects.json` with its profile and project-scope skill drift. A folder that no longer exists is flagged missing.
+- **Projects**: each repo in `~/.gap/projects.json` with its profile and project-scope skill drift. A folder that no longer exists is flagged missing. A project item whose pinned store is missing or changed stays listed and the project shows `unchecked`. Project drift is checked only when this view opens, once per refresh; each pinned store is verified once per refresh.
 
 | Key | What it does |
 | --- | --- |
-| `j`/`k` or arrows | Move |
+| `j`/`k` or arrows | Move, or scroll the Status view |
 | `g` / `G` | Top / bottom |
+| `enter` | Open the selected item or project full screen, scrollable; `esc` goes back |
 | `tab` / `shift+tab` or `1`-`3` | Switch views |
 | `space` | Mark a utility |
 | `u` | Run `gap update <id>` on the selected item |
@@ -101,13 +102,13 @@ Use `gap --help` or `gap <command> --help` for usage and flags. Help and termina
 | `r` | Refresh |
 | `q` | Quit |
 
-While a run is going, `esc` asks before cancelling. Stop cancels the current step and skips the rest. A failed step does not stop the others. A summary table lists each step as ok, failed, cancelled, or not run, with its last error line.
+While a run is going, `esc` asks before cancelling. Stop interrupts the current step's whole process group, kills what is still running after 5 seconds, waits for it to end, and skips the rest. A failed step does not stop the others. The summary lists each step as ok, failed, cancelled, or not run; it opens on the first failure, `j`/`k` pick a step, and `pgup`/`pgdn` scroll that step's output. A removal confirmation too short to show one id refuses `enter`; long ids wrap and scroll.
 
-Actions run the `gap` binary itself with stdin closed and `NO_COLOR=1`, so they behave exactly like the CLI. An untrusted utility hook is skipped and exits `1`, as without a terminal.
+Actions run the `gap` binary itself with stdin closed and `NO_COLOR=1`, so they behave exactly like the CLI. Item ids follow `--`, so an id that looks like a flag is never read as one. An untrusted utility hook is skipped and exits `1`, as without a terminal.
 
 Plain `gap` with no subcommand opens the TUI when stdin and stdout are terminals and `NO_COLOR` and `TERM=dumb` are unset. Otherwise it prints help and exits `2`. `gap tui` without a terminal prints `gap tui needs a terminal ...` and exits `2`.
 
-`gap init`, `gap add --project` (including a project utility added to another repo), and `gap sync` in a repo with `.gap/gap.toml` record that repo's root in `~/.gap/projects.json`. The file is sorted, has one entry per root, and keeps the date each root was first seen. Home is never recorded. A failed registry write prints a warning and never fails the command. Until the file exists, the Projects view shows the roots recorded under `projectSkills` in `~/.gap/state.json`. Folders are never scanned.
+A successful `gap init`, `gap add --project` (including a project utility added to another repo), `gap sync` in a repo with `.gap/gap.toml` once its selection goes ahead, and a `gap sync` that installs a project-scope skill record that repo's root in `~/.gap/projects.json`. A quit or crew sync writes nothing there. Roots are stored with symlinks resolved, so one repo reached through a link has one entry. The file is sorted, has one entry per root, and keeps the date each root was first seen. Home is never recorded, through a link either. A failed registry write prints a warning and never fails the command. Until the file exists, the Projects view shows the roots recorded under `projectSkills` in `~/.gap/state.json`. Folders are never scanned.
 
 ## Change the policy
 

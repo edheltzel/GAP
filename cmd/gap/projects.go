@@ -69,12 +69,20 @@ func writeProjects(home string, list []projectRecord) error {
 	return writeAtomic(projectsPath(home), string(b)+"\n")
 }
 
+func canonicalRoot(path string) string {
+	path = filepath.Clean(path)
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		return real
+	}
+	return path
+}
+
 func recordProject(home, root string) error {
 	if !filepath.IsAbs(root) {
 		return fmt.Errorf("project root %s is not absolute", root)
 	}
-	root = filepath.Clean(root)
-	if root == filepath.Clean(home) {
+	root = canonicalRoot(root)
+	if root == canonicalRoot(home) {
 		return nil
 	}
 	unlock, err := lockProjects(home)
@@ -86,10 +94,11 @@ func recordProject(home, root string) error {
 	if err != nil {
 		return err
 	}
-	if _, statErr := os.Stat(projectsPath(home)); statErr == nil && slices.ContainsFunc(list, func(p projectRecord) bool { return p.Root == root }) {
+	known := slices.ContainsFunc(list, func(p projectRecord) bool { return canonicalRoot(p.Root) == root })
+	if _, statErr := os.Stat(projectsPath(home)); statErr == nil && known {
 		return nil
 	}
-	if !slices.ContainsFunc(list, func(p projectRecord) bool { return p.Root == root }) {
+	if !known {
 		list = append(list, projectRecord{Root: root, Added: time.Now().Format(time.DateOnly)})
 	}
 	return writeProjects(home, list)
@@ -105,8 +114,8 @@ func forgetProject(home, root string) error {
 	if err != nil {
 		return err
 	}
-	root = filepath.Clean(root)
-	return writeProjects(home, slices.DeleteFunc(list, func(p projectRecord) bool { return p.Root == root }))
+	stored, real := filepath.Clean(root), canonicalRoot(root)
+	return writeProjects(home, slices.DeleteFunc(list, func(p projectRecord) bool { return p.Root == stored || canonicalRoot(p.Root) == real }))
 }
 
 func noteProject(root string) {

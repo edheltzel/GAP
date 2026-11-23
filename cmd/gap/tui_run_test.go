@@ -237,6 +237,15 @@ func TestTUIRunCtrlCTwiceStopsAndQuits(t *testing.T) {
 	}
 }
 
+func TestTUIChildArgsEndFlags(t *testing.T) {
+	newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	var code int
+	stdout, stderr := captureStd(t, func() { code = run([]string{"remove", "--", "-h"}) })
+	if code != 1 || !strings.Contains(stdout+stderr, "utility -h is not added") {
+		t.Fatalf("remove -- -h exited %d:\n%s%s", code, stdout, stderr)
+	}
+}
+
 func TestTUIRunInProcessJob(t *testing.T) {
 	ran := false
 	msgs := collect(t, &execRunner{}, []tuiJob{{label: "fn", fn: func() error { ran = true; return nil }}}, nil)

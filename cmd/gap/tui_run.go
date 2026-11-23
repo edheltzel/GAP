@@ -15,9 +15,10 @@ import (
 )
 
 type tuiJob struct {
-	label string
-	args  []string
-	fn    func() error
+	label   string
+	args    []string
+	removes string
+	fn      func() error
 }
 
 type jobStartedMsg struct{ i int }
@@ -37,11 +38,15 @@ type jobDoneMsg struct {
 type jobsFinishedMsg struct{}
 
 type statusTextMsg struct {
+	gen  int
 	text string
 	err  error
 }
 
-var tuiExecutable = os.Executable
+var (
+	tuiExecutable = os.Executable
+	tuiStopGrace  = 5 * time.Second
+)
 
 func gapCommand(ctx context.Context, args ...string) (*exec.Cmd, error) {
 	exe, err := tuiExecutable()
@@ -50,8 +55,9 @@ func gapCommand(ctx context.Context, args ...string) (*exec.Cmd, error) {
 	}
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
-	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
-	cmd.WaitDelay = 5 * time.Second
+	ownGroup(cmd)
+	cmd.Cancel = func() error { return interruptGroup(cmd) }
+	cmd.WaitDelay = tuiStopGrace
 	return cmd, nil
 }
 
@@ -144,6 +150,9 @@ func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg)) (int, er
 	err = cmd.Wait()
 	pw.Close()
 	<-done
+	if ctx.Err() != nil {
+		stopGroup(cmd.Process.Pid, tuiStopGrace)
+	}
 	var exit *exec.ExitError
 	switch {
 	case err == nil:
@@ -195,6 +204,9 @@ func statusText(g *childGroup) tea.Cmd {
 			return statusTextMsg{err: err}
 		}
 		out, err := cmd.CombinedOutput()
+		if ctx.Err() != nil && cmd.Process != nil {
+			stopGroup(cmd.Process.Pid, tuiStopGrace)
+		}
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
 			err = nil

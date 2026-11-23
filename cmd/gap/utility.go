@@ -632,6 +632,9 @@ func setComponentEnabled(home, repoRoot, id string, enabled bool) error {
 	if err != nil {
 		return err
 	}
+	if _, err := parseTOML(text); err != nil {
+		return fmt.Errorf("fix %s first: %w", config, err)
+	}
 	next, err := withEnabled(text, id, enabled)
 	if err != nil {
 		return fmt.Errorf("%s: %w", config, err)
@@ -652,40 +655,64 @@ func setComponentEnabled(home, repoRoot, id string, enabled bool) error {
 }
 
 func withEnabled(text, id string, enabled bool) (string, error) {
-	line := "enabled = " + strconv.FormatBool(enabled) + "\n"
+	value := strconv.FormatBool(enabled)
+	target := []string{"components", id, "enabled"}
 	lines := strings.SplitAfter(text, "\n")
-	header := -1
-	var section []string
-	for i, raw := range lines {
-		trim := strings.TrimSpace(stripComment(raw))
-		if strings.HasPrefix(trim, "[") {
+	header, dotted := -1, -1
+	var section, dottedSection []string
+	for i := 0; i < len(lines); i++ {
+		raw := lines[i]
+		code := stripComment(raw)
+		trim := strings.TrimSpace(code)
+		if strings.HasPrefix(trim, "[") && !arrayContinues(trim) {
 			var err error
-			if section, err = splitKey(strings.TrimSuffix(strings.TrimPrefix(trim, "["), "]"), i+1); err != nil {
+			if section, err = splitKey(strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(trim, "["), "]")), i+1); err != nil {
 				return "", err
 			}
-			if len(section) == 2 && section[0] == "components" && section[1] == id {
+			if slices.Equal(section, target[:2]) {
 				header = i
 			}
 			continue
 		}
-		if header < 0 || len(section) != 2 || section[0] != "components" || section[1] != id {
+		key, rest, ok := strings.Cut(code, "=")
+		if !ok {
 			continue
 		}
-		if key, _, ok := strings.Cut(trim, "="); ok && strings.TrimSpace(key) == "enabled" {
-			if !strings.HasSuffix(raw, "\n") {
-				line = strings.TrimSuffix(line, "\n")
-			}
-			lines[i] = line
+		parts, err := splitKey(strings.TrimSpace(key), i+1)
+		if err != nil {
+			return "", err
+		}
+		full := append(slices.Clone(section), parts...)
+		start := i
+		for arrayContinues(rest) && i+1 < len(lines) {
+			i++
+			rest += "\n" + stripComment(lines[i])
+		}
+		if slices.Equal(full, target) {
+			lines[start] = replaceTOMLValue(raw, code, value)
 			return strings.Join(lines, ""), nil
 		}
+		if len(section) <= 2 && len(full) > 2 && slices.Equal(full[:2], target[:2]) {
+			dotted, dottedSection = i, section
+		}
+	}
+	insert := func(at int, line string) string {
+		if !strings.HasSuffix(lines[at], "\n") {
+			lines[at] += "\n"
+		}
+		return strings.Join(slices.Insert(lines, at+1, line+"\n"), "")
 	}
 	if header >= 0 {
-		if !strings.HasSuffix(lines[header], "\n") {
-			lines[header] += "\n"
-		}
-		lines = slices.Insert(lines, header+1, line)
-		return strings.Join(lines, ""), nil
+		return insert(header, "enabled = "+value), nil
 	}
+	if dotted >= 0 {
+		var keys []string
+		for _, k := range target[len(dottedSection):] {
+			keys = append(keys, tomlKey(k))
+		}
+		return insert(dotted, strings.Join(keys, ".")+" = "+value), nil
+	}
+	line := "enabled = " + value + "\n"
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
@@ -693,6 +720,17 @@ func withEnabled(text, id string, enabled bool) (string, error) {
 		text += "\n"
 	}
 	return text + "[components." + tomlKey(id) + "]\n" + line, nil
+}
+
+func replaceTOMLValue(raw, code, value string) string {
+	eq := strings.Index(code, "=")
+	old := code[eq+1:]
+	body := strings.TrimSpace(old)
+	if body == "" {
+		return code[:eq+1] + " " + value + old + raw[len(code):]
+	}
+	at := strings.Index(old, body)
+	return code[:eq+1] + old[:at] + value + old[at+len(body):] + raw[len(code):]
 }
 
 func removeUtility(id string) error {
@@ -729,7 +767,7 @@ func removeUtility(id string) error {
 			return fmt.Errorf("utility %s: configuration still declares it; nothing removed", id)
 		}
 	}
-	if err := loadLocalManifests(home, d, lk); err != nil {
+	if err := loadLocalManifests(home, d, lk, nil); err != nil {
 		return err
 	}
 	for _, oid := range sortedIDs(d.Components) {

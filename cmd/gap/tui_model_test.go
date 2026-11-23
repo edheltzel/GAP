@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -74,7 +75,7 @@ func TestTUIMassDeleteConfirmsEveryID(t *testing.T) {
 		t.Fatal("removal started before confirmation")
 	}
 	press(m, "enter")
-	if len(f.started) != 1 || len(f.started[0]) != 2 || strings.Join(f.started[0][0].args, " ") != "remove ua" || strings.Join(f.started[0][1].args, " ") != "remove ub" {
+	if len(f.started) != 1 || len(f.started[0]) != 2 || strings.Join(f.started[0][0].args, " ") != "remove -- ua" || strings.Join(f.started[0][1].args, " ") != "remove -- ub" {
 		t.Fatalf("jobs = %+v", f.started)
 	}
 	if m.mode != modeRun || len(m.marked) != 0 {
@@ -119,12 +120,12 @@ func TestTUIUpdateAndCheckSelected(t *testing.T) {
 		t.Fatalf("badges missing:\n%s", s)
 	}
 	press(m, "j", "j", "u")
-	if len(f.started) != 1 || strings.Join(f.started[0][0].args, " ") != "update ub" {
+	if len(f.started) != 1 || strings.Join(f.started[0][0].args, " ") != "update -- ub" {
 		t.Fatalf("update job = %+v", f.started)
 	}
 	m.Update(jobsFinishedMsg{})
 	press(m, "enter", "c")
-	if len(f.started) != 2 || strings.Join(f.started[1][0].args, " ") != "check ub" {
+	if len(f.started) != 2 || strings.Join(f.started[1][0].args, " ") != "check -- ub" {
 		t.Fatalf("check job = %+v", f.started)
 	}
 	m.Update(jobsFinishedMsg{})
@@ -240,7 +241,7 @@ func twoPhaseFixture(t *testing.T) (*tuiModel, *int) {
 		}
 	}
 	fulls := 0
-	m.loadFull = func() loadedMsg {
+	m.loadFull = func(*storeCache) loadedMsg {
 		fulls++
 		if fulls == 1 {
 			return loadedMsg{items: []itemRow{{ID: "stale", Source: "user", Scope: "global", Commit: "9999999", Store: storeOK, Pinned: true}}}
@@ -326,5 +327,212 @@ func TestTUITabsAndStatus(t *testing.T) {
 	press(m, "q")
 	if !m.quitting {
 		t.Fatal("q did not quit")
+	}
+}
+
+func numbered(prefix string, n int) []string {
+	var out []string
+	for i := range n {
+		out = append(out, fmt.Sprintf("%s-%03d", prefix, i))
+	}
+	return out
+}
+
+func TestTUIStatusScrollKeys(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	m.Update(statusTextMsg{text: strings.Join(numbered("line", 100), "\n")})
+	press(m, "2")
+	if s := screen(m); !strings.Contains(s, "line-000") || strings.Contains(s, "line-099") {
+		t.Fatalf("status top:\n%s", s)
+	}
+	press(m, "G")
+	if s := screen(m); !strings.Contains(s, "line-099") || strings.Contains(s, "line-000") {
+		t.Fatalf("G did not reach the end:\n%s", s)
+	}
+	press(m, "g", "j")
+	if s := screen(m); strings.Contains(s, "line-000") || !strings.Contains(s, "line-001") {
+		t.Fatalf("j did not scroll:\n%s", s)
+	}
+	press(m, "k")
+	if s := screen(m); !strings.Contains(s, "line-000") {
+		t.Fatalf("k did not scroll back:\n%s", s)
+	}
+}
+
+func cmdMsgs(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		var out []tea.Msg
+		for _, c := range batch {
+			out = append(out, cmdMsgs(c)...)
+		}
+		return out
+	}
+	return []tea.Msg{msg}
+}
+
+func statusOf(t *testing.T, cmd tea.Cmd) statusTextMsg {
+	t.Helper()
+	for _, msg := range cmdMsgs(cmd) {
+		if s, ok := msg.(statusTextMsg); ok {
+			return s
+		}
+	}
+	t.Fatal("no status message")
+	return statusTextMsg{}
+}
+
+func TestTUIStaleStatusIgnored(t *testing.T) {
+	m, _ := tuiFixture(t)
+	text := "before the update"
+	m.fetchStatus = func() tea.Cmd {
+		now := text
+		return func() tea.Msg { return statusTextMsg{text: now} }
+	}
+	m.loadQuick = func() loadedMsg { return loadedMsg{} }
+	_, older := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	text = "after the update"
+	_, newer := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	stale, fresh := statusOf(t, older), statusOf(t, newer)
+	m.Update(fresh)
+	m.Update(stale)
+	press(m, "2")
+	if s := screen(m); !strings.Contains(s, "after the update") || strings.Contains(s, "before the update") || m.statusLoading {
+		t.Fatalf("status:\n%s", s)
+	}
+}
+
+func TestTUIDetailOnNarrowTerminal(t *testing.T) {
+	m, _ := tuiFixture(t)
+	skills := [][]string{}
+	for _, name := range numbered("skill", 30) {
+		skills = append(skills, []string{name, "drift=0"})
+	}
+	m.projects[1].Items = []projectItem{{ID: "ub", Store: storeOK, Skills: skills}}
+	m.Update(tea.WindowSizeMsg{Width: 50, Height: 16})
+	press(m, "j")
+	if s := screen(m); strings.Contains(s, "hooks") {
+		t.Fatalf("narrow list already shows details:\n%s", s)
+	}
+	press(m, "enter")
+	if s := screen(m); m.mode != modeDetail || !strings.Contains(s, "ua-skill drift=0") || !strings.Contains(s, "hooks") {
+		t.Fatalf("item detail:\n%s", s)
+	}
+	press(m, "esc", "3", "j", "enter")
+	if s := screen(m); !strings.Contains(s, "skill-000") || strings.Contains(s, "skill-029") {
+		t.Fatalf("project detail top:\n%s", s)
+	}
+	press(m, "G")
+	if s := screen(m); !strings.Contains(s, "skill-029") {
+		t.Fatalf("project detail bottom:\n%s", s)
+	}
+	for _, l := range strings.Split(m.render(), "\n") {
+		if w := ansi.StringWidth(l); w > 50 {
+			t.Fatalf("line is %d cols: %q", w, ansi.Strip(l))
+		}
+	}
+	press(m, "esc")
+	if m.mode != modeBrowse {
+		t.Fatalf("esc left mode %v", m.mode)
+	}
+}
+
+func TestTUISummaryScrollsToEveryStep(t *testing.T) {
+	for _, w := range []int{140, 50} {
+		m, _ := tuiFixture(t)
+		m.Update(tea.WindowSizeMsg{Width: w, Height: 20})
+		var jobs []tuiJob
+		for i := range 30 {
+			id := fmt.Sprintf("u%02d", i)
+			jobs = append(jobs, tuiJob{label: "update " + id, args: []string{"update", "--", id}})
+		}
+		m.run(jobs)
+		for i := range jobs {
+			m.Update(jobStartedMsg{i: i})
+			m.Update(jobOutputMsg{i: i, line: fmt.Sprintf("out-%02d", i)})
+			code := 0
+			if i == 25 {
+				m.Update(jobOutputMsg{i: i, line: "boom-25"})
+				code = 1
+			}
+			m.Update(jobDoneMsg{i: i, code: code})
+		}
+		m.Update(jobsFinishedMsg{})
+		if s := screen(m); !strings.Contains(s, "boom-25") || !strings.Contains(s, "update u25") || !strings.Contains(s, "29 ok, 1 failed, 0 not run.") {
+			t.Fatalf("width %d summary:\n%s", w, s)
+		}
+		press(m, "g")
+		if s := screen(m); !strings.Contains(s, "update u00") || !strings.Contains(s, "out-00") {
+			t.Fatalf("width %d first step:\n%s", w, s)
+		}
+		press(m, "j", "j", "j")
+		if s := screen(m); !strings.Contains(s, "out-03") {
+			t.Fatalf("width %d step 3 output:\n%s", w, s)
+		}
+		press(m, "G")
+		if s := screen(m); !strings.Contains(s, "update u29") || !strings.Contains(s, "out-29") || m.mode != modeSummary {
+			t.Fatalf("width %d last step:\n%s", w, s)
+		}
+		press(m, "enter")
+		if m.mode != modeBrowse {
+			t.Fatalf("width %d: enter did not close the summary", w)
+		}
+	}
+}
+
+func TestTUIDashIDIsNotAFlag(t *testing.T) {
+	m, f := tuiFixture(t)
+	m.Update(loadedMsg{items: []itemRow{{ID: "-h", Source: "user", Scope: "global", Commit: "1111111", Store: storeOK, Pinned: true}}})
+	press(m, "space")
+	if !m.marked["-h"] {
+		t.Fatal("-h not marked")
+	}
+	press(m, "d", "enter")
+	if len(f.started) != 1 || strings.Join(f.started[0][0].args, " ") != "remove -- -h" || len(m.marked) != 0 {
+		t.Fatalf("jobs %+v marked %v", f.started, m.marked)
+	}
+	m.Update(jobsFinishedMsg{})
+	press(m, "enter", "u")
+	m.Update(jobsFinishedMsg{})
+	press(m, "enter", "c")
+	if len(f.started) != 3 || strings.Join(f.started[1][0].args, " ") != "update -- -h" || strings.Join(f.started[2][0].args, " ") != "check -- -h" {
+		t.Fatalf("jobs %+v", f.started)
+	}
+}
+
+func TestTUIProjectsLoadOnlyWhenShown(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.fetchStatus = func() tea.Cmd { return nil }
+	m.loadQuick = func() loadedMsg {
+		return loadedMsg{items: m.items, projects: []projectView{{Root: filepath.Join(m.home, "here")}}}
+	}
+	m.loadFull = func(*storeCache) loadedMsg { return loadedMsg{items: m.items} }
+	calls := 0
+	m.loadProjects = func(*storeCache) loadedMsg {
+		calls++
+		return loadedMsg{projects: []projectView{{Root: filepath.Join(m.home, "here"), Profile: "project"}}}
+	}
+	quick := refresh(t, m)
+	_, next := m.Update(quick)
+	for _, msg := range cmdMsgs(next) {
+		m.Update(msg)
+	}
+	if calls != 0 || !m.projChecking {
+		t.Fatalf("projects loaded on the Items tab: calls %d checking %v", calls, m.projChecking)
+	}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: '3', Text: "3"})
+	for _, msg := range cmdMsgs(cmd) {
+		m.Update(msg)
+	}
+	if calls != 1 || m.projChecking || !strings.Contains(screen(m), "~/here  project ok") {
+		t.Fatalf("projects after showing: calls %d\n%s", calls, screen(m))
+	}
+	press(m, "1")
+	if _, cmd := m.Update(tea.KeyPressMsg{Code: '3', Text: "3"}); cmd != nil || calls != 1 {
+		t.Fatalf("projects loaded twice in one refresh: calls %d", calls)
 	}
 }

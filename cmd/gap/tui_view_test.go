@@ -127,7 +127,7 @@ func TestTUIConfirmListsEveryID(t *testing.T) {
 		t.Fatalf("started %d batches, want one of 32", len(f.started))
 	}
 	for i, job := range f.started[0] {
-		if got := strings.Join(job.args, " "); got != "remove "+ids[i] {
+		if got := strings.Join(job.args, " "); got != "remove -- "+ids[i] {
 			t.Fatalf("job %d = %q", i, got)
 		}
 	}
@@ -148,6 +148,73 @@ func TestTUIConfirmShortTerminalKeepsHint(t *testing.T) {
 				t.Errorf("height %d: %q missing:\n%s", h, want, text)
 			}
 		}
+	}
+}
+
+func confirmFixture(t *testing.T, w, h int, ids ...string) (*tuiModel, *fakeRunner) {
+	t.Helper()
+	m, f := tuiFixture(t)
+	var rows []itemRow
+	for _, id := range ids {
+		rows = append(rows, itemRow{ID: id, Source: "user", Scope: "global", Commit: "1111111", Store: storeOK, Pinned: true})
+	}
+	m.Update(loadedMsg{items: rows})
+	for range ids {
+		press(m, "space")
+	}
+	press(m, "d")
+	m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+	return m, f
+}
+
+func TestTUIConfirmShowsLongIDsInFull(t *testing.T) {
+	long := "u" + strings.Repeat("x", 88) + "z"
+	m, f := confirmFixture(t, 40, 11, "ua", long)
+	seen := map[string]bool{}
+	for step := range 12 {
+		raw := strings.Split(m.render(), "\n")
+		if len(raw) > 11 {
+			t.Fatalf("step %d: %d lines", step, len(raw))
+		}
+		text := ansi.Strip(strings.Join(raw, "\n"))
+		if !strings.Contains(text, "Remove 2 utilities?") || !strings.Contains(text, "enter confirms, esc goes back") {
+			t.Fatalf("step %d:\n%s", step, text)
+		}
+		for _, l := range raw {
+			if ansi.StringWidth(l) > 40 {
+				t.Fatalf("step %d: line too wide: %q", step, ansi.Strip(l))
+			}
+			seen[strings.Trim(ansi.Strip(l), " \u2502")] = true
+		}
+		press(m, "j")
+	}
+	var chunks []string
+	for _, row := range m.wrapLines([]string{"  " + long}) {
+		chunk := strings.TrimSpace(ansi.Strip(row))
+		chunks = append(chunks, chunk)
+		if !seen[chunk] {
+			t.Fatalf("row %q of the long id was never shown; saw %v", chunk, seen)
+		}
+	}
+	if strings.Join(chunks, "") != long {
+		t.Fatalf("rows %q do not spell %s", chunks, long)
+	}
+	press(m, "enter")
+	if len(f.started) != 1 {
+		t.Fatal("a confirmation with visible targets did not start")
+	}
+}
+
+func TestTUIConfirmBlockedWhenNoTargetFits(t *testing.T) {
+	m, f := confirmFixture(t, 12, 11, "ua", "ub")
+	press(m, "enter")
+	if len(f.started) != 0 || m.mode != modeConfirm || !strings.Contains(m.note, "Enlarge the terminal") {
+		t.Fatalf("started %v mode %v note %q\n%s", f.started, m.mode, m.note, screen(m))
+	}
+	m.Update(tea.WindowSizeMsg{Width: 40, Height: 11})
+	press(m, "enter")
+	if len(f.started) != 1 {
+		t.Fatal("enter after enlarging did not start")
 	}
 }
 
