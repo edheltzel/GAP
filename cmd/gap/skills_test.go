@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -498,6 +499,49 @@ func TestShadowJcode(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestJcodeShadowRefreshesFromStore(t *testing.T) {
+	home := t.TempDir()
+	store := filepath.Join(home, "store")
+	write(t, filepath.Join(store, "skills", "do-todo", "SKILL.md"), "managed\n")
+	managed := filepath.Join(home, ".agents", "skills", "do-todo")
+	write(t, filepath.Join(managed, "SKILL.md"), "managed\n")
+	shadow := filepath.Join(home, ".jcode", "skills", "do-todo")
+	write(t, filepath.Join(shadow, "SKILL.md"), "stale\n")
+	note := filepath.Join(shadow, "note.txt")
+	write(t, note, "extra\n")
+	unsetEnv(t, "JCODE_HOME")
+	e := manifestEntry{Path: store, Skills: []string{"do-todo"}}
+
+	if err := refreshJcodeShadows(home, e, "do-todo"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readString(t, filepath.Join(shadow, "SKILL.md")); got != "managed\n" {
+		t.Fatalf("jcode copy = %q, want the store copy", got)
+	}
+	if _, err := os.Stat(note); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("refresh kept a file the store does not have: %v", err)
+	}
+	if warnings := shadowWarnings(home, e, "do-todo"); len(warnings) != 0 {
+		t.Fatalf("a refreshed copy still warns: %q", warnings)
+	}
+
+	write(t, filepath.Join(shadow, "SKILL.md"), "managed\n")
+	info, err := os.Stat(filepath.Join(shadow, "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshJcodeShadows(home, e, "do-todo"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := os.Stat(filepath.Join(shadow, "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.ModTime().Equal(info.ModTime()) {
+		t.Fatal("a copy that already matched the store was rewritten")
 	}
 }
 

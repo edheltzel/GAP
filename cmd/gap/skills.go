@@ -288,6 +288,9 @@ func checkDrift(home string, entries []manifestEntry) (bool, error) {
 				continue
 			}
 			for _, name := range e.Skills {
+				if err := refreshJcodeShadows(home, e, name); err != nil {
+					fmt.Fprintln(os.Stderr, err)
+				}
 				for _, warning := range shadowWarnings(home, e, name) {
 					fmt.Fprintln(os.Stderr, warning)
 				}
@@ -1126,8 +1129,8 @@ func incompleteUnedited(e manifestEntry, home, name string) bool {
 	return incomplete
 }
 
-// shadowWarnings reports harness-only skill copies that differ from the managed copy. gap never writes them.
-// Empryo's harness copy wins; jcode's copy precedence is unverified.
+// shadowWarnings reports harness-only skill copies that differ from the managed copy.
+// Empryo's copy wins, so it is only reported. jcode's copy is refreshed from the store first.
 func shadowWarnings(home string, e manifestEntry, name string) []string {
 	dests := entryDests(home, e, name)
 	if len(dests) == 0 {
@@ -1146,6 +1149,29 @@ func shadowWarnings(home string, e manifestEntry, name string) []string {
 		}
 	}
 	return out
+}
+
+func refreshJcodeShadows(home string, e manifestEntry, name string) error {
+	dests := entryDests(home, e, name)
+	if len(dests) == 0 {
+		return nil
+	}
+	base, err := harnessHome(harnessNamed("jcode"), home)
+	if err != nil {
+		return nil
+	}
+	shadow := filepath.Join(base, "skills", name)
+	if !differs(shadow, dests[0].Dir) {
+		return nil
+	}
+	src := entrySkillDir(e, name)
+	if src == "" {
+		return nil
+	}
+	if err := os.RemoveAll(shadow); err != nil {
+		return err
+	}
+	return renderSkill(src, shadow, renderOpts{Quiet: true})
 }
 
 func differs(shadow, managed string) bool {
