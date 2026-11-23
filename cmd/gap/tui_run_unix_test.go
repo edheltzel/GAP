@@ -94,31 +94,20 @@ func TestTUIRunForeignGroupDoesNotHoldTheBatch(t *testing.T) {
 	t.Cleanup(func() { tuiExecutable, tuiStopGrace = oldExe, oldGrace })
 	tuiStopGrace = 300 * time.Millisecond
 	dir := t.TempDir()
-	life := filepath.Join(dir, "life")
-	if err := syscall.Mkfifo(life, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	ready := filepath.Join(dir, "ready")
+	pidFile := filepath.Join(dir, "pid")
 	script := filepath.Join(dir, "gap")
-	write(t, script, "#!/bin/sh\n(trap '' INT TERM; exec 3<\""+life+"\"; exec /bin/sleep 30) >/dev/null 2>&1 &\n")
+	write(t, script, "#!/bin/sh\n(/bin/sh -c 'echo $$ >> \""+pidFile+"\"; echo ready >> \""+ready+"\"; exec /bin/sleep 30') &\n")
 	if err := os.Chmod(script, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	tuiExecutable = func() (string, error) { return script, nil }
-	held := make(chan *os.File, 1)
-	go func() {
-		f, err := os.OpenFile(life, os.O_WRONLY, 0)
-		if err != nil {
-			return
+	t.Cleanup(func() {
+		pid, err := strconv.Atoi(strings.TrimSpace(readString(t, pidFile)))
+		if err == nil {
+			syscall.Kill(pid, syscall.SIGKILL)
 		}
-		held <- f
-	}()
-	defer func() {
-		select {
-		case f := <-held:
-			f.Close()
-		default:
-		}
-	}()
+	})
 	start := time.Now()
 	msgs := collect(t, &execRunner{}, []tuiJob{{label: "update ua", args: []string{"update", "--", "ua"}}}, nil)
 	if time.Since(start) > 6*time.Second {

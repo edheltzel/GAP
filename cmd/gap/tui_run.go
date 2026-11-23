@@ -54,7 +54,9 @@ type childCmd struct {
 	mu        sync.Mutex
 	kill      *time.Timer
 	out       io.Closer
+	in        io.Closer
 	escalated bool
+	done      bool
 }
 
 func gapCommand(ctx context.Context, args ...string) (*childCmd, error) {
@@ -80,9 +82,12 @@ func (c *childCmd) interrupt() error {
 	pgid := c.Process.Pid
 	c.kill = time.AfterFunc(tuiStopGrace, func() {
 		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.done {
+			return
+		}
 		c.escalated = true
 		killGroup(pgid)
-		c.mu.Unlock()
 	})
 	return interruptGroup(pgid)
 }
@@ -115,18 +120,19 @@ func (c *childCmd) settle(cancelled bool) (gone, forced bool) {
 	return gone, c.wasEscalated()
 }
 
-func (c *childCmd) closeOut() {
+func (c *childCmd) closeIn() {
 	c.mu.Lock()
-	out := c.out
-	c.out = nil
+	in := c.in
+	c.in = nil
 	c.mu.Unlock()
-	if out != nil {
-		out.Close()
+	if in != nil {
+		in.Close()
 	}
 }
 
 func (c *childCmd) disarm() {
 	c.mu.Lock()
+	c.done = true
 	kill := c.kill
 	c.kill = nil
 	c.mu.Unlock()
@@ -210,7 +216,7 @@ func (r *execRunner) start(jobs []tuiJob, send func(tea.Msg)) {
 				select {
 				case <-drained:
 				case <-time.After(2 * time.Second):
-					child.closeOut()
+					child.closeIn()
 					<-drained
 				}
 			}
@@ -245,7 +251,7 @@ func runJob(ctx context.Context, i int, job tuiJob, send func(tea.Msg), started 
 		return nil, 1, err, nil
 	}
 	cmd.Stdout, cmd.Stderr = pw, pw
-	cmd.out = pw
+	cmd.out, cmd.in = pw, pr
 	if err := cmd.Start(); err != nil {
 		pw.Close()
 		pr.Close()
