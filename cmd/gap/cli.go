@@ -63,11 +63,14 @@ Commands, hooks, and MCP servers are always machine-wide.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if tuiReady() {
+				return runTUI()
+			}
 			exitCode = 2
 			return cmd.Help()
 		},
 	}
-	root.AddCommand(syncCmd(), statusCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd())
+	root.AddCommand(tuiCmd(), syncCmd(), statusCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd())
 	return root
 }
 
@@ -90,6 +93,29 @@ func finish(err error) error {
 		return nil
 	}
 	return err
+}
+
+func tuiCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "tui",
+		Short: "Open the terminal UI: update, check, remove, and disable items; see status and projects",
+		Long: `tui lists every component and utility with its pin, store, drift, and new commits.
+u updates the selected item, c checks it, C checks all. space marks utilities and d removes
+the marked ones (or the selected one) after one confirmation; files move to ~/.gap/backups.
+Distro components are locked: x disables or enables one in ~/.config/gap/gap.toml.
+The Status view shows gap status. The Projects view lists each repo recorded in
+~/.gap/projects.json by gap init, gap add --project, and gap sync; f forgets one.
+Plain gap opens it too when stdin and stdout are a terminal and NO_COLOR and TERM=dumb are unset.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !tuiReady() {
+				exitCode = 2
+				fmt.Fprintln(os.Stderr, "gap tui needs a terminal on stdin and stdout, with NO_COLOR and TERM=dumb unset; use gap list and gap status instead.")
+				return nil
+			}
+			return runTUI()
+		},
+	}
 }
 
 func syncCmd() *cobra.Command {

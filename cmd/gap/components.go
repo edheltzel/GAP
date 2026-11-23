@@ -552,6 +552,10 @@ func resolveRef(url, ref string) (string, error) {
 }
 
 func effectivePins(repoRoot, home, projectRoot, profile string) (distro, lockFile, error) {
+	return effectivePinsWith(repoRoot, home, projectRoot, profile, nil)
+}
+
+func effectivePinsWith(repoRoot, home, projectRoot, profile string, stores *storeCache) (distro, lockFile, error) {
 	d, lk, err := readPins(repoRoot)
 	if err != nil {
 		return distro{}, lockFile{}, err
@@ -583,20 +587,20 @@ func effectivePins(repoRoot, home, projectRoot, profile string) (distro, lockFil
 			return distro{}, lockFile{}, fmt.Errorf("component %s requests ref %s but gap.lock pins %s; run `gap pin %s@%s`", id, c.Ref, pin.Ref, id, c.Ref)
 		}
 	}
-	if err := loadLocalManifests(home, d, lk); err != nil {
+	if err := loadLocalManifests(home, d, lk, stores); err != nil {
 		return distro{}, lockFile{}, err
 	}
 	return d, lk, nil
 }
 
-func loadLocalManifests(home string, d distro, lk lockFile) error {
+func loadLocalManifests(home string, d distro, lk lockFile, stores *storeCache) error {
 	for id, c := range d.Components {
 		pin, pinned := lk.Components[id]
 		if !pinned {
 			continue
 		}
 		dir := storePath(home, id, pin.Commit)
-		if state, err := storeState(dir, pin.Tree); err != nil || state != storeOK {
+		if state, err := stores.state(dir, pin.Tree); err != nil || state != storeOK {
 			continue
 		}
 		resolved, err := applyManifest(c, dir)
@@ -670,7 +674,8 @@ func statusAll() error {
 	if err != nil {
 		return err
 	}
-	d, lk, err := effectivePins(repoRoot, home, projectRoot, "")
+	stores := newStoreCache()
+	d, lk, err := effectivePinsWith(repoRoot, home, projectRoot, "", stores)
 	if err != nil {
 		return err
 	}
@@ -693,52 +698,20 @@ func statusAll() error {
 	for _, id := range ids {
 		c := d.Components[id]
 		e, pinned := lk.Components[id]
-		ref := c.Ref
-		short := "unpinned"
-		store := storeUnpinned
-		if pinned {
-			ref = e.Ref
-			short = e.Commit
-			if len(short) > 7 {
-				short = short[:7]
-			}
-			var err error
-			store, err = storeState(storePath(home, id, e.Commit), e.Tree)
-			if err != nil {
-				return err
-			}
-			bad = bad || store != storeOK
-		} else {
-			bad = true
+		row, err := componentStatus(home, projectRoot, id, c, e, pinned, checks, stores)
+		if err != nil {
+			return err
+		}
+		if !pinned {
 			pinSteps = append(pinSteps, "gap pin "+id+"@"+c.Ref+"    create the missing lock entry")
 		}
-		if store == storeChanged {
-			changed = true
-		}
-		if store == storeMissing {
-			missing = true
-		}
-		row := statusRow{id: id, ref: ref, commit: short, store: store}
-		if rec, found := checks[id]; found && pinned && rec.Pin == e.Commit {
-			row.pending = rec.New
-			behind = behind || rec.New > 0
-		}
+		bad = bad || row.store != storeOK || row.drifted > 0
+		changed = changed || row.store == storeChanged
+		missing = missing || row.store == storeMissing
+		behind = behind || row.pending > 0
 		if !out.tty {
-			out.statusLine(id, ref, short, store, row.pending)
-		}
-		if store == storeOK {
-			dir := storePath(home, id, e.Commit)
-			for _, entry := range selectedEntries(c, dir, projectRoot) {
-				for _, name := range entry.Skills {
-					n := entryDriftCount(entry, entryHome(home, entry), name)
-					row.skills = append(row.skills, []string{name, fmt.Sprintf("drift=%d", n)})
-					if n > 0 {
-						row.drifted++
-						bad = true
-					}
-				}
-			}
-			if !out.tty && len(row.skills) > 0 {
+			out.statusLine(id, row.ref, row.commit, row.store, row.pending)
+			if len(row.skills) > 0 {
 				out.driftTable(row.skills)
 			}
 		}

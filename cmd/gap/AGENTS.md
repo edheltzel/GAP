@@ -8,13 +8,16 @@
 
 - `cmd/gap/` owns publish, install, skill adoption, drift, and the utility lifecycle: `gap add` in `add.go` (its sources in `source.go`, skill discovery in `discover.go`, `SKILL.md` parsing in `skillmd.go`, and the skills.sh agent table in `agents.go`), and `update`, `remove`, `list`, and the config writer in `utility.go`. `add` ports `npx skills add` from npm `skills@1.9.0`; keep its flags, source rules, agent table, and messages in step with that release.
 - `check.go` owns `gap check`, the distro half of `gap update`, `pin = true`, and `~/.gap/check.json` and `~/.gap/cache/`. See [Update components](../../README.md#update-components).
+- `tui_model.go`, `tui_view.go`, `tui_style.go`, and `tui_run.go` own `gap tui`. See [Terminal UI](../../README.md#terminal-ui).
+- `inventory.go` owns the shared rows behind `gap list`, `gap status`, and the TUI.
+- `projects.go` owns `~/.gap/projects.json`, the project registry.
 - Policy text stays in `global/`. Skill source stays in component repos. Pin locations: [Components](../../README.md#components), [Add a utility](../../README.md#add-a-utility).
 
 ## Local Contracts
 
 Installation, source checkout selection, and update requirements: [Install `gap`](../../README.md#install-gap).
 
-`gap sync` publishes unless the effective profile is `crew`; see [project setup](../../README.md#project-setup). `gap sync --remove-codex-legacy` is valid only for machine publication. Component status and its failure conditions are described in [components](../../README.md#components). `gap restore [id]` reinstalls selected drifted component skills from the lock. Pin commands and their locks: [Commands](../../README.md#commands). `gap -h`, `gap --help`, and `gap help` print styled usage and exit 0. Invoking `gap` without a subcommand prints help and exits 2. An unknown command or extra arguments exit 1. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
+`gap sync` publishes unless the effective profile is `crew`; see [project setup](../../README.md#project-setup). `gap sync --remove-codex-legacy` is valid only for machine publication. Component status and its failure conditions are described in [components](../../README.md#components). `gap restore [id]` reinstalls selected drifted component skills from the lock. Pin commands and their locks: [Commands](../../README.md#commands). `gap -h`, `gap --help`, and `gap help` print styled usage and exit 0. Invoking `gap` without a subcommand opens the TUI when stdin and stdout are terminals and `NO_COLOR` and `TERM=dumb` are unset; otherwise it prints help and exits 2. `gap tui` without a terminal prints `gap tui needs a terminal ...` and exits 2. An unknown command or extra arguments exit 1. A skipped destination or a failed skills step exits 1. Drift kept with both destinations complete exits 0. Skip, an incomplete keep, or drift with no terminal exits 1.
 
 The setup breadcrumb contract, including the crew exception, and the Echo adapter ledger are in [Project setup and doctor](#project-setup-and-doctor).
 
