@@ -232,7 +232,7 @@ func TestUtilityMCPInterruptedRegistration(t *testing.T) {
 								t.Fatalf("gap %v: %v\n%s", args, err, out)
 							}
 						}
-						args := []string{"add", e.remote, "--id", "util"}
+						args := addGlobalArgs("add", e.remote, "--id", "util")
 						if stage != "initial" {
 							gap(args...)
 							args = []string{"update", "util"}
@@ -386,7 +386,7 @@ func TestUtilityMCPLifecycle(t *testing.T) {
 	fakeMCPBins(t)
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+	if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code != 0 {
 		t.Fatalf("add exit %d", code)
 	}
 	state, err := readState(e.home)
@@ -450,7 +450,7 @@ func TestUtilityMCPLeavesUserServers(t *testing.T) {
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
 	write(t, filepath.Join(e.home, ".claude.json"), "{\"mcpServers\":{\"util-mcp\":{\"command\":\"mine\"}}}\n")
 	write(t, filepath.Join(e.home, ".codex", "servers.json"), `{ "mcpServers": { "util-mcp": { "command": "mine" } } }`)
-	if code := run([]string{"add", e.remote, "--id", "util"}); code == 0 {
+	if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code == 0 {
 		t.Fatal("add reported success while two servers were skipped")
 	}
 	got := mcpLog(t, e.home)
@@ -473,7 +473,7 @@ func TestUtilityMCPNeedsApproval(t *testing.T) {
 	e := newUtilityEnv(t, mcpUtility)
 	fakeMCPBins(t)
 	quietStdout(t)
-	run([]string{"add", e.remote, "--id", "util", "--yes"})
+	run(addGlobalArgs("add", e.remote, "--id", "util", "--yes"))
 	if got := mcpLog(t, e.home); got != nil {
 		t.Fatalf("untrusted utility registered servers without approval: %v", got)
 	}
@@ -501,7 +501,7 @@ func TestUtilityMCPTargetOwnership(t *testing.T) {
 						t.Setenv(tc.env, target)
 					}
 					write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
-					if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+					if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code != 0 {
 						t.Fatalf("add exit %d", code)
 					}
 					key := tc.bin + ":util-mcp"
@@ -574,7 +574,7 @@ func TestUtilityMCPForeignOverride(t *testing.T) {
 			const mine = `{"mcpServers":{"util-mcp":{"command":"mine"}}}`
 			write(t, path, mine)
 			write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
-			if code := run([]string{"add", e.remote, "--id", "util"}); code == 0 {
+			if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code == 0 {
 				t.Fatal("foreign server was accepted")
 			}
 			if got := readString(t, path); got != mine {
@@ -594,7 +594,7 @@ func TestUtilityMCPRemovalRetry(t *testing.T) {
 			dir := fakeMCPBins(t)
 			quietStdout(t)
 			write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
-			if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+			if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code != 0 {
 				t.Fatalf("add exit %d", code)
 			}
 			config := readString(t, userConfigFile(e.home))
@@ -660,7 +660,7 @@ func TestUtilityMCPAddFailure(t *testing.T) {
 				quietStdout(t)
 				write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
 				if stage == "replacement" {
-					if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+					if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code != 0 {
 						t.Fatalf("add exit %d", code)
 					}
 					write(t, filepath.Join(e.remote, utilityManifestName), "schema = \"1\"\nname = \"util\"\n[mcp.util-mcp]\nurl = \"https://example.com/next\"\n")
@@ -668,7 +668,7 @@ func TestUtilityMCPAddFailure(t *testing.T) {
 				}
 				flag := filepath.Join(e.home, "fail-codex-add-"+timing)
 				write(t, flag, "")
-				args := []string{"add", e.remote, "--id", "util"}
+				args := addGlobalArgs("add", e.remote, "--id", "util")
 				if stage == "replacement" {
 					args = []string{"update", "util"}
 				}
@@ -732,7 +732,7 @@ func TestUtilityMCPRepairsMissingServer(t *testing.T) {
 			fakeMCPBins(t)
 			quietStdout(t)
 			write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
-			if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+			if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code != 0 {
 				t.Fatalf("add exit %d", code)
 			}
 			cmd := exec.Command(tc.bin, tc.args...)
@@ -759,7 +759,7 @@ func TestUtilityMCPDeclinedInstallLifecycle(t *testing.T) {
 			e := newUtilityEnv(t, mcpUtility+"[hooks]\nuninstall = \"printf ran > \\\"$HOME/uninstalled\\\"\"\n")
 			fakeMCPBins(t)
 			quietStdout(t)
-			if code := run([]string{"add", e.remote, "--id", "util"}); code == 0 {
+			if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code == 0 {
 				t.Fatal("unapproved MCP installation succeeded")
 			}
 			if command == "update" {
@@ -809,7 +809,7 @@ func TestUtilityMCPUnreadableConfig(t *testing.T) {
 			path := filepath.Join(e.home, tc.path)
 			write(t, path, "{")
 			write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
-			if code := run([]string{"add", e.remote, "--id", "util"}); code == 0 {
+			if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code == 0 {
 				t.Fatal("unreadable config was treated as an empty target")
 			}
 			if got := readString(t, path); got != "{" {
@@ -829,7 +829,7 @@ func TestUtilityMCPUninstallHookRunsOnce(t *testing.T) {
 	t.Setenv("PATH", fakeMCPBins(t)+string(os.PathListSeparator)+"/bin"+string(os.PathListSeparator)+"/usr/bin")
 	quietStdout(t)
 	write(t, userConfigFile(e.home), fmt.Sprintf("[trust]\nrepos = [%q]\n", e.remote))
-	if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+	if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code != 0 {
 		t.Fatalf("add exit %d", code)
 	}
 	flag := filepath.Join(e.home, "fail-codex-remove-before")
@@ -904,7 +904,7 @@ func TestUtilityMCPListsCodexOncePerRun(t *testing.T) {
 			}
 			for _, u := range utilities {
 				t.Setenv("CODEX_HOME", u.target)
-				if code := run([]string{"add", u.remote, "--id", u.id}); code != 0 {
+				if code := run(addGlobalArgs("add", u.remote, "--id", u.id)); code != 0 {
 					t.Fatalf("add %s exit %d", u.id, code)
 				}
 				if n := lists(); n != 1 {

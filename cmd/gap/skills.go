@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -21,6 +23,12 @@ type manifestEntry struct {
 	SkillPath string
 	Project   string
 	Owner     string
+	ID        string
+	Agents    []string
+	Copy      bool
+	Subagents []string
+	From      map[string]string
+	Discover  bool
 }
 
 // installSkills copies each missing skill out of its pinned store and hands unedited
@@ -31,14 +39,13 @@ func installSkills(home string, entries []manifestEntry) bool {
 		target := entryHome(home, e)
 		for _, name := range e.Skills {
 			exists := false
-			for _, dir := range skillDirs(target, name) {
-				if _, err := os.Lstat(dir); !errors.Is(err, os.ErrNotExist) {
+			for _, d := range entryDests(target, e, name) {
+				if _, err := os.Lstat(d.Dir); !errors.Is(err, os.ErrNotExist) {
 					exists = true
 				}
 			}
 			if !exists {
-				replaced, err := replaceSkill(target, e, name)
-				if err != nil || !replaced {
+				if _, err := replaceSkill(target, e, name); err != nil {
 					fmt.Fprintf(os.Stderr, "Installing %s: %v\n", name, err)
 					ok = false
 				}
@@ -79,7 +86,11 @@ func adoptSkill(home string, e manifestEntry, name string) error {
 	if err := dropSkillLockEntry(home, name); err != nil {
 		return err
 	}
-	if err := recordOwnership(home, e.Owner, []string{name}, nil, e.Path); err != nil {
+	err = recordDests(e, home, name, destDirs(entryDests(home, e, name)))
+	if err == nil {
+		err = recordOwnership(home, e.Owner, []string{name}, nil, e.Path)
+	}
+	if err != nil {
 		if restoreErr := writeAtomic(lockPath, string(before)); restoreErr != nil {
 			return fmt.Errorf("%w; restoring skills.sh lock %s also failed: %v", err, lockPath, restoreErr)
 		}
@@ -97,11 +108,10 @@ func upgradeUntouched(home string, entries []manifestEntry) bool {
 	for _, e := range entries {
 		target := entryHome(home, e)
 		for _, name := range e.Skills {
-			if !installed(target, name) || entryDriftCount(e, target, name) == 0 || !matchesEarlierStore(e, target, name) {
+			if !installed(target, e, name) || entryDriftCount(e, target, name) == 0 || !matchesEarlierStore(e, target, name) {
 				continue
 			}
-			replaced, err := replaceSkill(target, e, name)
-			if err != nil || !replaced {
+			if _, err := replaceSkill(target, e, name); err != nil {
 				fmt.Fprintf(os.Stderr, "Updating %s: %v\n", name, err)
 				ok = false
 				continue
@@ -147,22 +157,59 @@ func verifiedStore(dir, commit string) bool {
 
 // entryDriftCount is the number of installed copies of name that differ from the entry's pinned store.
 func entryDriftCount(e manifestEntry, home, name string) int {
-	src := entrySkillDir(e, name)
-	if src == "" {
+	if entrySkillDir(e, name) == "" {
 		return 1
 	}
-	want, err := treeHash(src)
-	if err != nil {
-		return 1
-	}
+	wants := map[bool]string{}
 	n := 0
-	for _, dir := range skillDirs(home, name) {
-		got, err := treeHash(dir)
-		if err != nil || got != want {
+	for _, d := range entryDests(home, e, name) {
+		want, cached := wants[d.Eve]
+		if !cached {
+			var err error
+			if want, err = expectedTree(e, name, d.Eve); err != nil {
+				return 1
+			}
+			wants[d.Eve] = want
+		}
+		if got, err := treeHash(d.Dir); err != nil || got != want {
 			n++
 		}
 	}
 	return n
+}
+
+func renamedTo(e manifestEntry, name string) string {
+	if from := e.From[name]; from != "" && (!e.Discover || sanitizeName(from) != name) {
+		return name
+	}
+	return ""
+}
+
+func renderExpected(e manifestEntry, name string, eve bool) (string, func(), error) {
+	src := entrySkillDir(e, name)
+	if src == "" {
+		return "", nil, fmt.Errorf("skill %s has no source in pinned store %s", name, e.Path)
+	}
+	tmp, err := os.MkdirTemp("", "gap-render-")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { os.RemoveAll(tmp) }
+	dir := filepath.Join(tmp, name)
+	if err := renderSkill(src, dir, renderOpts{Eve: eve, Rename: renamedTo(e, name), Quiet: true}); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return dir, cleanup, nil
+}
+
+func expectedTree(e manifestEntry, name string, eve bool) (string, error) {
+	dir, cleanup, err := renderExpected(e, name, eve)
+	if err != nil {
+		return "", err
+	}
+	defer cleanup()
+	return treeHash(dir)
 }
 
 // lockEntry is the part of a skills.sh ~/.agents/.skill-lock.json entry that migration reports.
@@ -240,7 +287,7 @@ func checkDrift(home string, entries []manifestEntry) (bool, error) {
 				continue
 			}
 			for _, name := range e.Skills {
-				for _, warning := range shadowWarnings(home, name) {
+				for _, warning := range shadowWarnings(home, e, name) {
 					fmt.Fprintln(os.Stderr, warning)
 				}
 			}
@@ -251,21 +298,28 @@ func checkDrift(home string, entries []manifestEntry) (bool, error) {
 	for _, e := range entries {
 		target := entryHome(home, e)
 		for _, name := range e.Skills {
-			sourceDir := entrySkillDir(e, name)
-			if sourceDir == "" {
+			if entrySkillDir(e, name) == "" {
 				fmt.Fprintf(os.Stderr, "Skill baseline unavailable for %s: %s has no %s skill\n", name, e.Path, name)
 				ok = false
 				continue
 			}
-			want, err := treeHash(sourceDir)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
+			dests := entryDests(target, e, name)
+			wants := map[bool]string{}
+			var wantErr error
+			for _, d := range dests {
+				if _, done := wants[d.Eve]; !done {
+					want, err := expectedTree(e, name, d.Eve)
+					wants[d.Eve], wantErr = want, errors.Join(wantErr, err)
+				}
+			}
+			if wantErr != nil {
+				fmt.Fprintln(os.Stderr, wantErr)
 				ok = false
 				continue
 			}
-			drifted := !installed(target, name)
-			for _, dir := range skillDirs(target, name) {
-				info, err := os.Stat(dir)
+			drifted := !installed(target, e, name)
+			for _, d := range dests {
+				info, err := os.Stat(d.Dir)
 				if errors.Is(err, os.ErrNotExist) {
 					continue
 				}
@@ -276,11 +330,11 @@ func checkDrift(home string, entries []manifestEntry) (bool, error) {
 					drifted = true
 					continue
 				}
-				got, err := treeHash(dir)
+				got, err := treeHash(d.Dir)
 				if err != nil {
 					return false, err
 				}
-				drifted = drifted || got != want
+				drifted = drifted || got != wants[d.Eve]
 			}
 			if !drifted {
 				continue
@@ -297,23 +351,21 @@ func checkDrift(home string, entries []manifestEntry) (bool, error) {
 				ok = false
 				continue
 			}
-			for _, dir := range skillDirs(target, name) {
-				if _, err := os.Stat(dir); err == nil {
-					showDiff(sourceDir, dir)
+			for _, d := range dests {
+				if _, err := os.Stat(d.Dir); err == nil {
+					showExpectedDiff(e, name, d)
 				} else {
-					fmt.Println("Missing skill destination: " + dir)
+					fmt.Println("Missing skill destination: " + d.Dir)
 				}
 			}
 			fmt.Printf("%s: [k]eep installed, [t]ake source, [s]kip? ", name)
 			switch strings.ToLower(strings.TrimSpace(stdinLine())) {
 			case "k":
-				ok = installed(target, name) && ok
+				ok = installed(target, e, name) && ok
 			case "t":
-				replaced, err := replaceSkill(target, e, name)
-				if err != nil {
+				if _, err := replaceSkill(target, e, name); err != nil {
 					return false, err
 				}
-				ok = replaced && ok
 			default:
 				ok = false
 			}
@@ -322,57 +374,120 @@ func checkDrift(home string, entries []manifestEntry) (bool, error) {
 	return ok, nil
 }
 
-// replaceSkill backs up both destinations, then copies name out of the entry's pinned store.
-// A global install also drops any skills.sh lock entry for name. A failed copy restores the backups.
-func replaceSkill(home string, e manifestEntry, name string) (bool, error) {
+func showExpectedDiff(e manifestEntry, name string, d skillDest) {
+	if renamedTo(e, name) == "" && !d.Eve {
+		showDiff(entrySkillDir(e, name), d.Dir)
+		return
+	}
+	expected, cleanup, err := renderExpected(e, name, d.Eve)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	defer cleanup()
+	showDiff(expected, d.Dir)
+}
+
+type destResult struct {
+	Dir                string
+	Agents             []string
+	Linked, LinkFailed bool
+}
+
+func categoryConflictError(path string, skills []string) error {
+	shown, more := skills, ""
+	if len(shown) > 8 {
+		shown, more = shown[:8], ", ..."
+	}
+	return fmt.Errorf("Refusing to replace %s: it is a category directory with nested skills (%s%s). Installing would delete them.", path, strings.Join(shown, ", "), more)
+}
+
+// replaceSkill backs up every destination, then renders name out of the entry's pinned store and links the agent folders.
+// A global install also drops any skills.sh lock entry for name. A failed install restores the backups.
+func replaceSkill(home string, e manifestEntry, name string) ([]destResult, error) {
 	src := entrySkillDir(e, name)
 	if src == "" {
-		return false, fmt.Errorf("skill %s has no source in pinned store %s", name, e.Path)
+		return nil, fmt.Errorf("skill %s has no source in pinned store %s", name, e.Path)
 	}
-	dirs := skillDirs(home, name)
+	dests := entryDests(home, e, name)
+	if len(dests) == 0 {
+		return nil, fmt.Errorf("skill %s has nowhere to install: none of its agents (%s) supports this scope", name, strings.Join(e.Agents, ", "))
+	}
+	for _, d := range dests {
+		if skills := categoryConflict(d.Dir); len(skills) > 0 {
+			return nil, categoryConflictError(d.Dir, skills)
+		}
+	}
 	backups := map[string]string{}
 	restore := func() error {
 		var result error
-		for _, dir := range dirs {
-			if backup, found := backups[dir]; found {
-				result = errors.Join(result, os.RemoveAll(dir))
-				result = errors.Join(result, os.Rename(backup, dir))
+		for _, d := range dests {
+			if backup, found := backups[d.Dir]; found {
+				result = errors.Join(result, os.RemoveAll(d.Dir))
+				result = errors.Join(result, os.Rename(backup, d.Dir))
 			}
 		}
 		return result
 	}
-	for _, dir := range dirs {
-		if _, err := os.Lstat(dir); errors.Is(err, os.ErrNotExist) {
+	for _, d := range dests {
+		if _, err := os.Lstat(d.Dir); errors.Is(err, os.ErrNotExist) {
 			continue
 		} else if err != nil {
-			return false, errors.Join(err, restore())
+			return nil, errors.Join(err, restore())
 		}
-		backup := backupPath(dir, home)
+		backup := backupPath(d.Dir, home)
 		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
-			return false, errors.Join(err, restore())
+			return nil, errors.Join(err, restore())
 		}
-		if err := os.Rename(dir, backup); err != nil {
-			return false, errors.Join(err, restore())
+		if err := os.Rename(d.Dir, backup); err != nil {
+			return nil, errors.Join(err, restore())
 		}
-		backups[dir] = backup
+		backups[d.Dir] = backup
 		fmt.Println("Backed up to " + backup)
 	}
+	opt := renderOpts{Rename: renamedTo(e, name)}
+	var results []destResult
 	var installErr error
-	for _, dir := range dirs {
-		if installErr = copySkill(src, dir); installErr != nil {
+	for _, d := range dests {
+		if d.LinkTo != "" {
+			continue
+		}
+		copied := opt
+		copied.Eve = d.Eve
+		if installErr = renderSkill(src, d.Dir, copied); installErr != nil {
 			break
 		}
+		results = append(results, destResult{Dir: d.Dir, Agents: d.Agents})
+	}
+	for _, d := range dests {
+		if installErr != nil {
+			break
+		}
+		if d.LinkTo == "" {
+			continue
+		}
+		result := destResult{Dir: d.Dir, Agents: d.Agents, Linked: true}
+		if linkSkill(d.LinkTo, d.Dir) != nil {
+			result.Linked, result.LinkFailed = false, true
+			if installErr = errors.Join(os.RemoveAll(d.Dir), renderSkill(src, d.Dir, opt)); installErr != nil {
+				break
+			}
+		}
+		results = append(results, result)
 	}
 	if installErr == nil && e.Project == "" {
 		installErr = dropSkillLockEntry(home, name)
 	}
 	if installErr == nil {
-		return true, recordOwnership(home, e.Owner, []string{name}, nil, e.Path)
+		if err := recordDests(e, entryHome(home, e), name, destDirs(dests)); err != nil {
+			return results, err
+		}
+		return results, recordOwnership(home, e.Owner, []string{name}, nil, e.Path)
 	}
-	for _, dir := range dirs {
-		installErr = errors.Join(installErr, os.RemoveAll(dir))
+	for _, d := range dests {
+		installErr = errors.Join(installErr, os.RemoveAll(d.Dir))
 	}
-	return false, errors.Join(installErr, restore())
+	return nil, errors.Join(installErr, restore())
 }
 
 type skillLockSnap struct {
@@ -461,10 +576,20 @@ func localSkillDir(repoRoot, name string) string {
 }
 
 func entrySkillDir(e manifestEntry, name string) string {
-	if e.SkillPath != "" {
-		return findSkillDir(filepath.Join(e.Path, filepath.FromSlash(e.SkillPath)), "", name)
+	want := cmp.Or(e.From[name], name)
+	var dir string
+	switch {
+	case e.Discover:
+		dir = discoverByName(e.Path, e.SkillPath, want)
+	case e.SkillPath != "":
+		dir = findSkillDir(filepath.Join(e.Path, filepath.FromSlash(e.SkillPath)), "", want)
+	default:
+		dir = localSkillDir(e.Path, want)
 	}
-	return localSkillDir(e.Path, name)
+	if dir == "" || !insideCheckout(e.Path, dir) {
+		return ""
+	}
+	return dir
 }
 
 // treeHash is the Git tree id of dir, without the paths indexPathExcluded names.
@@ -659,10 +784,345 @@ func skillDirs(home, name string) []string {
 	return []string{filepath.Join(home, ".agents", "skills", name), filepath.Join(home, ".claude", "skills", name)}
 }
 
+type skillDest struct {
+	Dir, LinkTo string
+	Eve         bool
+	Agents      []string
+}
+
+func skillDests(root string, global bool, name string, e manifestEntry, env agentEnv) []skillDest {
+	var out []skillDest
+	if len(e.Agents) == 0 {
+		for _, dir := range skillDirs(root, name) {
+			out = append(out, skillDest{Dir: dir})
+		}
+		return out
+	}
+	add := func(d skillDest) {
+		for i := range out {
+			if out[i].Dir == d.Dir {
+				out[i].Agents = appendMissing(out[i].Agents, d.Agents...)
+				return
+			}
+		}
+		out = append(out, d)
+	}
+	canonical := filepath.Join(root, ".agents", "skills", name)
+	for _, id := range e.Agents {
+		subagents := []string{""}
+		if id == "eve" {
+			subagents = eveSubagents(e.Subagents)
+		}
+		for _, sub := range subagents {
+			base := agentBaseDir(id, global, root, sub, env)
+			if base == "" {
+				continue
+			}
+			agentDir := filepath.Join(base, name)
+			eve := id == "eve"
+			if e.Copy {
+				add(skillDest{Dir: agentDir, Eve: eve, Agents: []string{id}})
+				continue
+			}
+			target := canonical
+			if eve {
+				target = agentDir
+			}
+			add(skillDest{Dir: target, Eve: eve})
+			if global && readsCanonicalGlobally(id) || agentDir == target {
+				add(skillDest{Dir: target, Agents: []string{id}})
+			} else {
+				add(skillDest{Dir: agentDir, LinkTo: target, Agents: []string{id}})
+			}
+		}
+	}
+	return out
+}
+
+func entryDests(home string, e manifestEntry, name string) []skillDest {
+	return skillDests(entryHome(home, e), e.Project == "", name, e, currentAgentEnv())
+}
+
+func destDirs(dests []skillDest) []string {
+	dirs := make([]string, len(dests))
+	for i, d := range dests {
+		dirs[i] = d.Dir
+	}
+	return dirs
+}
+
+func addDests(entry *stateEntry, root, name string, dirs []string) {
+	if entry.Dests == nil {
+		entry.Dests = map[string]map[string][]string{}
+	}
+	if entry.Dests[root] == nil {
+		entry.Dests[root] = map[string][]string{}
+	}
+	merged := append(slices.Clone(entry.Dests[root][name]), dirs...)
+	slices.Sort(merged)
+	entry.Dests[root][name] = slices.Compact(merged)
+}
+
+func recordDests(e manifestEntry, root, name string, dirs []string) error {
+	if e.ID == "" {
+		return nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	entry := state.Components[e.ID]
+	if len(e.Agents) == 0 && len(entry.Dests[root][name]) == 0 {
+		return nil
+	}
+	backfillLegacyTrees(&entry, e, root, name)
+	addInstalledDests(&entry, root, name, e.Project != "", dirs)
+	noteTrees(&entry, dirs)
+	state.Components[e.ID] = entry
+	return writeState(home, state)
+}
+
+func addInstalledDests(entry *stateEntry, root, name string, project bool, dirs []string) {
+	owned := project && slices.Contains(entry.ProjectSkills[root], name) || !project && slices.Contains(entry.Skills, name)
+	if owned && len(entry.Dests[root][name]) == 0 {
+		dirs = append(skillDirs(root, name), dirs...)
+	}
+	addDests(entry, root, name, dirs)
+	if project {
+		addProjectSkill(entry, root, name)
+	}
+}
+
+func backfillLegacyTrees(entry *stateEntry, e manifestEntry, root, name string) {
+	commit := entry.SkillCopies[name]
+	if e.Project != "" || commit == "" || e.From[name] != "" || len(entry.Dests[root][name]) > 0 || !slices.Contains(entry.Skills, name) {
+		return
+	}
+	earlier := e
+	earlier.Path = filepath.Join(filepath.Dir(e.Path), commit)
+	earlier.Discover = !hasUtilityManifest(earlier.Path)
+	if !verifiedStore(earlier.Path, commit) || entrySkillDir(earlier, name) == "" {
+		return
+	}
+	tree, err := expectedTree(earlier, name, false)
+	if err != nil {
+		return
+	}
+	for _, dir := range skillDirs(root, name) {
+		if info, err := os.Lstat(dir); err == nil && info.IsDir() {
+			if entry.DestTrees == nil {
+				entry.DestTrees = map[string]string{}
+			}
+			entry.DestTrees[realOr(dir)] = tree
+		}
+	}
+}
+
+func addProjectSkill(entry *stateEntry, root, name string) {
+	if slices.Contains(entry.ProjectSkills[root], name) {
+		return
+	}
+	if entry.ProjectSkills == nil {
+		entry.ProjectSkills = map[string][]string{}
+	}
+	entry.ProjectSkills[root] = append(entry.ProjectSkills[root], name)
+	slices.Sort(entry.ProjectSkills[root])
+}
+
+func shareDests(home, from, to, root, name string, project bool) error {
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	entry := state.Components[to]
+	dirs := ownedDests(state, from, root, name)
+	addInstalledDests(&entry, root, name, project, dirs)
+	for _, dir := range dirs {
+		key := realOr(dir)
+		if tree := state.Components[from].DestTrees[key]; tree != "" && entry.DestTrees[key] == "" {
+			if entry.DestTrees == nil {
+				entry.DestTrees = map[string]string{}
+			}
+			entry.DestTrees[key] = tree
+		}
+	}
+	state.Components[to] = entry
+	return writeState(home, state)
+}
+
+func ownedDests(state stateFile, id, root, name string) []string {
+	if dirs := state.Components[id].Dests[root][name]; len(dirs) > 0 {
+		return dirs
+	}
+	return skillDirs(root, name)
+}
+
+func retireStaleDests(root string, e manifestEntry, name string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	state, err := readState(home)
+	if err != nil {
+		return err
+	}
+	entry := state.Components[e.ID]
+	recorded := entry.Dests[root][name]
+	project := e.Project != ""
+	needed := map[string]bool{}
+	for _, dir := range destDirs(entryDests(root, e, name)) {
+		needed[realOr(dir)] = true
+	}
+	for oid, other := range state.Components {
+		owns := project && slices.Contains(other.ProjectSkills[root], name) || !project && slices.Contains(other.Skills, name)
+		if oid != e.ID && owns {
+			for _, dir := range ownedDests(state, oid, root, name) {
+				needed[realOr(dir)] = true
+			}
+		}
+	}
+	if !slices.ContainsFunc(recorded, func(dir string) bool { return !needed[realOr(dir)] }) || !layoutReady(e, root, name) || !installed(root, e, name) || entryDriftCount(e, root, name) != 0 {
+		return nil
+	}
+	var keep []string
+	for _, dir := range recorded {
+		if needed[realOr(dir)] {
+			keep = append(keep, dir)
+			continue
+		}
+		info, err := os.Lstat(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		key := realOr(dir)
+		if info.Mode()&os.ModeSymlink == 0 {
+			if tree, err := treeHash(dir); err != nil || entry.DestTrees[key] == "" || tree != entry.DestTrees[key] {
+				keep = append(keep, dir)
+				continue
+			}
+		}
+		backup := backupPath(dir, root)
+		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
+			return err
+		}
+		if err := os.Rename(dir, backup); err != nil {
+			return err
+		}
+		fmt.Println("Backed up to " + backup)
+		if info.Mode()&os.ModeSymlink == 0 {
+			delete(entry.DestTrees, key)
+		}
+	}
+	if len(keep) == len(recorded) {
+		return nil
+	}
+	entry.Dests[root][name] = keep
+	state.Components[e.ID] = entry
+	return writeState(home, state)
+}
+
+func noteTrees(entry *stateEntry, dirs []string) {
+	for _, dir := range dirs {
+		info, err := os.Lstat(dir)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		tree, err := treeHash(dir)
+		if err != nil {
+			continue
+		}
+		if entry.DestTrees == nil {
+			entry.DestTrees = map[string]string{}
+		}
+		entry.DestTrees[realOr(dir)] = tree
+	}
+}
+
+func layoutReady(e manifestEntry, root, name string) bool {
+	dests := entryDests(root, e, name)
+	if len(dests) == 0 {
+		return false
+	}
+	for _, d := range dests {
+		info, err := os.Lstat(d.Dir)
+		if err != nil || wrongLayout(d, info) {
+			return false
+		}
+	}
+	return true
+}
+
+func wrongLayout(d skillDest, info fs.FileInfo) bool {
+	linked := info.Mode()&os.ModeSymlink != 0
+	return linked != (d.LinkTo != "") || linked && realOr(d.Dir) != realOr(d.LinkTo)
+}
+
+func ownedDrift(e manifestEntry, root, name string, dirs []string) bool {
+	eve := map[string]bool{}
+	for _, d := range entryDests(root, e, name) {
+		eve[d.Dir] = d.Eve
+	}
+	wants := map[bool]string{}
+	for _, dir := range dirs {
+		want, cached := wants[eve[dir]]
+		if !cached {
+			var err error
+			if want, err = expectedTree(e, name, eve[dir]); err != nil {
+				return true
+			}
+			wants[eve[dir]] = want
+		}
+		if got, err := treeHash(dir); err != nil || got != want {
+			return true
+		}
+	}
+	return false
+}
+
+func incompleteUnedited(e manifestEntry, home, name string) bool {
+	incomplete := false
+	wants := map[bool]string{}
+	for _, d := range entryDests(home, e, name) {
+		info, err := os.Lstat(d.Dir)
+		if errors.Is(err, os.ErrNotExist) {
+			incomplete = true
+			continue
+		}
+		if err != nil {
+			return false
+		}
+		if wrongLayout(d, info) {
+			incomplete = true
+		}
+		want, cached := wants[d.Eve]
+		if !cached {
+			if want, err = expectedTree(e, name, d.Eve); err != nil {
+				return false
+			}
+			wants[d.Eve] = want
+		}
+		if got, err := treeHash(d.Dir); err != nil || got != want {
+			return false
+		}
+	}
+	return incomplete
+}
+
 // shadowWarnings reports harness-only skill copies that differ from the managed copy. gap never writes them.
 // Empryo's harness copy wins; jcode's copy precedence is unverified.
-func shadowWarnings(home, name string) []string {
-	managed := skillDirs(home, name)[0]
+func shadowWarnings(home string, e manifestEntry, name string) []string {
+	dests := entryDests(home, e, name)
+	if len(dests) == 0 {
+		return nil
+	}
+	managed := dests[0].Dir
 	var out []string
 	if name != "empryo" {
 		if shadow := filepath.Join(home, ".empryo", "skills", name); differs(shadow, managed) {
@@ -686,9 +1146,13 @@ func differs(shadow, managed string) bool {
 	return err != nil || werr != nil || got != want
 }
 
-func installed(home, name string) bool {
-	for _, dir := range skillDirs(home, name) {
-		if info, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+func installed(home string, e manifestEntry, name string) bool {
+	dests := entryDests(home, e, name)
+	if len(dests) == 0 {
+		return false
+	}
+	for _, d := range dests {
+		if info, err := os.Stat(filepath.Join(d.Dir, "SKILL.md")); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			return false
 		}
 	}

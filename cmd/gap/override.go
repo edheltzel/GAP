@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 )
 
 // applyOverrides layers the user's and the repo's overrides onto the distro.
@@ -120,6 +121,19 @@ func mergeOverride(d distro, path string, user bool) (distro, error) {
 				c.InProject = load == "project"
 			}
 		}
+		if !user && c.User && c.ProjectOnly {
+			if raw, named := table["names"]; named {
+				names, _, err := componentSkills(map[string]any{"names": raw})
+				if err != nil {
+					return distro{}, fmt.Errorf("%s: components.%s: %w", path, id, err)
+				}
+				sort.Strings(names)
+				c.Skills, c.Named = names, true
+			}
+			if err := applyTargets(&c, table); err != nil {
+				return distro{}, fmt.Errorf("%s: components.%s: %w", path, id, err)
+			}
+		}
 		if ref, ok := table["ref"].(string); ok && ref != "" {
 			c.Ref = ref
 			c.RefOverride = true
@@ -153,6 +167,13 @@ func mergeOverride(d distro, path string, user bool) (distro, error) {
 							return distro{}, fmt.Errorf("%s: %s when.files must be a string array", path, name)
 						}
 					}
+				}
+				if raw, set := spec["from"]; set && !user && c.User && c.ProjectOnly {
+					from, ok := raw.(string)
+					if !ok || from == "" {
+						return distro{}, fmt.Errorf("%s: skill %s from must be a nonempty string", path, name)
+					}
+					s.From = from
 				}
 				if c.SkillSet == nil {
 					c.SkillSet = map[string]skillSpec{}

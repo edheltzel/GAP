@@ -32,6 +32,14 @@ func hasUtilityManifest(dir string) bool {
 	return err == nil
 }
 
+func storeHooks(dir string) (utilityHooks, error) {
+	if !hasUtilityManifest(dir) {
+		return utilityHooks{}, nil
+	}
+	m, err := readUtilityManifest(dir)
+	return m.Hooks, err
+}
+
 func readUtilityManifest(dir string) (utilityManifest, error) {
 	b, err := readUtilityFile(dir, utilityManifestName)
 	if errors.Is(err, os.ErrNotExist) {

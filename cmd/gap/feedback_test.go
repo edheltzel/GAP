@@ -39,7 +39,7 @@ func TestUpdateFeedbackPerUtility(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if err := addUtility(e.remote, "util", false); err != nil {
+	if err := runAdd(addGlobalArgs(e.remote, "--id", "util")); err != nil {
 		t.Fatal(err)
 	}
 	first, _ := readLock(userConfigDir(e.home))
@@ -128,7 +128,7 @@ func TestUpdateFeedbackHookFailure(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n[hooks]\nupdate = \"exit 1\"\n")
 	quietStdout(t)
 	write(t, userConfigFile(e.home), "[trust]\nrepos = [\""+e.remote+"\"]\n")
-	if err := addUtility(e.remote, "util", false); err != nil {
+	if err := runAdd(addGlobalArgs(e.remote, "--id", "util")); err != nil {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(e.remote, "new-version"), "v2\n")
@@ -145,7 +145,7 @@ func TestUpdateFeedbackHookFailure(t *testing.T) {
 func TestAddRemoveFeedback(t *testing.T) {
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
 	stdout, _ := captureStd(t, func() {
-		if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+		if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code != 0 {
 			t.Errorf("add exit %d", code)
 		}
 	})

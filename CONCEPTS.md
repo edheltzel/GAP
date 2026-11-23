@@ -40,10 +40,10 @@ The step that copies the current GAP policy into the files each harness already 
 `gap sync` runs this step and manages skills. Publish names only the policy-copying step.
 
 ### Managed skill
-A skill selected by a component, through its `gap-utility.toml` or its `names` in `gap.toml`. See [Manage skills](README.md#manage-skills) for installation and drift handling.
+A skill selected by a component, through its `gap-utility.toml`, its `names` in `gap.toml`, or the skills `gap add` found and recorded. See [Manage skills](README.md#manage-skills) for installation and drift handling.
 
 ### Utility
-A repo that ships skills, commands, or its own tooling and describes them in a manifest, the way a lazy.nvim plugin describes itself. The distro's components are utilities too. User utilities have their own [lifecycle](README.md#add-a-utility).
+A git repository or local folder of skills, pinned to one commit, the way a lazy.nvim plugin is. A manifest can also give it commands, hooks, and MCP servers. The distro's components are utilities too. User utilities have their own [lifecycle](README.md#add-a-utility).
 *Avoid:* package, plugin
 
 ### Manifest

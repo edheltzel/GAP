@@ -95,17 +95,17 @@ import '../styles/landing/landing.css';
       </section>
       <section id="utilities" aria-labelledby="utilities-title">
         <div class="sec-eye"><b>§ 02</b> Utilities</div>
-        <h2 id="utilities-title">Add any utility. <span>Straight from GitHub.</span></h2>
+        <h2 id="utilities-title">Add any skill repo. <span>Straight from git.</span></h2>
         <p class="lead">
-          A repo with a <code>gap-utility.toml</code> is a utility. Add it the way you add a lazy.nvim plugin:
-          <code>gap add owner/repo</code>.
+          Any git repo with skill folders is a utility; a <code>gap-utility.toml</code> adds commands, hooks, and MCP
+          servers. Add it the way you add a lazy.nvim plugin: <code>gap add owner/repo</code>.
         </p>
         <div class="cards">
           <article class="card">
             <div class="n"><span>Add</span><i>01</i></div>
             <h3>gap add owner/repo</h3>
             <p>
-              Pins the repo in your own lock, copies its skills and commands, registers MCP servers, and runs its install hook. Add <code>--project</code> to give only the current repo its skills. <code>gap search</code> finds one.
+              Takes the flags of <code>npx skills add</code>. Pins the repo in your own lock and installs its skills for the agents you pick. It asks whether to install in this project or globally; <code>-y</code> picks this project and <code>-g</code> picks global. A manifest's commands, MCP servers, and install hook come with it. <code>gap search</code> finds one.
             </p>
           </article>
           <article class="card">

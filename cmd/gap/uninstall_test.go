@@ -36,7 +36,7 @@ func newUninstallEnv(t *testing.T) *utilityEnv {
 	if code := run([]string{"sync", "--yes"}); code != 0 {
 		t.Fatalf("sync exit %d", code)
 	}
-	if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+	if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code != 0 {
 		t.Fatalf("add exit %d", code)
 	}
 	mcpLog(t, e.home)
@@ -282,7 +282,7 @@ func sharedUninstallEnv(t *testing.T) *utilityEnv {
 	if code := run([]string{"sync", "--yes"}); code != 0 {
 		t.Fatalf("sync exit %d", code)
 	}
-	if code := run([]string{"add", e.remote, "--id", "util"}); code != 0 {
+	if code := run(addGlobalArgs("add", e.remote, "--id", "util")); code != 0 {
 		t.Fatalf("add exit %d", code)
 	}
 	write(t, filepath.Join(e.repo, "global", "commands", "util-cmd.md"), "Run the utility.\n")

@@ -49,7 +49,7 @@ gap uninstall
 
 It previews what it will remove and asks on a terminal (`--yes` skips the question, `--dry-run` only previews). Without a terminal, `--yes` is required. Use the same `CODEX_HOME` and `JCODE_HOME` you published with. It removes every utility the way [gap remove](#add-a-utility) does, the MCP servers and commands recorded for components, GAP policy blocks, the GAP Codex hooks, and published global commands that still match `~/.gap/published.json`. Text outside marked policy blocks stays byte for byte; files left with only whitespace or Cursor front matter are removed. An unmarked policy file is removed when its whole-file SHA-256 matches the ledger. A ledger-verified prefix, including a legacy Codex GAP prefix, is stripped while preserving the text after it; the file is removed if only whitespace remains. Other policy files and unmatched global commands stay and are listed.
 
-Skills are removed from both `~/.agents/skills/` and `~/.claude/skills/` when recorded in a component's `skills` or `skillCopies`. An unreadable or malformed skills.sh lock stops discovery before removal. Policy, command, skill, and Codex hook backups go under `~/.gap/backups/<time>/`; utility removals can use separate timestamped folders. Before removing utilities, GAP saves their skill and command ownership in `~/.gap/state.json` so cleanup can resume after an interruption. After cleanup succeeds, it deletes `~/.gap/store/`, `~/.gap/state.json`, and `~/.gap/published.json`. A failed cleanup exits `1` and keeps the records for a retry.
+Skills are removed from the destinations GAP recorded for them in `~/.gap/state.json`, or from both `~/.agents/skills/` and `~/.claude/skills/` when a component's `skills` or `skillCopies` records the name without destinations. An unreadable or malformed skills.sh lock stops discovery before removal. Policy, command, skill, and Codex hook backups go under `~/.gap/backups/<time>/`; utility removals can use separate timestamped folders. Before removing utilities, GAP saves their skill and command ownership in `~/.gap/state.json` so cleanup can resume after an interruption. After cleanup succeeds, it deletes `~/.gap/store/`, `~/.gap/state.json`, and `~/.gap/published.json`. A failed cleanup exits `1` and keeps the records for a retry.
 
 It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/checkouts/`, your remaining `~/.config/gap/` settings, and the `gap` binary. It prints a `trash` command for the binary and confirms successful cleanup with `Uninstall complete.` Copy out any saved files you want, then trash `~/.gap/` yourself.
 
@@ -66,7 +66,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap check [id]` | List the commits waiting on each component's ref after its pin. Changes no pin; `gap status` shows the counts from the last check as `new=N`. See [Update components](#update-components) |
 | `gap pin <id>@<ref>` | Resolve a distro component's branch, tag, or commit and write it to the distro's `gap.lock` |
 | `gap doctor` | Run configured component doctors and report which harness commands are on `PATH` |
-| `gap add <owner/repo[@ref]> [--id <id>] [--global \| --project]` | Add a utility: pin a repo that ships a `gap-utility.toml` and install it, for every project (`--global`, the default) or only the current repo (`--project`, alias `--local`). See [Add a utility](#add-a-utility) and [Global vs project](#global-vs-project) |
+| `gap add <source> [options]` (aliases `install`, `i`, `a`) | Add skills from any git repository or local folder, with the flags of `npx skills add`: per project by default, `-g` for every project. See [Add a utility](#add-a-utility) and [Global vs project](#global-vs-project) |
 | `gap update [id]` | Move one component's pin, or every pin without `pin = true` when the id is omitted, to the newest commit on its ref. Distro pins go to `gap.lock` for a PR; utilities install right away. See [Update components](#update-components) |
 | `gap remove <id>` | Remove a utility and its recorded installations. See [Add a utility](#add-a-utility) |
 | `gap uninstall [--yes] [--dry-run]` | Preview and remove recorded installations. See [Install `gap`](#install-gap) for removal rules and retained files |
@@ -157,7 +157,7 @@ Empryo injects every skill in `skills.autoLoad` in full into every prompt. GAP r
 
 The distro's `gap.toml` and your `~/.config/gap/gap.toml` select pinned [components](#components). Their skill lists and load levels are described under [Load levels](#load-levels). The separate `global/skills.json` manifest is no longer used.
 
-`gap sync` copies selected skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. Harnesses that read neither folder get no skills from GAP; the policy still reaches them. GAP's skill copying, drift repair, and restore do not use Node or `npx`. Project skills use the same two paths under the invoking project instead of the home directory; see [load levels](#load-levels).
+`gap sync` copies a distro component's selected skills directly from the pinned store into `~/.agents/skills` and `~/.claude/skills`. A utility added with [`gap add`](#add-a-utility) installs where add put it: one copy in `.agents/skills` that each selected agent reads, a symlink to that copy in each other agent's skills folder, or a separate copy per agent with `--copy`. Harnesses that read none of these folders get no skills from GAP; the policy still reaches them. GAP's skill copying, drift repair, and restore do not use Node or `npx`. Project skills use the same paths under the invoking project instead of the home directory; see [load levels](#load-levels).
 
 Sync checks every selected skill against its pinned store. Existing skills.sh installations are adopted in place when both destinations match that source: GAP records component ownership and removes only that skill's entry from the skills.sh lock. The lock is `$XDG_STATE_HOME/skills/.skill-lock.json` when `XDG_STATE_HOME` is set, otherwise `~/.agents/.skill-lock.json`. Unrelated lock entries and fields stay intact. If GAP cannot save component ownership, adoption fails and restores the previous lock contents. If that restoration also fails, the error includes both failures and the lock path. Missing, unreadable, or malformed locks follow the [migration failure contract](cmd/gap/AGENTS.md#sync-steps). Edited copies go to drift review. For each drifted skill, sync shows the diff and asks:
 
@@ -219,18 +219,18 @@ Restore names each repaired skill and its source pin, then reports the total res
 
 | Scope | Config | Where skills go | How to use it |
 | --- | --- | --- | --- |
-| Global | `~/.config/gap/gap.toml` | `~/.agents/skills`, `~/.claude/skills` | `gap add owner/repo` (same as `--global`), or a distro skill with the default `load` |
-| Project | `<repo>/.gap/gap.toml` | `<repo>/.agents/skills`, `<repo>/.claude/skills` | `gap add owner/repo --project` (or `--local`) inside the repo, or a distro skill with `load = "project"` and a matching `when.files` |
+| Global | `~/.config/gap/gap.toml` | `~/.agents/skills`, plus each selected agent's own global folder | `gap add -g owner/repo`, or a distro skill with the default `load` |
+| Project | `<repo>/.gap/gap.toml` | `<repo>/.agents/skills`, plus each selected agent's project folder | `gap add owner/repo` (the default, or `-p`, `--local`) inside the repo, or a distro skill with `load = "project"` and a matching `when.files` |
 
 ```sh
-gap add owner/repo             # global: every project sees its skills
+gap add -g owner/repo          # global: every project sees its skills
 cd ~/code/site
-gap add owner/repo --project   # only this repo gets its skills
+gap add owner/repo             # only this repo gets its skills
 cd ~/code/app
-gap add owner/repo --project   # add the same utility to a second repo
+gap add owner/repo             # add the same utility to a second repo
 ```
 
-`--project` records `load = "project"` under the utility in `~/.config/gap/gap.toml` and under `[components.<id>]` in the repo's `.gap/gap.toml`, creating that file the way `gap init` does when it is missing. `gap sync` and `gap update` inside an opted-in repo keep its copy current; elsewhere they install no skills for that utility. A utility's commands, hooks, and MCP servers stay machine-wide in both scopes. One id is either global or per project: `gap remove <id>` removes it from every repo it was added to, moving each project copy to `~/.gap/backups/<time>/projects/`, and then it can be added again in the other scope. A project file can also leave any component out of that repo with `enabled = false`.
+A per-project add records `repo`, `ref`, and `load = "project"` under the utility in `~/.config/gap/gap.toml`, and `load = "project"` with the repo's selection (`names`, `agents`, `copy`, `subagents`, and each renamed skill's `from`) under `[components.<id>]` in the repo's `.gap/gap.toml`, creating that file the way `gap init` does when it is missing. Each repo keeps its own selection. `gap sync` and `gap update` inside an opted-in repo keep its copy current; elsewhere they install no skills for that utility. A utility's commands, hooks, and MCP servers stay machine-wide in both scopes. One id is either global or per project: `gap remove <id>` removes it from every repo it was added to, moving each project copy to `~/.gap/backups/<time>/projects/`, and then it can be added again in the other scope. A project file can also leave any component out of that repo with `enabled = false`.
 
 ### Load levels
 
@@ -295,25 +295,49 @@ For cloud agents, run `gap sync --profile crew`. It uses the same protected proj
 
 ## Add a utility
 
-A utility is a GitHub repo with a [`gap-utility.toml`](#publish-a-utility) at its root. Add one the way a lazy.nvim plugin is added:
+A utility is any git repository or local folder of skills; each skill is a folder with a `SKILL.md` that has a `name` and a `description`. `gap add` takes the sources and flags of `npx skills add`, then pins the repo the way a lazy.nvim plugin is pinned, so `gap sync`, `update`, `status`, `restore`, and `remove` manage what it installed:
 
 ```sh
-gap add owner/repo            # default branch
-gap add owner/repo@v1.2.0     # a branch, tag, or commit
-gap add owner/repo --id tools # another id; the default is the repo name, lowercased
-gap add owner/repo --project  # only the repo you run it in (alias --local)
+gap add owner/repo                  # this repo; asks which skills, agents, and scope
+gap add owner/repo -g -y            # every project, every detected agent, no prompts
+gap add owner/repo -s web-design    # one skill; owner/repo@web-design does the same
+gap add owner/repo#v2 -a claude-code -a cursor
+gap add owner/repo@v1.2.0           # a version tag; branches use #branch
+gap add https://gitlab.com/group/repo/-/tree/main/skills
+gap add ./my-skills --copy          # a folder inside a git repository
+gap add owner/repo --list           # show the skills and install nothing
 ```
 
-`gap add` reads the manifest at the resolved commit, appends the repo to `~/.config/gap/gap.toml`, pins it in `~/.config/gap/gap.lock`, and installs what it declares in the [manifest](#publish-a-utility). These two files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved ids. A utility's skills install under home unless it was added with `--project` (see [Global vs project](#global-vs-project)); a per-skill `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
+| Flag | What it does |
+| --- | --- |
+| `-g`, `--global` / `-p`, `--project`, `--local` | Install for every project, or into the repo you run it in (the default with `-y`). Without either, add asks |
+| `-a`, `--agent <ids...>` | Agents to install to, by skills.sh id (`claude-code`, `cursor`, `codex`, ...); `'*'` for all. Default: the agents found on this machine, plus every agent that reads `.agents/skills` |
+| `-s`, `--skill <names...>` | Skills to install; `'*'` for all. Without it, add asks unless the source has one skill or `-y` is set |
+| `-y`, `--yes` / `--all` | No prompts. `--all` also selects every skill and every agent |
+| `--copy` | A separate copy in each agent folder instead of one copy plus symlinks |
+| `-l`, `--list` | List the source's skills and exit; writes nothing but the pinned checkout |
+| `--rename <name>` | Install the one selected skill under another name |
+| `--full-depth` | Search the whole repo instead of the usual skill folders |
+| `--subagent <names...>` | Eve subagents to install to; `root` is the root agent |
+| `--json` | With `-y`, print one JSON result per skill on stdout |
+| `--id <id>` | Utility id; the default is the repo name, lowercased |
 
-Add confirms the utility id, ref, and commit on success, and flags skipped installation steps when registration succeeded but installation is incomplete.
+A source is `owner/repo`, `owner/repo/path/to/skills`, a GitHub, GitLab, or Azure Repos URL (a tree URL picks the ref and folder), `git@host:path`, an `ssh://` or `https://` git URL, or a local folder inside a git repository, where gap pins the current commit and notes uncommitted changes it leaves out. Download links, well-known skill sites, and Notion pages are refused because gap pins a git commit. A private GitHub repo that refuses HTTPS is retried over SSH.
+
+`gap add` resolves the ref (the default branch unless the source names one), pins the commit in `~/.config/gap/gap.lock`, records the repo in `~/.config/gap/gap.toml`, and installs the selected skills. A repo with a [`gap-utility.toml`](#publish-a-utility) offers the skills its manifest lists and also installs its commands, MCP servers, and hooks; without one, add finds skills the way skills.sh does. A skill whose folder or `SKILL.md` resolves outside the pinned checkout, through a symlink, is skipped. These files are yours: they never touch the distro's `gap.toml` or `gap.lock`, and the sync merge gate does not cover them. An id the distro already uses is refused, even when disabled. `policy` and `manifest` are reserved ids. A skill name another component already installs in the same place is refused; `--rename` installs it under another name. A per-skill `load = "project"` is available only to distro components. Disabling a utility skips installation while keeping it available to `gap list`, `gap update`, and `gap remove`.
+
+Running `gap add` again for the same id merges: the new skills, agents, and subagents join the recorded ones, and the latest copy mode applies to every unedited installed skill. A utility added per project keeps its pinned commit when you add it to another project; `gap update` moves the pin. A different repo, path, ref, or scope under the same id is refused with the `--id` to use instead. Add prints the installation summary and asks before it writes, then confirms the utility id, ref, and commit, and flags skipped installation steps when registration succeeded but installation is incomplete.
 
 ```toml
-# ~/.config/gap/gap.toml, as written by gap add
-[components.tools]
+# ~/.config/gap/gap.toml, as written by gap add -g owner/repo -s web-design -a claude-code -a codex
+[components.repo]
 repo = "github.com/owner/repo"
-ref = "master"
+ref = "main"
+names = ["web-design"]
+agents = ["claude-code", "codex"]
 ```
+
+A repo with a manifest omits `names` while every manifest skill is selected, so new manifest skills install on update. `copy = true` records copy mode. `[components.<id>.skills.<name>] from = "<original>"` records the skill's name in the repo when it differs from the installed folder name: a `--rename`, or a name like `Web Design` that installs as `web-design`. Two selected skills that would install under one folder name are refused; `--rename` one of them.
 
 | Step | Command | What happens |
 | --- | --- | --- |
@@ -344,7 +368,7 @@ A trusted repo runs its hooks with no prompt and no warning. Distro components a
 
 ## Publish a utility
 
-Make any repo installable with `gap add` by putting a `gap-utility.toml` at its root. A minimal manifest:
+Any repo with skill folders installs with `gap add`. Put a `gap-utility.toml` at its root to fix the skill list by folder name and to ship commands, hooks, or MCP servers as well. A minimal manifest:
 
 ```toml
 schema = "1"
@@ -367,7 +391,7 @@ env = ["LOG_LEVEL=info"]
 | `schema` | yes | Always `"1"` |
 | `name` | yes | Display name |
 | `description` | no | One line about the utility |
-| `skills` | no | Skill names. Each needs a `<name>/SKILL.md` folder in the repo, such as `skills/<name>/SKILL.md`. GAP copies them into `~/.agents/skills` and `~/.claude/skills` |
+| `skills` | no | Skill names. Each needs a `<name>/SKILL.md` folder in the repo, such as `skills/<name>/SKILL.md`. `gap add` installs them for the agents the user picks |
 | `commands` | no | Repo paths of `.md` command files. GAP copies each by basename, unchanged, into `~/.claude/commands`, `~/.pi/agent/prompts`, and `~/.omp/agent/commands` |
 | `hooks.install` | no | Runs on the first installation and on later pin changes when `update` is absent |
 | `hooks.update` | no | Replaces `install` when installing a different pin after a first successful installation |
