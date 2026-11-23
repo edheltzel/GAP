@@ -1152,8 +1152,7 @@ func shadowWarnings(home string, e manifestEntry, name string) []string {
 }
 
 func refreshJcodeShadows(home string, e manifestEntry, name string) error {
-	dests := entryDests(home, e, name)
-	if len(dests) == 0 {
+	if len(entryDests(home, e, name)) == 0 {
 		return nil
 	}
 	base, err := harnessHome(harnessNamed("jcode"), home)
@@ -1161,17 +1160,53 @@ func refreshJcodeShadows(home string, e manifestEntry, name string) error {
 		return nil
 	}
 	shadow := filepath.Join(base, "skills", name)
-	if !differs(shadow, dests[0].Dir) {
+	if info, err := os.Stat(shadow); err != nil || !info.IsDir() {
 		return nil
 	}
-	src := entrySkillDir(e, name)
-	if src == "" {
+	if same, _ := samePath(shadow, filepath.Join(home, ".empryo", "skills", name)); same {
 		return nil
 	}
-	if err := os.RemoveAll(shadow); err != nil {
+	if skills := categoryConflict(shadow); len(skills) > 0 {
+		return categoryConflictError(shadow, skills)
+	}
+	rendered, cleanup, err := renderExpected(e, name, false)
+	if err != nil {
 		return err
 	}
-	return renderSkill(src, shadow, renderOpts{Quiet: true})
+	defer cleanup()
+	if !differs(shadow, rendered) {
+		return nil
+	}
+	staged := shadow + ".gap-new"
+	os.RemoveAll(staged)
+	if err := renderSkill(rendered, staged, renderOpts{Quiet: true}); err != nil {
+		os.RemoveAll(staged)
+		return err
+	}
+	saved := shadow + ".gap-old"
+	os.RemoveAll(saved)
+	if err := os.Rename(shadow, saved); err != nil {
+		os.RemoveAll(staged)
+		return err
+	}
+	if err := os.Rename(staged, shadow); err != nil {
+		os.Rename(saved, shadow)
+		os.RemoveAll(staged)
+		return err
+	}
+	return os.RemoveAll(saved)
+}
+
+func samePath(a, b string) (bool, error) {
+	left, err := filepath.EvalSymlinks(a)
+	if err != nil {
+		return false, err
+	}
+	right, err := filepath.EvalSymlinks(b)
+	if err != nil {
+		return false, err
+	}
+	return left == right, nil
 }
 
 func differs(shadow, managed string) bool {

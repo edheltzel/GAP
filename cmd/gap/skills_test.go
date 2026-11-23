@@ -543,6 +543,39 @@ func TestJcodeShadowRefreshesFromStore(t *testing.T) {
 	if !again.ModTime().Equal(info.ModTime()) {
 		t.Fatal("a copy that already matched the store was rewritten")
 	}
+
+	category := filepath.Join(home, ".jcode", "skills", "do-group")
+	write(t, filepath.Join(category, "nested", "SKILL.md"), "nested\n")
+	grouped := manifestEntry{Path: store, Skills: []string{"do-group"}}
+	write(t, filepath.Join(store, "skills", "do-group", "SKILL.md"), "managed\n")
+	if err := refreshJcodeShadows(home, grouped, "do-group"); err == nil || !strings.Contains(err.Error(), "category directory") {
+		t.Fatalf("category refresh = %v, want a refusal", err)
+	}
+	if got := readString(t, filepath.Join(category, "nested", "SKILL.md")); got != "nested\n" {
+		t.Fatalf("nested skill = %q, the refusal changed it", got)
+	}
+
+	shared := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, ".empryo", "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(shared, filepath.Join(home, ".empryo", "skills", "do-shared")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".jcode", "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(shared, filepath.Join(home, ".jcode", "skills", "do-shared")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(shared, "SKILL.md"), "mine\n")
+	write(t, filepath.Join(store, "skills", "do-shared", "SKILL.md"), "managed\n")
+	if err := refreshJcodeShadows(home, manifestEntry{Path: store, Skills: []string{"do-shared"}}, "do-shared"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readString(t, filepath.Join(shared, "SKILL.md")); got != "mine\n" {
+		t.Fatalf("shared Empryo copy = %q, the refresh overwrote it", got)
+	}
 }
 
 func TestEmpryoShadowKeepsDriftResult(t *testing.T) {
