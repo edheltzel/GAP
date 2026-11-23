@@ -4,16 +4,18 @@ go 1.26.7
 
 require (
 	charm.land/bubbles/v2 v2.2.1
+	charm.land/bubbletea/v2 v2.1.1
 	charm.land/fang/v2 v2.0.1
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.1.0
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/term v0.2.2
+	github.com/creack/pty v1.1.24
 	github.com/spf13/cobra v1.9.1
+	go.yaml.in/yaml/v3 v3.0.6
 )
 
 require (
-	charm.land/bubbletea/v2 v2.1.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
@@ -38,7 +40,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.24.0 // indirect

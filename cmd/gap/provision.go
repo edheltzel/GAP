@@ -46,6 +46,10 @@ func initProject(root, profile string, adopt bool) error {
 		}
 		fmt.Println(config)
 	}
+	crew := profile == "crew" || doc["profile"] == "crew"
+	if !crew {
+		noteProject(root)
+	}
 	path := filepath.Join(root, "AGENTS.md")
 	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
 		return fmt.Errorf("refusing to append policy pointer to non-regular file %s", path)
@@ -75,7 +79,7 @@ func initProject(root, profile string, adopt bool) error {
 		}
 		fmt.Println(path)
 	}
-	if profile != "crew" && doc["profile"] != "crew" {
+	if !crew {
 		return provisionBreadcrumb(slug)
 	}
 	return nil

@@ -31,7 +31,41 @@ func TestMain(m *testing.M) {
 	}
 	devinMarker = filepath.Join(os.TempDir(), "gap-test-no-devin")
 	docsDir = "/repo/global/docs/agents"
-	os.Exit(m.Run())
+	tuiReady = func() bool { return false }
+	home, err := isolateHome()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	code := m.Run()
+	if home != "" {
+		os.RemoveAll(home)
+	}
+	os.Exit(code)
+}
+
+func isolateHome() (string, error) {
+	if os.Getenv("GAP_TEST_ISOLATED") == "1" {
+		return "", nil
+	}
+	if err := os.Setenv("GAP_TEST_ISOLATED", "1"); err != nil {
+		return "", err
+	}
+	out, err := exec.Command("go", "env", "GOCACHE", "GOMODCACHE", "GOPATH").Output()
+	if err != nil {
+		return "", fmt.Errorf("go env: %w", err)
+	}
+	vals := strings.Split(strings.TrimSpace(string(out)), "\n")
+	for i, key := range []string{"GOCACHE", "GOMODCACHE", "GOPATH"} {
+		if i < len(vals) && os.Getenv(key) == "" {
+			os.Setenv(key, vals[i])
+		}
+	}
+	home, err := os.MkdirTemp("", "gap-test-home-")
+	if err != nil {
+		return "", err
+	}
+	return home, os.Setenv("HOME", home)
 }
 
 func TestOurs(t *testing.T) {

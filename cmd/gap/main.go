@@ -73,6 +73,9 @@ func syncAll(opts syncOptions) error {
 		}
 		return initProject(projectRoot, "crew", false)
 	}
+	if _, err := os.Stat(projectConfigFile(projectRoot)); err == nil {
+		noteProject(projectRoot)
+	}
 	pins, err := lockFor(d, lk)
 	if err != nil {
 		return err

@@ -270,7 +270,11 @@ func writeAddConfig(home, projectRoot, id string, global bool, base componentCon
 	if err := writeAtomic(userConfigFile(home), user); err != nil {
 		return err
 	}
-	return writeAtomic(projectConfigFile(projectRoot), project)
+	if err := writeAtomic(projectConfigFile(projectRoot), project); err != nil {
+		return err
+	}
+	noteProject(projectRoot)
+	return nil
 }
 
 func describeUtility(m utilityManifest) string {
@@ -543,29 +547,13 @@ func listUtilities() error {
 	if err != nil {
 		return err
 	}
-	d, lk, err := registeredPins(repoRoot, home)
-	if err != nil {
-		return err
-	}
-	trust, err := trustList(home)
+	items, err := registeredRows(home, repoRoot)
 	if err != nil {
 		return err
 	}
 	var rows [][]string
-	for _, id := range sortedIDs(d.Components) {
-		c := d.Components[id]
-		source, hooks := "distro", "run"
-		if c.User {
-			source, hooks = "user", "ask"
-			if isTrusted(c.Repo, trust) {
-				hooks = "trusted"
-			}
-		}
-		commit := "unpinned"
-		if pin, ok := lk.Components[id]; ok {
-			commit = pin.Commit[:7]
-		}
-		rows = append(rows, []string{id, source, repoIdentity(c.Repo), c.Ref, commit, hooks})
+	for _, r := range items {
+		rows = append(rows, []string{r.ID, r.Source, r.Repo, r.Ref, r.Commit, r.Hooks})
 	}
 	return printList(newReport(os.Stdout), rows)
 }
@@ -625,6 +613,86 @@ func removeTOMLComponent(text, id string) (string, bool) {
 		out = strings.TrimSuffix(out, "\n")
 	}
 	return out, found
+}
+
+func setComponentEnabled(home, repoRoot, id string, enabled bool) error {
+	d, _, err := registeredPins(repoRoot, home)
+	if err != nil {
+		return err
+	}
+	c, ok := d.Components[id]
+	switch {
+	case !ok:
+		return fmt.Errorf("component %s is not in gap.toml", id)
+	case c.User:
+		return fmt.Errorf("%s is a utility; run gap remove %s instead", id, id)
+	}
+	config := userConfigFile(home)
+	text, err := readOptional(config)
+	if err != nil {
+		return err
+	}
+	next, err := withEnabled(text, id, enabled)
+	if err != nil {
+		return fmt.Errorf("%s: %w", config, err)
+	}
+	doc, err := parseTOML(next)
+	if err != nil {
+		return fmt.Errorf("setting enabled for %s in %s: %w", id, config, err)
+	}
+	components, _ := doc["components"].(map[string]any)
+	table, _ := components[id].(map[string]any)
+	if got, _ := table["enabled"].(bool); got != enabled || table == nil {
+		return fmt.Errorf("%s: could not set enabled = %t for %s", config, enabled, id)
+	}
+	if next == text {
+		return nil
+	}
+	return writeAtomic(config, next)
+}
+
+func withEnabled(text, id string, enabled bool) (string, error) {
+	line := "enabled = " + strconv.FormatBool(enabled) + "\n"
+	lines := strings.SplitAfter(text, "\n")
+	header := -1
+	var section []string
+	for i, raw := range lines {
+		trim := strings.TrimSpace(stripComment(raw))
+		if strings.HasPrefix(trim, "[") {
+			var err error
+			if section, err = splitKey(strings.TrimSuffix(strings.TrimPrefix(trim, "["), "]"), i+1); err != nil {
+				return "", err
+			}
+			if len(section) == 2 && section[0] == "components" && section[1] == id {
+				header = i
+			}
+			continue
+		}
+		if header < 0 || len(section) != 2 || section[0] != "components" || section[1] != id {
+			continue
+		}
+		if key, _, ok := strings.Cut(trim, "="); ok && strings.TrimSpace(key) == "enabled" {
+			if !strings.HasSuffix(raw, "\n") {
+				line = strings.TrimSuffix(line, "\n")
+			}
+			lines[i] = line
+			return strings.Join(lines, ""), nil
+		}
+	}
+	if header >= 0 {
+		if !strings.HasSuffix(lines[header], "\n") {
+			lines[header] += "\n"
+		}
+		lines = slices.Insert(lines, header+1, line)
+		return strings.Join(lines, ""), nil
+	}
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	if text != "" {
+		text += "\n"
+	}
+	return text + "[components." + tomlKey(id) + "]\n" + line, nil
 }
 
 func removeUtility(id string) error {

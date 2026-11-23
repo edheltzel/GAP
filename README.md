@@ -72,11 +72,42 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap uninstall [--yes] [--dry-run]` | Preview and remove recorded installations. See [Install `gap`](#install-gap) for removal rules and retained files |
 | `gap search [query]` | Search `catalog.toml`, the list of known utilities, by id, tag, or description. Distro components show `included with GAP; gap sync installs it`; other matches show a `gap add` command |
 | `gap list` | List every component and utility with its source, repo, ref, pinned commit, and hook trust |
+| `gap tui` | Open the terminal UI to update, check, remove, and disable items and see status and projects. Plain `gap` on a terminal opens it too. See [Terminal UI](#terminal-ui) |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `gap --version` | Show the CLI version; release binaries report the tagged release version |
 | `go test ./...` | Run the self-test against throwaway folders |
 
 Use `gap --help` or `gap <command> --help` for usage and flags. Help and terminal reports use GAP's light or dark palette; status, list, and search show framed tables with totals. Git ref lookups and store fetching show spinners on terminal stderr; long titles are truncated to the terminal width measured at the start of the operation, when available. Set `NO_COLOR=1` or `TERM=dumb` to suppress report colors and spinners while keeping terminal layouts. Redirected reports use plain text. Add, update, restore, pin, remove, and uninstall outcome lines also appear when redirected.
+
+## Terminal UI
+
+`gap tui` opens a terminal UI with three views:
+
+- **Items**: every component and utility with its source, scope, commit, store state, drift, and `new=N` from the last `gap check`. Distro components show as locked.
+- **Status**: the output of `gap status`.
+- **Projects**: each repo in `~/.gap/projects.json` with its profile and project-scope skill drift. A folder that no longer exists is flagged missing.
+
+| Key | What it does |
+| --- | --- |
+| `j`/`k` or arrows | Move |
+| `g` / `G` | Top / bottom |
+| `tab` / `shift+tab` or `1`-`3` | Switch views |
+| `space` | Mark a utility |
+| `u` | Run `gap update <id>` on the selected item |
+| `c` / `C` | Run `gap check <id>` / `gap check` |
+| `d` | Remove the marked utilities, or the selected one, after one confirmation that lists every id. Each runs `gap remove <id>`: the uninstall hook runs and files move to `~/.gap/backups/` |
+| `x` | Disable or enable a distro component after a confirmation. It writes `enabled = false` or `enabled = true` under `[components.<id>]` in `~/.config/gap/gap.toml` |
+| `f` | Forget a project from the registry |
+| `r` | Refresh |
+| `q` | Quit |
+
+While a run is going, `esc` asks before cancelling. Stop cancels the current step and skips the rest. A failed step does not stop the others. A summary table lists each step as ok, failed, cancelled, or not run, with its last error line.
+
+Actions run the `gap` binary itself with stdin closed and `NO_COLOR=1`, so they behave exactly like the CLI. An untrusted utility hook is skipped and exits `1`, as without a terminal.
+
+Plain `gap` with no subcommand opens the TUI when stdin and stdout are terminals and `NO_COLOR` and `TERM=dumb` are unset. Otherwise it prints help and exits `2`. `gap tui` without a terminal prints `gap tui needs a terminal ...` and exits `2`.
+
+`gap init`, `gap add --project` (including a project utility added to another repo), and `gap sync` in a repo with `.gap/gap.toml` record that repo's root in `~/.gap/projects.json`. The file is sorted, has one entry per root, and keeps the date each root was first seen. Home is never recorded. A failed registry write prints a warning and never fails the command. Until the file exists, the Projects view shows the roots recorded under `projectSkills` in `~/.gap/state.json`. Folders are never scanned.
 
 ## Change the policy
 

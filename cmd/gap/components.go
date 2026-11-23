@@ -693,52 +693,20 @@ func statusAll() error {
 	for _, id := range ids {
 		c := d.Components[id]
 		e, pinned := lk.Components[id]
-		ref := c.Ref
-		short := "unpinned"
-		store := storeUnpinned
-		if pinned {
-			ref = e.Ref
-			short = e.Commit
-			if len(short) > 7 {
-				short = short[:7]
-			}
-			var err error
-			store, err = storeState(storePath(home, id, e.Commit), e.Tree)
-			if err != nil {
-				return err
-			}
-			bad = bad || store != storeOK
-		} else {
-			bad = true
+		row, err := componentStatus(home, projectRoot, id, c, e, pinned, checks)
+		if err != nil {
+			return err
+		}
+		if !pinned {
 			pinSteps = append(pinSteps, "gap pin "+id+"@"+c.Ref+"    create the missing lock entry")
 		}
-		if store == storeChanged {
-			changed = true
-		}
-		if store == storeMissing {
-			missing = true
-		}
-		row := statusRow{id: id, ref: ref, commit: short, store: store}
-		if rec, found := checks[id]; found && pinned && rec.Pin == e.Commit {
-			row.pending = rec.New
-			behind = behind || rec.New > 0
-		}
+		bad = bad || row.store != storeOK || row.drifted > 0
+		changed = changed || row.store == storeChanged
+		missing = missing || row.store == storeMissing
+		behind = behind || row.pending > 0
 		if !out.tty {
-			out.statusLine(id, ref, short, store, row.pending)
-		}
-		if store == storeOK {
-			dir := storePath(home, id, e.Commit)
-			for _, entry := range selectedEntries(c, dir, projectRoot) {
-				for _, name := range entry.Skills {
-					n := entryDriftCount(entry, entryHome(home, entry), name)
-					row.skills = append(row.skills, []string{name, fmt.Sprintf("drift=%d", n)})
-					if n > 0 {
-						row.drifted++
-						bad = true
-					}
-				}
-			}
-			if !out.tty && len(row.skills) > 0 {
+			out.statusLine(id, row.ref, row.commit, row.store, row.pending)
+			if len(row.skills) > 0 {
 				out.driftTable(row.skills)
 			}
 		}

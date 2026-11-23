@@ -1,0 +1,520 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"slices"
+	"strings"
+
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+)
+
+const (
+	tabItems = iota
+	tabStatus
+	tabProjects
+)
+
+var tabNames = []string{"Items", "Status", "Projects"}
+
+type tuiMode int
+
+const (
+	modeBrowse tuiMode = iota
+	modeConfirm
+	modeRun
+	modeAsk
+	modeSummary
+)
+
+type jobState int
+
+const (
+	jobPending jobState = iota
+	jobRunning
+	jobOK
+	jobFailed
+)
+
+type jobView struct {
+	tuiJob
+	state     jobState
+	lines     []string
+	code      int
+	cancelled bool
+}
+
+type loadedMsg struct {
+	gen      int
+	quick    bool
+	items    []itemRow
+	projects []projectView
+	err      error
+}
+
+type tuiKeys struct {
+	Up, Down, Top, Bottom, Tab, Mark, Check, CheckAll, Update, Delete, Disable, Forget, Refresh, Quit, Confirm, Back key.Binding
+}
+
+func newTUIKeys() tuiKeys {
+	b := func(help, desc string, keys ...string) key.Binding {
+		return key.NewBinding(key.WithKeys(keys...), key.WithHelp(help, desc))
+	}
+	return tuiKeys{
+		Up:       b("k/\u2191", "up", "k", "up"),
+		Down:     b("j/\u2193", "down", "j", "down"),
+		Top:      b("g", "top", "g", "home"),
+		Bottom:   b("G", "bottom", "G", "end"),
+		Tab:      b("tab/1-3", "view", "tab", "shift+tab", "1", "2", "3"),
+		Mark:     b("space", "mark", "space"),
+		Check:    b("c", "check", "c"),
+		CheckAll: b("C", "check all", "C"),
+		Update:   b("u", "update", "u"),
+		Delete:   b("d", "remove", "d"),
+		Disable:  b("x", "disable", "x"),
+		Forget:   b("f", "forget", "f"),
+		Refresh:  b("r", "refresh", "r"),
+		Quit:     b("q", "quit", "q", "ctrl+c"),
+		Confirm:  b("enter", "confirm", "enter"),
+		Back:     b("esc", "back", "esc"),
+	}
+}
+
+type tuiModel struct {
+	home, repoRoot, projectRoot string
+	st                          tuiStyles
+	keys                        tuiKeys
+	help                        help.Model
+	spin                        spinner.Model
+	vp                          viewport.Model
+	width, height               int
+
+	tab      int
+	sel      [3]int
+	items    []itemRow
+	projects []projectView
+	loadErr  error
+	loading  bool
+	checking bool
+	gen      int
+	marked   map[string]bool
+
+	status        string
+	statusErr     error
+	statusLoading bool
+
+	mode         tuiMode
+	confirmTitle string
+	confirmIDs   []string
+	confirmNote  []string
+	confirmTop   int
+	pending      []tuiJob
+	jobs         []jobView
+	jobSel       int
+	follow       bool
+	askChoice    int
+	note         string
+	quitting     bool
+
+	runner      jobRunner
+	children    *childGroup
+	send        func(tea.Msg)
+	loadQuick   func() loadedMsg
+	loadFull    func() loadedMsg
+	fetchStatus func() tea.Cmd
+}
+
+func newTUIModel(home, repoRoot, projectRoot string, p palette) *tuiModel {
+	m := &tuiModel{
+		home: home, repoRoot: repoRoot, projectRoot: projectRoot,
+		st:       newTUIStyles(p),
+		keys:     newTUIKeys(),
+		help:     help.New(),
+		vp:       viewport.New(),
+		width:    100,
+		height:   30,
+		marked:   map[string]bool{},
+		runner:   &execRunner{},
+		children: newChildGroup(),
+		send:     func(tea.Msg) {},
+	}
+	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(m.st.accent))
+	m.loadQuick = func() loadedMsg { return quickTUIData(home, repoRoot) }
+	m.loadFull = func() loadedMsg { return loadTUIData(home, repoRoot, projectRoot) }
+	m.fetchStatus = func() tea.Cmd { return statusText(m.children) }
+	return m
+}
+
+func quickTUIData(home, repoRoot string) loadedMsg {
+	items, err := registeredRows(home, repoRoot)
+	list, perr := readProjects(home)
+	var projects []projectView
+	for _, p := range list {
+		v := projectView{Root: p.Root, Added: p.Added}
+		if _, serr := os.Stat(p.Root); errors.Is(serr, os.ErrNotExist) {
+			v.Missing = true
+		}
+		projects = append(projects, v)
+	}
+	return loadedMsg{items: items, projects: projects, err: errors.Join(err, perr)}
+}
+
+func loadTUIData(home, repoRoot, projectRoot string) loadedMsg {
+	items, err := inventory(home, repoRoot, projectRoot)
+	if err != nil {
+		if items, err = registeredRows(home, repoRoot); err != nil {
+			return loadedMsg{err: err}
+		}
+		err = fmt.Errorf("status unavailable: %w", err)
+	}
+	list, perr := readProjects(home)
+	var projects []projectView
+	for _, p := range list {
+		projects = append(projects, projectInventory(home, repoRoot, p))
+	}
+	return loadedMsg{items: items, projects: projects, err: errors.Join(err, perr)}
+}
+
+func (m *tuiModel) reload() tea.Cmd {
+	m.gen++
+	m.loading, m.statusLoading = true, true
+	return tea.Batch(m.loadCmd(m.loadQuick, true), m.fetchStatus())
+}
+
+func (m *tuiModel) loadCmd(load func() loadedMsg, quick bool) tea.Cmd {
+	gen := m.gen
+	return func() tea.Msg {
+		msg := load()
+		msg.gen, msg.quick = gen, quick
+		return msg
+	}
+}
+
+func (m *tuiModel) Init() tea.Cmd {
+	return tea.Batch(m.reload(), m.spin.Tick)
+}
+
+func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.refreshPane()
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spin, cmd = m.spin.Update(msg)
+		return m, cmd
+	case loadedMsg:
+		if msg.gen != m.gen {
+			return m, nil
+		}
+		m.loading, m.checking = msg.quick, msg.quick
+		m.items, m.projects, m.loadErr = msg.items, msg.projects, msg.err
+		for id := range m.marked {
+			if !slices.ContainsFunc(m.items, func(r itemRow) bool { return r.ID == id && r.user() }) {
+				delete(m.marked, id)
+			}
+		}
+		for t := range m.sel {
+			m.sel[t] = min(m.sel[t], max(m.count(t)-1, 0))
+		}
+		m.refreshPane()
+		if msg.quick {
+			return m, m.loadCmd(m.loadFull, false)
+		}
+	case statusTextMsg:
+		m.statusLoading = false
+		m.status, m.statusErr = msg.text, msg.err
+		m.refreshPane()
+	case jobStartedMsg:
+		if msg.i < len(m.jobs) {
+			m.jobs[msg.i].state = jobRunning
+			if m.follow {
+				m.jobSel = msg.i
+			}
+			m.refreshPane()
+		}
+	case jobOutputMsg:
+		if msg.i < len(m.jobs) {
+			m.jobs[msg.i].lines = append(m.jobs[msg.i].lines, msg.line)
+			m.refreshPane()
+		}
+	case jobDoneMsg:
+		if msg.i < len(m.jobs) {
+			j := &m.jobs[msg.i]
+			j.code, j.cancelled = msg.code, msg.cancelled
+			j.state = jobOK
+			if msg.code != 0 || msg.err != nil {
+				j.state = jobFailed
+			}
+			m.refreshPane()
+		}
+	case jobsFinishedMsg:
+		m.mode = modeSummary
+		m.refreshPane()
+	case tea.KeyPressMsg:
+		return m, m.key(msg)
+	}
+	return m, nil
+}
+
+func (m *tuiModel) count(tab int) int {
+	switch tab {
+	case tabItems:
+		return len(m.items)
+	case tabProjects:
+		return len(m.projects)
+	}
+	return 0
+}
+
+func (m *tuiModel) item() (itemRow, bool) {
+	if m.sel[tabItems] < len(m.items) {
+		return m.items[m.sel[tabItems]], true
+	}
+	return itemRow{}, false
+}
+
+func (m *tuiModel) project() (projectView, bool) {
+	if m.sel[tabProjects] < len(m.projects) {
+		return m.projects[m.sel[tabProjects]], true
+	}
+	return projectView{}, false
+}
+
+func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
+	switch m.mode {
+	case modeConfirm:
+		switch {
+		case key.Matches(msg, m.keys.Confirm):
+			jobs := m.pending
+			m.pending = nil
+			return m.run(jobs)
+		case key.Matches(msg, m.keys.Back), key.Matches(msg, m.keys.Quit), msg.String() == "n":
+			m.mode, m.pending, m.note = modeBrowse, nil, "Nothing changed."
+		case key.Matches(msg, m.keys.Down):
+			_, _, shown := m.confirmParts()
+			m.confirmTop = min(m.confirmTop+1, len(m.confirmIDs)-shown)
+		case key.Matches(msg, m.keys.Up):
+			_, _, shown := m.confirmParts()
+			m.confirmTop = max(min(m.confirmTop, len(m.confirmIDs)-shown)-1, 0)
+		}
+		return nil
+	case modeRun:
+		switch {
+		case key.Matches(msg, m.keys.Back), key.Matches(msg, m.keys.Quit):
+			m.mode, m.askChoice = modeAsk, 0
+		case key.Matches(msg, m.keys.Up):
+			m.follow, m.jobSel = false, max(m.jobSel-1, 0)
+			m.refreshPane()
+		case key.Matches(msg, m.keys.Down):
+			m.follow, m.jobSel = false, min(m.jobSel+1, len(m.jobs)-1)
+			m.refreshPane()
+		}
+		return nil
+	case modeAsk:
+		switch {
+		case msg.String() == "ctrl+c":
+			m.runner.cancel()
+			m.quitting = true
+			return tea.Quit
+		case key.Matches(msg, m.keys.Up), key.Matches(msg, m.keys.Down):
+			m.askChoice = 1 - m.askChoice
+		case key.Matches(msg, m.keys.Confirm):
+			if m.askChoice == 1 {
+				m.runner.cancel()
+				m.note = "Stopping: the current step is cancelled and the rest are skipped."
+			}
+			m.mode = modeRun
+		case key.Matches(msg, m.keys.Back):
+			m.mode = modeRun
+		}
+		return nil
+	case modeSummary:
+		if key.Matches(msg, m.keys.Confirm, m.keys.Back, m.keys.Quit) {
+			m.mode, m.jobs = modeBrowse, nil
+			return m.reload()
+		}
+		return nil
+	}
+	m.note = ""
+	switch {
+	case key.Matches(msg, m.keys.Quit):
+		m.quitting = true
+		return tea.Quit
+	case key.Matches(msg, m.keys.Tab):
+		switch msg.String() {
+		case "1", "2", "3":
+			m.tab = int(msg.String()[0] - '1')
+		case "shift+tab":
+			m.tab = (m.tab + len(tabNames) - 1) % len(tabNames)
+		default:
+			m.tab = (m.tab + 1) % len(tabNames)
+		}
+		m.refreshPane()
+	case key.Matches(msg, m.keys.Up):
+		m.move(-1)
+	case key.Matches(msg, m.keys.Down):
+		m.move(1)
+	case key.Matches(msg, m.keys.Top):
+		m.move(-m.count(m.tab))
+	case key.Matches(msg, m.keys.Bottom):
+		m.move(m.count(m.tab))
+	case key.Matches(msg, m.keys.Refresh):
+		m.note = "Refreshing."
+		return m.reload()
+	case m.tab == tabItems:
+		return m.itemKey(msg)
+	case m.tab == tabProjects && key.Matches(msg, m.keys.Forget):
+		p, ok := m.project()
+		if !ok {
+			return nil
+		}
+		if err := forgetProject(m.home, p.Root); err != nil {
+			m.note = err.Error()
+			return nil
+		}
+		m.note = "Forgot " + p.Root + ". gap init or gap sync there records it again."
+		return m.reload()
+	case m.tab == tabStatus:
+		var cmd tea.Cmd
+		m.vp, cmd = m.vp.Update(msg)
+		return cmd
+	}
+	return nil
+}
+
+func (m *tuiModel) itemKey(msg tea.KeyPressMsg) tea.Cmd {
+	r, ok := m.item()
+	if !ok {
+		return nil
+	}
+	switch {
+	case key.Matches(msg, m.keys.Mark):
+		if !r.user() {
+			m.note = r.ID + " is a distro component: it cannot be removed, x disables it."
+			return nil
+		}
+		m.marked[r.ID] = !m.marked[r.ID]
+		if !m.marked[r.ID] {
+			delete(m.marked, r.ID)
+		}
+		m.move(1)
+	case key.Matches(msg, m.keys.Check):
+		return m.run([]tuiJob{{label: "check " + r.ID, args: []string{"check", r.ID}}})
+	case key.Matches(msg, m.keys.CheckAll):
+		return m.run([]tuiJob{{label: "check all", args: []string{"check"}}})
+	case key.Matches(msg, m.keys.Update):
+		return m.run([]tuiJob{{label: "update " + r.ID, args: []string{"update", r.ID}}})
+	case key.Matches(msg, m.keys.Delete):
+		ids := m.markedIDs()
+		if len(ids) == 0 {
+			if !r.user() {
+				m.note = r.ID + " is a distro component: it cannot be removed, x disables it."
+				return nil
+			}
+			ids = []string{r.ID}
+		}
+		var jobs []tuiJob
+		for _, id := range ids {
+			jobs = append(jobs, tuiJob{label: "remove " + id, args: []string{"remove", id}})
+		}
+		m.confirmTitle = "Remove 1 utility?"
+		if len(ids) > 1 {
+			m.confirmTitle = fmt.Sprintf("Remove %d utilities?", len(ids))
+		}
+		m.confirmIDs, m.confirmTop = ids, 0
+		m.confirmNote = []string{"Each one runs its uninstall hook and its files move to ~/.gap/backups/."}
+		m.pending, m.mode = jobs, modeConfirm
+	case key.Matches(msg, m.keys.Disable):
+		if r.user() {
+			m.note = r.ID + " is a utility: d removes it."
+			return nil
+		}
+		verb, enable := "Disable", false
+		if r.Disabled {
+			verb, enable = "Enable", true
+		}
+		home, repoRoot, id := m.home, m.repoRoot, r.ID
+		m.confirmTitle = verb + " " + id + "?"
+		m.confirmIDs, m.confirmTop = nil, 0
+		m.confirmNote = []string{"Writes enabled = " + fmt.Sprint(enable) + " under [components." + id + "] in " + userConfigFile(home) + ".", "gap sync applies it."}
+		m.pending = []tuiJob{{label: strings.ToLower(verb) + " " + id, fn: func() error { return setComponentEnabled(home, repoRoot, id, enable) }}}
+		m.mode = modeConfirm
+	}
+	return nil
+}
+
+func (m *tuiModel) markedIDs() []string {
+	var ids []string
+	for _, r := range m.items {
+		if m.marked[r.ID] {
+			ids = append(ids, r.ID)
+		}
+	}
+	return ids
+}
+
+func (m *tuiModel) run(jobs []tuiJob) tea.Cmd {
+	m.jobs = nil
+	for _, j := range jobs {
+		m.jobs = append(m.jobs, jobView{tuiJob: j})
+	}
+	for _, j := range jobs {
+		if len(j.args) > 0 && j.args[0] == "remove" {
+			delete(m.marked, j.args[1])
+		}
+	}
+	m.mode, m.jobSel, m.follow, m.note = modeRun, 0, true, ""
+	m.refreshPane()
+	m.runner.start(jobs, m.send)
+	return nil
+}
+
+func (m *tuiModel) move(d int) {
+	n := m.count(m.tab)
+	if n == 0 {
+		return
+	}
+	m.sel[m.tab] = min(max(m.sel[m.tab]+d, 0), n-1)
+	m.refreshPane()
+}
+
+func runTUI() error {
+	home, repoRoot, err := gapHomes()
+	if err != nil {
+		return err
+	}
+	projectRoot, err := invokingProjectRoot()
+	if err != nil {
+		return err
+	}
+	pal := darkPalette
+	if !terminalIsDark() {
+		pal = lightPalette
+	}
+	m := newTUIModel(home, repoRoot, projectRoot, pal)
+	p := tea.NewProgram(m)
+	m.send = p.Send
+	defer func() {
+		m.runner.cancel()
+		if w, ok := m.runner.(interface{ wait() }); ok {
+			w.wait()
+		}
+		m.children.close()
+	}()
+	if _, err := p.Run(); err != nil && !errors.Is(err, tea.ErrInterrupted) {
+		return err
+	}
+	return nil
+}
+
+func tuiReadyDefault() bool {
+	return stdinIsTerminal() && isTerminal(os.Stdout) && !plainEnv()
+}
+
+var tuiReady = tuiReadyDefault
