@@ -22,8 +22,8 @@ try {
     };
     const middleOfCommands = async () => {
       await page.evaluate(() => {
-        const y = (id) => scrollY + document.getElementById(id).getBoundingClientRect().top;
-        window.scrollTo(0, (y('commands') + y('change-the-policy')) / 2);
+        const heading = document.getElementById('commands');
+        window.scrollTo(0, scrollY + heading.getBoundingClientRect().top - innerHeight * 0.2);
       });
       await expectSection('commands');
     };
