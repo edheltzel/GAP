@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestParseAddArgs(t *testing.T) {
@@ -879,5 +881,128 @@ func TestDiscoverSkills(t *testing.T) {
 	}
 	if got, _ := discoverSkills(linked, "", true, false, nil); len(got) != 0 {
 		t.Fatalf("discovered skills outside the repository: %v", names(got))
+	}
+	mono := t.TempDir()
+	write(t, filepath.Join(mono, "shared.json"), `{"paths":["./custom"]}`)
+	write(t, filepath.Join(mono, "sub", "skills", "ok", "SKILL.md"), skill("ok", ""))
+	write(t, filepath.Join(mono, "sub", "custom", "extra", "SKILL.md"), skill("extra", ""))
+	if err := os.Symlink(filepath.Join("..", "shared.json"), filepath.Join(mono, "sub", "skills.sh.json")); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := discoverSkills(mono, "sub", false, false, nil); !slices.Equal(names(got), []string{"ok", "extra"}) {
+		t.Fatalf("a subpath's skills.sh.json linked inside the repository = %v", names(got))
+	}
+}
+
+func TestDiscoveryReadsNothingOutsideTheRepository(t *testing.T) {
+	outside := t.TempDir()
+	fifo := filepath.Join(outside, "fifo")
+	for _, path := range []string{fifo, filepath.Join(outside, "tree", "skills.sh.json")} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := syscall.Mkfifo(path, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(t, filepath.Join(outside, "bad.md"), "---\nname: [unclosed\n---\n")
+	write(t, filepath.Join(outside, "tree", "skills", "x", "SKILL.md"), "---\nname: x\ndescription: outside\n---\n")
+	repo := t.TempDir()
+	write(t, filepath.Join(repo, "skills", "ok", "SKILL.md"), "---\nname: ok\ndescription: inside\n---\n")
+	for rel, target := range map[string]string{
+		"skills-lock.json":                fifo,
+		"skills.sh.json":                  fifo,
+		".claude-plugin/marketplace.json": fifo,
+		".claude-plugin/plugin.json":      fifo,
+		".claude/skills":                  filepath.Join(outside, "tree", "skills"),
+		"skills/escape/SKILL.md":          filepath.Join(outside, "bad.md"),
+		"sub":                             filepath.Join(outside, "tree"),
+	} {
+		link := filepath.Join(repo, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		subpath string
+		want    []string
+	}{
+		{"", []string{"ok"}},
+		{"sub", nil},
+	} {
+		var warnings []string
+		done := make(chan []string, 1)
+		go func() {
+			skills, _ := discoverSkills(repo, tc.subpath, false, false, func(w string) { warnings = append(warnings, w) })
+			var names []string
+			for _, s := range skills {
+				names = append(names, s.Name)
+			}
+			done <- names
+		}()
+		select {
+		case names := <-done:
+			if !slices.Equal(names, tc.want) || strings.Contains(strings.Join(warnings, "\n"), "YAML") {
+				t.Fatalf("subpath %q: skills %v, warnings %q", tc.subpath, names, warnings)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("subpath %q: discovery blocked on a file outside the repository", tc.subpath)
+		}
+	}
+}
+
+func TestDiscoverySkipsSpecialFilesInTheRepository(t *testing.T) {
+	repo := t.TempDir()
+	write(t, filepath.Join(repo, "other", "ok", "SKILL.md"), "---\nname: ok\ndescription: inside\n---\n")
+	for _, rel := range []string{"skills", ".claude/skills", "other/pipe", "sub"} {
+		fifo := filepath.Join(repo, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(fifo), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("skills", filepath.Join(repo, "linked")); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		subpath string
+		want    []string
+	}{
+		{"", []string{"ok"}},
+		{"sub", nil},
+		{"linked", nil},
+	} {
+		done := make(chan []string, 1)
+		go func() {
+			skills, _ := discoverSkills(repo, tc.subpath, true, false, nil)
+			var names []string
+			for _, s := range skills {
+				names = append(names, s.Name)
+			}
+			done <- names
+		}()
+		select {
+		case names := <-done:
+			if !slices.Equal(names, tc.want) {
+				t.Fatalf("subpath %q: skills %v", tc.subpath, names)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("subpath %q: discovery blocked on a special file in the repository", tc.subpath)
+		}
+	}
+	done := make(chan string, 1)
+	go func() { done <- findSkillDir(repo, "ok", "skills", "linked", ".") }()
+	select {
+	case got := <-done:
+		if got != filepath.Join(repo, "other", "ok") {
+			t.Fatalf("findSkillDir = %q", got)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("findSkillDir blocked on a special file in the repository")
 	}
 }

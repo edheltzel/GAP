@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path"
@@ -38,13 +39,13 @@ func unsafeSubpath(sub string) error {
 	return nil
 }
 
-func hasSkillMD(dir string) bool {
-	info, err := os.Stat(filepath.Join(dir, "SKILL.md"))
+func hasSkillMD(checkout fs.FS, dir string) bool {
+	info, err := fs.Stat(checkout, path.Join(dir, "SKILL.md"))
 	return err == nil && info.Mode().IsRegular()
 }
 
 func sourceLockedSkillNames(base string) map[string]bool {
-	b, err := os.ReadFile(filepath.Join(base, "skills-lock.json"))
+	b, err := readUtilityFile(base, "skills-lock.json")
 	if err != nil {
 		return nil
 	}
@@ -70,8 +71,16 @@ func relativeInside(base, target string) (string, bool) {
 	return filepath.ToSlash(rel), true
 }
 
-func pluginManifest(base string) (pluginRoot string, plugins []map[string]any, ok bool) {
-	b, err := os.ReadFile(filepath.Join(base, ".claude-plugin", "marketplace.json"))
+func readInCheckout(checkout, file string) ([]byte, error) {
+	rel, ok := relativeInside(checkout, file)
+	if !ok {
+		return nil, fmt.Errorf("%s is outside %s", file, checkout)
+	}
+	return readUtilityFile(checkout, rel)
+}
+
+func pluginManifest(checkout, base string) (pluginRoot string, plugins []map[string]any, ok bool) {
+	b, err := readInCheckout(checkout, filepath.Join(base, ".claude-plugin", "marketplace.json"))
 	if err != nil {
 		return "", nil, false
 	}
@@ -113,7 +122,7 @@ func pluginSkills(plugin map[string]any) []string {
 	return out
 }
 
-func pluginSkillPaths(base string) []string {
+func pluginSkillPaths(checkout, base string) []string {
 	var dirs []string
 	add := func(root string, skills []string) {
 		if _, inside := relativeInside(base, root); !inside {
@@ -127,14 +136,14 @@ func pluginSkillPaths(base string) []string {
 		}
 		dirs = append(dirs, filepath.Join(root, "skills"))
 	}
-	if root, plugins, ok := pluginManifest(base); ok {
+	if root, plugins, ok := pluginManifest(checkout, base); ok {
 		for _, plugin := range plugins {
 			if dir, ok := pluginBase(base, root, plugin); ok {
 				add(dir, pluginSkills(plugin))
 			}
 		}
 	}
-	if b, err := os.ReadFile(filepath.Join(base, ".claude-plugin", "plugin.json")); err == nil {
+	if b, err := readInCheckout(checkout, filepath.Join(base, ".claude-plugin", "plugin.json")); err == nil {
 		var plugin map[string]any
 		if json.Unmarshal(b, &plugin) == nil {
 			add(base, pluginSkills(plugin))
@@ -143,9 +152,9 @@ func pluginSkillPaths(base string) []string {
 	return dirs
 }
 
-func pluginGroupings(base string) map[string]string {
+func pluginGroupings(checkout, base string) map[string]string {
 	groups := map[string]string{}
-	if root, plugins, ok := pluginManifest(base); ok {
+	if root, plugins, ok := pluginManifest(checkout, base); ok {
 		for _, plugin := range plugins {
 			name, _ := plugin["name"].(string)
 			dir, ok := pluginBase(base, root, plugin)
@@ -163,7 +172,7 @@ func pluginGroupings(base string) map[string]string {
 			}
 		}
 	}
-	if b, err := os.ReadFile(filepath.Join(base, ".claude-plugin", "plugin.json")); err == nil {
+	if b, err := readInCheckout(checkout, filepath.Join(base, ".claude-plugin", "plugin.json")); err == nil {
 		var plugin map[string]any
 		if json.Unmarshal(b, &plugin) == nil {
 			if name, _ := plugin["name"].(string); name != "" {
@@ -179,8 +188,8 @@ func pluginGroupings(base string) map[string]string {
 	return groups
 }
 
-func skillsShSearchDirs(base string) []string {
-	b, err := os.ReadFile(filepath.Join(base, "skills.sh.json"))
+func skillsShSearchDirs(checkout, base string) []string {
+	b, err := readInCheckout(checkout, filepath.Join(base, "skills.sh.json"))
 	if err != nil {
 		return nil
 	}
@@ -205,18 +214,18 @@ func skillsShSearchDirs(base string) []string {
 	return dirs
 }
 
-func findSkillDirs(dir string, depth int) []string {
+func findSkillDirs(root *os.Root, dir string, depth int) []string {
 	if depth > 5 {
 		return nil
 	}
 	var out []string
-	if hasSkillMD(dir) {
+	if hasSkillMD(root.FS(), dir) {
 		out = append(out, dir)
 	}
-	entries, _ := os.ReadDir(dir)
+	entries, _ := readDirOnly(root, dir)
 	for _, entry := range entries {
 		if entry.IsDir() && !slices.Contains(discoverSkipDirs, entry.Name()) {
-			out = append(out, findSkillDirs(filepath.Join(dir, entry.Name()), depth+1)...)
+			out = append(out, findSkillDirs(root, path.Join(dir, entry.Name()), depth+1)...)
 		}
 	}
 	return out
@@ -234,8 +243,18 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 	if subpath != "" {
 		search = filepath.Join(base, filepath.FromSlash(subpath))
 	}
+	root, err := os.OpenRoot(base)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	checkout := root.FS()
+	at := func(p string) string {
+		rel, _ := relativeInside(base, p)
+		return rel
+	}
 	locked := sourceLockedSkillNames(base)
-	groups := pluginGroupings(search)
+	groups := pluginGroupings(base, search)
 	projectDirs := agentProjectSkillDirs()
 	var skills []discoveredSkill
 	seen := map[string]bool{}
@@ -257,19 +276,17 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 			return skillMeta{}, false
 		}
 		parsed[file] = true
-		return parseSkillMD(file, includeInternal, warn)
+		raw, err := fs.ReadFile(checkout, at(file))
+		if err != nil {
+			return skillMeta{}, false
+		}
+		return parseSkillMD(file, raw, includeInternal, warn)
 	}
 	add := func(m skillMeta) {
-		if !insideCheckout(base, m.Dir) {
-			if warn != nil {
-				warn(fmt.Sprintf("Skipping %s: it resolves outside the repository", m.Dir))
-			}
-			return
-		}
 		skills = append(skills, discoveredSkill{Name: m.Name, Description: m.Description, Dir: m.Dir, Plugin: groups[m.Dir]})
 		seen[m.Name] = true
 	}
-	if hasSkillMD(search) {
+	if hasSkillMD(checkout, at(search)) {
 		if m, ok := parseAt(search); ok && !installedProjectSkill(m) {
 			add(m)
 			if !fullDepth {
@@ -284,14 +301,14 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 	for _, rel := range projectDirs {
 		priority = append(priority, filepath.Join(search, filepath.FromSlash(rel)))
 	}
-	priority = append(priority, skillsShSearchDirs(search)...)
+	priority = append(priority, skillsShSearchDirs(base, search)...)
 	deep := map[string]bool{}
 	for _, dir := range priority[1:] {
 		deep[dir] = true
 	}
-	priority = append(priority, pluginSkillPaths(search)...)
+	priority = append(priority, pluginSkillPaths(base, search)...)
 	tryAdd := func(dir string) bool {
-		if !hasSkillMD(dir) {
+		if !hasSkillMD(checkout, at(dir)) {
 			return false
 		}
 		if m, ok := parseAt(dir); ok && !seen[m.Name] && !installedProjectSkill(m) {
@@ -301,7 +318,7 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 	}
 	var walk func(dir string, maxDepth, depth int)
 	walk = func(dir string, maxDepth, depth int) {
-		entries, err := os.ReadDir(dir)
+		entries, err := readDirOnly(root, at(dir))
 		if err != nil {
 			return
 		}
@@ -324,8 +341,8 @@ func discoverSkills(base, subpath string, fullDepth, includeInternal bool, warn 
 		walk(dir, maxDepth, 1)
 	}
 	if len(skills) == 0 || fullDepth {
-		for _, dir := range findSkillDirs(search, 0) {
-			if m, ok := parseAt(dir); ok && !seen[m.Name] && !installedProjectSkill(m) {
+		for _, dir := range findSkillDirs(root, at(search), 0) {
+			if m, ok := parseAt(filepath.Join(base, filepath.FromSlash(dir))); ok && !seen[m.Name] && !installedProjectSkill(m) {
 				add(m)
 			}
 		}

@@ -707,7 +707,7 @@ func (r *addRun) discover() error {
 				continue
 			}
 			s := discoveredSkill{Name: name, Dir: dir}
-			if b, err := os.ReadFile(filepath.Join(dir, "SKILL.md")); err == nil {
+			if b, err := readInCheckout(r.store, filepath.Join(dir, "SKILL.md")); err == nil {
 				if data, _, err := parseFrontmatter(string(b)); err == nil {
 					if description, ok := data["description"].(string); ok {
 						s.Description = sanitizeMetadata(description)
