@@ -21,9 +21,9 @@ commit = "5a2d904b630da45a3f87c2cc750c1111f74fe342"
 tree = "8fa03589983b4ceb8628de863ed5c771b917dc97"
 
 [components.echo]
-ref = "v0.13.0"
-commit = "f8001264b18631c5e0d01f3b6a7213588e1a1fe1"
-tree = "fc36c5c4597058a3370f0780f32b9441bd819ef8"
+ref = "v0.14.0"
+commit = "5832bdd76031dee5cc221ecd1751c0bb165a6046"
+tree = "60f67edaabe5319e56b4ded231299ed309467b6b"
 
 [components.forge]
 ref = "master"
