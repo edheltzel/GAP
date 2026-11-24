@@ -55,6 +55,11 @@ ref = "main"
 commit = "01df092aed163462ca5902c7b21a9c9f7c60e68f"
 tree = "d0f114914e9f763d2b52b4899aae57522e8b70ed"
 
+[components.pstack]
+ref = "main"
+commit = "ca782ed8b3c2c521cead8e1720d55c3a5dbf2347"
+tree = "dc58ad145b3cd37c6b5648afd4edeab1dd8ebaf3"
+
 [components.recall]
 ref = "main"
 commit = "1a906296ab3b6c4711b8543be7d451fbaa806d86"
