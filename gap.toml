@@ -6,12 +6,11 @@ repo   = "github.com/edheltzel/Forge"
 ref    = "master"
 
 [components.echo]
-repo    = "github.com/edheltzel/Echo"
-ref     = "v0.13.0"
-doctor  = "cli/echo doctor"
-install = "scripts/install.sh"
-# macOS only. Adapters install through scripts/install.sh --adapter.
-names   = []
+repo  = "github.com/edheltzel/Echo"
+ref   = "v0.14.0"
+# macOS only. Doctor and install come from the repo's gap-utility.toml.
+# An empty names keeps the selection known before the store is fetched.
+names = []
 
 [components.recall]
 repo    = "github.com/edheltzel/Recall"

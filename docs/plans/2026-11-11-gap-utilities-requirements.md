@@ -39,7 +39,7 @@ Anyone can make a GitHub repo installable, updatable, checkable, and removable t
 - Following only the README "Publish a utility" section, someone new to GAP can write a manifest for a fixture repo that `gap add` accepts on the first try.
 - `/docs/` and `/docs/concepts/` on the built site show the new sections and terms. The landing page shows the `gap add` example. From `site/`, `npm run build`, `npm run typecheck`, and `npm run links` pass, and no old anchor breaks.
 - Forge, Recall, and Do-Skills are pinned to commits with `gap-utility.toml`. Forge and Recall have no hand-written `install`, `doctor`, or `names` in the distro `gap.toml`. Do-Skills keeps `names` to select its subset and retains `do-astro`'s load setting.
-- Echo stays at `v0.13.0` with its spec fields until a tagged release contains the manifest. Keep the spec fallback and its tests until Echo migrates.
+- Echo is pinned at `v0.14.0`, the first tag whose repo contains `gap-utility.toml`. Its spec no longer carries `install` or `doctor`. `names = []` stays, so the selection is known before the store is fetched. Keep the spec fallback and its tests for a component that has not migrated.
 - `gap status` lists the same 70 skills with `drift=0` before and after migration, `gap doctor` reads Recall's doctor from its manifest, and `go test ./...` passes.
 
 ## Constraints
