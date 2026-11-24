@@ -6,9 +6,11 @@ repo   = "github.com/edheltzel/Forge"
 ref    = "master"
 
 [components.echo]
-repo = "github.com/edheltzel/Echo"
-ref  = "v0.14.0"
-# macOS only. Adapters, doctor, and install come from the repo's gap-utility.toml.
+repo  = "github.com/edheltzel/Echo"
+ref   = "v0.14.0"
+# macOS only. Doctor and install come from the repo's gap-utility.toml.
+# An empty names keeps the selection known before the store is fetched.
+names = []
 
 [components.recall]
 repo    = "github.com/edheltzel/Recall"

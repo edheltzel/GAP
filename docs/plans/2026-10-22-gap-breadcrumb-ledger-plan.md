@@ -28,7 +28,7 @@ Judged:
 - The Skeptic's `--list-installed` flag is the smallest change that works, and it won. The critic overstated its risk: the flag is one more branch in the argument `case` at `scripts/install.sh:67`, next to `--check`, and the top-level install only runs when `CHECK_ONLY` is 0. A new branch that prints and exits never reaches it. No guard refactor is needed.
 - Taken from the Pragmatist: the record names the store commit alongside the adapter names, so a later run can see which Echo produced the list.
 
-Resolved: Echo `v0.14.0` (`5832bdd7`) ships `scripts/install.sh --list-installed`, and GAP pins that tag. A store whose installer still lacks the flag makes `gap doctor` record nothing for echo and say so. That remains a visible gap, not a guessed list.
+Resolved: Echo `v0.14.0` (`5832bdd7`) ships `scripts/install.sh --list-installed`, and GAP pins that tag. Once the store is accepted and a doctor hook is resolved, a store whose installer still lacks the flag makes `gap doctor` record nothing for echo and say so. A lock-only rollback to a pin without a manifest fails at manifest validation before that probe, so that rollback also restores the old spec. That remains a visible gap, not a guessed list.
 
 ## Implementation Units
 
