@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 )
+
+var githubName = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 
 var skillSearchURL = "https://skills.sh/api/search"
 
@@ -57,7 +60,7 @@ func searchSkills(ctx context.Context, query string, limit int) ([]skillHit, err
 	var hits []skillHit
 	for _, s := range body.Skills {
 		owner, repo, ok := strings.Cut(s.Source, "/")
-		if !ok || owner == "" || repo == "" || strings.ContainsAny(owner, ".:") || strings.ContainsAny(repo, "/:") || s.SkillID == "" {
+		if !ok || !githubName.MatchString(owner) || strings.Contains(owner, ".") || !githubName.MatchString(repo) || repo == "." || repo == ".." || !githubName.MatchString(s.SkillID) {
 			continue
 		}
 		hits = append(hits, skillHit{ID: s.ID, Source: s.Source, Skill: s.SkillID, Name: s.Name, Installs: s.Installs, Trusted: slices.Contains(trustedSkillSources, owner)})

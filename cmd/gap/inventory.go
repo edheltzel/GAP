@@ -10,7 +10,7 @@ import (
 
 type itemRow struct {
 	ID, Source, Scope, Repo, Ref, Commit, Hooks string
-	Pinned, Held, Disabled, Inactive            bool
+	Pinned, Held, Disabled, Inactive, Off       bool
 	Store, Color                                string
 	Drift, New                                  int
 	Skills                                      [][]string
@@ -129,6 +129,18 @@ func inventory(home, repoRoot, projectRoot string, stores *storeCache) ([]itemRo
 	if err != nil {
 		return nil, err
 	}
+	settings, err := readDistro(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	if settings, err = mergeOverrides(settings, home, repoRoot, projectRoot, ""); err != nil {
+		return nil, err
+	}
+	for i, row := range rows {
+		if c, ok := settings.Components[row.ID]; ok {
+			rows[i].Off, rows[i].Held, rows[i].Color = c.Disabled, c.Pin, c.Color
+		}
+	}
 	checks, err := readChecks(home)
 	if err != nil {
 		return nil, err
@@ -146,7 +158,6 @@ func inventory(home, repoRoot, projectRoot string, stores *storeCache) ([]itemRo
 			}
 			continue
 		}
-		rows[i].Disabled, rows[i].Held, rows[i].Color = c.Disabled, c.Pin, c.Color
 		e, pinned := lk.Components[row.ID]
 		st, err := componentStatus(home, projectRoot, row.ID, c, e, pinned, checks, stores)
 		if err != nil {

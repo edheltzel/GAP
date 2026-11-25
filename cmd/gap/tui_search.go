@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
@@ -17,13 +18,14 @@ import (
 const searchPause = 300 * time.Millisecond
 
 type searchState struct {
-	input   textinput.Model
-	hits    []skillHit
-	sel     int
-	seq     int
-	busy    bool
-	err     error
-	queried string
+	input     textinput.Model
+	hits      []skillHit
+	sel       int
+	seq       int
+	busy      bool
+	err       error
+	queried   string
+	installed map[string]string
 }
 
 type searchTickMsg struct{ seq int }
@@ -50,7 +52,7 @@ func (m *tuiModel) searchUpdate(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case searchTickMsg:
 		q := strings.TrimSpace(s.input.Value())
-		if msg.seq != s.seq || q == "" || q == s.queried {
+		if msg.seq != s.seq || q == "" {
 			return nil
 		}
 		s.busy, s.queried = true, q
@@ -60,10 +62,14 @@ func (m *tuiModel) searchUpdate(msg tea.Msg) tea.Cmd {
 			return searchDoneMsg{seq: seq, query: q, hits: hits, err: err}
 		}
 	case searchDoneMsg:
-		if msg.query != s.queried {
+		if msg.seq != s.seq {
 			return nil
 		}
 		s.busy, s.hits, s.err, s.sel = false, msg.hits, msg.err, 0
+		s.installed = map[string]string{}
+		for _, h := range s.hits {
+			s.installed[h.ID] = m.installedHit(h)
+		}
 		return nil
 	case tea.KeyPressMsg:
 		switch {
@@ -73,51 +79,62 @@ func (m *tuiModel) searchUpdate(msg tea.Msg) tea.Cmd {
 		case msg.Code == tea.KeyEscape:
 			m.search, m.mode = nil, modeBrowse
 			return nil
-		case msg.Code == tea.KeyDown || key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+n"))):
+		case msg.Code == tea.KeyDown || msg.String() == "ctrl+n":
 			s.sel = min(s.sel+1, max(len(s.hits)-1, 0))
 			return nil
-		case msg.Code == tea.KeyUp || key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+p"))):
+		case msg.Code == tea.KeyUp || msg.String() == "ctrl+p":
 			s.sel = max(s.sel-1, 0)
 			return nil
 		case msg.Code == tea.KeyEnter:
-			if s.sel < len(s.hits) {
-				return m.installHit(s.hits[s.sel])
+			if hit, ok := s.current(); ok {
+				return m.installHit(hit)
 			}
 			return nil
 		}
-		before := s.input.Value()
-		var cmd tea.Cmd
-		s.input, cmd = s.input.Update(msg)
-		if s.input.Value() == before {
-			return cmd
-		}
-		s.seq++
-		seq := s.seq
-		return tea.Batch(cmd, tea.Tick(searchPause, func(time.Time) tea.Msg { return searchTickMsg{seq: seq} }))
 	}
+	before := s.input.Value()
 	var cmd tea.Cmd
 	s.input, cmd = s.input.Update(msg)
-	return cmd
+	if s.input.Value() == before {
+		return cmd
+	}
+	s.seq++
+	s.hits, s.sel, s.err, s.busy, s.queried = nil, 0, nil, false, ""
+	if strings.TrimSpace(s.input.Value()) == "" {
+		return cmd
+	}
+	seq := s.seq
+	return tea.Batch(cmd, tea.Tick(searchPause, func(time.Time) tea.Msg { return searchTickMsg{seq: seq} }))
 }
 
-// installedHit names where a skill from a hit is already installed, or "".
+// current is the selected hit, only when the hits answer the query in the box right now.
+func (s *searchState) current() (skillHit, bool) {
+	if s.busy || s.sel >= len(s.hits) || s.queried != strings.TrimSpace(s.input.Value()) {
+		return skillHit{}, false
+	}
+	return s.hits[s.sel], true
+}
+
+// installedHit names where a hit's skill is installed: the item must be registered from the same repo
+// with that skill, and its SKILL.md must be on disk in that place. Otherwise "".
 func (m *tuiModel) installedHit(h skillHit) string {
+	registered := false
 	for _, r := range m.items {
-		if !strings.EqualFold(r.Repo, h.Source) {
-			continue
-		}
-		for _, s := range r.Skills {
-			if len(s) > 0 && s[0] == h.Skill {
-				return r.Scope
-			}
-		}
-		for _, n := range r.Names {
-			if n == h.Skill {
-				return r.Scope
-			}
+		if strings.EqualFold(r.Repo, "github.com/"+h.Source) && (slices.Contains(r.Names, h.Skill) || slices.ContainsFunc(r.Skills, func(s []string) bool { return len(s) > 0 && s[0] == h.Skill })) {
+			registered = true
 		}
 	}
-	return ""
+	if !registered {
+		return ""
+	}
+	var where []string
+	if fileExists(filepath.Join(m.home, ".agents", "skills", h.Skill, "SKILL.md")) {
+		where = append(where, "global")
+	}
+	if p := m.here(); p != "" && fileExists(filepath.Join(p, ".agents", "skills", h.Skill, "SKILL.md")) {
+		where = append(where, "here")
+	}
+	return strings.Join(where, ", ")
 }
 
 func (m *tuiModel) installHit(h skillHit) tea.Cmd {
@@ -127,7 +144,7 @@ func (m *tuiModel) installHit(h skillHit) tea.Cmd {
 		if scope == scopeProject {
 			where = "--project"
 		}
-		return []string{"add", h.Source, "--skill", h.Skill, where}
+		return []string{"add", "https://github.com/" + h.Source, "--skill", h.Skill, where}
 	}
 	if project == "" {
 		m.search, m.mode = nil, modeBrowse
@@ -188,7 +205,7 @@ func (m *tuiModel) searchView() string {
 		name := fmt.Sprintf("%-*s", nameW, ansi.Truncate(hit.Skill, nameW, "\u2026"))
 		name = lipgloss.NewStyle().Foreground(m.st.pal.group("", hit.Source)).Render(name)
 		line := m.pointer(i == s.sel) + mark + name + "  " + m.st.faint.Render(fmt.Sprintf("%-*s", srcW, ansi.Truncate(hit.Source, srcW, "\u2026"))) + "  " + fmt.Sprintf("%6s", humanCount(hit.Installs))
-		if where := m.installedHit(hit); where != "" {
+		if where := s.installed[hit.ID]; where != "" {
 			line += "  " + m.st.accent.Render("installed "+where)
 		}
 		lines = append(lines, ansi.Truncate(line, max(m.width-4, 1), "\u2026"))

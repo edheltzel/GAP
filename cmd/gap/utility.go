@@ -50,8 +50,8 @@ func projectConfigFile(root string) string {
 
 type componentConfig struct {
 	Repo, Ref, Path, Load    string
-	Enabled                  *bool
-	Pin                      bool
+	Enabled, Pin             *bool
+	Color                    string
 	Names, Agents, Subagents []string
 	Copy                     bool
 	From                     map[string]string
@@ -76,7 +76,10 @@ func readComponentConfig(text, id string) (componentConfig, bool, error) {
 	if enabled, ok := table["enabled"].(bool); ok {
 		cc.Enabled = &enabled
 	}
-	cc.Pin, _ = table["pin"].(bool)
+	if pin, ok := table["pin"].(bool); ok {
+		cc.Pin = &pin
+	}
+	cc.Color, _ = table["color"].(string)
 	cc.Names, _ = table["names"].([]string)
 	cc.Agents, _ = table["agents"].([]string)
 	cc.Copy, _ = table["copy"].(bool)
@@ -128,8 +131,11 @@ func componentTOML(id string, cc componentConfig) string {
 	if cc.Enabled != nil {
 		fmt.Fprintf(&b, "enabled = %t\n", *cc.Enabled)
 	}
-	if cc.Pin {
-		b.WriteString("pin = true\n")
+	if cc.Pin != nil {
+		fmt.Fprintf(&b, "pin = %t\n", *cc.Pin)
+	}
+	if cc.Color != "" {
+		b.WriteString("color = " + tomlString(cc.Color) + "\n")
 	}
 	for _, kv := range []struct {
 		key  string

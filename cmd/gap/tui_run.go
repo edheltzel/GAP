@@ -66,6 +66,7 @@ type childCmd struct {
 type handedBackMsg struct {
 	err    error
 	edited string
+	after  func(error) string
 }
 
 // handoff runs a gap command on the real terminal, so its picker, progress bar, and prompts work, then waits for enter.

@@ -33,6 +33,7 @@ type progressBar struct {
 	clock    func() time.Time
 	stopped  bool
 	lastRows int
+	quit     chan struct{}
 }
 
 var activeProgress *progressBar
@@ -52,6 +53,8 @@ func startProgress(title string, total int) *progressBar {
 	}, newReport(os.Stdout).colors(), plainEnv(), title, total)
 	if p != nil {
 		activeProgress = p
+		p.quit = make(chan struct{})
+		restoreOnSignal(p)
 	}
 	return p
 }
@@ -108,6 +111,9 @@ func (p *progressBar) stop() {
 		return
 	}
 	p.stopped = true
+	if p.quit != nil {
+		close(p.quit)
+	}
 	if activeProgress == p {
 		activeProgress = nil
 	}

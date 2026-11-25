@@ -77,7 +77,7 @@ func TestTUIBatchRunsLikeAUP(t *testing.T) {
 		t.Fatalf("s should hand the terminal to gap sync, got cmd=%v started=%d mode=%v", cmd != nil, len(f.started), m.mode)
 	}
 	press(m, "U")
-	if !strings.Contains(ansi.Strip(m.render()), "Update 2 items?") {
+	if !strings.Contains(ansi.Strip(m.render()), "Update 3 items?") {
 		t.Fatalf("update-all confirm missing:\n%s", ansi.Strip(m.render()))
 	}
 	if cmd := m.key(tea.KeyPressMsg{Code: tea.KeyEnter}); cmd == nil || len(f.started) != 0 || m.pendingExec != nil {

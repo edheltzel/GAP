@@ -117,10 +117,10 @@ Captured from the real TUI in an isolated demo home with two local example utili
 | `space` | Mark a utility |
 | `/` | Search the skills.sh catalog as you type. Hits show install counts, a check for trusted sources (vercel-labs, anthropics, microsoft, google-labs-code), and where you already have them. `enter` asks Everywhere or This project, then runs `gap add <repo> --skill <name>` with `--global` or `--project`. Hits from non-GitHub sources are hidden because `gap add` cannot install them |
 | `a` | Add a utility: type the repo, an optional id, and whether it installs everywhere or only in this project. On the Projects view it adds to the selected project. It hands the terminal to `gap add`, so its trust prompt works |
-| `e` | Edit the selected item: enabled, hold updates (`pin`), version, and color, saved everywhere or for this project only. A new version moves the pin at once (`gap update` for a utility, `gap pin` for a distro component). On the Projects view, `e` opens that project's `.gap/gap.toml` |
+| `e` | Edit the selected item: enabled, hold updates (`pin`), and color, saved everywhere or for this project only. For a utility it also edits the version: a new one runs `gap update` and is kept only if the pin moves. A distro component's version changes with `gap pin <id>@<ref>`. On the Projects view, `e` opens that project's `.gap/gap.toml` |
 | `E` | Open `~/.config/gap/gap.toml` or this project's `.gap/gap.toml` in `$VISUAL` or `$EDITOR` |
 | `u` | Run `gap update <id>` on the selected item |
-| `U` | After one confirmation, hand the terminal to `gap update`, then press enter to come back |
+| `U` | Confirm the items `gap update` will move (every item not held with `pin = true`, disabled ones included), then hand the terminal to it and press enter to come back |
 | `s` | Hand the terminal to `gap sync`: its group picker, progress bar, and every prompt work as on the command line. Press enter to come back |
 | `c` / `C` | Run `gap check <id>` / `gap check` |
 | `d` | Remove the marked utilities, or the selected one, after one confirmation that lists every id. Each runs `gap remove <id>`: the uninstall hook runs and files move to `~/.gap/backups/` |

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -28,7 +29,8 @@ func TestTUISearch(t *testing.T) {
 		return nil
 	}
 	m.Update(tea.WindowSizeMsg{Width: 110, Height: 34})
-	m.Update(loadedMsg{items: []itemRow{{ID: "agent-reviews", Source: "distro", Scope: "global", Repo: "pbakaus/agent-reviews", Skills: [][]string{{"agent-reviews", "drift=0"}}}}})
+	m.Update(loadedMsg{items: []itemRow{{ID: "agent-reviews", Source: "distro", Scope: "global", Repo: "github.com/pbakaus/agent-reviews", Skills: [][]string{{"agent-reviews", "drift=0"}}}}})
+	write(t, filepath.Join(m.home, ".agents", "skills", "agent-reviews", "SKILL.md"), "x")
 	typeKeys(m, "/")
 	if m.mode != modeSearch {
 		t.Fatalf("/ did not open search, mode %v", m.mode)
@@ -51,7 +53,7 @@ func TestTUISearch(t *testing.T) {
 		t.Fatalf("enter did not ask where to install:\n%s", ansi.Strip(m.render()))
 	}
 	typeKeys(m, "down", "enter")
-	if len(handed) != 1 || strings.Join(handed[0], " ") != "add vercel-labs/agent-skills --skill react --project" || dirs[0] != project {
+	if len(handed) != 1 || strings.Join(handed[0], " ") != "add https://github.com/vercel-labs/agent-skills --skill react --project" || dirs[0] != project {
 		t.Fatalf("handed %q in %q", handed, dirs)
 	}
 	typeKeys(m, "/", "x", "esc")

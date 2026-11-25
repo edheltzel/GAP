@@ -88,13 +88,13 @@ func pendingCommits(home string, c component, from string) (tip string, commits 
 	return tip, commits, false, nil
 }
 
-// distroTargets lists the distro components update and check act on. A component with pin = true
-// is left out unless it is named.
-func distroTargets(d distro, id string) []string {
+// distroTargets lists the distro components update acts on. One held with pin = true, in gap.toml
+// or in a user or project override (held), is left out unless it is named.
+func distroTargets(d, held distro, id string) []string {
 	var ids []string
 	for _, cid := range sortedIDs(d.Components) {
 		c := d.Components[cid]
-		if c.User || (id != "" && cid != id) || (id == "" && c.Pin) {
+		if c.User || (id != "" && cid != id) || (id == "" && held.Components[cid].Pin) {
 			continue
 		}
 		ids = append(ids, cid)
@@ -182,11 +182,19 @@ func updateDistro(id string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	projectRoot, err := invokingProjectRoot()
+	if err != nil {
+		return 0, err
+	}
 	d, err := readDistro(repoRoot)
 	if err != nil {
 		return 0, err
 	}
-	ids := distroTargets(d, id)
+	held, err := mergeOverrides(d, home, repoRoot, projectRoot, "")
+	if err != nil {
+		return 0, err
+	}
+	ids := distroTargets(d, held, id)
 	if len(ids) == 0 {
 		return 0, nil
 	}

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -85,6 +86,18 @@ func TestLazyUpdateCycle(t *testing.T) {
 	}
 	stdout, _ = gap(0, "update", "tools")
 	wantLines(t, "update tools", stdout, "tools moved from "+c2[:7]+" to "+c3[:7])
+
+	write(t, filepath.Join(repo, "gap.toml"), spec)
+	write(t, filepath.Join(project, ".gap", "gap.toml"), "[components.tools]\npin = true\n")
+	readyEnvReviewDistro(t, repo)
+	c4, _ := gitFixture(t, remote, "todo v4\n")
+	gap(0, "update")
+	if lk, _ := readLock(repo); lk.Components["tools"].Commit != c3 {
+		t.Fatal("update must skip a component held with pin = true in a project override")
+	}
+	stdout, _ = gap(0, "update", "tools")
+	wantLines(t, "update held tools", stdout, "tools moved from "+c3[:7]+" to "+c4[:7])
+	os.Remove(filepath.Join(project, ".gap", "gap.toml"))
 
 	old := filepath.Join(home, ".gap", "store", "tools", c1)
 	if !verifiedStore(old, c1) {

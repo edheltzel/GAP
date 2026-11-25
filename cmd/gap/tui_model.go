@@ -303,6 +303,10 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.refreshPane()
+		m.sizeForm()
+		if m.search != nil {
+			m.search.input.SetWidth(max(m.width-8, 10))
+		}
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spin, cmd = m.spin.Update(msg)
@@ -389,6 +393,11 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.note = "gap exited: " + msg.err.Error()
 		}
+		if msg.after != nil {
+			if note := msg.after(msg.err); note != "" {
+				m.note = note
+			}
+		}
 		return m, m.reload()
 	case jobsFinishedMsg:
 		m.mode, m.follow = modeSummary, false
@@ -412,8 +421,11 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.key(msg)
 	default:
-		if m.mode == modeForm {
+		switch m.mode {
+		case modeForm:
 			return m, m.formUpdate(msg)
+		case modeSearch:
+			return m, m.searchUpdate(msg)
 		}
 	}
 	return m, nil
@@ -580,14 +592,14 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 	case key.Matches(msg, m.keys.Sync):
 		return m.handOver("sync")
 	case m.tab == tabItems && key.Matches(msg, m.keys.UpdateAll):
-		ids := m.activeIDs()
+		ids := m.updateIDs()
 		if len(ids) == 0 {
-			m.note = "Nothing to update."
+			m.note = "Nothing to update: every item is held."
 			break
 		}
 		m.confirmTitle = fmt.Sprintf("Update %s?", plural(len(ids), "item"))
 		m.confirmIDs, m.confirmTop = ids, 0
-		m.confirmNote = []string{"Runs gap update in this terminal: every pin without pin = true moves to the newest commit on its ref, with a progress bar and any trust prompt it needs."}
+		m.confirmNote = []string{"Runs gap update in this terminal. Items held with pin = true, here or in gap.toml, are skipped; disabled items still move. Trust prompts show as usual."}
 		m.pendingExec, m.mode = []string{"update"}, modeConfirm
 	case key.Matches(msg, m.keys.Find):
 		return m.openSearch()
@@ -697,10 +709,11 @@ func (m *tuiModel) markedIDs() []string {
 	return ids
 }
 
-func (m *tuiModel) activeIDs() []string {
+// updateIDs is what an unnamed gap update moves: every registered item that is not held.
+func (m *tuiModel) updateIDs() []string {
 	var ids []string
 	for _, r := range m.items {
-		if !r.Disabled {
+		if !r.Held {
 			ids = append(ids, r.ID)
 		}
 	}
@@ -719,8 +732,19 @@ func (m *tuiModel) groupColor(id string) color.Color {
 func (m *tuiModel) handOver(args ...string) tea.Cmd { return m.handOverIn("", args...) }
 
 func (m *tuiModel) handOverIn(dir string, args ...string) tea.Cmd {
+	return m.handOverThen(dir, args, nil)
+}
+
+// handOverThen runs gap with args on the real terminal, then calls after with its exit error.
+func (m *tuiModel) handOverThen(dir string, args []string, after func(error) string) tea.Cmd {
 	if m.handOff != nil {
-		return m.handOff(dir, args)
+		cmd := m.handOff(dir, args)
+		return func() tea.Msg {
+			if cmd != nil {
+				cmd()
+			}
+			return handedBackMsg{after: after}
+		}
 	}
 	exe, err := tuiExecutable()
 	if err != nil {
@@ -729,7 +753,7 @@ func (m *tuiModel) handOverIn(dir string, args ...string) tea.Cmd {
 	}
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
-	return tea.Exec(&handoff{cmd: cmd}, func(err error) tea.Msg { return handedBackMsg{err: err} })
+	return tea.Exec(&handoff{cmd: cmd}, func(err error) tea.Msg { return handedBackMsg{err: err, after: after} })
 }
 
 func (m *tuiModel) run(jobs []tuiJob) tea.Cmd {

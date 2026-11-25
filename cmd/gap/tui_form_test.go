@@ -81,6 +81,8 @@ func typeKeys(m *tuiModel, keys ...string) {
 			msg = tea.KeyPressMsg{Code: tea.KeyLeft}
 		case "esc":
 			msg = tea.KeyPressMsg{Code: tea.KeyEscape}
+		case "backspace":
+			msg = tea.KeyPressMsg{Code: tea.KeyBackspace}
 		default:
 			for _, r := range k {
 				drive(m, tea.KeyPressMsg{Code: r, Text: string(r)})
@@ -103,7 +105,7 @@ func TestTUIEditSavesToProject(t *testing.T) {
 	if m.mode != modeForm || !strings.Contains(ansi.Strip(m.render()), "Edit echo") {
 		t.Fatalf("e did not open the edit form:\n%s", ansi.Strip(m.render()))
 	}
-	typeKeys(m, "down", "enter", "left", "enter", "enter", "enter", "#ff79c6", "enter")
+	typeKeys(m, "down", "enter", "left", "enter", "enter", "#ff79c6", "enter")
 	if m.mode != modeBrowse {
 		t.Fatalf("form still open:\n%s", ansi.Strip(m.render()))
 	}
