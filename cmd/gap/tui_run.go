@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"os/exec"
@@ -17,6 +18,8 @@ import (
 
 type tuiJob struct {
 	label   string
+	name    string
+	color   color.Color
 	args    []string
 	removes string
 	fn      func() error
@@ -58,6 +61,35 @@ type childCmd struct {
 	escalated bool
 	done      bool
 	signalled bool
+}
+
+type handedBackMsg struct {
+	err    error
+	edited string
+}
+
+// handoff runs a gap command on the real terminal, so its picker, progress bar, and prompts work, then waits for enter.
+type handoff struct {
+	cmd      *exec.Cmd
+	in       io.Reader
+	out, err io.Writer
+}
+
+func (h *handoff) SetStdin(r io.Reader)  { h.in = r }
+func (h *handoff) SetStdout(w io.Writer) { h.out = w }
+func (h *handoff) SetStderr(w io.Writer) { h.err = w }
+
+func (h *handoff) Run() error {
+	h.cmd.Stdin, h.cmd.Stdout, h.cmd.Stderr = h.in, h.out, h.err
+	runErr := h.cmd.Run()
+	fmt.Fprint(h.out, "\nPress enter to return to gap tui.")
+	buf := make([]byte, 1)
+	for {
+		if n, err := h.in.Read(buf); err != nil || (n == 1 && (buf[0] == '\n' || buf[0] == '\r')) {
+			break
+		}
+	}
+	return runErr
 }
 
 func gapCommand(ctx context.Context, args ...string) (*childCmd, error) {
