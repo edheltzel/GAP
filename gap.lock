@@ -62,8 +62,8 @@ tree = "dc58ad145b3cd37c6b5648afd4edeab1dd8ebaf3"
 
 [components.recall]
 ref = "main"
-commit = "1a906296ab3b6c4711b8543be7d451fbaa806d86"
-tree = "3a90ff6f075d1fe3cf03214e4e89e9340ec60c29"
+commit = "396e55ed610207fbd6939033662d2baedf99a4ce"
+tree = "f4b7805601406a6157ac4cd61c990e37ecf827f6"
 
 [components.typesafe-ai]
 ref = "main"
