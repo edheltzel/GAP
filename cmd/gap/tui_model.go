@@ -149,6 +149,7 @@ type tuiModel struct {
 	pendingExec  []string
 	formState    *formState
 	search       *searchState
+	searchGen    int
 	handOff      func(dir string, args []string) tea.Cmd
 	findSkills   func(context.Context, string, int) ([]skillHit, error)
 	frame        int
@@ -393,10 +394,8 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.note = "gap exited: " + msg.err.Error()
 		}
-		if msg.after != nil {
-			if note := msg.after(msg.err); note != "" {
-				m.note = note
-			}
+		if msg.note != "" {
+			m.note = msg.note
 		}
 		return m, m.reload()
 	case jobsFinishedMsg:
@@ -735,7 +734,8 @@ func (m *tuiModel) handOverIn(dir string, args ...string) tea.Cmd {
 	return m.handOverThen(dir, args, nil)
 }
 
-// handOverThen runs gap with args on the real terminal, then calls after with its exit error.
+// handOverThen runs gap with args on the real terminal. after runs as soon as gap exits, or at once
+// when gap cannot be started, and its note is shown back in the TUI.
 func (m *tuiModel) handOverThen(dir string, args []string, after func(error) string) tea.Cmd {
 	if m.handOff != nil {
 		cmd := m.handOff(dir, args)
@@ -743,17 +743,27 @@ func (m *tuiModel) handOverThen(dir string, args []string, after func(error) str
 			if cmd != nil {
 				cmd()
 			}
-			return handedBackMsg{after: after}
+			msg := handedBackMsg{}
+			if after != nil {
+				msg.note = after(nil)
+			}
+			return msg
 		}
 	}
 	exe, err := tuiExecutable()
 	if err != nil {
 		m.note = "Cannot find the gap binary: " + err.Error()
+		if after != nil {
+			if note := after(err); note != "" {
+				m.note += ". " + note
+			}
+		}
 		return nil
 	}
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
-	return tea.Exec(&handoff{cmd: cmd}, func(err error) tea.Msg { return handedBackMsg{err: err, after: after} })
+	h := &handoff{cmd: cmd, after: after}
+	return tea.Exec(h, func(err error) tea.Msg { return handedBackMsg{err: err, note: h.note} })
 }
 
 func (m *tuiModel) run(jobs []tuiJob) tea.Cmd {

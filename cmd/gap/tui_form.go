@@ -172,11 +172,16 @@ func (m *tuiModel) addForm(project string) tea.Cmd {
 func (m *tuiModel) editForm(r itemRow) tea.Cmd {
 	project := m.here()
 	scope := scopeGlobal
-	if project != "" && (r.Scope == "project" || (r.Off && !r.Disabled)) {
+	if project != "" && (r.Scope == "project" || r.Off != r.OffGlobal) {
 		scope = scopeProject
 	}
-	wasOn := !r.Disabled && !r.Off
-	enabled, hold, ref, hue := wasOn, r.Held, r.Ref, r.Color
+	onIn := func(scope string) bool {
+		if scope == scopeProject {
+			return !r.Off
+		}
+		return !r.OffGlobal
+	}
+	enabled, hold, ref, hue := onIn(scope), r.Held, r.Ref, r.Color
 	fields := []huh.Field{}
 	if project != "" {
 		fields = append(fields, huh.NewSelect[string]().Title("Save to").
@@ -210,7 +215,7 @@ func (m *tuiModel) editForm(r itemRow) tea.Cmd {
 			path = projectConfigFile(project)
 		}
 		var set []configField
-		if enabled != wasOn {
+		if enabled != onIn(scope) {
 			set = append(set, configField{"enabled", enabled})
 		}
 		if hold != r.Held {

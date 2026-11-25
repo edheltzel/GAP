@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 	"sync"
 	"time"
@@ -66,7 +67,7 @@ type childCmd struct {
 type handedBackMsg struct {
 	err    error
 	edited string
-	after  func(error) string
+	note   string
 }
 
 // handoff runs a gap command on the real terminal, so its picker, progress bar, and prompts work, then waits for enter.
@@ -74,15 +75,25 @@ type handoff struct {
 	cmd      *exec.Cmd
 	in       io.Reader
 	out, err io.Writer
+	after    func(error) string
+	note     string
 }
 
 func (h *handoff) SetStdin(r io.Reader)  { h.in = r }
 func (h *handoff) SetStdout(w io.Writer) { h.out = w }
 func (h *handoff) SetStderr(w io.Writer) { h.err = w }
 
+// Run gives the terminal to the command. ctrl+c reaches the command but not gap tui, so after
+// always runs, before the enter prompt, even when the command is interrupted.
 func (h *handoff) Run() error {
 	h.cmd.Stdin, h.cmd.Stdout, h.cmd.Stderr = h.in, h.out, h.err
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt)
 	runErr := h.cmd.Run()
+	signal.Stop(sigs)
+	if h.after != nil {
+		h.note = h.after(runErr)
+	}
 	fmt.Fprint(h.out, "\nPress enter to return to gap tui.")
 	buf := make([]byte, 1)
 	for {

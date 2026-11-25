@@ -11,6 +11,7 @@ import (
 type itemRow struct {
 	ID, Source, Scope, Repo, Ref, Commit, Hooks string
 	Pinned, Held, Disabled, Inactive, Off       bool
+	OffGlobal                                   bool
 	Store, Color                                string
 	Drift, New                                  int
 	Skills                                      [][]string
@@ -133,12 +134,19 @@ func inventory(home, repoRoot, projectRoot string, stores *storeCache) ([]itemRo
 	if err != nil {
 		return nil, err
 	}
-	if settings, err = mergeOverrides(settings, home, repoRoot, projectRoot, ""); err != nil {
+	global, err := overrideView(settings, home, repoRoot, home)
+	if err != nil {
+		return nil, err
+	}
+	if settings, err = overrideView(settings, home, repoRoot, projectRoot); err != nil {
 		return nil, err
 	}
 	for i, row := range rows {
 		if c, ok := settings.Components[row.ID]; ok {
 			rows[i].Off, rows[i].Held, rows[i].Color = c.Disabled, c.Pin, c.Color
+		}
+		if c, ok := global.Components[row.ID]; ok {
+			rows[i].OffGlobal = c.Disabled
 		}
 	}
 	checks, err := readChecks(home)

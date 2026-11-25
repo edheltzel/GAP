@@ -42,7 +42,8 @@ func (m *tuiModel) openSearch() tea.Cmd {
 	in.Prompt = "/ "
 	in.Placeholder = "search skills.sh"
 	in.SetWidth(max(m.width-8, 10))
-	m.search = &searchState{input: in}
+	m.searchGen++
+	m.search = &searchState{input: in, seq: m.searchGen}
 	m.mode = modeSearch
 	return m.search.input.Focus()
 }
@@ -98,7 +99,8 @@ func (m *tuiModel) searchUpdate(msg tea.Msg) tea.Cmd {
 	if s.input.Value() == before {
 		return cmd
 	}
-	s.seq++
+	m.searchGen++
+	s.seq = m.searchGen
 	s.hits, s.sel, s.err, s.busy, s.queried = nil, 0, nil, false, ""
 	if strings.TrimSpace(s.input.Value()) == "" {
 		return cmd
@@ -120,7 +122,7 @@ func (s *searchState) current() (skillHit, bool) {
 func (m *tuiModel) installedHit(h skillHit) string {
 	registered := false
 	for _, r := range m.items {
-		if strings.EqualFold(r.Repo, "github.com/"+h.Source) && (slices.Contains(r.Names, h.Skill) || slices.ContainsFunc(r.Skills, func(s []string) bool { return len(s) > 0 && s[0] == h.Skill })) {
+		if repoKey(r.Repo) == repoKey(h.Source) && (slices.Contains(r.Names, h.Skill) || slices.ContainsFunc(r.Skills, func(s []string) bool { return len(s) > 0 && s[0] == h.Skill })) {
 			registered = true
 		}
 	}
@@ -211,4 +213,12 @@ func (m *tuiModel) searchView() string {
 		lines = append(lines, ansi.Truncate(line, max(m.width-4, 1), "\u2026"))
 	}
 	return m.st.pane.Width(m.width).Height(h).Render(strings.Join(lines, "\n"))
+}
+
+// repoKey reduces github.com/o/r, https://github.com/o/r.git, and o/r to one comparable form.
+func repoKey(repo string) string {
+	repo = strings.ToLower(strings.TrimSpace(repo))
+	repo = strings.TrimPrefix(strings.TrimPrefix(repo, "https://"), "http://")
+	repo = strings.TrimPrefix(repo, "github.com/")
+	return strings.TrimSuffix(strings.TrimSuffix(repo, "/"), ".git")
 }

@@ -190,7 +190,7 @@ func updateDistro(id string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	held, err := mergeOverrides(d, home, repoRoot, projectRoot, "")
+	held, err := overrideView(d, home, repoRoot, projectRoot)
 	if err != nil {
 		return 0, err
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,6 +23,12 @@ func applyOverrides(d distro, home, distroRoot, projectRoot, profile string) (di
 		}
 	}
 	return d, nil
+}
+
+// overrideView merges the overrides into a copy of d, so the caller's components keep their own refs.
+func overrideView(d distro, home, distroRoot, projectRoot string) (distro, error) {
+	d.Components = maps.Clone(d.Components)
+	return mergeOverrides(d, home, distroRoot, projectRoot, "")
 }
 
 func mergeOverrides(d distro, home, distroRoot, projectRoot, profile string) (distro, error) {

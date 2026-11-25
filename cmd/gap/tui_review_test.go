@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -201,6 +203,88 @@ func TestReAddKeepsColor(t *testing.T) {
 	for _, want := range []string{"color = \"#FF79C6\"", "pin = false"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("re-add lost %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestOverrideViewKeepsCallerRefs(t *testing.T) {
+	home, project := t.TempDir(), t.TempDir()
+	write(t, filepath.Join(project, ".gap", "gap.toml"), "[components.tools]\nref = \"dev\"\npin = true\n")
+	d := distro{Components: map[string]component{"tools": {ID: "tools", Repo: "github.com/o/tools", Ref: "main"}}}
+	view, err := overrideView(d, home, t.TempDir(), project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !view.Components["tools"].Pin || view.Components["tools"].Ref != "dev" {
+		t.Fatalf("view = %+v", view.Components["tools"])
+	}
+	if d.Components["tools"].Ref != "main" || d.Components["tools"].Pin {
+		t.Fatalf("overrideView changed the caller's component: %+v", d.Components["tools"])
+	}
+}
+
+func TestVersionEditRestoresWhenGapCannotStart(t *testing.T) {
+	m, _ := reviewModel(t, []itemRow{{ID: "x", Source: "user", Scope: "global", Ref: "main"}})
+	m.handOff = nil
+	old := tuiExecutable
+	tuiExecutable = func() (string, error) { return "", os.ErrNotExist }
+	t.Cleanup(func() { tuiExecutable = old })
+	cfg := userConfigFile(m.home)
+	write(t, cfg, "[components.x]\nrepo = \"github.com/o/r\"\nref = \"main\"\n")
+	m.moveVersion("x", "main", "nope")
+	if got := readString(t, cfg); !strings.Contains(got, "ref = \"main\"") {
+		t.Fatalf("ref not restored when gap could not start:\n%s", got)
+	}
+	if !strings.Contains(m.note, "stays on main") {
+		t.Fatalf("note %q", m.note)
+	}
+}
+
+func TestHandoffRestoresBeforeEnterPrompt(t *testing.T) {
+	var order []string
+	h := &handoff{cmd: exec.Command("false"), in: strings.NewReader("\n"), out: io.Discard, err: io.Discard,
+		after: func(err error) string { order = append(order, "after"); return "n" }}
+	h.cmd.Stdout = nil
+	if err := h.Run(); err == nil {
+		t.Fatal("false exited 0")
+	}
+	if h.note != "n" || len(order) != 1 {
+		t.Fatalf("after ran %d times, note %q", len(order), h.note)
+	}
+}
+
+func TestEditProjectEnabledOverGlobalDisabled(t *testing.T) {
+	m, _ := reviewModel(t, []itemRow{{ID: "x", Source: "user", Scope: "global", Ref: "main", OffGlobal: true}})
+	typeKeys(m, "e")
+	if s := ansi.Strip(m.render()); !strings.Contains(s, "This project") {
+		t.Fatalf("form does not start on This project:\n%s", s)
+	}
+	typeKeys(m, "enter", "right", "enter", "enter", "enter", "enter")
+	got := readString(t, projectConfigFile(m.projectRoot))
+	if !strings.Contains(got, "enabled = false") {
+		t.Fatalf("turning it off in the project wrote:\n%s", got)
+	}
+}
+
+func TestSearchReopenIgnoresOldAnswers(t *testing.T) {
+	m, handed := reviewModel(t, nil)
+	m.findSkills = func(context.Context, string, int) ([]skillHit, error) { return nil, nil }
+	typeKeys(m, "/", "a")
+	old := m.search.seq
+	typeKeys(m, "esc", "/", "b")
+	m.Update(searchDoneMsg{seq: old, query: "a", hits: []skillHit{{ID: "o/r/a", Source: "o/r", Skill: "a"}}})
+	typeKeys(m, "enter")
+	if len(m.search.hits) != 0 || len(*handed) != 0 {
+		t.Fatalf("an answer from a closed search was used: hits %v handed %q", m.search.hits, *handed)
+	}
+}
+
+func TestInstalledBadgeMatchesInventoryRepo(t *testing.T) {
+	for _, repo := range []string{"o/r", "github.com/o/r", "https://github.com/O/R.git"} {
+		m, _ := reviewModel(t, []itemRow{{ID: "r", Source: "user", Repo: repo, Names: []string{"pdf"}}})
+		write(t, filepath.Join(m.home, ".agents", "skills", "pdf", "SKILL.md"), "x")
+		if got := m.installedHit(skillHit{Source: "o/r", Skill: "pdf"}); got != "global" {
+			t.Fatalf("repo %q: badge %q", repo, got)
 		}
 	}
 }
