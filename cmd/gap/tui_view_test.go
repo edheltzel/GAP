@@ -7,8 +7,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -56,6 +58,66 @@ func TestTUIRenderFitsWidth(t *testing.T) {
 		m.Update(jobsFinishedMsg{})
 		check("summary")
 		t.Logf("width %d: widest line %d", w, widest)
+	}
+}
+
+func TestTUIBatchRunsLikeAUP(t *testing.T) {
+	m := newTUIModel(t.TempDir(), t.TempDir(), t.TempDir(), darkPalette)
+	f := &fakeRunner{}
+	m.runner = f
+	now := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	m.clock = func() time.Time { return now }
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m.Update(loadedMsg{items: []itemRow{
+		{ID: "echo", Source: "distro", Color: "#FF79C6"},
+		{ID: "off", Source: "distro", Disabled: true},
+		{ID: "recall", Source: "distro"},
+	}})
+	if cmd := m.key(tea.KeyPressMsg{Code: 's', Text: "s"}); cmd == nil || len(f.started) != 0 || m.mode != modeBrowse {
+		t.Fatalf("s should hand the terminal to gap sync, got cmd=%v started=%d mode=%v", cmd != nil, len(f.started), m.mode)
+	}
+	press(m, "U")
+	if !strings.Contains(ansi.Strip(m.render()), "Update 3 items?") {
+		t.Fatalf("update-all confirm missing:\n%s", ansi.Strip(m.render()))
+	}
+	if cmd := m.key(tea.KeyPressMsg{Code: tea.KeyEnter}); cmd == nil || len(f.started) != 0 || m.pendingExec != nil {
+		t.Fatalf("confirmed U should hand the terminal to gap update, got cmd=%v started=%d", cmd != nil, len(f.started))
+	}
+	m.run([]tuiJob{
+		{label: "update echo", name: "echo", color: m.groupColor("echo"), args: []string{"update", "echo"}},
+		{label: "update recall", name: "recall", color: m.groupColor("recall"), args: []string{"update", "recall"}},
+		{label: "check all", args: []string{"check"}},
+	})
+	if c := m.jobs[0].color; c != lipgloss.Color("#FF79C6") {
+		t.Fatalf("echo color %v, want its configured #FF79C6", c)
+	}
+	if a, b := m.groupColor("recall"), m.st.pal.group("", "recall"); a != b {
+		t.Fatalf("recall color %v differs from the CLI bar's %v", a, b)
+	}
+	m.Update(jobStartedMsg{i: 0})
+	now = now.Add(3 * time.Second)
+	m.Update(jobDoneMsg{i: 0})
+	m.Update(jobStartedMsg{i: 1})
+	now = now.Add(2 * time.Second)
+	m.now = now
+	view := ansi.Strip(m.render())
+	for _, want := range []string{"\u2584\u2584\u2584\u2584\u2584\u2584\u2584", "global agent policy", "1/3  00:05", "\u2713 echo", "recall", "00:02", " 33%", "\u2501", "f follow"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("run view lacks %q:\n%s", want, view)
+		}
+	}
+	if lines := strings.Split(m.render(), "\n"); len(lines) > 30 {
+		t.Fatalf("run view is %d lines, want <= 30", len(lines))
+	}
+	m.Update(jobDoneMsg{i: 1, code: 2})
+	m.Update(jobStartedMsg{i: 2})
+	m.Update(jobDoneMsg{i: 2})
+	m.Update(jobsFinishedMsg{})
+	view = ansi.Strip(m.render())
+	for _, want := range []string{"failed (exit 2)", "2 ok, 1 failed", "100%"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("summary lacks %q:\n%s", want, view)
+		}
 	}
 }
 

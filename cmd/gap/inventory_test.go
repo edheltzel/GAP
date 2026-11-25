@@ -156,13 +156,29 @@ func TestInventoryProjectDisabledKeepsPinAndStore(t *testing.T) {
 	pin := addedUtility(t, e, addGlobalArgs(e.remote, "--id", "util"))
 	write(t, projectConfigFile(e.project), "[components.util]\nenabled = false\n")
 	r := inventoryRow(t, mustInventory(t, e), "util")
-	if !r.Inactive || r.Disabled || r.Store != storeOK || r.Commit != pin.Commit[:7] || !r.Pinned {
+	if !r.Inactive || r.Disabled || !r.Off || r.Store != storeOK || r.Commit != pin.Commit[:7] || !r.Pinned {
 		t.Fatalf("row = %+v", r)
 	}
 	m := newTUIModel(e.home, e.repo, e.project, darkPalette)
 	m.Update(loadedMsg{items: []itemRow{r}})
 	if s := screen(m); strings.Contains(s, "unpinned") || !strings.Contains(s, "off here") {
 		t.Fatalf("items view:\n%s", s)
+	}
+	m.Update(tea.WindowSizeMsg{Width: 110, Height: 34})
+	typeKeys(m, "e")
+	if s := screen(m); !strings.Contains(s, "This project") {
+		t.Fatalf("form for a project-disabled item does not start on This project:\n%s", s)
+	}
+	typeKeys(m, "enter", "down", "enter", "enter", "enter", "enter")
+	if got := readString(t, projectConfigFile(e.project)); !strings.Contains(got, "enabled = true") {
+		t.Fatalf("re-enabling in the project wrote:\n%s", got)
+	}
+	if _, err := os.Stat(userConfigFile(e.home)); err == nil && strings.Contains(readString(t, userConfigFile(e.home)), "enabled") {
+		t.Fatalf("re-enabling in the project touched the global config:\n%s", readString(t, userConfigFile(e.home)))
+	}
+	r = inventoryRow(t, mustInventory(t, e), "util")
+	if r.Off || r.Inactive {
+		t.Fatalf("after re-enabling, row = %+v", r)
 	}
 }
 

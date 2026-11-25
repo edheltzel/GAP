@@ -1,8 +1,10 @@
 package main
 
 import (
+	"hash/fnv"
 	"image/color"
 	"os"
+	"strings"
 	"sync"
 
 	"charm.land/fang/v2"
@@ -18,19 +20,55 @@ type palette struct {
 	Dim    color.Color
 	Border color.Color
 	Text   color.Color
+	Deep   color.Color
+	Glow   color.Color
+	OnAcc  color.Color
+	Groups []color.Color
 }
 
 // gapPalette picks each GAP color for the terminal background that c resolves.
 func gapPalette(c lipgloss.LightDarkFunc) palette {
-	return palette{
-		Accent: c(lipgloss.Color("#5A3FC0"), lipgloss.Color("#7D56F4")),
-		OK:     c(lipgloss.Color("#00875A"), lipgloss.Color("#04B575")),
-		Warn:   c(lipgloss.Color("#B35C00"), lipgloss.Color("#FFB86C")),
-		Bad:    c(lipgloss.Color("#D7004F"), lipgloss.Color("#FF5F87")),
-		Dim:    c(lipgloss.Color("#6C6C6C"), lipgloss.Color("#767676")),
-		Border: c(lipgloss.Color("#BCBCBC"), lipgloss.Color("#444444")),
-		Text:   c(lipgloss.Color("#1C1C1C"), lipgloss.Color("#DADADA")),
+	light := []string{"#6E4FA8", "#B4237A", "#9A6700", "#C4214A", "#00875A", "#2F5FB3", "#8A4FB8", "#00838F"}
+	dark := []string{"#B392D7", "#FF79C6", "#F2C55C", "#FF6B8B", "#5FD7A7", "#82AAFF", "#E8D6FF", "#7FDBCA"}
+	groups := make([]color.Color, len(dark))
+	for i := range dark {
+		groups[i] = c(lipgloss.Color(light[i]), lipgloss.Color(dark[i]))
 	}
+	return palette{
+		Accent: c(lipgloss.Color("#6E4FA8"), lipgloss.Color("#B392D7")),
+		OK:     c(lipgloss.Color("#00875A"), lipgloss.Color("#5FD7A7")),
+		Warn:   c(lipgloss.Color("#9A6700"), lipgloss.Color("#F2C55C")),
+		Bad:    c(lipgloss.Color("#C4214A"), lipgloss.Color("#FF6B8B")),
+		Dim:    c(lipgloss.Color("#6C6F85"), lipgloss.Color("#7A7F99")),
+		Border: c(lipgloss.Color("#BCC0CC"), lipgloss.Color("#4A4E69")),
+		Text:   c(lipgloss.Color("#1E1E2E"), lipgloss.Color("#DADAE8")),
+		Deep:   c(lipgloss.Color("#9C88C7"), lipgloss.Color("#6E5A9A")),
+		Glow:   c(lipgloss.Color("#4B2F86"), lipgloss.Color("#E8D6FF")),
+		OnAcc:  c(lipgloss.Color("#FFFFFF"), lipgloss.Color("#1E1E2E")),
+		Groups: groups,
+	}
+}
+
+// group is a component's color: its configured #RRGGBB, otherwise a palette hue picked from its id, so it matches everywhere.
+func (p palette) group(configured, id string) color.Color {
+	if validColor(configured) {
+		return lipgloss.Color(configured)
+	}
+	h := fnv.New32a()
+	h.Write([]byte(id))
+	return p.Groups[h.Sum32()%uint32(len(p.Groups))]
+}
+
+func validColor(s string) bool {
+	if len(s) != 7 || s[0] != '#' {
+		return false
+	}
+	for _, r := range s[1:] {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+			return false
+		}
+	}
+	return true
 }
 
 // gapColorScheme themes fang's help and error output with the GAP palette.

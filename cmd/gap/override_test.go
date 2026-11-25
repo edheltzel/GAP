@@ -27,6 +27,36 @@ func TestOverrideDisablesComponent(t *testing.T) {
 	}
 }
 
+func TestOverrideColor(t *testing.T) {
+	d := distro{Components: map[string]component{"echo": {ID: "echo", Color: "#111111"}}}
+	for _, c := range []struct{ value, want, err string }{
+		{`"#ff79c6"`, "#FF79C6", ""},
+		{`"ff79c6"`, "", "color must be a hex string"},
+		{`"#f7c"`, "", "color must be a hex string"},
+		{`"#GG79C6"`, "", "color must be a hex string"},
+		{`true`, "", "color must be a hex string"},
+	} {
+		home, repo := t.TempDir(), t.TempDir()
+		write(t, filepath.Join(home, ".config", "gap", "gap.toml"), "[components.echo]\ncolor = "+c.value+"\n")
+		got, err := applyOverrides(d, home, repo, repo, "")
+		if c.err != "" {
+			if err == nil || !strings.Contains(err.Error(), c.err) {
+				t.Fatalf("color = %s: err %v, want %q", c.value, err, c.err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Components["echo"].Color != c.want {
+			t.Fatalf("color = %s: got %q, want %q", c.value, got.Components["echo"].Color, c.want)
+		}
+	}
+	if c, err := parseComponent("echo", map[string]any{"repo": "github.com/a/b", "ref": "v1", "color": "#5fd7a7"}); err != nil || c.Color != "#5FD7A7" {
+		t.Fatalf("gap.toml color: %q, %v", c.Color, err)
+	}
+}
+
 func TestProjectOverrideWinsOverUser(t *testing.T) {
 	home, repo := t.TempDir(), t.TempDir()
 	d := distro{Components: map[string]component{

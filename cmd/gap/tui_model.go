@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/color"
 	"os"
+	"os/exec"
 	"slices"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -32,6 +35,8 @@ const (
 	modeAsk
 	modeSummary
 	modeDetail
+	modeForm
+	modeSearch
 )
 
 type jobState int
@@ -46,6 +51,8 @@ const (
 type jobView struct {
 	tuiJob
 	state     jobState
+	began     time.Time
+	ended     time.Time
 	lines     []string
 	code      int
 	cancelled bool
@@ -62,7 +69,7 @@ type loadedMsg struct {
 }
 
 type tuiKeys struct {
-	Up, Down, Top, Bottom, Tab, Mark, Check, CheckAll, Update, Delete, Disable, Forget, Refresh, Quit, Confirm, Open, Back key.Binding
+	Up, Down, Top, Bottom, Tab, Mark, Check, CheckAll, Update, UpdateAll, Sync, Follow, Find, Add, Edit, Editor, Delete, Disable, Forget, Refresh, Quit, Confirm, Open, Back key.Binding
 }
 
 func newTUIKeys() tuiKeys {
@@ -70,23 +77,30 @@ func newTUIKeys() tuiKeys {
 		return key.NewBinding(key.WithKeys(keys...), key.WithHelp(help, desc))
 	}
 	return tuiKeys{
-		Up:       b("k/\u2191", "up", "k", "up"),
-		Down:     b("j/\u2193", "down", "j", "down"),
-		Top:      b("g", "top", "g", "home"),
-		Bottom:   b("G", "bottom", "G", "end"),
-		Tab:      b("tab/1-3", "view", "tab", "shift+tab", "1", "2", "3"),
-		Mark:     b("space", "mark", "space"),
-		Check:    b("c", "check", "c"),
-		CheckAll: b("C", "check all", "C"),
-		Update:   b("u", "update", "u"),
-		Delete:   b("d", "remove", "d"),
-		Disable:  b("x", "disable", "x"),
-		Forget:   b("f", "forget", "f"),
-		Refresh:  b("r", "refresh", "r"),
-		Quit:     b("q", "quit", "q", "ctrl+c"),
-		Confirm:  b("enter", "confirm", "enter"),
-		Open:     b("enter", "details", "enter"),
-		Back:     b("esc", "back", "esc"),
+		Up:        b("k/\u2191", "up", "k", "up"),
+		Down:      b("j/\u2193", "down", "j", "down"),
+		Top:       b("g", "top", "g", "home"),
+		Bottom:    b("G", "bottom", "G", "end"),
+		Tab:       b("tab/1-3", "view", "tab", "shift+tab", "1", "2", "3"),
+		Mark:      b("space", "mark", "space"),
+		Check:     b("c", "check", "c"),
+		CheckAll:  b("C", "check all", "C"),
+		Update:    b("u", "update", "u"),
+		UpdateAll: b("U", "update all", "U"),
+		Sync:      b("s", "sync", "s"),
+		Follow:    b("f", "follow", "f"),
+		Find:      b("/", "find skills", "/"),
+		Add:       b("a", "add", "a"),
+		Edit:      b("e", "edit", "e"),
+		Editor:    b("E", "open gap.toml", "E"),
+		Delete:    b("d", "remove", "d"),
+		Disable:   b("x", "disable", "x"),
+		Forget:    b("f", "forget", "f"),
+		Refresh:   b("r", "refresh", "r"),
+		Quit:      b("q", "quit", "q", "ctrl+c"),
+		Confirm:   b("enter", "confirm", "enter"),
+		Open:      b("enter", "details", "enter"),
+		Back:      b("esc", "back", "esc"),
 	}
 }
 
@@ -132,6 +146,15 @@ type tuiModel struct {
 	askChoice    int
 	note         string
 	quitting     bool
+	pendingExec  []string
+	formState    *formState
+	search       *searchState
+	searchGen    int
+	handOff      func(dir string, args []string) tea.Cmd
+	findSkills   func(context.Context, string, int) ([]skillHit, error)
+	frame        int
+	start, now   time.Time
+	clock        func() time.Time
 
 	runner       jobRunner
 	children     *childGroup
@@ -146,17 +169,19 @@ type tuiModel struct {
 func newTUIModel(home, repoRoot, projectRoot string, p palette) *tuiModel {
 	m := &tuiModel{
 		home: home, homeReal: canonicalRoot(home), repoRoot: repoRoot, projectRoot: projectRoot,
-		stores:   newStoreCache(),
-		st:       newTUIStyles(p),
-		keys:     newTUIKeys(),
-		help:     help.New(),
-		vp:       viewport.New(),
-		width:    100,
-		height:   30,
-		marked:   map[string]bool{},
-		runner:   &execRunner{},
-		children: newChildGroup(),
-		send:     func(tea.Msg) {},
+		stores:     newStoreCache(),
+		st:         newTUIStyles(p),
+		keys:       newTUIKeys(),
+		help:       help.New(),
+		vp:         viewport.New(),
+		width:      100,
+		height:     30,
+		marked:     map[string]bool{},
+		runner:     &execRunner{},
+		children:   newChildGroup(),
+		send:       func(tea.Msg) {},
+		clock:      time.Now,
+		findSkills: searchSkills,
 	}
 	m.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(m.st.accent))
 	m.loadQuick = func() loadedMsg { return quickTUIData(home, repoRoot) }
@@ -279,9 +304,17 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.refreshPane()
+		m.sizeForm()
+		if m.search != nil {
+			m.search.input.SetWidth(max(m.width-8, 10))
+		}
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spin, cmd = m.spin.Update(msg)
+		if m.running() {
+			m.frame++
+			m.now = m.clock()
+		}
 		return m, cmd
 	case loadedMsg:
 		if msg.gen != m.gen {
@@ -329,7 +362,7 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshPane()
 	case jobStartedMsg:
 		if msg.i < len(m.jobs) {
-			m.jobs[msg.i].state = jobRunning
+			m.jobs[msg.i].state, m.jobs[msg.i].began = jobRunning, m.clock()
 			if m.follow {
 				m.jobSel = msg.i
 			}
@@ -343,7 +376,7 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case jobDoneMsg:
 		if msg.i < len(m.jobs) {
 			j := &m.jobs[msg.i]
-			j.code, j.cancelled = msg.code, msg.cancelled
+			j.code, j.cancelled, j.ended = msg.code, msg.cancelled, m.clock()
 			j.state = jobOK
 			if msg.code != 0 || msg.err != nil {
 				j.state = jobFailed
@@ -353,15 +386,49 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.refreshPane()
 		}
+	case handedBackMsg:
+		m.note = "Back from gap."
+		if msg.edited != "" {
+			m.note = "Saved " + m.short(msg.edited) + ". s syncs it."
+		}
+		if msg.err != nil {
+			m.note = "gap exited: " + msg.err.Error()
+		}
+		if msg.after != nil {
+			msg.note = msg.after(msg.err)
+		}
+		if msg.note != "" {
+			m.note = msg.note
+		}
+		return m, m.reload()
 	case jobsFinishedMsg:
 		m.mode, m.follow = modeSummary, false
 		if i := slices.IndexFunc(m.jobs, func(j jobView) bool { return j.state == jobFailed }); i >= 0 {
 			m.jobSel = i
 		}
+		m.now = m.clock()
 		m.refreshPane()
 		m.vp.GotoBottom()
+	case searchTickMsg, searchDoneMsg:
+		if m.mode == modeSearch {
+			return m, m.searchUpdate(msg)
+		}
+		return m, nil
 	case tea.KeyPressMsg:
+		if m.mode == modeSearch {
+			return m, m.searchUpdate(msg)
+		}
+		if m.mode == modeForm {
+			return m, m.formUpdate(msg)
+		}
 		return m, m.key(msg)
+	default:
+		switch m.mode {
+		case modeForm:
+			return m, m.formUpdate(msg)
+		case modeSearch:
+			return m, m.searchUpdate(msg)
+		}
 	}
 	return m, nil
 }
@@ -396,6 +463,10 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		_, rows, _, shown := m.confirmParts()
 		switch {
 		case key.Matches(msg, m.keys.Confirm):
+			if args := m.pendingExec; args != nil {
+				m.pendingExec, m.mode = nil, modeBrowse
+				return m.handOver(args...)
+			}
 			if len(rows) > 0 && shown == 0 {
 				m.note = "Enlarge the terminal to see what this removes."
 				return nil
@@ -404,7 +475,7 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 			m.pending = nil
 			return m.run(jobs)
 		case key.Matches(msg, m.keys.Back), key.Matches(msg, m.keys.Quit), msg.String() == "n":
-			m.mode, m.pending, m.note = modeBrowse, nil, "Nothing changed."
+			m.mode, m.pending, m.pendingExec, m.note = modeBrowse, nil, nil, "Nothing changed."
 		case key.Matches(msg, m.keys.Down):
 			m.confirmTop = max(min(m.confirmTop+1, len(rows)-shown), 0)
 		case key.Matches(msg, m.keys.Up):
@@ -434,6 +505,18 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		case key.Matches(msg, m.keys.Down):
 			m.follow, m.jobSel = false, min(m.jobSel+1, len(m.jobs)-1)
 			m.refreshPane()
+		case key.Matches(msg, m.keys.Follow):
+			m.follow = true
+			for i, j := range m.jobs {
+				if j.state == jobRunning {
+					m.jobSel = i
+				}
+			}
+			m.refreshPane()
+		default:
+			var cmd tea.Cmd
+			m.vp, cmd = m.vp.Update(msg)
+			return cmd
 		}
 		return nil
 	case modeAsk:
@@ -508,6 +591,32 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 			m.refreshPane()
 			m.vp.GotoTop()
 		}
+	case key.Matches(msg, m.keys.Sync):
+		return m.handOver("sync")
+	case m.tab == tabItems && key.Matches(msg, m.keys.UpdateAll):
+		ids := m.updateIDs()
+		if len(ids) == 0 {
+			m.note = "Nothing to update: every item is held."
+			break
+		}
+		m.confirmTitle = fmt.Sprintf("Update %s?", plural(len(ids), "item"))
+		m.confirmIDs, m.confirmTop = ids, 0
+		m.confirmNote = []string{"Runs gap update in this terminal. Items held with pin = true, here or in gap.toml, are skipped; disabled items still move. Trust prompts show as usual."}
+		m.pendingExec, m.mode = []string{"update"}, modeConfirm
+	case key.Matches(msg, m.keys.Find):
+		return m.openSearch()
+	case m.tab == tabItems && key.Matches(msg, m.keys.Add):
+		return m.addForm(m.here())
+	case key.Matches(msg, m.keys.Editor), m.tab == tabProjects && key.Matches(msg, m.keys.Edit):
+		if p, ok := m.project(); ok && m.tab == tabProjects {
+			return m.editorForm(p.Root)
+		}
+		return m.editorForm(m.here())
+	case m.tab == tabProjects && key.Matches(msg, m.keys.Add):
+		if p, ok := m.project(); ok {
+			return m.addForm(p.Root)
+		}
+		return m.addForm("")
 	case m.tab == tabItems:
 		return m.itemKey(msg)
 	case m.tab == tabProjects && key.Matches(msg, m.keys.Forget):
@@ -546,11 +655,11 @@ func (m *tuiModel) itemKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		m.move(1)
 	case key.Matches(msg, m.keys.Check):
-		return m.run([]tuiJob{{label: "check " + r.ID, args: []string{"check", "--", r.ID}}})
+		return m.run([]tuiJob{{label: "check " + r.ID, name: r.ID, color: m.groupColor(r.ID), args: []string{"check", "--", r.ID}}})
 	case key.Matches(msg, m.keys.CheckAll):
 		return m.run([]tuiJob{{label: "check all", args: []string{"check"}}})
 	case key.Matches(msg, m.keys.Update):
-		return m.run([]tuiJob{{label: "update " + r.ID, args: []string{"update", "--", r.ID}}})
+		return m.run([]tuiJob{{label: "update " + r.ID, name: r.ID, color: m.groupColor(r.ID), args: []string{"update", "--", r.ID}}})
 	case key.Matches(msg, m.keys.Delete):
 		ids := m.markedIDs()
 		if len(ids) == 0 {
@@ -562,7 +671,7 @@ func (m *tuiModel) itemKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		var jobs []tuiJob
 		for _, id := range ids {
-			jobs = append(jobs, tuiJob{label: "remove " + id, args: []string{"remove", "--", id}, removes: id})
+			jobs = append(jobs, tuiJob{label: "remove " + id, name: id, color: m.groupColor(id), args: []string{"remove", "--", id}, removes: id})
 		}
 		m.confirmTitle = "Remove 1 utility?"
 		if len(ids) > 1 {
@@ -571,6 +680,8 @@ func (m *tuiModel) itemKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.confirmIDs, m.confirmTop = ids, 0
 		m.confirmNote = []string{"Each one runs its uninstall hook and its files move to ~/.gap/backups/."}
 		m.pending, m.mode = jobs, modeConfirm
+	case key.Matches(msg, m.keys.Edit):
+		return m.editForm(r)
 	case key.Matches(msg, m.keys.Disable):
 		if r.user() {
 			m.note = r.ID + " is a utility: d removes it."
@@ -600,6 +711,70 @@ func (m *tuiModel) markedIDs() []string {
 	return ids
 }
 
+// updateIDs is what an unnamed gap update moves: every registered item that is not held.
+func (m *tuiModel) updateIDs() []string {
+	var ids []string
+	for _, r := range m.items {
+		if !r.Held {
+			ids = append(ids, r.ID)
+		}
+	}
+	return ids
+}
+
+func (m *tuiModel) groupColor(id string) color.Color {
+	for _, r := range m.items {
+		if r.ID == id {
+			return m.st.pal.group(r.Color, id)
+		}
+	}
+	return m.st.pal.Accent
+}
+
+func (m *tuiModel) handOver(args ...string) tea.Cmd { return m.handOverIn("", args...) }
+
+func (m *tuiModel) handOverIn(dir string, args ...string) tea.Cmd {
+	return m.handOverThen(dir, args, nil)
+}
+
+// handOverThen runs gap with args on the real terminal. after runs as soon as gap exits, or at once
+// when gap cannot be started, and its note is shown back in the TUI.
+func (m *tuiModel) handOverThen(dir string, args []string, after func(error) string) tea.Cmd {
+	if m.handOff != nil {
+		cmd := m.handOff(dir, args)
+		return func() tea.Msg {
+			if cmd != nil {
+				cmd()
+			}
+			msg := handedBackMsg{}
+			if after != nil {
+				msg.note = after(nil)
+			}
+			return msg
+		}
+	}
+	exe, err := tuiExecutable()
+	if err != nil {
+		m.note = "Cannot find the gap binary: " + err.Error()
+		if after != nil {
+			if note := after(err); note != "" {
+				m.note += ". " + note
+			}
+		}
+		return nil
+	}
+	cmd := exec.Command(exe, args...)
+	cmd.Dir = dir
+	h := &handoff{cmd: cmd, after: after}
+	return tea.Exec(h, func(err error) tea.Msg {
+		msg := handedBackMsg{err: err, note: h.note}
+		if !h.ran {
+			msg.after = after
+		}
+		return msg
+	})
+}
+
 func (m *tuiModel) run(jobs []tuiJob) tea.Cmd {
 	m.jobs = nil
 	for _, j := range jobs {
@@ -611,6 +786,8 @@ func (m *tuiModel) run(jobs []tuiJob) tea.Cmd {
 		}
 	}
 	m.mode, m.jobSel, m.follow, m.note = modeRun, 0, true, ""
+	m.start, m.frame = m.clock(), 0
+	m.now = m.start
 	m.refreshPane()
 	m.runner.start(jobs, m.send)
 	return nil

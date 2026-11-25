@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -21,7 +22,42 @@ func (m *tuiModel) View() tea.View {
 	return v
 }
 
-func (m *tuiModel) bodyHeight() int { return max(m.height-5, 6) }
+func (m *tuiModel) bodyHeight() int {
+	switch {
+	case m.running():
+		return max(m.height-m.headHeight()-2, 6)
+	case m.mode == modeSummary:
+		return max(m.height-m.headHeight()-2, 6)
+	}
+	return max(m.height-m.headHeight()-4, 6)
+}
+
+func (m *tuiModel) bannerOn() bool { return m.height >= 18 && m.width >= 60 }
+
+func (m *tuiModel) headHeight() int {
+	if m.bannerOn() {
+		return bannerRows
+	}
+	return 1
+}
+
+func (m *tuiModel) runListWidth() int {
+	if m.stacked() {
+		return m.width
+	}
+	w := 24
+	for _, j := range m.jobs {
+		w = max(w, lipgloss.Width(j.title())+24)
+	}
+	return min(w, max(m.width/2, 24))
+}
+
+func (j jobView) title() string {
+	if j.name != "" {
+		return j.name
+	}
+	return j.label
+}
 
 func (m *tuiModel) stacked() bool { return m.width < 70 }
 
@@ -42,7 +78,11 @@ func (m *tuiModel) refreshPane() {
 			m.vp.SetWidth(max(m.width-4, 1))
 			m.vp.SetHeight(max(inner-1, 1))
 		} else {
-			m.vp.SetWidth(max(m.width-m.listWidth()-4, 1))
+			w := m.runListWidth()
+			if m.mode == modeSummary {
+				w = m.listWidth()
+			}
+			m.vp.SetWidth(max(m.width-w-4, 1))
 			m.vp.SetHeight(inner)
 		}
 		if m.jobSel < len(m.jobs) {
@@ -96,6 +136,13 @@ func (m *tuiModel) header() string {
 	name := m.st.title.Render(" gap ")
 	title := name + " " + m.st.faint.Render("components, utilities, projects")
 	stat := fmt.Sprintf("%d items  %d marked  %d projects", len(m.items), len(m.marked), len(m.projects))
+	if m.bannerOn() {
+		art := banner(m.st.banner, m.st.faint.Render("global agent policy"), m.frame)
+		if pad := m.width - lipgloss.Width(art) - lipgloss.Width(stat); pad >= 1 {
+			return lipgloss.JoinHorizontal(lipgloss.Top, art, strings.Repeat(" ", pad), m.st.faint.Render(stat))
+		}
+		return art
+	}
 	for _, t := range []string{title, name} {
 		if pad := m.width - lipgloss.Width(t) - lipgloss.Width(stat); pad >= 1 {
 			return t + strings.Repeat(" ", pad) + m.st.faint.Render(stat)
@@ -111,7 +158,39 @@ func (m *tuiModel) panes(list, detail func() string) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, list(), detail())
 }
 
+func (m *tuiModel) runHeader() string {
+	tagline := m.st.faint.Render("global agent policy")
+	title := m.st.title.Render(" gap ") + " " + tagline
+	if m.bannerOn() {
+		title = banner(m.st.banner, tagline, m.frame)
+	}
+	stat := m.st.faint.Render(fmt.Sprintf("%d/%d  %s", m.finished(), len(m.jobs), clock(m.now.Sub(m.start))))
+	pad := max(m.width-lipgloss.Width(title)-lipgloss.Width(stat), 1)
+	return lipgloss.JoinHorizontal(lipgloss.Top, title, strings.Repeat(" ", pad), stat)
+}
+
+func clock(d time.Duration) string {
+	d = max(d.Round(time.Second), 0)
+	return fmt.Sprintf("%02d:%02d", int(d.Minutes()), int(d.Seconds())%60)
+}
+
 func (m *tuiModel) render() string {
+	m.help.SetWidth(max(m.width-1, 1))
+	fit := func(s string) string { return ansi.Truncate(s, m.width, "\u2026") }
+	if m.running() || m.mode == modeSummary {
+		body := m.summaryView()
+		switch m.mode {
+		case modeRun:
+			body = m.runView()
+		case modeAsk:
+			body = m.askView()
+		}
+		foot := m.help.ShortHelpView(m.helpKeys())
+		if m.note != "" {
+			foot = m.note + "  " + foot
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, m.runHeader(), body, m.meter(m.width), fit(" "+foot))
+	}
 	var tabs []string
 	for i, name := range tabNames {
 		label := fmt.Sprintf("%d %s", i+1, name)
@@ -123,6 +202,10 @@ func (m *tuiModel) render() string {
 	}
 	var body string
 	switch m.mode {
+	case modeForm:
+		body = m.formView()
+	case modeSearch:
+		body = m.searchView()
 	case modeConfirm:
 		body = m.confirmView()
 	case modeRun:
@@ -147,8 +230,6 @@ func (m *tuiModel) render() string {
 	if err := errors.Join(m.loadErr, m.projErr); err != nil && m.note == "" {
 		note = " " + m.st.bad.Render(firstLine(err.Error()))
 	}
-	m.help.SetWidth(max(m.width-1, 1))
-	fit := func(s string) string { return ansi.Truncate(s, m.width, "\u2026") }
 	return lipgloss.JoinVertical(lipgloss.Left, m.header(), fit(" "+strings.Join(tabs, "   ")), body, fit(note), fit(" "+m.help.ShortHelpView(m.helpKeys())))
 }
 
@@ -160,10 +241,14 @@ func firstLine(s string) string {
 func (m *tuiModel) helpKeys() []key.Binding {
 	k := m.keys
 	switch m.mode {
+	case modeSearch:
+		return []key.Binding{key.NewBinding(key.WithKeys("up"), key.WithHelp("\u2191/\u2193", "pick")), key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "install")), key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "close"))}
+	case modeForm:
+		return []key.Binding{key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab/enter", "next")), k.Back}
 	case modeConfirm:
 		return []key.Binding{k.Confirm, k.Back}
 	case modeRun:
-		return []key.Binding{k.Up, k.Down, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "stop"))}
+		return []key.Binding{k.Up, k.Down, k.Follow, key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "stop"))}
 	case modeAsk:
 		return []key.Binding{k.Up, k.Confirm, k.Back}
 	case modeSummary:
@@ -173,11 +258,11 @@ func (m *tuiModel) helpKeys() []key.Binding {
 	}
 	switch m.tab {
 	case tabItems:
-		return []key.Binding{k.Up, k.Down, k.Open, k.Mark, k.Update, k.Check, k.CheckAll, k.Delete, k.Disable, k.Refresh, k.Tab, k.Quit}
+		return []key.Binding{k.Up, k.Down, k.Open, k.Find, k.Add, k.Edit, k.Editor, k.Update, k.UpdateAll, k.Sync, k.Mark, k.Delete, k.Disable, k.Check, k.CheckAll, k.Refresh, k.Tab, k.Quit}
 	case tabProjects:
-		return []key.Binding{k.Up, k.Down, k.Open, k.Forget, k.Refresh, k.Tab, k.Quit}
+		return []key.Binding{k.Up, k.Down, k.Open, k.Add, key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "open its gap.toml")), k.Forget, k.Sync, k.Refresh, k.Tab, k.Quit}
 	}
-	return []key.Binding{k.Up, k.Down, k.Top, k.Bottom, k.Refresh, k.Tab, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Top, k.Bottom, k.Sync, k.Refresh, k.Tab, k.Quit}
 }
 
 func (m *tuiModel) window(n, sel, h int) (int, int) {
@@ -238,6 +323,8 @@ func (m *tuiModel) itemList() string {
 		id := fmt.Sprintf("%-*s", idW, ansi.Truncate(r.ID, idW, "\u2026"))
 		if r.Disabled {
 			id = m.st.faint.Render(id)
+		} else {
+			id = lipgloss.NewStyle().Foreground(m.groupColor(r.ID)).Render(id)
 		}
 		cols := fmt.Sprintf("%-7s  ", r.Scope)
 		if wide {
@@ -297,7 +384,7 @@ func (m *tuiModel) itemDetailLines() []string {
 	}
 	field := func(k, v string) string { return m.st.faint.Render(fmt.Sprintf("%-7s", k)) + " " + v }
 	lines := []string{
-		m.st.selected.Render(r.ID) + " " + m.badges(r),
+		lipgloss.NewStyle().Bold(true).Foreground(m.groupColor(r.ID)).Render(r.ID) + " " + m.badges(r),
 		field("repo", r.Repo),
 		field("ref", r.Ref),
 		field("commit", r.Commit),
@@ -509,16 +596,26 @@ func (m *tuiModel) askView() string {
 	return m.centered(lines)
 }
 
-func (m *tuiModel) jobMark(j jobView) string {
+func (m *tuiModel) jobMark(j jobView) (string, string) {
 	switch j.state {
 	case jobRunning:
-		return m.spin.View()
+		return m.spin.View(), m.st.faint.Render(clock(m.now.Sub(j.began)))
 	case jobOK:
-		return m.st.ok.Render("\u2713")
+		return m.st.ok.Render("\u2713"), m.st.faint.Render(clock(j.ended.Sub(j.began)))
 	case jobFailed:
-		return m.st.bad.Render("\u2717")
+		if j.cancelled {
+			return m.st.bad.Render("\u2717"), m.st.bad.Render("cancelled")
+		}
+		return m.st.bad.Render("\u2717"), m.st.bad.Render(fmt.Sprintf("exit %d", j.code))
 	}
-	return m.st.faint.Render("\u00b7")
+	return m.st.faint.Render("\u00b7"), ""
+}
+
+func (m *tuiModel) jobStyle(j jobView) lipgloss.Style {
+	if j.color == nil {
+		return lipgloss.NewStyle().Foreground(m.st.pal.Accent)
+	}
+	return lipgloss.NewStyle().Foreground(j.color)
 }
 
 func (m *tuiModel) finished() int {
@@ -532,27 +629,30 @@ func (m *tuiModel) finished() int {
 }
 
 func (m *tuiModel) runView() string {
+	if m.jobSel >= len(m.jobs) {
+		return m.paneOf(m.width, nil)
+	}
+	cur := m.jobs[m.jobSel]
+	title := m.jobStyle(cur).Bold(true).Render(" " + cur.label + " ")
 	if m.stacked() {
-		title := ""
-		if m.jobSel < len(m.jobs) {
-			j := m.jobs[m.jobSel]
-			title = m.stepTitle(m.width-4, m.jobMark(j)+" ", j, m.st.faint.Render(fmt.Sprintf("  %d/%d", m.jobSel+1, len(m.jobs))))
-		}
+		mark, note := m.jobMark(cur)
 		inner := max(m.width-4, 1)
-		return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(title + "\n" + m.vp.View() + "\n" + m.meter(inner))
+		head := m.stepTitle(inner, mark+" ", cur, m.st.faint.Render(fmt.Sprintf("  %d/%d ", m.jobSel+1, len(m.jobs)))+note)
+		return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(head + "\n" + m.vp.View())
 	}
-	w := m.listWidth()
+	w := m.runListWidth()
 	var lines []string
-	start, end := m.window(len(m.jobs), m.jobSel, m.bodyHeight()-3)
+	start, end := m.window(len(m.jobs), m.jobSel, m.bodyHeight()-2)
 	for i := start; i < end; i++ {
-		lines = append(lines, m.pointer(i == m.jobSel)+m.jobMark(m.jobs[i])+" "+m.jobs[i].label)
+		j := m.jobs[i]
+		mark, note := m.jobMark(j)
+		line := m.pointer(i == m.jobSel) + mark + " " + m.jobStyle(j).Render(j.title())
+		if note != "" {
+			line += strings.Repeat(" ", max(w-4-lipgloss.Width(line)-lipgloss.Width(note), 1)) + note
+		}
+		lines = append(lines, line)
 	}
-	lines = append(lines, m.meter(w-4))
 	left := m.paneOf(w, lines)
-	title := ""
-	if m.jobSel < len(m.jobs) {
-		title = m.st.selected.Render(m.jobs[m.jobSel].label)
-	}
 	right := m.st.pane.Width(m.width - w).Height(m.bodyHeight()).Render(ansi.Truncate(title, max(m.width-w-4, 1), "\u2026") + "\n" + m.vp.View())
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 }
@@ -562,9 +662,20 @@ func (m *tuiModel) meter(width int) string {
 	if len(m.jobs) > 0 {
 		pct = float64(m.finished()) / float64(len(m.jobs))
 	}
-	cells := max(width-6, 4)
+	cells := max(width-8, 4)
 	filled := int(math.Round(float64(cells) * pct))
-	return m.st.accent.Render(strings.Repeat("\u2501", filled)) + m.st.faint.Render(strings.Repeat("\u2591", cells-filled)+fmt.Sprintf(" %3.0f%%", pct*100))
+	hues := lipgloss.Blend1D(max(filled, 1), m.st.pal.Deep, m.st.pal.Accent, m.st.pal.OK)
+	var b strings.Builder
+	b.WriteString(" ")
+	for i := range cells {
+		if i < filled {
+			b.WriteString(lipgloss.NewStyle().Foreground(hues[i]).Render("\u2501"))
+			continue
+		}
+		b.WriteString(m.st.border.Render("\u2591"))
+	}
+	b.WriteString(m.st.faint.Render(fmt.Sprintf(" %3.0f%%", pct*100)))
+	return b.String()
 }
 
 func lastLine(lines []string) string {
@@ -632,7 +743,8 @@ func (m *tuiModel) summaryView() string {
 	start, end := m.window(len(m.jobs), m.jobSel, m.bodyHeight()-4)
 	for i := start; i < end; i++ {
 		j := m.jobs[i]
-		lines = append(lines, fitLabel(w-4, m.pointer(i == m.jobSel)+m.jobMark(j)+" ", j.label, "  "+m.result(j)))
+		mark, _ := m.jobMark(j)
+		lines = append(lines, fitLabel(w-4, m.pointer(i == m.jobSel)+mark+" ", m.jobStyle(j).Render(j.label), "  "+m.result(j)))
 	}
 	lines = append(lines, "", m.tally())
 	title := ""

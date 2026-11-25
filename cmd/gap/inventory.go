@@ -10,10 +10,12 @@ import (
 
 type itemRow struct {
 	ID, Source, Scope, Repo, Ref, Commit, Hooks string
-	Pinned, Held, Disabled, Inactive            bool
-	Store                                       string
+	Pinned, Held, Disabled, Inactive, Off       bool
+	OffGlobal                                   bool
+	Store, Color                                string
 	Drift, New                                  int
 	Skills                                      [][]string
+	Names                                       []string
 }
 
 func (r itemRow) user() bool { return r.Source == "user" }
@@ -66,7 +68,7 @@ func registeredRowsLock(home, repoRoot string) ([]itemRow, lockFile, error) {
 	var rows []itemRow
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
-		row := itemRow{ID: id, Source: "distro", Scope: "global", Repo: repoIdentity(c.Repo), Ref: c.Ref, Commit: "unpinned", Hooks: "run", Held: c.Pin, Disabled: c.Disabled, Store: storeUnpinned}
+		row := itemRow{ID: id, Source: "distro", Scope: "global", Repo: repoIdentity(c.Repo), Ref: c.Ref, Commit: "unpinned", Hooks: "run", Held: c.Pin, Disabled: c.Disabled, Off: c.Disabled, OffGlobal: c.Disabled, Store: storeUnpinned, Color: c.Color, Names: c.Skills}
 		if c.User {
 			row.Source, row.Hooks = "user", "ask"
 			if isTrusted(c.Repo, trust) {
@@ -127,6 +129,25 @@ func inventory(home, repoRoot, projectRoot string, stores *storeCache) ([]itemRo
 	d, lk, err := effectivePinsWith(repoRoot, home, projectRoot, "", stores)
 	if err != nil {
 		return nil, err
+	}
+	settings, err := readDistro(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	global, err := overrideView(settings, home, repoRoot, home)
+	if err != nil {
+		return nil, err
+	}
+	if settings, err = overrideView(settings, home, repoRoot, projectRoot); err != nil {
+		return nil, err
+	}
+	for i, row := range rows {
+		if c, ok := settings.Components[row.ID]; ok {
+			rows[i].Off, rows[i].Held, rows[i].Color = c.Disabled, c.Pin, c.Color
+		}
+		if c, ok := global.Components[row.ID]; ok {
+			rows[i].OffGlobal = c.Disabled
+		}
 	}
 	checks, err := readChecks(home)
 	if err != nil {

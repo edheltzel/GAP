@@ -41,6 +41,7 @@ type component struct {
 	MCP         []mcpServer
 	Store       string
 	SkillPath   string
+	Color       string
 	Agents      []string
 	Copy        bool
 	Subagents   []string
@@ -143,8 +144,23 @@ func parseComponent(id string, table map[string]any) (component, error) {
 		}
 		c.SkillPath = filepath.ToSlash(filepath.Clean(path))
 	}
+	if c.Color, err = componentColor(id, table); err != nil {
+		return component{}, err
+	}
 	sort.Strings(c.Skills)
 	return c, nil
+}
+
+func componentColor(id string, table map[string]any) (string, error) {
+	raw, set := table["color"]
+	if !set {
+		return "", nil
+	}
+	s, ok := raw.(string)
+	if !ok || !validColor(s) {
+		return "", fmt.Errorf("component %s: color must be a hex string like \"#B392D7\"", id)
+	}
+	return strings.ToUpper(s), nil
 }
 
 func applyTargets(c *component, table map[string]any) error {
@@ -997,6 +1013,7 @@ func componentEntries(home, projectRoot string, d distro, pins map[string]lockEn
 	ok := true
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
+		activeProgress.step(id, activeProgress.groupHue(c))
 		dir, err := ensureStore(home, c, pins[id])
 		if err != nil {
 			return nil, false, err
