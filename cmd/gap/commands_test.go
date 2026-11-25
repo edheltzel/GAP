@@ -353,6 +353,30 @@ func TestCrewStatusSkipsRecall(t *testing.T) {
 	}
 }
 
+func TestStatusConfigErrorSkipsRecall(t *testing.T) {
+	bin := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "called")
+	write(t, filepath.Join(bin, "recall"), "#!/bin/sh\ntouch "+marker+"\necho '{\"candidates\":[1]}'\n")
+	if err := os.Chmod(filepath.Join(bin, "recall"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	write(t, filepath.Join(home, ".config", "gap", "gap.lock"), "[components.recall\n")
+	project := t.TempDir()
+	write(t, filepath.Join(project, ".gap", "gap.toml"), "profile = \"crew\"\nslug = \"p\"\n")
+	t.Chdir(project)
+	out, _ := captureStd(t, func() {
+		if code := run([]string{"status"}); code == 0 {
+			t.Fatal("status with a malformed user lock exited 0")
+		}
+	})
+	if strings.Contains(out, "recall:") || fileExists(marker) {
+		t.Fatalf("status ran recall before it knew the profile:\n%s", out)
+	}
+}
+
 func TestSourcePrintsCheckout(t *testing.T) {
 	repo := t.TempDir()
 	sourceRootFor = repo

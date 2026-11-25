@@ -155,9 +155,10 @@ func statusCmd() *cobra.Command {
 			if errors.Is(err, errCrew) {
 				return nil
 			}
-			err = finish(err)
-			printRecallCandidates()
-			return err
+			if err == nil || errors.Is(err, errSkipped) {
+				printRecallCandidates()
+			}
+			return finish(err)
 		},
 	}
 }
