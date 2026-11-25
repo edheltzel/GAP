@@ -151,7 +151,11 @@ func statusCmd() *cobra.Command {
 		Short: "Show each component pin, store, and skill drift. Writes nothing",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := finish(statusAll())
+			err := statusAll()
+			if errors.Is(err, errCrew) {
+				return nil
+			}
+			err = finish(err)
 			printRecallCandidates()
 			return err
 		},
@@ -165,10 +169,10 @@ func printRecallCandidates() {
 	if err != nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), recallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), recallTimeout*4/5)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, recall, "promote", "--json")
-	cmd.WaitDelay = time.Second
+	cmd.WaitDelay = recallTimeout / 5
 	out, err := cmd.Output()
 	if err != nil {
 		return

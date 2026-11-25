@@ -311,21 +311,45 @@ func TestStatusPrintsRecallCandidates(t *testing.T) {
 
 func TestStatusSkipsHungRecall(t *testing.T) {
 	bin := t.TempDir()
-	write(t, filepath.Join(bin, "recall"), "#!/bin/sh\nsleep 30\n")
+	write(t, filepath.Join(bin, "recall"), "#!/bin/sh\nsleep 30\necho done\n")
 	if err := os.Chmod(filepath.Join(bin, "recall"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	old := recallTimeout
-	recallTimeout = 200 * time.Millisecond
+	recallTimeout = 500 * time.Millisecond
 	t.Cleanup(func() { recallTimeout = old })
 	began := time.Now()
 	out, _ := captureStd(t, printRecallCandidates)
-	if took := time.Since(began); took > 5*time.Second {
-		t.Fatalf("a hung recall blocked status for %v", took)
+	if took := time.Since(began); took > recallTimeout+300*time.Millisecond {
+		t.Fatalf("a hung recall whose child keeps stdout open blocked status for %v, over the %v budget", took, recallTimeout)
 	}
 	if out != "" {
 		t.Fatalf("a hung recall must print nothing, got %q", out)
+	}
+}
+
+func TestCrewStatusSkipsRecall(t *testing.T) {
+	bin := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "called")
+	write(t, filepath.Join(bin, "recall"), "#!/bin/sh\ntouch "+marker+"\necho '{\"candidates\":[1]}'\n")
+	if err := os.Chmod(filepath.Join(bin, "recall"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	project := t.TempDir()
+	write(t, filepath.Join(project, ".gap", "gap.toml"), "profile = \"crew\"\nslug = \"p\"\n")
+	t.Chdir(project)
+	out, _ := captureStd(t, func() {
+		if code := run([]string{"status"}); code != 0 {
+			t.Fatalf("crew status exit %d", code)
+		}
+	})
+	if strings.Contains(out, "recall:") || fileExists(marker) {
+		t.Fatalf("crew status ran recall:\n%s", out)
+	}
+	if !strings.Contains(out, "crew: project files only") {
+		t.Fatalf("crew status:\n%s", out)
 	}
 }
 
