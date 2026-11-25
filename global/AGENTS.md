@@ -29,7 +29,7 @@ Pi packaging, themes, and footers stay in `~/.pi/agent/AGENTS.md`. Do not paste 
 
 ## Before editing
 
-Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you touch. Closer docs win on local detail. No child weakens that. Re-read that chain in the current session. Do not rely on memory. Full habit: [dox.md](docs/agents/dox.md).
+Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you touch. Closer docs win on local detail. No child weakens that. Re-read that chain in the current session. Do not rely on memory. After a meaningful change, update the owning `AGENTS.md`. Full habit: [dox.md](docs/agents/dox.md).
 
 ## Work
 
@@ -38,6 +38,7 @@ Read the root `AGENTS.md`, then every `AGENTS.md` on the path to the files you t
 - Investigation is not permission to change code. Details: [scout.md](docs/agents/scout.md).
 - Write no code comments. Keep only those about something you cannot change, and turn a "do not remove" constraint into a check. Details: [comments.md](docs/agents/comments.md).
 - Read a folder's FOLDER.md before you edit it, and keep it matching the code after a real change. Details: [folder-docs.md](docs/agents/folder-docs.md).
+- If the project has a website, update the pages a change affects, after learning how that site builds them. Details: [website.md](docs/agents/website.md).
 - Do not invent skills, slash commands, or APIs that are not installed. Ask before a large swarm. Details: [skills-honesty.md](docs/agents/skills-honesty.md).
 - Use plain git for branches, commits, and pushes. Do parallel or isolated work in a git worktree at `.worktrees/<name>` in the main checkout, one branch per worktree, and remove it after merge. A project contract that names other version-control tooling wins. Details: [vcs-project-wins.md](docs/agents/vcs-project-wins.md).
 - Every new repo uses `master` as its default branch, never `main`. This is mandatory for every creation path: local init, `gh repo create`, the GitHub UI, or a template. For a local repo, run `git init -b master`. If GitHub created the repo with `main`, rename it to `master` before any other work. After the first push, confirm the GitHub default branch is `master`.
