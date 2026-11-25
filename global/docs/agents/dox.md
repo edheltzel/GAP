@@ -30,6 +30,8 @@ Update the closest owning AGENTS.md when a change affects:
 - user preferences about behavior, communication, process, organization, or quality
 - AGENTS.md creation, deletion, move, rename, or index contents
 
+When a change affects user-facing behavior, commands, setup, or files a website builds pages from, also run the website pass in [website.md](website.md).
+
 Update parent docs when parent-level structure, ownership, workflow, or child index changes. Update child docs when parent changes alter local rules. Remove stale or contradictory text immediately. Small edits that do not change behavior or contracts may leave docs unchanged, but the DOX pass still must happen.
 
 ## Hierarchy
@@ -72,11 +74,12 @@ When the user requests a durable behavior change, record it in the nearest ownin
 
 1. Re-check changed paths against the DOX chain
 2. Update nearest owning docs and any affected parents or children
-3. Refresh every affected Child DOX Index
-4. Remove stale or contradictory text
-5. Run existing verification when relevant
-6. Report any docs intentionally left unchanged and why
+3. If the project has a website, update the affected pages per [website.md](website.md)
+4. Refresh every affected Child DOX Index
+5. Remove stale or contradictory text
+6. Run existing verification when relevant
+7. Report any docs intentionally left unchanged and why
 
 ## Done
 
-You can name the AGENTS.md chain you followed and any doc updates you made.
+You can name the AGENTS.md chain you followed, any doc updates you made, and the website pages you updated, or say the project has no website.
