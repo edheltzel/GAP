@@ -295,13 +295,10 @@ func TestEditScopeSwitchKeepsEachFile(t *testing.T) {
 	cfg := userConfigFile(m.home)
 	write(t, cfg, "[components.x]\nrepo = \"github.com/o/r\"\nref = \"main\"\nenabled = false\n")
 	typeKeys(m, "e")
-	if !strings.Contains(ansi.Strip(m.render()), "Now on in this scope") {
-		t.Fatalf("project scope should show its own value:\n%s", ansi.Strip(m.render()))
+	if !strings.Contains(ansi.Strip(m.render()), "Now off everywhere, on in this project.") {
+		t.Fatalf("form does not say where it is on:\n%s", ansi.Strip(m.render()))
 	}
 	typeKeys(m, "up", "enter")
-	if !strings.Contains(ansi.Strip(m.render()), "Now off in this scope") {
-		t.Fatalf("switching to Everywhere did not refresh Enabled:\n%s", ansi.Strip(m.render()))
-	}
 	typeKeys(m, "enter", "enter", "enter", "enter")
 	if got := readString(t, cfg); !strings.Contains(got, "enabled = false") {
 		t.Fatalf("accepting defaults after a scope switch enabled it:\n%s", got)

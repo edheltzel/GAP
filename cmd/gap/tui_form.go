@@ -193,13 +193,8 @@ func (m *tuiModel) editForm(r itemRow) tea.Cmd {
 			Options(m.scopeOptions(project)...).Value(&scope))
 	}
 	fields = append(fields,
-		huh.NewSelect[string]().Title("Enabled").
-			DescriptionFunc(func() string { return "Now " + onIn(scope) + " in this scope." }, &scope).
-			OptionsFunc(func() []huh.Option[string] {
-				now := onIn(scope)
-				opts := []huh.Option[string]{huh.NewOption("Keep ("+now+")", ""), huh.NewOption("On", "on"), huh.NewOption("Off", "off")}
-				return opts
-			}, &scope).Value(&enabled),
+		huh.NewSelect[string]().Title("Enabled").Description(enabledNow(onIn, project != "")).
+			Options(huh.NewOption("Keep as it is", ""), huh.NewOption("On", "on"), huh.NewOption("Off", "off")).Value(&enabled),
 		huh.NewConfirm().Title("Hold updates").Description("gap update skips it unless you name it.").Affirmative("Hold").Negative("Follow").Value(&hold))
 	if r.user() {
 		fields = append(fields, huh.NewInput().Title("Version").Description("A branch, tag, or commit, the same everywhere. A new one runs gap update now and is kept only if the pin moves.").Value(&ref).
@@ -277,6 +272,14 @@ func (m *tuiModel) restoreVersion(id, old, ref string) string {
 		return "Could not put " + id + " back on " + old + ": " + err.Error()
 	}
 	return id + " stays on " + old + ": the pin did not move to " + ref + "."
+}
+
+// enabledNow says where the item is on or off today, for every scope the form can save to.
+func enabledNow(onIn func(string) string, project bool) string {
+	if !project {
+		return "Now " + onIn(scopeGlobal) + "."
+	}
+	return "Now " + onIn(scopeGlobal) + " everywhere, " + onIn(scopeProject) + " in this project."
 }
 
 func saveItem(home, path string, project bool, root, id string, set []configField) error {
