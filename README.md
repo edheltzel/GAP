@@ -77,7 +77,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap --version` | Show the CLI version; release binaries report the tagged release version |
 | `go test ./...` | Run the self-test against throwaway folders |
 
-Use `gap --help` or `gap <command> --help` for usage and flags. Help and terminal reports use GAP's light or dark palette; status, list, and search show framed tables with totals. Git ref lookups and store fetching show spinners on terminal stderr; long titles are truncated to the terminal width measured at the start of the operation, when available. Set `NO_COLOR=1` or `TERM=dumb` to suppress report colors and spinners while keeping terminal layouts. Redirected reports use plain text. Add, update, restore, pin, remove, and uninstall outcome lines also appear when redirected.
+Use `gap --help` or `gap <command> --help` for usage and flags. Help and terminal reports use GAP's light or dark palette; status, list, and search show framed tables with totals. Git ref lookups and store fetching show spinners on terminal stderr. On a terminal, `gap sync` and `gap update` pin a progress bar to the last row (percent, steps done, elapsed time, and the current group in its color) while everything else scrolls above it; it is cleared when the run ends and never drawn when output is redirected or `TERM=dumb`; long titles are truncated to the terminal width measured at the start of the operation, when available. Set `NO_COLOR=1` or `TERM=dumb` to suppress report colors and spinners while keeping terminal layouts. Redirected reports use plain text. Add, update, restore, pin, remove, and uninstall outcome lines also appear when redirected.
 
 ## Breaking changes
 
@@ -115,7 +115,13 @@ Captured from the real TUI in an isolated demo home with two local example utili
 | `enter` | Open the selected item or project full screen, scrollable; `esc` goes back |
 | `tab` / `shift+tab` or `1`-`3` | Switch views |
 | `space` | Mark a utility |
+| `/` | Search the skills.sh catalog as you type. Hits show install counts, a check for trusted sources (vercel-labs, anthropics, microsoft, google-labs-code), and where you already have them. `enter` asks Everywhere or This project, then runs `gap add <repo> --skill <name>` with `--global` or `--project`. Hits from non-GitHub sources are hidden because `gap add` cannot install them |
+| `a` | Add a utility: type the repo, an optional id, and whether it installs everywhere or only in this project. On the Projects view it adds to the selected project. It hands the terminal to `gap add`, so its trust prompt works |
+| `e` | Edit the selected item: enabled, hold updates (`pin`), version, and color, saved everywhere or for this project only. A new version moves the pin at once (`gap update` for a utility, `gap pin` for a distro component). On the Projects view, `e` opens that project's `.gap/gap.toml` |
+| `E` | Open `~/.config/gap/gap.toml` or this project's `.gap/gap.toml` in `$VISUAL` or `$EDITOR` |
 | `u` | Run `gap update <id>` on the selected item |
+| `U` | After one confirmation, hand the terminal to `gap update`, then press enter to come back |
+| `s` | Hand the terminal to `gap sync`: its group picker, progress bar, and every prompt work as on the command line. Press enter to come back |
 | `c` / `C` | Run `gap check <id>` / `gap check` |
 | `d` | Remove the marked utilities, or the selected one, after one confirmation that lists every id. Each runs `gap remove <id>`: the uninstall hook runs and files move to `~/.gap/backups/` |
 | `x` | Disable or enable a distro component after a confirmation. It writes `enabled = false` or `enabled = true` under `[components.<id>]` in `~/.config/gap/gap.toml` |
@@ -123,9 +129,11 @@ Captured from the real TUI in an isolated demo home with two local example utili
 | `r` | Refresh |
 | `q` | Quit |
 
-While a run is going, `esc` asks before cancelling. Stop interrupts the current step's whole process group, kills what is still running after 5 seconds, waits for it to end, and skips the rest. A failed step does not stop the others. The summary lists each step as ok, failed, cancelled, or not run; it opens on the first failure, `j`/`k` pick a step, and `pgup`/`pgdn` scroll that step's output. A removal confirmation too short to show one id refuses `enter`; long ids wrap and scroll.
+A run looks like AUP: the animated GAP wordmark with done/total and elapsed time, each step in its group color with a spinner, check, or cross and its time or exit code, the selected step's live output beside it, and a progress bar with the percent done under both. `j`/`k` pick a step, `f` follows the running one again. While a run is going, `esc` asks before cancelling. Stop interrupts the current step's whole process group, kills what is still running after 5 seconds, waits for it to end, and skips the rest. A failed step does not stop the others. The summary lists each step as ok, failed, cancelled, or not run; it opens on the first failure, `j`/`k` pick a step, and `pgup`/`pgdn` scroll that step's output. A removal confirmation too short to show one id refuses `enter`; long ids wrap and scroll.
 
 Actions run the `gap` binary itself with stdin closed and `NO_COLOR=1`, so they behave exactly like the CLI. Item ids follow `--`, so an id that looks like a flag is never read as one. An untrusted utility hook is skipped and exits `1`, as without a terminal.
+
+Each item shows in its group color. Set `color = "#RRGGBB"` in a component's table in `gap.toml`, or in `[components.<id>]` in `~/.config/gap/gap.toml` or a project's `.gap/gap.toml`; later files win. Without one, items take the next color from GAP's palette. Any other value is an error.
 
 Plain `gap` with no subcommand opens the TUI when stdin and stdout are terminals and `NO_COLOR` and `TERM=dumb` are unset. Otherwise it prints help and exits `2`. `gap tui` without a terminal prints `gap tui needs a terminal ...` and exits `2`.
 
@@ -306,7 +314,7 @@ files = ["*"]
 
 Sync, status, restore, and doctor read the installed distro's `gap.toml`, then `~/.config/gap/gap.toml`, then the invoking project's `.gap/gap.toml`. Later values win. `gap sync --profile <name>` applies the distro's `profiles/<name>.toml` last. A project with `profile = "crew"` also loads the crew profile on later runs.
 
-Overrides can replace an existing component's `enabled` and `ref`, or a listed skill's `load` and `when.files`. Only `~/.config/gap/gap.toml` can add a component, and `gap add` writes that entry for you; see [Add a utility](#add-a-utility). A later `enabled = true` can re-enable a component. `when.files` replaces the earlier list. For example:
+Overrides can replace an existing component's `enabled`, `pin`, `ref`, and `color`, or a listed skill's `load` and `when.files`. Only `~/.config/gap/gap.toml` can add a component, and `gap add` writes that entry for you; see [Add a utility](#add-a-utility). A later `enabled = true` can re-enable a component. `when.files` replaces the earlier list. For example:
 
 ```toml
 [components.recall]
