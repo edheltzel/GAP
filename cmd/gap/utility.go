@@ -436,6 +436,8 @@ func updateUtilities(id string) (resultErr error) {
 		}
 		return fmt.Errorf("utility %s is not added; run gap add owner/repo", id)
 	}
+	bar := startProgress("update", 2*len(ids))
+	defer bar.stop()
 	if id == "" {
 		if _, err := updateDistro(""); err != nil {
 			return err
@@ -478,6 +480,7 @@ func updateUtilities(id string) (resultErr error) {
 	baselines := map[string]string{}
 	for _, cid := range ids {
 		c := d.Components[cid]
+		bar.step("check "+cid, bar.groupHue(c))
 		url, err := cloneURL(c.Repo)
 		if err != nil {
 			return err
@@ -536,6 +539,7 @@ func updateUtilities(id string) (resultErr error) {
 			failed = true
 		}
 	}
+	bar.step("", nil)
 	if failed {
 		return errSkipped
 	}

@@ -113,6 +113,18 @@ func syncAll(opts syncOptions) error {
 		noteProject(projectRoot)
 	}
 	maps.DeleteFunc(d.Components, func(id string, _ component) bool { return !sel[id] })
+	steps := len(d.Components) + 2
+	if sel["policy"] {
+		steps++
+	}
+	if len(d.Components) > 0 {
+		steps++
+	}
+	bar := startProgress("sync", steps)
+	defer bar.stop()
+	if len(d.Components) > 0 {
+		bar.step("fetch sources", nil)
+	}
 	if err := prepareComponentSources(home, d, pins); err != nil {
 		return err
 	}
@@ -128,6 +140,7 @@ func syncAll(opts syncOptions) error {
 	out := newReport(os.Stdout)
 	skipped, ok := false, true
 	if sel["policy"] {
+		bar.step("policy", nil)
 		out.section("policy", groups[0].Summary)
 		codexWrote := false
 		for _, c := range dests {
@@ -172,6 +185,7 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	skipped = skipped || !hooksOK
+	bar.step("commands and MCP", nil)
 	ownedCommands, commandsOK, err := publishComponentCommands(repoRoot, home, d, ledger, ledgerPath)
 	if err != nil {
 		return err
@@ -182,6 +196,7 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	skipped = skipped || len(mcpFailures) > 0
+	bar.step("skills", nil)
 	if len(entries) > 0 {
 		out.section("skills", "install missing skills, then check drift")
 	}
@@ -202,6 +217,8 @@ func syncAll(opts syncOptions) error {
 	if len(entries) > 0 && skillsOK && driftOK {
 		out.result(true, "skill installation and drift review complete")
 	}
+	bar.step("", nil)
+	bar.stop()
 	if advice := empryoPinAdvice(home); advice != "" {
 		fmt.Println(advice)
 	}

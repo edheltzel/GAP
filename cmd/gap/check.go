@@ -200,8 +200,10 @@ func updateDistro(id string) (int, error) {
 	}
 	out := newReport(os.Stdout)
 	moved := 0
+	activeProgress.add(len(ids))
 	for _, cid := range ids {
 		c := d.Components[cid]
+		activeProgress.step("check "+cid, activeProgress.groupHue(c))
 		prev, pinned := lk.Components[cid]
 		tip, commits, _, err := pendingCommits(home, c, prev.Commit)
 		if err != nil {

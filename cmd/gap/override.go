@@ -121,6 +121,18 @@ func mergeOverride(d distro, path string, user bool) (distro, error) {
 				c.InProject = load == "project"
 			}
 		}
+		if raw, set := table["pin"]; set {
+			hold, ok := raw.(bool)
+			if !ok {
+				return distro{}, fmt.Errorf("%s: components.%s pin must be true or false", path, id)
+			}
+			c.Pin = hold
+		}
+		if _, set := table["color"]; set {
+			if c.Color, err = componentColor(id, table); err != nil {
+				return distro{}, fmt.Errorf("%s: %w", path, err)
+			}
+		}
 		if !user && c.User && c.ProjectOnly {
 			if raw, named := table["names"]; named {
 				names, _, err := componentSkills(map[string]any{"names": raw})

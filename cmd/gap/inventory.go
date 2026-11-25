@@ -11,9 +11,10 @@ import (
 type itemRow struct {
 	ID, Source, Scope, Repo, Ref, Commit, Hooks string
 	Pinned, Held, Disabled, Inactive            bool
-	Store                                       string
+	Store, Color                                string
 	Drift, New                                  int
 	Skills                                      [][]string
+	Names                                       []string
 }
 
 func (r itemRow) user() bool { return r.Source == "user" }
@@ -66,7 +67,7 @@ func registeredRowsLock(home, repoRoot string) ([]itemRow, lockFile, error) {
 	var rows []itemRow
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
-		row := itemRow{ID: id, Source: "distro", Scope: "global", Repo: repoIdentity(c.Repo), Ref: c.Ref, Commit: "unpinned", Hooks: "run", Held: c.Pin, Disabled: c.Disabled, Store: storeUnpinned}
+		row := itemRow{ID: id, Source: "distro", Scope: "global", Repo: repoIdentity(c.Repo), Ref: c.Ref, Commit: "unpinned", Hooks: "run", Held: c.Pin, Disabled: c.Disabled, Store: storeUnpinned, Color: c.Color, Names: c.Skills}
 		if c.User {
 			row.Source, row.Hooks = "user", "ask"
 			if isTrusted(c.Repo, trust) {
@@ -145,6 +146,7 @@ func inventory(home, repoRoot, projectRoot string, stores *storeCache) ([]itemRo
 			}
 			continue
 		}
+		rows[i].Disabled, rows[i].Held, rows[i].Color = c.Disabled, c.Pin, c.Color
 		e, pinned := lk.Components[row.ID]
 		st, err := componentStatus(home, projectRoot, row.ID, c, e, pinned, checks, stores)
 		if err != nil {
