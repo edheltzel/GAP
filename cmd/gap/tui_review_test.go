@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -259,7 +260,7 @@ func TestEditProjectEnabledOverGlobalDisabled(t *testing.T) {
 	if s := ansi.Strip(m.render()); !strings.Contains(s, "This project") {
 		t.Fatalf("form does not start on This project:\n%s", s)
 	}
-	typeKeys(m, "enter", "right", "enter", "enter", "enter", "enter")
+	typeKeys(m, "enter", "down", "down", "enter", "enter", "enter", "enter")
 	got := readString(t, projectConfigFile(m.projectRoot))
 	if !strings.Contains(got, "enabled = false") {
 		t.Fatalf("turning it off in the project wrote:\n%s", got)
@@ -286,5 +287,60 @@ func TestInstalledBadgeMatchesInventoryRepo(t *testing.T) {
 		if got := m.installedHit(skillHit{Source: "o/r", Skill: "pdf"}); got != "global" {
 			t.Fatalf("repo %q: badge %q", repo, got)
 		}
+	}
+}
+
+func TestEditScopeSwitchKeepsEachFile(t *testing.T) {
+	m, _ := reviewModel(t, []itemRow{{ID: "x", Source: "user", Scope: "global", Ref: "main", OffGlobal: true}})
+	cfg := userConfigFile(m.home)
+	write(t, cfg, "[components.x]\nrepo = \"github.com/o/r\"\nref = \"main\"\nenabled = false\n")
+	typeKeys(m, "e")
+	if !strings.Contains(ansi.Strip(m.render()), "Now on in this scope") {
+		t.Fatalf("project scope should show its own value:\n%s", ansi.Strip(m.render()))
+	}
+	typeKeys(m, "up", "enter")
+	if !strings.Contains(ansi.Strip(m.render()), "Now off in this scope") {
+		t.Fatalf("switching to Everywhere did not refresh Enabled:\n%s", ansi.Strip(m.render()))
+	}
+	typeKeys(m, "enter", "enter", "enter", "enter")
+	if got := readString(t, cfg); !strings.Contains(got, "enabled = false") {
+		t.Fatalf("accepting defaults after a scope switch enabled it:\n%s", got)
+	}
+}
+
+func TestQuickRowsCarryDisabled(t *testing.T) {
+	home := t.TempDir()
+	repo := t.TempDir()
+	write(t, filepath.Join(repo, "gap.toml"), "schema = \"2\"\n\n[components.x]\nrepo = \"github.com/o/r\"\nref = \"main\"\n")
+	write(t, userConfigFile(home), "[components.x]\nenabled = false\n")
+	write(t, filepath.Join(repo, "global", "AGENTS.md"), "x")
+	rows, _, err := registeredRowsLock(home, repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := inventoryRow(t, rows, "x")
+	if !r.Off || !r.OffGlobal {
+		t.Fatalf("quick row = %+v", r)
+	}
+}
+
+func TestVersionEditRestoresWhenTerminalHandoffAborts(t *testing.T) {
+	m, _ := reviewModel(t, []itemRow{{ID: "x", Source: "user", Scope: "global", Ref: "main"}})
+	cfg := userConfigFile(m.home)
+	write(t, cfg, "[components.x]\nrepo = \"github.com/o/r\"\nref = \"main\"\n")
+	m.handOff = nil
+	old := tuiExecutable
+	tuiExecutable = func() (string, error) { return "/bin/true", nil }
+	t.Cleanup(func() { tuiExecutable = old })
+	cmd := m.moveVersion("x", "main", "nope")
+	if cmd == nil {
+		t.Fatal("no handoff")
+	}
+	if got := readString(t, cfg); !strings.Contains(got, "ref = \"nope\"") {
+		t.Fatalf("new ref not saved before the handoff:\n%s", got)
+	}
+	m.Update(handedBackMsg{err: errors.New("release terminal: bad tty"), after: func(err error) string { return m.restoreVersion("x", "main", "nope") }})
+	if got := readString(t, cfg); !strings.Contains(got, "ref = \"main\"") {
+		t.Fatalf("aborted handoff kept the new ref:\n%s", got)
 	}
 }

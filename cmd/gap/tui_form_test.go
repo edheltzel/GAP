@@ -77,6 +77,8 @@ func typeKeys(m *tuiModel, keys ...string) {
 			msg = tea.KeyPressMsg{Code: tea.KeyEnter}
 		case "down":
 			msg = tea.KeyPressMsg{Code: tea.KeyDown}
+		case "up":
+			msg = tea.KeyPressMsg{Code: tea.KeyUp}
 		case "left":
 			msg = tea.KeyPressMsg{Code: tea.KeyLeft}
 		case "esc":
@@ -105,7 +107,7 @@ func TestTUIEditSavesToProject(t *testing.T) {
 	if m.mode != modeForm || !strings.Contains(ansi.Strip(m.render()), "Edit echo") {
 		t.Fatalf("e did not open the edit form:\n%s", ansi.Strip(m.render()))
 	}
-	typeKeys(m, "down", "enter", "left", "enter", "enter", "#ff79c6", "enter")
+	typeKeys(m, "down", "enter", "down", "down", "enter", "enter", "#ff79c6", "enter")
 	if m.mode != modeBrowse {
 		t.Fatalf("form still open:\n%s", ansi.Strip(m.render()))
 	}

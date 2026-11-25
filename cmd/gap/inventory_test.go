@@ -169,7 +169,7 @@ func TestInventoryProjectDisabledKeepsPinAndStore(t *testing.T) {
 	if s := screen(m); !strings.Contains(s, "This project") {
 		t.Fatalf("form for a project-disabled item does not start on This project:\n%s", s)
 	}
-	typeKeys(m, "enter", "left", "enter", "enter", "enter", "enter")
+	typeKeys(m, "enter", "down", "enter", "enter", "enter", "enter")
 	if got := readString(t, projectConfigFile(e.project)); !strings.Contains(got, "enabled = true") {
 		t.Fatalf("re-enabling in the project wrote:\n%s", got)
 	}

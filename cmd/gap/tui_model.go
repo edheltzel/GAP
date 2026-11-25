@@ -394,6 +394,9 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.note = "gap exited: " + msg.err.Error()
 		}
+		if msg.after != nil {
+			msg.note = msg.after(msg.err)
+		}
 		if msg.note != "" {
 			m.note = msg.note
 		}
@@ -763,7 +766,13 @@ func (m *tuiModel) handOverThen(dir string, args []string, after func(error) str
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
 	h := &handoff{cmd: cmd, after: after}
-	return tea.Exec(h, func(err error) tea.Msg { return handedBackMsg{err: err, note: h.note} })
+	return tea.Exec(h, func(err error) tea.Msg {
+		msg := handedBackMsg{err: err, note: h.note}
+		if !h.ran {
+			msg.after = after
+		}
+		return msg
+	})
 }
 
 func (m *tuiModel) run(jobs []tuiJob) tea.Cmd {

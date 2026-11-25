@@ -68,7 +68,7 @@ func registeredRowsLock(home, repoRoot string) ([]itemRow, lockFile, error) {
 	var rows []itemRow
 	for _, id := range sortedIDs(d.Components) {
 		c := d.Components[id]
-		row := itemRow{ID: id, Source: "distro", Scope: "global", Repo: repoIdentity(c.Repo), Ref: c.Ref, Commit: "unpinned", Hooks: "run", Held: c.Pin, Disabled: c.Disabled, Store: storeUnpinned, Color: c.Color, Names: c.Skills}
+		row := itemRow{ID: id, Source: "distro", Scope: "global", Repo: repoIdentity(c.Repo), Ref: c.Ref, Commit: "unpinned", Hooks: "run", Held: c.Pin, Disabled: c.Disabled, Off: c.Disabled, OffGlobal: c.Disabled, Store: storeUnpinned, Color: c.Color, Names: c.Skills}
 		if c.User {
 			row.Source, row.Hooks = "user", "ask"
 			if isTrusted(c.Repo, trust) {

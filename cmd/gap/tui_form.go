@@ -175,13 +175,17 @@ func (m *tuiModel) editForm(r itemRow) tea.Cmd {
 	if project != "" && (r.Scope == "project" || r.Off != r.OffGlobal) {
 		scope = scopeProject
 	}
-	onIn := func(scope string) bool {
+	onIn := func(scope string) string {
+		off := r.OffGlobal
 		if scope == scopeProject {
-			return !r.Off
+			off = r.Off
 		}
-		return !r.OffGlobal
+		if off {
+			return "off"
+		}
+		return "on"
 	}
-	enabled, hold, ref, hue := onIn(scope), r.Held, r.Ref, r.Color
+	enabled, hold, ref, hue := "", r.Held, r.Ref, r.Color
 	fields := []huh.Field{}
 	if project != "" {
 		fields = append(fields, huh.NewSelect[string]().Title("Save to").
@@ -189,7 +193,13 @@ func (m *tuiModel) editForm(r itemRow) tea.Cmd {
 			Options(m.scopeOptions(project)...).Value(&scope))
 	}
 	fields = append(fields,
-		huh.NewConfirm().Title("Enabled").Affirmative("On").Negative("Off").Value(&enabled),
+		huh.NewSelect[string]().Title("Enabled").
+			DescriptionFunc(func() string { return "Now " + onIn(scope) + " in this scope." }, &scope).
+			OptionsFunc(func() []huh.Option[string] {
+				now := onIn(scope)
+				opts := []huh.Option[string]{huh.NewOption("Keep ("+now+")", ""), huh.NewOption("On", "on"), huh.NewOption("Off", "off")}
+				return opts
+			}, &scope).Value(&enabled),
 		huh.NewConfirm().Title("Hold updates").Description("gap update skips it unless you name it.").Affirmative("Hold").Negative("Follow").Value(&hold))
 	if r.user() {
 		fields = append(fields, huh.NewInput().Title("Version").Description("A branch, tag, or commit, the same everywhere. A new one runs gap update now and is kept only if the pin moves.").Value(&ref).
@@ -215,8 +225,8 @@ func (m *tuiModel) editForm(r itemRow) tea.Cmd {
 			path = projectConfigFile(project)
 		}
 		var set []configField
-		if enabled != onIn(scope) {
-			set = append(set, configField{"enabled", enabled})
+		if enabled != "" && enabled != onIn(scope) {
+			set = append(set, configField{"enabled", enabled == "on"})
 		}
 		if hold != r.Held {
 			set = append(set, configField{"pin", hold})
@@ -254,16 +264,19 @@ func (m *tuiModel) moveVersion(id, old, ref string) tea.Cmd {
 		m.note = err.Error()
 		return nil
 	}
-	return m.handOverThen("", []string{"update", "--", id}, func(error) string {
-		lk, err := readLock(userConfigDir(m.home))
-		if err == nil && lk.Components[id].Ref == ref {
-			return id + " now follows " + ref + "."
-		}
-		if err := setComponentFields(path, id, []configField{{"ref", old}}); err != nil {
-			return "Could not put " + id + " back on " + old + ": " + err.Error()
-		}
-		return id + " stays on " + old + ": the pin did not move to " + ref + "."
-	})
+	return m.handOverThen("", []string{"update", "--", id}, func(error) string { return m.restoreVersion(id, old, ref) })
+}
+
+// restoreVersion keeps ref only when the user lock now pins it, and puts old back otherwise.
+func (m *tuiModel) restoreVersion(id, old, ref string) string {
+	lk, err := readLock(userConfigDir(m.home))
+	if err == nil && lk.Components[id].Ref == ref {
+		return id + " now follows " + ref + "."
+	}
+	if err := setComponentFields(userConfigFile(m.home), id, []configField{{"ref", old}}); err != nil {
+		return "Could not put " + id + " back on " + old + ": " + err.Error()
+	}
+	return id + " stays on " + old + ": the pin did not move to " + ref + "."
 }
 
 func saveItem(home, path string, project bool, root, id string, set []configField) error {

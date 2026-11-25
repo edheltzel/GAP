@@ -68,6 +68,7 @@ type handedBackMsg struct {
 	err    error
 	edited string
 	note   string
+	after  func(error) string
 }
 
 // handoff runs a gap command on the real terminal, so its picker, progress bar, and prompts work, then waits for enter.
@@ -77,6 +78,7 @@ type handoff struct {
 	out, err io.Writer
 	after    func(error) string
 	note     string
+	ran      bool
 }
 
 func (h *handoff) SetStdin(r io.Reader)  { h.in = r }
@@ -86,6 +88,7 @@ func (h *handoff) SetStderr(w io.Writer) { h.err = w }
 // Run gives the terminal to the command. ctrl+c reaches the command but not gap tui, so after
 // always runs, before the enter prompt, even when the command is interrupted.
 func (h *handoff) Run() error {
+	h.ran = true
 	h.cmd.Stdin, h.cmd.Stdout, h.cmd.Stderr = h.in, h.out, h.err
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt)
