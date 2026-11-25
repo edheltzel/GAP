@@ -697,6 +697,9 @@ func invokingProjectRoot() (string, error) {
 	return cwd, nil
 }
 
+// errCrew ends status for a crew project, which never reads machine-local tools such as Recall.
+var errCrew = errors.New("crew profile")
+
 func statusAll() error {
 	home, repoRoot, err := gapHomes()
 	if err != nil {
@@ -714,7 +717,7 @@ func statusAll() error {
 	out := newReport(os.Stdout)
 	if d.Profile == "crew" {
 		out.heading("crew: project files only")
-		return nil
+		return errCrew
 	}
 	checks, err := readChecks(home)
 	if err != nil {
