@@ -1,0 +1,224 @@
+package main
+
+import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+)
+
+func gitT(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"}, args...)...)
+	cmd.Dir = dir
+	cmd.Env = gitEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+type selfUpdateEnv struct {
+	origin, checkout, exe string
+	built                 []string
+}
+
+func newSelfUpdateEnv(t *testing.T) *selfUpdateEnv {
+	t.Helper()
+	e := &selfUpdateEnv{origin: filepath.Join(t.TempDir(), "origin"), checkout: filepath.Join(t.TempDir(), "checkout")}
+	write(t, filepath.Join(e.origin, "global", "AGENTS.md"), "v1\n")
+	gitT(t, e.origin, "init", "-q", "-b", "master")
+	gitT(t, e.origin, "add", "-A")
+	gitT(t, e.origin, "commit", "-q", "-m", "v1")
+	gitT(t, t.TempDir(), "clone", "-q", e.origin, e.checkout)
+	e.exe = filepath.Join(t.TempDir(), "gap")
+	write(t, e.exe, "old binary")
+	oldRoot, oldSelf, oldBuild, oldVersion := sourceRootFor, selfPath, buildGap, version
+	sourceRootFor = e.checkout
+	selfPath = func() (string, error) { return e.exe, nil }
+	buildGap = func(root, out string) error {
+		e.built = append(e.built, root)
+		return os.WriteFile(out, []byte("built from "+gitT(t, root, "rev-parse", "HEAD")), 0o644)
+	}
+	t.Cleanup(func() { sourceRootFor, selfPath, buildGap, version = oldRoot, oldSelf, oldBuild, oldVersion })
+	return e
+}
+
+func (e *selfUpdateEnv) advanceOrigin(t *testing.T) string {
+	t.Helper()
+	write(t, filepath.Join(e.origin, "global", "AGENTS.md"), "v2\n")
+	gitT(t, e.origin, "commit", "-q", "-am", "v2")
+	return gitT(t, e.origin, "rev-parse", "HEAD")
+}
+
+func selfUpdateRun(t *testing.T) (int, string) {
+	t.Helper()
+	code := 0
+	out, stderr := captureStd(t, func() { code = run([]string{"self-update"}) })
+	return code, out + stderr
+}
+
+func TestSelfUpdateSourceBuildFastForwardsAndRebuilds(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	head := e.advanceOrigin(t)
+	code, out := selfUpdateRun(t)
+	if code != 0 {
+		t.Fatalf("self-update exit %d:\n%s", code, out)
+	}
+	if got := gitT(t, e.checkout, "rev-parse", "HEAD"); got != head {
+		t.Fatalf("checkout at %s, want origin %s", got, head)
+	}
+	if got := readString(t, e.exe); got != "built from "+head {
+		t.Fatalf("binary %q, want a build of %s", got, head)
+	}
+	info, err := os.Stat(e.exe)
+	if err != nil || info.Mode().Perm() != 0o755 {
+		t.Fatalf("binary mode %v, err %v", info.Mode(), err)
+	}
+	if !strings.Contains(out, short(head)) || !strings.Contains(out, "gap sync") {
+		t.Fatalf("output does not name the new commit and gap sync:\n%s", out)
+	}
+	matches, _ := filepath.Glob(filepath.Join(filepath.Dir(e.exe), ".gap.self-update-*"))
+	if len(matches) != 0 {
+		t.Fatalf("temp binaries left behind: %v", matches)
+	}
+}
+
+func TestSelfUpdateRefusesBeforeChangingAnything(t *testing.T) {
+	cases := map[string]func(t *testing.T, e *selfUpdateEnv){
+		"dirty": func(t *testing.T, e *selfUpdateEnv) {
+			write(t, filepath.Join(e.checkout, "global", "AGENTS.md"), "local edit\n")
+		},
+		"branch": func(t *testing.T, e *selfUpdateEnv) {
+			gitT(t, e.checkout, "switch", "-q", "-c", "feature")
+		},
+	}
+	for name, setup := range cases {
+		t.Run(name, func(t *testing.T) {
+			e := newSelfUpdateEnv(t)
+			before := gitT(t, e.checkout, "rev-parse", "HEAD")
+			e.advanceOrigin(t)
+			setup(t, e)
+			code, out := selfUpdateRun(t)
+			if code == 0 {
+				t.Fatalf("self-update succeeded on a %s checkout:\n%s", name, out)
+			}
+			if got := gitT(t, e.checkout, "rev-parse", "HEAD"); got != before {
+				t.Fatalf("checkout moved to %s", got)
+			}
+			if got := readString(t, e.exe); got != "old binary" || len(e.built) != 0 {
+				t.Fatalf("binary changed to %q after a refusal", got)
+			}
+		})
+	}
+}
+
+func releaseServer(t *testing.T, tag string, binary []byte, corrupt bool) {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(zw)
+	for _, f := range []struct {
+		name string
+		body []byte
+	}{{"README.md", []byte("readme")}, {"gap", binary}} {
+		if err := tw.WriteHeader(&tar.Header{Name: f.name, Mode: 0o755, Size: int64(len(f.body)), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatal(err)
+		}
+		tw.Write(f.body)
+	}
+	tw.Close()
+	zw.Close()
+	archive := fmt.Sprintf("gap_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
+	sum := sha256.Sum256(buf.Bytes())
+	want := hex.EncodeToString(sum[:])
+	if corrupt {
+		want = strings.Repeat("0", 64)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/releases/latest":
+			http.Redirect(w, r, "/releases/tag/"+tag, http.StatusFound)
+		case "/releases/download/" + tag + "/checksums.txt":
+			fmt.Fprintf(w, "%s  gap_other.tar.gz\n%s  %s\n", strings.Repeat("1", 64), want, archive)
+		case "/releases/download/" + tag + "/" + archive:
+			w.Write(buf.Bytes())
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	old := releaseBase
+	releaseBase = srv.URL + "/releases"
+	t.Cleanup(func() { releaseBase = old })
+}
+
+func TestSelfUpdateReleaseBuildDownloadsVerifiedBinary(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	version = "1.0.0"
+	head := e.advanceOrigin(t)
+	releaseServer(t, "v1.1.0", []byte("release 1.1.0"), false)
+	code, out := selfUpdateRun(t)
+	if code != 0 {
+		t.Fatalf("self-update exit %d:\n%s", code, out)
+	}
+	if got := readString(t, e.exe); got != "release 1.1.0" || len(e.built) != 0 {
+		t.Fatalf("binary %q (builds %v), want the release binary", got, e.built)
+	}
+	if got := gitT(t, e.checkout, "rev-parse", "HEAD"); got != head {
+		t.Fatalf("checkout at %s, want origin %s", got, head)
+	}
+	if !strings.Contains(out, "1.0.0 -> v1.1.0") {
+		t.Fatalf("output does not name the version change:\n%s", out)
+	}
+}
+
+func TestSelfUpdateReleaseChecksumMismatchKeepsBinary(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	version = "1.0.0"
+	releaseServer(t, "v1.1.0", []byte("tampered"), true)
+	code, out := selfUpdateRun(t)
+	if code == 0 || !strings.Contains(out, "checksum mismatch") {
+		t.Fatalf("self-update exit %d on a bad checksum:\n%s", code, out)
+	}
+	if got := readString(t, e.exe); got != "old binary" {
+		t.Fatalf("binary replaced with %q despite the mismatch", got)
+	}
+}
+
+func TestSelfUpdateReleaseNeverDowngrades(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	version = "0.10.0"
+	releaseServer(t, "v0.9.4", []byte("older"), false)
+	code, out := selfUpdateRun(t)
+	if code != 0 || !strings.Contains(out, "newer than the latest release v0.9.4") {
+		t.Fatalf("self-update exit %d:\n%s", code, out)
+	}
+	if got := readString(t, e.exe); got != "old binary" {
+		t.Fatalf("binary downgraded to %q", got)
+	}
+}
+
+func TestSelfUpdateReleaseAlreadyLatest(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	version = "1.1.0"
+	releaseServer(t, "v1.1.0", []byte("same"), false)
+	code, out := selfUpdateRun(t)
+	if code != 0 || !strings.Contains(out, "already at v1.1.0") {
+		t.Fatalf("self-update exit %d:\n%s", code, out)
+	}
+	if got := readString(t, e.exe); got != "old binary" {
+		t.Fatalf("binary replaced with %q though it was current", got)
+	}
+}
