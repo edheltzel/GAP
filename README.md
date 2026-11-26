@@ -39,7 +39,7 @@ Then publish:
 gap sync
 ```
 
-`gap` runs from any folder. Source builds use their build checkout while it remains available; release builds and source builds without a usable build path use `~/.gap/checkout`. Keep the checkout: published documentation links point into it. Run the curl command again to update the installation. With Go, you can skip installing and run `go run ./cmd/gap sync` from a checkout.
+`gap` runs from any folder. Source builds use their build checkout while it remains available; release builds and source builds without a usable build path use `~/.gap/checkout`. Keep the checkout: published documentation links point into it. Run `gap self-update` to update the installation: a source build fast-forwards its build checkout and rebuilds itself with Go; a release build fast-forwards `~/.gap/checkout` and replaces itself with the latest release after checking `checksums.txt`, and never moves to an older version. It refuses a checkout that is off its primary branch or has uncommitted changes to tracked files, before changing anything. Running the curl command again also works. With Go, you can skip installing and run `go run ./cmd/gap sync` from a checkout.
 
 To uninstall, run:
 
@@ -75,6 +75,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap list` | List every component and utility with its source, repo, ref, pinned commit, and hook trust |
 | `gap tui` | Open the terminal UI to update, check, remove, and disable items and see status and projects. Plain `gap` on a terminal opens it too. See [Terminal UI](#terminal-ui) |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
+| `gap self-update` | Update the `gap` binary and its source checkout to the latest `master` (source builds) or release (release builds). Moves no component pins; run `gap sync` after it. See [Install `gap`](#install-gap) |
 | `gap --version` | Show the CLI version; release binaries report the tagged release version |
 | `go test ./...` | Run the self-test against throwaway folders |
 
