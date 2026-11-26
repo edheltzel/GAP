@@ -21,11 +21,7 @@ ref     = "main"
 repo  = "github.com/edheltzel/Do-Skills"
 ref   = "master"
 names = [
-  "ai-visibility",
   "anatomy",
-  "competitor-analysis",
-  "content-brief",
-  "content-demand-finder",
   "do-adversarial-review",
   "do-agent-docs",
   "do-architecture-md",
@@ -56,13 +52,13 @@ names = [
   "do-git-pr-review-triage",
   "do-git-safe-pr-workflow",
   "do-git-worktree",
+  "do-gtm",
   "do-handoff",
   "do-humanize",
   "do-illo",
   "do-it",
   "do-lean-ts-patterns",
   "do-macos-swift-desktop",
-  "do-marketing",
   "do-modern-css",
   "do-no-comments",
   "do-no-use-effect",
@@ -87,11 +83,15 @@ names = [
   "do-ux-flow-plan",
   "do-work",
   "do-write-typescript",
-  "keyword-research",
-  "project-setup",
-  "seo-action-plan",
-  "seo-foundations",
-  "site-audit",
+  "uber-ai-visibility",
+  "uber-competitor-analysis",
+  "uber-content-brief",
+  "uber-content-demand-finder",
+  "uber-keyword-research",
+  "uber-project-setup",
+  "uber-seo-action-plan",
+  "uber-seo-foundations",
+  "uber-site-audit",
 ]
 
 [components.do-skills.skills.do-astro]
