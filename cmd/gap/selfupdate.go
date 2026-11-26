@@ -16,11 +16,11 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/semver"
 )
 
 var (
@@ -41,15 +41,19 @@ func selfUpdateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "self-update",
 		Short: "Update the gap binary and its source checkout to the latest master or release",
-		Long: `self-update brings gap itself up to date. It never moves component pins; that is gap update.
+		Long: `self-update brings gap itself up to date. It leaves your user lock and installed
+components alone; moving component pins is gap update. Fast-forwarding the checkout can
+bring in a newer distro gap.lock, which the next gap sync installs.
 
 A source build fast-forwards its build checkout to origin's primary branch, then rebuilds
-the running binary with go build. A release build fast-forwards ~/.gap/checkout, then
-downloads the latest release for this OS and architecture, checks it against
-checksums.txt, and replaces the running binary.
+the running binary with go build from a clean copy of that commit, so local files never
+reach the binary. A release build fast-forwards ~/.gap/checkout, then downloads the
+latest release for this OS and architecture, checks it against checksums.txt, and
+replaces the running binary. It never moves to an older release.
 
 A checkout that is not on its primary branch, or has uncommitted changes to tracked
-files, is refused before anything changes. Run gap sync afterwards to publish.`,
+files, is refused before anything changes, and so is an update that would overwrite an
+ignored local file. Run gap sync afterwards to publish.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return selfUpdate(newReport(os.Stdout))
@@ -79,8 +83,8 @@ func selfUpdate(out *report) error {
 		out.done(true, fmt.Sprintf("checkout %s %s -> %s", tildePath(root), short(before), short(after)))
 	}
 	if version == "" {
-		if err := replaceExe(exe, func(tmp string) error { return buildGap(root, tmp) }); err != nil {
-			return fmt.Errorf("go build in %s: %w", root, err)
+		if err := replaceExe(exe, func(tmp string) error { return buildCommit(root, after, tmp) }); err != nil {
+			return fmt.Errorf("go build of %s: %w", short(after), err)
 		}
 		out.done(true, fmt.Sprintf("rebuilt %s from %s", tildePath(exe), short(after)))
 	} else {
@@ -88,7 +92,7 @@ func selfUpdate(out *report) error {
 		if err != nil {
 			return err
 		}
-		switch cmp := compareVersions(version, tag); {
+		switch cmp := semver.Compare(canonicalVersion(version), canonicalVersion(tag)); {
 		case cmp == 0:
 			out.done(true, fmt.Sprintf("%s already at %s", tildePath(exe), tag))
 		case cmp > 0:
@@ -128,7 +132,7 @@ func fastForward(root string) (string, string, error) {
 	if _, err := git(root, "fetch", "--quiet", "origin", primary); err != nil {
 		return "", "", err
 	}
-	if _, err := git(root, "merge", "--ff-only", "--quiet", "FETCH_HEAD"); err != nil {
+	if _, err := git(root, "merge", "--ff-only", "--no-overwrite-ignore", "--quiet", "FETCH_HEAD"); err != nil {
 		return "", "", fmt.Errorf("%s cannot fast-forward to origin/%s: %w", root, primary, err)
 	}
 	after, err := git(root, "rev-parse", "HEAD")
@@ -169,26 +173,22 @@ func latestRelease() (string, error) {
 	return path.Base(loc), nil
 }
 
-func compareVersions(a, b string) int {
-	pa, pb := versionParts(a), versionParts(b)
-	for i := range pa {
-		if pa[i] < pb[i] {
-			return -1
-		}
-		if pa[i] > pb[i] {
-			return 1
-		}
-	}
-	return 0
+func canonicalVersion(v string) string {
+	return "v" + strings.TrimPrefix(v, "v")
 }
 
-func versionParts(v string) [3]int {
-	var p [3]int
-	core, _, _ := strings.Cut(strings.TrimPrefix(v, "v"), "-")
-	for i, s := range strings.SplitN(core, ".", 3) {
-		p[i], _ = strconv.Atoi(s)
+func buildCommit(root, commit, out string) error {
+	dir, err := os.MkdirTemp("", "gap-self-update-")
+	if err != nil {
+		return err
 	}
-	return p
+	defer os.RemoveAll(dir)
+	src := filepath.Join(dir, "src")
+	if _, err := git(root, "worktree", "add", "--quiet", "--detach", src, commit); err != nil {
+		return err
+	}
+	defer git(root, "worktree", "remove", "--force", src)
+	return buildGap(src, out)
 }
 
 func releaseArchive() (string, error) {

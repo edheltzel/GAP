@@ -13,6 +13,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/spf13/cobra v1.9.1
 	go.yaml.in/yaml/v3 v3.0.6
+	golang.org/x/mod v0.43.0
 )
 
 require (
