@@ -26,9 +26,9 @@ import (
 var (
 	releaseBase = "https://github.com/edheltzel/GAP/releases"
 	selfPath    = os.Executable
-	buildGap    = func(root, out string) error {
-		cmd := exec.Command("go", "build", "-o", out, "./cmd/gap")
-		cmd.Dir = root
+	buildGap    = func(src, root, out string) error {
+		cmd := exec.Command("go", "build", "-ldflags", "-X main.sourceRootFor="+root, "-o", out, "./cmd/gap")
+		cmd.Dir = src
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
 		return cmd.Run()
@@ -188,7 +188,7 @@ func buildCommit(root, commit, out string) error {
 		return err
 	}
 	defer git(root, "worktree", "remove", "--force", src)
-	return buildGap(src, out)
+	return buildGap(src, root, out)
 }
 
 func releaseArchive() (string, error) {
