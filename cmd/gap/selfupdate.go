@@ -88,7 +88,7 @@ func selfUpdate(out *report) error {
 		return err
 	}
 	advance := func() error {
-		if err := fastForward(root, target); err != nil {
+		if err := fastForward(root, before, target); err != nil {
 			return err
 		}
 		if before == target {
@@ -161,7 +161,7 @@ func fetchPrimary(root string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	if _, err := git(root, "fetch", "--quiet", "origin", primary); err != nil {
+	if _, err := git(root, "fetch", "--quiet", "--refmap=", "origin", "refs/heads/"+primary); err != nil {
 		return "", "", err
 	}
 	target, err := git(root, "rev-parse", "FETCH_HEAD")
@@ -174,11 +174,22 @@ func fetchPrimary(root string) (string, string, error) {
 	return before, target, nil
 }
 
-func fastForward(root, target string) error {
+func fastForward(root, before, target string) error {
+	if head, err := git(root, "rev-parse", "HEAD"); err != nil || head != before {
+		return fmt.Errorf("%s moved during the update; binary unchanged, run gap self-update again", root)
+	}
 	if _, err := git(root, "merge", "--ff-only", "--no-overwrite-ignore", "--quiet", target); err != nil {
 		return fmt.Errorf("%s cannot fast-forward to %s: %w; binary unchanged", root, short(target), err)
 	}
-	return nil
+	if head, err := git(root, "rev-parse", "HEAD"); err != nil || head != target {
+		return fmt.Errorf("%s is not at %s after the fast-forward; binary unchanged", root, short(target))
+	}
+	originHead, err := git(root, "symbolic-ref", "refs/remotes/origin/HEAD")
+	if err != nil {
+		return err
+	}
+	_, err = git(root, "update-ref", originHead, target)
+	return err
 }
 
 func replaceExe(exe string, write func(tmp string) error) error {
