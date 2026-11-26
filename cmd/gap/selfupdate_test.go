@@ -47,7 +47,10 @@ func newSelfUpdateEnv(t *testing.T) *selfUpdateEnv {
 	oldRoot, oldSelf, oldBuild, oldVersion := sourceRootFor, selfPath, buildGap, version
 	sourceRootFor = e.checkout
 	selfPath = func() (string, error) { return e.exe, nil }
-	buildGap = func(root, out string) error {
+	buildGap = func(root, source, out string) error {
+		if source != e.checkout {
+			t.Errorf("binary would look for its checkout at %s, want %s", source, e.checkout)
+		}
 		e.built = append(e.built, root)
 		return os.WriteFile(out, []byte("built from "+gitT(t, root, "rev-parse", "HEAD")), 0o644)
 	}
@@ -100,7 +103,7 @@ func TestSelfUpdateBuildsOnlyTheCommit(t *testing.T) {
 	head := e.advanceOrigin(t)
 	write(t, filepath.Join(e.checkout, "cmd", "gap", "wip.go"), "package main\n")
 	var roots []string
-	buildGap = func(root, out string) error {
+	buildGap = func(root, source, out string) error {
 		roots = append(roots, root)
 		if fileExists(filepath.Join(root, "cmd", "gap", "wip.go")) {
 			t.Errorf("build root %s holds the untracked wip.go", root)
