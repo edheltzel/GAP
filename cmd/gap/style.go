@@ -227,7 +227,6 @@ func (r *report) doctorTable(rows [][]string) {
 	r.table([]string{"name", "detail"}, rows)
 }
 
-// driftTable prints one "name drift=N" line per skill, as a table on a terminal.
 func (r *report) driftTable(rows [][]string) {
 	if !r.tty {
 		for _, row := range rows {

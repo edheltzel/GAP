@@ -746,8 +746,14 @@ func statusAll() error {
 		behind = behind || row.pending > 0
 		if !out.tty {
 			out.statusLine(id, row.ref, row.commit, row.store, row.pending)
-			if len(row.skills) > 0 {
-				out.driftTable(row.skills)
+			var drifted [][]string
+			for _, s := range row.skills {
+				if s[1] != "drift=0" {
+					drifted = append(drifted, s)
+				}
+			}
+			if len(drifted) > 0 {
+				out.driftTable(drifted)
 			}
 		}
 		rows = append(rows, row)
