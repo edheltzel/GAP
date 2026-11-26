@@ -29,7 +29,8 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
-	if err := os.Setenv("PATH", withoutRecall(os.Getenv("PATH"))); err != nil {
+	shadow, err := shadowRecall()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -45,17 +46,19 @@ func TestMain(m *testing.M) {
 	if home != "" {
 		os.RemoveAll(home)
 	}
+	os.RemoveAll(shadow)
 	os.Exit(code)
 }
 
-func withoutRecall(path string) string {
-	var keep []string
-	for _, dir := range filepath.SplitList(path) {
-		if _, err := os.Stat(filepath.Join(dir, "recall")); err != nil {
-			keep = append(keep, dir)
-		}
+func shadowRecall() (string, error) {
+	dir, err := os.MkdirTemp("", "gap-test-recall-")
+	if err != nil {
+		return "", err
 	}
-	return strings.Join(keep, string(os.PathListSeparator))
+	if err := os.WriteFile(filepath.Join(dir, "recall"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		return "", err
+	}
+	return dir, os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
 func isolateHome() (string, error) {

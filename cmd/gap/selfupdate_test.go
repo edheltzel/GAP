@@ -95,6 +95,32 @@ func TestSelfUpdateSourceBuildFastForwardsAndRebuilds(t *testing.T) {
 	}
 }
 
+func TestSelfUpdateBuildsOnlyTheCommit(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	head := e.advanceOrigin(t)
+	write(t, filepath.Join(e.checkout, "cmd", "gap", "wip.go"), "package main\n")
+	var roots []string
+	buildGap = func(root, out string) error {
+		roots = append(roots, root)
+		if fileExists(filepath.Join(root, "cmd", "gap", "wip.go")) {
+			t.Errorf("build root %s holds the untracked wip.go", root)
+		}
+		return os.WriteFile(out, []byte("built from "+gitT(t, root, "rev-parse", "HEAD")), 0o644)
+	}
+	if code, out := selfUpdateRun(t); code != 0 {
+		t.Fatalf("self-update exit %d:\n%s", code, out)
+	}
+	if len(roots) != 1 || roots[0] == e.checkout {
+		t.Fatalf("built in %v, want one clean copy outside %s", roots, e.checkout)
+	}
+	if got := readString(t, e.exe); got != "built from "+head {
+		t.Fatalf("binary %q, want a build of %s", got, head)
+	}
+	if fileExists(roots[0]) || strings.Contains(gitT(t, e.checkout, "worktree", "list"), roots[0]) {
+		t.Fatalf("build copy %s left behind", roots[0])
+	}
+}
+
 func TestSelfUpdateRefusesBeforeChangingAnything(t *testing.T) {
 	cases := map[string]func(t *testing.T, e *selfUpdateEnv){
 		"dirty": func(t *testing.T, e *selfUpdateEnv) {
@@ -102,6 +128,18 @@ func TestSelfUpdateRefusesBeforeChangingAnything(t *testing.T) {
 		},
 		"branch": func(t *testing.T, e *selfUpdateEnv) {
 			gitT(t, e.checkout, "switch", "-q", "-c", "feature")
+		},
+		"ignored": func(t *testing.T, e *selfUpdateEnv) {
+			write(t, filepath.Join(e.origin, "notes.md"), "upstream\n")
+			gitT(t, e.origin, "add", "notes.md")
+			gitT(t, e.origin, "commit", "-q", "-m", "track notes")
+			write(t, filepath.Join(e.checkout, ".git", "info", "exclude"), "notes.md\n")
+			write(t, filepath.Join(e.checkout, "notes.md"), "mine\n")
+			t.Cleanup(func() {
+				if got := readString(t, filepath.Join(e.checkout, "notes.md")); got != "mine\n" {
+					t.Errorf("ignored notes.md overwritten with %q", got)
+				}
+			})
 		},
 	}
 	for name, setup := range cases {
@@ -207,6 +245,18 @@ func TestSelfUpdateReleaseNeverDowngrades(t *testing.T) {
 	}
 	if got := readString(t, e.exe); got != "old binary" {
 		t.Fatalf("binary downgraded to %q", got)
+	}
+}
+
+func TestSelfUpdateReleasePromotesCandidate(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	version = "4.1.0-rc.1"
+	releaseServer(t, "v4.1.0", []byte("final"), false)
+	if code, out := selfUpdateRun(t); code != 0 || !strings.Contains(out, "4.1.0-rc.1 -> v4.1.0") {
+		t.Fatalf("self-update exit %d:\n%s", code, out)
+	}
+	if got := readString(t, e.exe); got != "final" {
+		t.Fatalf("binary %q, want the final release", got)
 	}
 }
 

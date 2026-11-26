@@ -75,7 +75,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap list` | List every component and utility with its source, repo, ref, pinned commit, and hook trust |
 | `gap tui` | Open the terminal UI to update, check, remove, and disable items and see status and projects. Plain `gap` on a terminal opens it too. See [Terminal UI](#terminal-ui) |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
-| `gap self-update` | Update the `gap` binary and its source checkout to the latest `master` (source builds) or release (release builds). Moves no component pins; run `gap sync` after it. See [Install `gap`](#install-gap) |
+| `gap self-update` | Update the `gap` binary and its source checkout to the latest `master` (source builds) or release (release builds). Leaves your user lock and installed components alone, but a fast-forward can bring in a newer distro `gap.lock` that the next `gap sync` installs. See [Install `gap`](#install-gap) |
 | `gap --version` | Show the CLI version; release binaries report the tagged release version |
 | `go test ./...` | Run the self-test against throwaway folders |
 
