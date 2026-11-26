@@ -157,8 +157,40 @@ func TestSelfUpdateBuildFailureKeepsCheckout(t *testing.T) {
 	if got := gitT(t, e.checkout, "rev-parse", "HEAD"); got != before {
 		t.Fatalf("checkout advanced to %s although the build failed", got)
 	}
+	if got := gitT(t, e.checkout, "rev-parse", "origin/master"); got != before {
+		t.Fatalf("origin/master advanced to %s although the build failed; gap sync would refuse the checkout", got)
+	}
 	if got := readString(t, e.exe); got != "old binary" {
 		t.Fatalf("binary replaced with %q", got)
+	}
+}
+
+func TestSelfUpdateCheckoutMovedDuringBuildKeepsBinary(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	target := e.advanceOrigin(t)
+	write(t, filepath.Join(e.origin, "global", "AGENTS.md"), "v3\n")
+	gitT(t, e.origin, "commit", "-q", "-am", "v3")
+	newer := gitT(t, e.origin, "rev-parse", "HEAD")
+	build := buildGap
+	gitT(t, e.origin, "update-ref", "refs/heads/master", target)
+	pulled := false
+	buildGap = func(src, root, out string) error {
+		if !pulled {
+			gitT(t, e.origin, "update-ref", "refs/heads/master", newer)
+			gitT(t, e.checkout, "pull", "-q", "--ff-only")
+			pulled = true
+		}
+		return build(src, root, out)
+	}
+	code, out := selfUpdateRun(t)
+	if code == 0 || !strings.Contains(out, "moved during the update") {
+		t.Fatalf("self-update exit %d after the checkout moved mid-build:\n%s", code, out)
+	}
+	if got := gitT(t, e.checkout, "rev-parse", "HEAD"); got != newer {
+		t.Fatalf("checkout at %s, want the pulled %s left alone", got, newer)
+	}
+	if got := readString(t, e.exe); got != "old binary" {
+		t.Fatalf("binary replaced with %q from a stale commit", got)
 	}
 }
 
