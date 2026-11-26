@@ -41,7 +41,7 @@ func TestInventoryMatchesStatus(t *testing.T) {
 		}
 		status, _ := captureStd(t, func() { _ = statusAll() })
 		want := fmt.Sprintf("util ref=%s commit=%s store=%s", r.Ref, r.Commit, r.Store)
-		if !strings.Contains(status, want) || !strings.Contains(status, fmt.Sprintf("drift=%d", wantDrift)) {
+		if !strings.Contains(status, want) || strings.Contains(status, "util-skill drift=") != (wantDrift > 0) || wantDrift > 0 && !strings.Contains(status, fmt.Sprintf("util-skill drift=%d", wantDrift)) {
 			t.Fatalf("status does not match inventory %q:\n%s", want, status)
 		}
 		list, _ := captureStd(t, func() { _ = listUtilities() })

@@ -122,7 +122,7 @@ func TestStatusGroupsComponentSkills(t *testing.T) {
 			t.Errorf("status with one missing project copy exit=%d, want 1", code)
 		}
 	})
-	want := fmt.Sprintf("alpha ref=master commit=%s store=ok\n  do-todo drift=0\nbeta ref=master commit=%s store=ok\n  do-todo drift=1\nzeta ref=master commit=%s store=ok\n", commit[:7], commit[:7], commit[:7])
+	want := fmt.Sprintf("alpha ref=master commit=%s store=ok\nbeta ref=master commit=%s store=ok\n  do-todo drift=1\nzeta ref=master commit=%s store=ok\n", commit[:7], commit[:7], commit[:7])
 	if out != want || stderr != "" {
 		t.Fatalf("skills must follow their component headers:\ngot %q\nwant %q\nstderr %s", out, want, stderr)
 	}
