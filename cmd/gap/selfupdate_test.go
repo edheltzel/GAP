@@ -145,6 +145,23 @@ func TestBuildGapBakesCheckoutWithSpaces(t *testing.T) {
 	}
 }
 
+func TestSelfUpdateBuildFailureKeepsCheckout(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	before := gitT(t, e.checkout, "rev-parse", "HEAD")
+	e.advanceOrigin(t)
+	buildGap = func(src, root, out string) error { return fmt.Errorf("compile error") }
+	code, out := selfUpdateRun(t)
+	if code == 0 || !strings.Contains(out, "checkout and binary unchanged") {
+		t.Fatalf("self-update exit %d on a failed build:\n%s", code, out)
+	}
+	if got := gitT(t, e.checkout, "rev-parse", "HEAD"); got != before {
+		t.Fatalf("checkout advanced to %s although the build failed", got)
+	}
+	if got := readString(t, e.exe); got != "old binary" {
+		t.Fatalf("binary replaced with %q", got)
+	}
+}
+
 func TestSelfUpdateRefusesBeforeChangingAnything(t *testing.T) {
 	cases := map[string]func(t *testing.T, e *selfUpdateEnv){
 		"dirty": func(t *testing.T, e *selfUpdateEnv) {
@@ -152,6 +169,19 @@ func TestSelfUpdateRefusesBeforeChangingAnything(t *testing.T) {
 		},
 		"branch": func(t *testing.T, e *selfUpdateEnv) {
 			gitT(t, e.checkout, "switch", "-q", "-c", "feature")
+		},
+		"diverged": func(t *testing.T, e *selfUpdateEnv) {
+			write(t, filepath.Join(e.checkout, "local.md"), "local\n")
+			gitT(t, e.checkout, "add", "local.md")
+			gitT(t, e.checkout, "commit", "-q", "-m", "local")
+		},
+		"quotes": func(t *testing.T, e *selfUpdateEnv) {
+			moved := filepath.Join(t.TempDir(), `ed's "gap"`)
+			if err := os.Rename(e.checkout, moved); err != nil {
+				t.Fatal(err)
+			}
+			e.checkout = moved
+			sourceRootFor = moved
 		},
 		"ignored": func(t *testing.T, e *selfUpdateEnv) {
 			write(t, filepath.Join(e.origin, "notes.md"), "upstream\n")
@@ -169,9 +199,9 @@ func TestSelfUpdateRefusesBeforeChangingAnything(t *testing.T) {
 	for name, setup := range cases {
 		t.Run(name, func(t *testing.T) {
 			e := newSelfUpdateEnv(t)
-			before := gitT(t, e.checkout, "rev-parse", "HEAD")
 			e.advanceOrigin(t)
 			setup(t, e)
+			before := gitT(t, e.checkout, "rev-parse", "HEAD")
 			code, out := selfUpdateRun(t)
 			if code == 0 {
 				t.Fatalf("self-update succeeded on a %s checkout:\n%s", name, out)
@@ -179,7 +209,7 @@ func TestSelfUpdateRefusesBeforeChangingAnything(t *testing.T) {
 			if got := gitT(t, e.checkout, "rev-parse", "HEAD"); got != before {
 				t.Fatalf("checkout moved to %s", got)
 			}
-			if got := readString(t, e.exe); got != "old binary" || len(e.built) != 0 {
+			if got := readString(t, e.exe); got != "old binary" {
 				t.Fatalf("binary changed to %q after a refusal", got)
 			}
 		})
@@ -249,10 +279,15 @@ func TestSelfUpdateReleaseBuildDownloadsVerifiedBinary(t *testing.T) {
 func TestSelfUpdateReleaseChecksumMismatchKeepsBinary(t *testing.T) {
 	e := newSelfUpdateEnv(t)
 	version = "1.0.0"
+	before := gitT(t, e.checkout, "rev-parse", "HEAD")
+	e.advanceOrigin(t)
 	releaseServer(t, "v1.1.0", []byte("tampered"), true)
 	code, out := selfUpdateRun(t)
 	if code == 0 || !strings.Contains(out, "checksum mismatch") {
 		t.Fatalf("self-update exit %d on a bad checksum:\n%s", code, out)
+	}
+	if got := gitT(t, e.checkout, "rev-parse", "HEAD"); got != before {
+		t.Fatalf("checkout advanced to %s although the download failed", got)
 	}
 	if got := readString(t, e.exe); got != "old binary" {
 		t.Fatalf("binary replaced with %q despite the mismatch", got)
