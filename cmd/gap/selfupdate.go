@@ -27,7 +27,11 @@ var (
 	releaseBase = "https://github.com/edheltzel/GAP/releases"
 	selfPath    = os.Executable
 	buildGap    = func(src, root, out string) error {
-		cmd := exec.Command("go", "build", "-ldflags", "-X "+ldflagQuote("main.sourceRootFor="+root), "-o", out, "./cmd/gap")
+		flag, err := ldflagQuote(root)
+		if err != nil {
+			return err
+		}
+		cmd := exec.Command("go", "build", "-ldflags", "-X "+flag, "-o", out, "./cmd/gap")
 		cmd.Dir = src
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
@@ -45,11 +49,12 @@ func selfUpdateCmd() *cobra.Command {
 components alone; moving component pins is gap update. Fast-forwarding the checkout can
 bring in a newer distro gap.lock, which the next gap sync installs.
 
-A source build fast-forwards its build checkout to origin's primary branch, then rebuilds
-the running binary with go build from a clean copy of that commit, so local files never
-reach the binary. A release build fast-forwards ~/.gap/checkout, then downloads the
-latest release for this OS and architecture, checks it against checksums.txt, and
-replaces the running binary. It never moves to an older release.
+A source build fetches origin's primary branch into its build checkout, builds that
+commit with go build from a clean copy, so local files never reach the binary, then
+fast-forwards the checkout and replaces the running binary. A release build fetches
+~/.gap/checkout, downloads the latest release for this OS and architecture, checks it
+against checksums.txt, then fast-forwards the checkout and replaces the running binary.
+It never moves to an older release. A failed build or download leaves both alone.
 
 A checkout that is not on its primary branch, or has uncommitted changes to tracked
 files, is refused before anything changes, and so is an update that would overwrite an
@@ -73,20 +78,36 @@ func selfUpdate(out *report) error {
 	if err != nil {
 		return err
 	}
-	before, after, err := fastForward(root)
+	if version == "" {
+		if _, err := ldflagQuote(root); err != nil {
+			return err
+		}
+	}
+	before, target, err := fetchPrimary(root)
 	if err != nil {
 		return err
 	}
-	if before == after {
-		out.done(true, fmt.Sprintf("checkout %s already at %s", tildePath(root), short(after)))
-	} else {
-		out.done(true, fmt.Sprintf("checkout %s %s -> %s", tildePath(root), short(before), short(after)))
+	advance := func() error {
+		if err := fastForward(root, target); err != nil {
+			return err
+		}
+		if before == target {
+			out.done(true, fmt.Sprintf("checkout %s already at %s", tildePath(root), short(target)))
+		} else {
+			out.done(true, fmt.Sprintf("checkout %s %s -> %s", tildePath(root), short(before), short(target)))
+		}
+		return nil
 	}
 	if version == "" {
-		if err := replaceExe(exe, func(tmp string) error { return buildCommit(root, after, tmp) }); err != nil {
-			return fmt.Errorf("go build of %s: %w", short(after), err)
+		if err := replaceExe(exe, func(tmp string) error {
+			if err := buildCommit(root, target, tmp); err != nil {
+				return fmt.Errorf("go build of %s: %w; checkout and binary unchanged", short(target), err)
+			}
+			return advance()
+		}); err != nil {
+			return err
 		}
-		out.done(true, fmt.Sprintf("rebuilt %s from %s", tildePath(exe), short(after)))
+		out.done(true, fmt.Sprintf("rebuilt %s from %s", tildePath(exe), short(target)))
 	} else {
 		tag, err := latestRelease()
 		if err != nil {
@@ -94,11 +115,22 @@ func selfUpdate(out *report) error {
 		}
 		switch cmp := semver.Compare(canonicalVersion(version), canonicalVersion(tag)); {
 		case cmp == 0:
+			if err := advance(); err != nil {
+				return err
+			}
 			out.done(true, fmt.Sprintf("%s already at %s", tildePath(exe), tag))
 		case cmp > 0:
+			if err := advance(); err != nil {
+				return err
+			}
 			out.done(true, fmt.Sprintf("%s %s is newer than the latest release %s; kept", tildePath(exe), version, tag))
 		default:
-			if err := replaceExe(exe, func(tmp string) error { return downloadRelease(tag, tmp) }); err != nil {
+			if err := replaceExe(exe, func(tmp string) error {
+				if err := downloadRelease(tag, tmp); err != nil {
+					return err
+				}
+				return advance()
+			}); err != nil {
 				return err
 			}
 			out.done(true, fmt.Sprintf("%s %s -> %s", tildePath(exe), version, tag))
@@ -108,7 +140,7 @@ func selfUpdate(out *report) error {
 	return nil
 }
 
-func fastForward(root string) (string, string, error) {
+func fetchPrimary(root string) (string, string, error) {
 	originHead, err := git(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
 	if err != nil {
 		return "", "", fmt.Errorf("%s: origin/HEAD is not set; run git -C %s remote set-head origin --auto", root, root)
@@ -132,11 +164,21 @@ func fastForward(root string) (string, string, error) {
 	if _, err := git(root, "fetch", "--quiet", "origin", primary); err != nil {
 		return "", "", err
 	}
-	if _, err := git(root, "merge", "--ff-only", "--no-overwrite-ignore", "--quiet", "FETCH_HEAD"); err != nil {
-		return "", "", fmt.Errorf("%s cannot fast-forward to origin/%s: %w", root, primary, err)
+	target, err := git(root, "rev-parse", "FETCH_HEAD")
+	if err != nil {
+		return "", "", err
 	}
-	after, err := git(root, "rev-parse", "HEAD")
-	return before, after, err
+	if _, err := git(root, "merge-base", "--is-ancestor", before, target); err != nil {
+		return "", "", fmt.Errorf("%s has commits that are not on origin/%s; push or move them, then run gap self-update again", root, primary)
+	}
+	return before, target, nil
+}
+
+func fastForward(root, target string) error {
+	if _, err := git(root, "merge", "--ff-only", "--no-overwrite-ignore", "--quiet", target); err != nil {
+		return fmt.Errorf("%s cannot fast-forward to %s: %w; binary unchanged", root, short(target), err)
+	}
+	return nil
 }
 
 func replaceExe(exe string, write func(tmp string) error) error {
@@ -173,11 +215,15 @@ func latestRelease() (string, error) {
 	return path.Base(loc), nil
 }
 
-func ldflagQuote(s string) string {
-	if strings.Contains(s, "'") {
-		return `"` + s + `"`
+func ldflagQuote(root string) (string, error) {
+	s := "main.sourceRootFor=" + root
+	switch {
+	case !strings.Contains(s, "'"):
+		return "'" + s + "'", nil
+	case !strings.Contains(s, `"`):
+		return `"` + s + `"`, nil
 	}
-	return "'" + s + "'"
+	return "", fmt.Errorf("%s holds both ' and \"; go build -ldflags cannot pass that path, so move the checkout and reinstall: %s", root, installHint)
 }
 
 func canonicalVersion(v string) string {
