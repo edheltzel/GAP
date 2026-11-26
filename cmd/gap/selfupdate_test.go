@@ -124,6 +124,27 @@ func TestSelfUpdateBuildsOnlyTheCommit(t *testing.T) {
 	}
 }
 
+func TestBuildGapBakesCheckoutWithSpaces(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds the real binary")
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Dir(filepath.Dir(wd))
+	for _, root := range []string{filepath.Join(t.TempDir(), "gap checkout"), filepath.Join(t.TempDir(), "ed's gap")} {
+		bin := filepath.Join(t.TempDir(), "gap")
+		if err := buildGap(src, root, bin); err != nil {
+			t.Fatalf("build for %q: %v", root, err)
+		}
+		out, err := exec.Command(bin, "source").Output()
+		if err != nil || strings.TrimSpace(string(out)) != root {
+			t.Fatalf("gap source = %q (%v), want %q", out, err, root)
+		}
+	}
+}
+
 func TestSelfUpdateRefusesBeforeChangingAnything(t *testing.T) {
 	cases := map[string]func(t *testing.T, e *selfUpdateEnv){
 		"dirty": func(t *testing.T, e *selfUpdateEnv) {
