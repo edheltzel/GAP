@@ -194,6 +194,34 @@ func TestSelfUpdateCheckoutMovedDuringBuildKeepsBinary(t *testing.T) {
 	}
 }
 
+func TestSelfUpdateKeepsNewerTrackingRef(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	target := e.advanceOrigin(t)
+	write(t, filepath.Join(e.origin, "global", "AGENTS.md"), "v3\n")
+	gitT(t, e.origin, "commit", "-q", "-am", "v3")
+	newer := gitT(t, e.origin, "rev-parse", "HEAD")
+	gitT(t, e.origin, "update-ref", "refs/heads/master", target)
+	build := buildGap
+	fetched := false
+	buildGap = func(src, root, out string) error {
+		if !fetched {
+			gitT(t, e.origin, "update-ref", "refs/heads/master", newer)
+			gitT(t, e.checkout, "fetch", "-q", "origin")
+			fetched = true
+		}
+		return build(src, root, out)
+	}
+	if code, out := selfUpdateRun(t); code != 0 {
+		t.Fatalf("self-update exit %d:\n%s", code, out)
+	}
+	if got := gitT(t, e.checkout, "rev-parse", "HEAD"); got != target {
+		t.Fatalf("checkout at %s, want %s", got, target)
+	}
+	if got := gitT(t, e.checkout, "rev-parse", "origin/master"); got != newer {
+		t.Fatalf("origin/master rewound to %s, want the newer fetch %s kept", got, newer)
+	}
+}
+
 func TestSelfUpdateRefusesBeforeChangingAnything(t *testing.T) {
 	cases := map[string]func(t *testing.T, e *selfUpdateEnv){
 		"dirty": func(t *testing.T, e *selfUpdateEnv) {

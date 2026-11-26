@@ -83,12 +83,12 @@ func selfUpdate(out *report) error {
 			return err
 		}
 	}
-	before, target, err := fetchPrimary(root)
+	before, target, tracked, err := fetchPrimary(root)
 	if err != nil {
 		return err
 	}
 	advance := func() error {
-		if err := fastForward(root, before, target); err != nil {
+		if err := fastForward(root, before, target, tracked); err != nil {
 			return err
 		}
 		if before == target {
@@ -140,41 +140,40 @@ func selfUpdate(out *report) error {
 	return nil
 }
 
-func fetchPrimary(root string) (string, string, error) {
+func fetchPrimary(root string) (before, target, tracked string, err error) {
 	originHead, err := git(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
 	if err != nil {
-		return "", "", fmt.Errorf("%s: origin/HEAD is not set; run git -C %s remote set-head origin --auto", root, root)
+		return "", "", "", fmt.Errorf("%s: origin/HEAD is not set; run git -C %s remote set-head origin --auto", root, root)
 	}
 	primary := strings.TrimPrefix(originHead, "origin/")
 	branch, _ := git(root, "symbolic-ref", "--quiet", "--short", "HEAD")
 	if branch != primary {
-		return "", "", fmt.Errorf("%s is on %q, not %s; switch it to %s, then run gap self-update again", root, branch, primary, primary)
+		return "", "", "", fmt.Errorf("%s is on %q, not %s; switch it to %s, then run gap self-update again", root, branch, primary, primary)
 	}
 	dirty, err := git(root, "status", "--porcelain", "--untracked-files=no")
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if dirty != "" {
-		return "", "", fmt.Errorf("%s has uncommitted changes; commit or move them, then run gap self-update again", root)
+		return "", "", "", fmt.Errorf("%s has uncommitted changes; commit or move them, then run gap self-update again", root)
 	}
-	before, err := git(root, "rev-parse", "HEAD")
-	if err != nil {
-		return "", "", err
+	if before, err = git(root, "rev-parse", "HEAD"); err != nil {
+		return "", "", "", err
 	}
+	tracked, _ = git(root, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+primary)
 	if _, err := git(root, "fetch", "--quiet", "--refmap=", "origin", "refs/heads/"+primary); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	target, err := git(root, "rev-parse", "FETCH_HEAD")
-	if err != nil {
-		return "", "", err
+	if target, err = git(root, "rev-parse", "FETCH_HEAD"); err != nil {
+		return "", "", "", err
 	}
 	if _, err := git(root, "merge-base", "--is-ancestor", before, target); err != nil {
-		return "", "", fmt.Errorf("%s has commits that are not on origin/%s; push or move them, then run gap self-update again", root, primary)
+		return "", "", "", fmt.Errorf("%s has commits that are not on origin/%s; push or move them, then run gap self-update again", root, primary)
 	}
-	return before, target, nil
+	return before, target, tracked, nil
 }
 
-func fastForward(root, before, target string) error {
+func fastForward(root, before, target, tracked string) error {
 	if head, err := git(root, "rev-parse", "HEAD"); err != nil || head != before {
 		return fmt.Errorf("%s moved during the update; binary unchanged, run gap self-update again", root)
 	}
@@ -188,8 +187,12 @@ func fastForward(root, before, target string) error {
 	if err != nil {
 		return err
 	}
-	_, err = git(root, "update-ref", originHead, target)
-	return err
+	old := tracked
+	if old == "" {
+		old = strings.Repeat("0", len(target))
+	}
+	git(root, "update-ref", originHead, target, old)
+	return nil
 }
 
 func replaceExe(exe string, write func(tmp string) error) error {
