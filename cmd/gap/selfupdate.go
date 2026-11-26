@@ -27,7 +27,7 @@ var (
 	releaseBase = "https://github.com/edheltzel/GAP/releases"
 	selfPath    = os.Executable
 	buildGap    = func(src, root, out string) error {
-		cmd := exec.Command("go", "build", "-ldflags", "-X main.sourceRootFor="+root, "-o", out, "./cmd/gap")
+		cmd := exec.Command("go", "build", "-ldflags", "-X "+ldflagQuote("main.sourceRootFor="+root), "-o", out, "./cmd/gap")
 		cmd.Dir = src
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
@@ -171,6 +171,13 @@ func latestRelease() (string, error) {
 		return "", fmt.Errorf("latest gap release: %s did not redirect to a tag", releaseBase+"/latest")
 	}
 	return path.Base(loc), nil
+}
+
+func ldflagQuote(s string) string {
+	if strings.Contains(s, "'") {
+		return `"` + s + `"`
+	}
+	return "'" + s + "'"
 }
 
 func canonicalVersion(v string) string {
