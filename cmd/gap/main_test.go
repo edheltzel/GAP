@@ -29,6 +29,10 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
+	if err := os.Setenv("PATH", withoutRecall(os.Getenv("PATH"))); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	devinMarker = filepath.Join(os.TempDir(), "gap-test-no-devin")
 	docsDir = "/repo/global/docs/agents"
 	tuiReady = func() bool { return false }
@@ -42,6 +46,16 @@ func TestMain(m *testing.M) {
 		os.RemoveAll(home)
 	}
 	os.Exit(code)
+}
+
+func withoutRecall(path string) string {
+	var keep []string
+	for _, dir := range filepath.SplitList(path) {
+		if _, err := os.Stat(filepath.Join(dir, "recall")); err != nil {
+			keep = append(keep, dir)
+		}
+	}
+	return strings.Join(keep, string(os.PathListSeparator))
 }
 
 func isolateHome() (string, error) {
