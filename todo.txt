@@ -127,3 +127,4 @@ x 2026-11-25 2026-11-25 Add gap self-update: one command that rebuilds or downlo
 x 2026-11-25 2026-11-25 Release GAP v0.6.0 (minor bump from v0.5.1; v4.0.3 was the old pre-CLI line) +gap id:gap-release-4.1 dep:gap-self-update pr:https://github.com/edheltzel/GAP/releases/tag/v0.6.0
 x 2026-11-25 2026-11-25 Commit + merge docs/website-pass (website.md DOX pass), then gap sync +gap pr:https://github.com/edheltzel/GAP/pull/150
 x 2026-11-21 2026-11-20 Merge the no-comments policy rule and do-no-comments load=project, gap sync, then trash the old global ~/.agents/skills/do-no-comments and ~/.claude/skills/do-no-comments copies +gap pr:https://github.com/edheltzel/GAP/pull/137
+x 2026-11-27 2026-11-27 Refresh site TUI screenshots and landing copy (scripts/tui-shots.sh) +gap

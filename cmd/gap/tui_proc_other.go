@@ -31,3 +31,5 @@ func killGroup(pid int) {
 }
 
 func groupGone(int, time.Duration) bool { return true }
+
+func runOnPty(*childCmd) ([]byte, error, bool) { return nil, nil, false }

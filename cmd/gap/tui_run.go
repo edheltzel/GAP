@@ -386,7 +386,7 @@ func statusText(g *childGroup, req context.Context) tea.Cmd {
 			return statusTextMsg{err: err}
 		}
 		cmd.Env = append(cmd.Env, "TMPDIR="+tmp)
-		out, err := cmd.CombinedOutput()
+		out, err := runStatus(cmd)
 		cmd.settle(ctx.Err() != nil)
 		if req.Err() != nil {
 			return nil
@@ -397,4 +397,13 @@ func statusText(g *childGroup, req context.Context) tea.Cmd {
 		}
 		return statusTextMsg{text: strings.TrimRight(string(out), "\n"), err: err}
 	}
+}
+
+// runStatus runs gap status. A terminal shows the framed table, so the child gets one when the
+// platform can hand it a pty; the pipe fallback is what a non-terminal status prints.
+func runStatus(cmd *childCmd) ([]byte, error) {
+	if out, err, ok := runOnPty(cmd); ok {
+		return out, err
+	}
+	return cmd.CombinedOutput()
 }

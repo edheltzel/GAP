@@ -100,9 +100,13 @@ Captured from the real TUI in an isolated demo home with two local example utili
 
 ![Projects shows a registered website repo and its project-scoped skill.](docs/images/tui-projects.png)
 
-![A running update shows its output beside the selected step.](docs/images/tui-update.png)
+![A running update shows the GAP wordmark, done and total counts, the step list, the selected step's live output, and a progress bar.](docs/images/tui-update.png)
+
+![Search lists catalog hits with install counts, a check for trusted sources, and where you already have them.](docs/images/tui-search.png)
 
 ![Removing a utility requires confirmation and moves its files to backups.](docs/images/tui-delete.png)
+
+`scripts/tui-shots.sh` regenerates the captures in an isolated demo home.
 
 </details>
 
