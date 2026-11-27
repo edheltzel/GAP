@@ -558,6 +558,39 @@ func TestTUIStatusKeepsReportAcrossHiddenResizeRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTUIStatusLateRefreshKeepsHiddenReport(t *testing.T) {
+	m, _ := tuiFixture(t)
+	n := 0
+	m.fetchStatus = func(context.Context) tea.Cmd {
+		n++
+		text := fmt.Sprintf("report %d at %d", n, m.width)
+		return func() tea.Msg { return statusTextMsg{text: text} }
+	}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	_, open := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	m.Update(statusOf(t, open))
+	_, refresh := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	var late tea.Msg
+	for _, msg := range cmdMsgs(refresh) {
+		if _, ok := msg.(statusTextMsg); ok {
+			late = msg
+			continue
+		}
+		m.Update(msg)
+	}
+	if late == nil {
+		t.Fatal("refresh did not ask for status")
+	}
+	press(m, "1")
+	m.Update(tea.WindowSizeMsg{Width: 60, Height: 30})
+	m.Update(late)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	if s := screen(m); !strings.Contains(s, "report 1 at 120") {
+		t.Fatalf("a late refresh response cleared the hidden report:\n%s", s)
+	}
+}
+
 func TestTUIStatusSupersededResponseIgnored(t *testing.T) {
 	m, _ := tuiFixture(t)
 	var reqs []context.Context

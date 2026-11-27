@@ -245,6 +245,7 @@ func (m *tuiModel) stopStatus() {
 		m.statusStop()
 		m.statusStop = nil
 		m.statusAsked, m.statusLoading = false, false
+		m.statusReq++
 	}
 }
 
