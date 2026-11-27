@@ -538,6 +538,26 @@ func TestTUIStatusReflowsWhenHiddenTabResizes(t *testing.T) {
 	}
 }
 
+func TestTUIStatusKeepsReportAcrossHiddenResizeRoundTrip(t *testing.T) {
+	m, _ := tuiFixture(t)
+	n := 0
+	m.fetchStatus = func(context.Context) tea.Cmd {
+		n++
+		text := fmt.Sprintf("report %d at %d", n, m.width)
+		return func() tea.Msg { return statusTextMsg{text: text} }
+	}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	_, open := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	m.Update(statusOf(t, open))
+	press(m, "1")
+	m.Update(tea.WindowSizeMsg{Width: 60, Height: 30})
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	_, back := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	if s := screen(m); back != nil || n != 1 || !strings.Contains(s, "report 1 at 120") {
+		t.Fatalf("a hidden resize round trip dropped the report: calls %d\n%s", n, s)
+	}
+}
+
 func TestTUIStatusSupersededResponseIgnored(t *testing.T) {
 	m, _ := tuiFixture(t)
 	var reqs []context.Context
