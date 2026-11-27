@@ -29,19 +29,31 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-home=/tmp/gap-tui-demo
+home=$(mktemp -d "${TMPDIR:-/tmp}/gap-tui-demo.XXXXXX")
 out="$root/docs/images"
 cols=150
 rows=42
+# A private socket, so another demo or an earlier run cannot attach to this session.
+sock=gaptui-$$
+# Same set git rev-parse --local-env-vars prints (cmd/gap/main.go gitLocalEnv), plus the prompt.
+# An inherited GIT_DIR would make the fixture's git add and commit write the caller's index.
+git_env()
+{
+	env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_CONFIG -u GIT_CONFIG_PARAMETERS \
+		-u GIT_CONFIG_COUNT -u GIT_OBJECT_DIRECTORY -u GIT_DIR -u GIT_WORK_TREE \
+		-u GIT_IMPLICIT_WORK_TREE -u GIT_GRAFT_FILE -u GIT_INDEX_FILE \
+		-u GIT_NO_REPLACE_OBJECTS -u GIT_REPLACE_REF_BASE -u GIT_PREFIX \
+		-u GIT_SHALLOW_FILE -u GIT_COMMON_DIR GIT_TERMINAL_PROMPT=0 "$@"
+}
 
 for tool in tmux freeze magick go git python3; do
 	command -v "$tool" >/dev/null || { echo "tui-shots: $tool is not installed" >&2; exit 1; }
 done
 case "$home" in
-/tmp/gap-tui-demo) ;;
+/tmp/gap-tui-demo.*|"${TMPDIR:-/tmp}"/gap-tui-demo.*) ;;
 *) echo "tui-shots: refusing to use $home" >&2; exit 1 ;;
 esac
-trap 'tmux -L gaptui kill-server 2>/dev/null || true' EXIT
+trap 'tmux -L "$sock" kill-server 2>/dev/null || true; rm -rf "$home"' EXIT
 
 build() {
 	echo "building gap"
@@ -62,7 +74,7 @@ build() {
 	printf 'schema = "2"\n' >"$home/.gap/checkout/gap.lock"
 	printf 'policy\n' >"$home/.gap/checkout/global/AGENTS.md"
 	cp "$home/src/cmd/gap/main.go" "$home/.gap/checkout/cmd/gap/main.go"
-	git -C "$home/.gap/checkout" init -q -b master
+	git_env git -C "$home/.gap/checkout" init -q -b master
 	(cd "$home/src" && go build -ldflags "-X main.sourceRootFor=$home/.gap/checkout" -o "$home/bin/gap" ./cmd/gap)
 }
 
@@ -88,9 +100,9 @@ description: Example skill for the gap tui screenshots.
 
 # $skill
 EOF
-	git -C "$dir" init -q -b master
-	git -C "$dir" add .
-	git -C "$dir" -c user.name=gap -c user.email=gap@example.com commit -q -m "example"
+	git_env git -C "$dir" init -q -b master
+	git_env git -C "$dir" add .
+	git_env git -C "$dir" -c user.name=gap -c user.email=gap@example.com commit -q -m "example"
 }
 
 # Second commit, so `u` has something to move. formatter's update hook pauses,
@@ -98,8 +110,8 @@ EOF
 bump() {
 	dir=$home/repos/$1
 	printf '\nChecked.\n' >>"$dir/skills/$2/SKILL.md"
-	git -C "$dir" add .
-	git -C "$dir" -c user.name=gap -c user.email=gap@example.com commit -q -m "check"
+	git_env git -C "$dir" add .
+	git_env git -C "$dir" -c user.name=gap -c user.email=gap@example.com commit -q -m "check"
 	# The hook has to arrive in the commit the update moves to. One added to the
 	# commit already pinned never runs, because gap update sees nothing to move.
 	if [ "$1" = "formatter" ]; then
@@ -114,8 +126,8 @@ sleep 120
 EOF
 		chmod +x "$dir/slow-update.sh"
 		printf '\n[hooks]\nupdate = "./slow-update.sh"\n' >>"$dir/gap-utility.toml"
-		git -C "$dir" add .
-		git -C "$dir" -c user.name=gap -c user.email=gap@example.com commit -q -m "slow update"
+		git_env git -C "$dir" add .
+		git_env git -C "$dir" -c user.name=gap -c user.email=gap@example.com commit -q -m "slow update"
 	fi
 }
 
@@ -125,7 +137,7 @@ demo() {
 	build
 	repo docs-tools check-links
 	repo formatter format-go
-	git clone -q "$home/repos/docs-tools" "$home/site"
+	git_env git clone -q "$home/repos/docs-tools" "$home/site"
 
 	# The demo checkout lists no components, so there is nothing to fetch and no
 	# hook to run. Trust keeps the two example utilities' hooks quiet; neither
@@ -175,7 +187,8 @@ fixture = {"skills": [
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         body, code = json.dumps(fixture).encode(), 200
-        if os.environ.get("SHOTS_SEARCH_LIVE") == "1":
+        # The readiness probe asks for /health and must not wait on skills.sh.
+        if self.path != "/health" and os.environ.get("SHOTS_SEARCH_LIVE") == "1":
             try:
                 with urllib.request.urlopen("https://skills.sh" + self.path, timeout=6) as resp:
                     body, code = resp.read(), resp.status
@@ -200,17 +213,18 @@ shot() {
 	name=$1
 	keys=$2
 	echo "recording tui-$name"
-	tmux -L gaptui kill-server 2>/dev/null || true
+	tmux -L "$sock" kill-server 2>/dev/null || true
 	# 150 columns keeps the footer on one line at the rendered width.
 	# GAP_SKILL_SEARCH_URL points / search at the fixture proxy for the search shot.
 	# Empty for every other shot, so they call skills.sh as usual.
-	tmux -L gaptui -f /dev/null new-session -d -s shot -x 150 -y 42 \
-		"cd $home/site && exec env HOME=$home CLAUDE_CONFIG_DIR=$home/.claude ${SEARCH_URL:-} PATH=$home/bin:/opt/homebrew/bin:/usr/bin:/bin TERM=xterm-256color COLORTERM=truecolor $home/bin/gap tui"
+	# NO_COLOR= is empty on purpose: a nonempty value makes gap tui exit before it opens.
+	tmux -L "$sock" -f /dev/null new-session -d -s shot -x 150 -y 42 \
+		"cd $home/site && exec env HOME=$home CLAUDE_CONFIG_DIR=$home/.claude ${SEARCH_URL:-} PATH=$home/bin:/opt/homebrew/bin:/usr/bin:/bin TERM=xterm-256color COLORTERM=truecolor NO_COLOR= $home/bin/gap tui"
 	sleep 4
 	printf '%s\n' "$keys" | while IFS= read -r key; do
 		[ -n "$key" ] || continue
 		# send-keys treats each argument as one key, so a word is one keystroke.
-		tmux -L gaptui send-keys -t shot -l "$key"
+		tmux -L "$sock" send-keys -t shot -l "$key"
 		sleep 0.8
 	done
 	# The update shot has to land while its hook is still sleeping.
@@ -219,8 +233,25 @@ shot() {
 	else
 		sleep 2
 	fi
-	tmux -L gaptui capture-pane -t shot -p -e >"$home/$name.vt"
-	tmux -L gaptui kill-server 2>/dev/null || true
+	if [ "$name" = "search" ]; then
+		seen=0
+		n=0
+		while [ "$n" -lt 25 ]; do
+			if tmux -L "$sock" capture-pane -t shot -p | grep -q 'vercel-labs/agent-skills'; then
+				seen=1
+				break
+			fi
+			n=$((n + 1))
+			sleep 0.2
+		done
+		if [ "$seen" -ne 1 ]; then
+			echo "tui-shots: search results never appeared" >&2
+			tmux -L "$sock" kill-server 2>/dev/null || true
+			return 1
+		fi
+	fi
+	tmux -L "$sock" capture-pane -t shot -p -e >"$home/$name.vt"
+	tmux -L "$sock" kill-server 2>/dev/null || true
 	# freeze renders the captured pane, ANSI colors included, to the PNG.
 	freeze --language ansi --theme catppuccin-mocha \
 		--width 1400 --font.size 15 --margin 0 --padding 16 \
@@ -231,11 +262,9 @@ shot() {
 	magick "$out/tui-$name.png" -resize 1400x760 -background '#1e1e2e' -gravity center -extent 1400x760 "$out/tui-$name.png"
 }
 
-if [ -n "${SHOTS_ONLY:-}" ] && [ -x "$home/bin/gap" ]; then
-	echo "reusing the demo checkout for the $SHOTS_ONLY shot"
-else
-	demo
-fi
+# Always rebuild from this checkout. Reusing a binary left under /tmp would
+# record whatever revision last wrote it, including another user's.
+demo
 
 fail=0
 # Items opens on docs-tools, so the detail pane shows check-links.
@@ -266,7 +295,7 @@ proxy=$!
 ready=0
 i=0
 while [ "$i" -lt 50 ]; do
-	curl -fsS --max-time 2 "http://127.0.0.1:$port/api/search?q=react&limit=5" >/dev/null 2>&1 && { ready=1; break; }
+	curl -fsS --max-time 2 "http://127.0.0.1:$port/health" >/dev/null 2>&1 && { ready=1; break; }
 	i=$((i + 1))
 	sleep 0.1
 done

@@ -36,11 +36,14 @@ var groupAlive = func(pgid int) bool { return syscall.Kill(-pgid, 0) == nil }
 
 // runOnPty runs cmd with its stdout on a pty, so gap status draws the framed table instead of the
 // piped lines. The returned text is the screen with ANSI stripped. ok is false when no pty is available.
-func runOnPty(cmd *childCmd) ([]byte, error, bool) {
+var runOnPty = func(cmd *childCmd, cols int) ([]byte, error, bool) {
 	// pty.StartWithSize sets Setsid and Setctty, which puts the child in its own process group
 	// (pgid == pid). Clear Setpgid first so Start does not conflict with Setsid.
 	cmd.SysProcAttr = nil
-	tty, err := pty.StartWithSize(cmd.Cmd, &pty.Winsize{Rows: 40, Cols: 140})
+	if cols < 1 {
+		cols = 80
+	}
+	tty, err := pty.StartWithSize(cmd.Cmd, &pty.Winsize{Rows: 40, Cols: uint16(cols)})
 	if err != nil {
 		ownGroup(cmd.Cmd)
 		return nil, nil, false

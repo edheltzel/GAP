@@ -102,7 +102,7 @@ Captured from the real TUI in an isolated demo home with two local example utili
 
 ![A running update shows the GAP wordmark, done and total counts, the step list, the selected step's live output, and a progress bar.](docs/images/tui-update.png)
 
-![Search lists catalog hits with install counts, a check for trusted sources, and where you already have them.](docs/images/tui-search.png)
+![Search lists catalog hits with install counts and a check for trusted sources.](docs/images/tui-search.png)
 
 ![Removing a utility requires confirmation and moves its files to backups.](docs/images/tui-delete.png)
 

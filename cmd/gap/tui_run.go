@@ -366,7 +366,7 @@ func (g *childGroup) close() {
 	g.active.Wait()
 }
 
-func statusText(g *childGroup, req context.Context) tea.Cmd {
+func statusText(g *childGroup, req context.Context, cols int) tea.Cmd {
 	return func() tea.Msg {
 		group, done, ok := g.join()
 		if !ok {
@@ -386,7 +386,7 @@ func statusText(g *childGroup, req context.Context) tea.Cmd {
 			return statusTextMsg{err: err}
 		}
 		cmd.Env = append(cmd.Env, "TMPDIR="+tmp)
-		out, err := runStatus(cmd)
+		out, err := runStatus(cmd, cols)
 		cmd.settle(ctx.Err() != nil)
 		if req.Err() != nil {
 			return nil
@@ -401,8 +401,9 @@ func statusText(g *childGroup, req context.Context) tea.Cmd {
 
 // runStatus runs gap status. A terminal shows the framed table, so the child gets one when the
 // platform can hand it a pty; the pipe fallback is what a non-terminal status prints.
-func runStatus(cmd *childCmd) ([]byte, error) {
-	if out, err, ok := runOnPty(cmd); ok {
+// cols is the pane the table has to fit, since the child sizes itself to the pty.
+func runStatus(cmd *childCmd, cols int) ([]byte, error) {
+	if out, err, ok := runOnPty(cmd, cols); ok {
 		return out, err
 	}
 	return cmd.CombinedOutput()
