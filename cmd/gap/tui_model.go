@@ -69,7 +69,7 @@ type loadedMsg struct {
 }
 
 type tuiKeys struct {
-	Up, Down, Top, Bottom, Tab, Mark, Check, CheckAll, Update, UpdateAll, Sync, Follow, Find, Add, Edit, Editor, Delete, Disable, Forget, Refresh, Quit, Confirm, Open, Back key.Binding
+	Up, Down, Top, Bottom, Tab, Help, Mark, Check, CheckAll, Update, UpdateAll, Sync, Follow, Find, Add, Edit, Editor, Delete, Disable, Forget, Refresh, Quit, Confirm, Open, Back key.Binding
 }
 
 func newTUIKeys() tuiKeys {
@@ -82,6 +82,7 @@ func newTUIKeys() tuiKeys {
 		Top:       b("gg", "top", "home"),
 		Bottom:    b("G", "bottom", "G", "end"),
 		Tab:       b("tab/1-3", "view", "tab", "shift+tab", "1", "2", "3"),
+		Help:      b("?", "all keys", "?"),
 		Mark:      b("space", "mark", "space"),
 		Check:     b("c", "check", "c"),
 		CheckAll:  b("C", "check all", "C"),
@@ -148,6 +149,7 @@ type tuiModel struct {
 	askChoice    int
 	note         string
 	chord        string
+	showHelp     bool
 	top          [3]int
 	quitting     bool
 	pendingExec  []string
@@ -479,6 +481,16 @@ func (m *tuiModel) project() (projectView, bool) {
 }
 
 func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
+	if m.showHelp {
+		if key.Matches(msg, m.keys.Help, m.keys.Back, m.keys.Quit) {
+			m.showHelp = false
+		}
+		return nil
+	}
+	if key.Matches(msg, m.keys.Help) && (m.mode == modeBrowse || m.mode == modeDetail) {
+		m.showHelp, m.chord = true, ""
+		return nil
+	}
 	if m.mode == modeBrowse || m.mode == modeDetail || m.mode == modeSummary {
 		if mv := m.vimMotion(msg); mv != vimNone {
 			return m.applyVim(mv)
