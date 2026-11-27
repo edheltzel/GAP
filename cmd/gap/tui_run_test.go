@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/creack/pty"
 )
 
 func init() {
@@ -189,7 +190,7 @@ func TestTUIStatusChildStopsOnClose(t *testing.T) {
 	tuiExecutable = func() (string, error) { return slow, nil }
 	g := newChildGroup()
 	got := make(chan tea.Msg, 1)
-	go func() { got <- statusText(g, context.Background())() }()
+	go func() { got <- statusText(g, context.Background(), 80)() }()
 	time.Sleep(300 * time.Millisecond)
 	began := time.Now()
 	g.close()
@@ -204,7 +205,7 @@ func TestTUIStatusChildStopsOnClose(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("close returned before the status child exited")
 	}
-	if msg := statusText(g, context.Background())(); msg != nil {
+	if msg := statusText(g, context.Background(), 80)(); msg != nil {
 		t.Fatalf("status after close = %#v", msg)
 	}
 }
@@ -223,7 +224,7 @@ func TestTUIStatusRequestStopsWhenCancelled(t *testing.T) {
 	t.Cleanup(g.close)
 	req, stop := context.WithCancel(context.Background())
 	got := make(chan tea.Msg, 1)
-	go func() { got <- statusText(g, req)() }()
+	go func() { got <- statusText(g, req, 80)() }()
 	time.Sleep(300 * time.Millisecond)
 	stop()
 	select {
@@ -294,20 +295,46 @@ func TestTUIRunStatusMatchesGapStatus(t *testing.T) {
 	trustedUtilities(t, e, "ua")
 	write(t, filepath.Join(e.home, ".agents", "skills", "ua-skill", "SKILL.md"), "edited\n")
 	actAsGap(t, e.repo)
-	got := statusText(newChildGroup(), context.Background())().(statusTextMsg)
+	got := statusText(newChildGroup(), context.Background(), 80)().(statusTextMsg)
 	if got.err != nil {
 		t.Fatalf("status tab: %v\n%s", got.err, got.text)
 	}
 	if !strings.Contains(got.text, "ua") || !strings.Contains(got.text, "ua-skill") {
 		t.Fatalf("status tab lacks drifted component or skill:\n%s", got.text)
 	}
-	if strings.Contains(got.text, "gap status") {
-		for _, want := range []string{"id", "ref", "commit", "store", "drift", "copies drifted", "1 with drift"} {
-			if !strings.Contains(got.text, want) {
-				t.Fatalf("status tab lacks %q:\n%s", want, got.text)
-			}
+	if !ptyOpens() {
+		if !strings.Contains(got.text, "drift=1") {
+			t.Fatalf("status lost drift:\n%s", got.text)
 		}
-	} else if !strings.Contains(got.text, "drift=1") {
-		t.Fatalf("status lost drift:\n%s", got.text)
+		return
 	}
+	for _, want := range []string{"gap status", "id", "ref", "commit", "store", "drift", "copies drifted", "1 with drift"} {
+		if !strings.Contains(got.text, want) {
+			t.Fatalf("framed status lacks %q:\n%s", want, got.text)
+		}
+	}
+}
+
+func TestTUIRunStatusPipeFallback(t *testing.T) {
+	old := runOnPty
+	t.Cleanup(func() { runOnPty = old })
+	runOnPty = func(*childCmd, int) ([]byte, error, bool) { return nil, nil, false }
+	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")
+	trustedUtilities(t, e, "ua")
+	write(t, filepath.Join(e.home, ".agents", "skills", "ua-skill", "SKILL.md"), "edited\n")
+	actAsGap(t, e.repo)
+	got := statusText(newChildGroup(), context.Background(), 80)().(statusTextMsg)
+	if got.err != nil || !strings.Contains(got.text, "drift=1") || strings.Contains(got.text, "gap status") {
+		t.Fatalf("pipe fallback:\n%s\nerr %v", got.text, got.err)
+	}
+}
+
+func ptyOpens() bool {
+	ptyFile, ttyFile, err := pty.Open()
+	if err != nil {
+		return false
+	}
+	_ = ptyFile.Close()
+	_ = ttyFile.Close()
+	return true
 }
