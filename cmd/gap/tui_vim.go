@@ -19,24 +19,32 @@ const (
 	vimTabPrev
 )
 
+func (m *tuiModel) vimList() bool {
+	return m.mode == modeBrowse && m.tab != tabStatus
+}
+
 func (m *tuiModel) vimMotion(msg tea.KeyPressMsg) vimMotion {
 	s := msg.String()
 	if m.chord == "g" {
 		m.chord = ""
-		switch s {
-		case "g":
+		switch {
+		case s == "g":
 			return vimTop
-		case "t":
+		case s == "t" && m.mode == modeBrowse:
 			return vimTabNext
-		case "T":
+		case s == "T" && m.mode == modeBrowse:
 			return vimTabPrev
 		}
 		return vimNone
 	}
-	switch s {
-	case "g":
+	if s == "g" {
 		m.chord = "g"
 		return vimPending
+	}
+	if m.mode == modeSummary {
+		return vimNone
+	}
+	switch s {
 	case "ctrl+d":
 		return vimHalfDown
 	case "ctrl+u":
@@ -45,6 +53,11 @@ func (m *tuiModel) vimMotion(msg tea.KeyPressMsg) vimMotion {
 		return vimPageDown
 	case "ctrl+b":
 		return vimPageUp
+	}
+	if !m.vimList() {
+		return vimNone
+	}
+	switch s {
 	case "H":
 		return vimHigh
 	case "M":
@@ -55,21 +68,34 @@ func (m *tuiModel) vimMotion(msg tea.KeyPressMsg) vimMotion {
 	return vimNone
 }
 
+func (m *tuiModel) chordHint() string {
+	switch {
+	case m.mode == modeSummary:
+		return "gg first step"
+	case m.mode == modeBrowse:
+		return "gg top, gt/gT next or previous view"
+	}
+	return "gg top"
+}
+
 func (m *tuiModel) applyVim(mv vimMotion) tea.Cmd {
 	switch mv {
 	case vimPending:
 		return nil
 	case vimTabNext, vimTabPrev:
-		if m.mode != modeBrowse {
-			return nil
-		}
 		step := 1
 		if mv == vimTabPrev {
 			step = len(tabNames) - 1
 		}
 		return m.switchTab((m.tab + step) % len(tabNames))
 	}
-	if m.mode == modeDetail || (m.mode == modeBrowse && m.tab == tabStatus) {
+	if m.mode == modeSummary {
+		m.jobSel = 0
+		m.refreshPane()
+		m.vp.GotoBottom()
+		return nil
+	}
+	if !m.vimList() {
 		switch mv {
 		case vimTop:
 			m.vp.GotoTop()
@@ -84,19 +110,30 @@ func (m *tuiModel) applyVim(mv vimMotion) tea.Cmd {
 		}
 		return nil
 	}
-	if m.mode == modeSummary {
-		h := max(m.bodyHeight()-2, 1)
-		start, end := m.window(len(m.jobs), m.jobSel, h)
-		m.jobSel = vimSel(mv, m.jobSel, len(m.jobs), h, start, end)
-		m.refreshPane()
+	n := m.count(m.tab)
+	if n == 0 {
 		return nil
 	}
-	if n := m.count(m.tab); n > 0 {
-		start, end := m.listWindow(m.tab)
-		m.sel[m.tab] = vimSel(mv, m.sel[m.tab], n, m.rowsFor(m.tab), start, end)
-		m.top[m.tab], _ = m.listWindow(m.tab)
-		m.refreshPane()
+	h := m.rowsFor(m.tab)
+	start, end := m.listWindow(m.tab)
+	sel := m.sel[m.tab]
+	switch mv {
+	case vimTop:
+		sel, m.top[m.tab] = 0, 0
+	case vimHalfDown, vimHalfUp, vimPageDown, vimPageUp:
+		d := map[vimMotion]int{vimHalfDown: max(h/2, 1), vimHalfUp: -max(h/2, 1), vimPageDown: h, vimPageUp: -h}[mv]
+		sel += d
+		m.top[m.tab] = min(max(start+d, 0), max(n-h, 0))
+	case vimHigh:
+		sel = start
+	case vimMid:
+		sel = (start + end - 1) / 2
+	case vimLow:
+		sel = end - 1
 	}
+	m.sel[m.tab] = min(max(sel, 0), n-1)
+	m.top[m.tab], _ = m.listWindow(m.tab)
+	m.refreshPane()
 	return nil
 }
 
@@ -113,26 +150,4 @@ func (m *tuiModel) listWindow(tab int) (int, int) {
 	top = max(top, sel-h+1)
 	top = max(min(top, n-h), 0)
 	return top, min(top+h, n)
-}
-
-func vimSel(mv vimMotion, sel, n, h, start, end int) int {
-	switch mv {
-	case vimTop:
-		sel = 0
-	case vimHalfDown:
-		sel += max(h/2, 1)
-	case vimHalfUp:
-		sel -= max(h/2, 1)
-	case vimPageDown:
-		sel += h
-	case vimPageUp:
-		sel -= h
-	case vimHigh:
-		sel = start
-	case vimMid:
-		sel = (start + end - 1) / 2
-	case vimLow:
-		sel = end - 1
-	}
-	return min(max(sel, 0), max(n-1, 0))
 }
