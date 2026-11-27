@@ -14,6 +14,7 @@ import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 )
@@ -37,6 +38,8 @@ const (
 	modeDetail
 	modeForm
 	modeSearch
+	modeFilter
+	modeCmd
 )
 
 type jobState int
@@ -69,7 +72,7 @@ type loadedMsg struct {
 }
 
 type tuiKeys struct {
-	Up, Down, Top, Bottom, Tab, Help, Mark, Check, CheckAll, Update, UpdateAll, Sync, Follow, Find, Add, Edit, Editor, Delete, Disable, Forget, Refresh, Quit, Confirm, Open, Back key.Binding
+	Up, Down, Top, Bottom, Tab, Help, Mark, Check, CheckAll, Update, UpdateAll, Sync, Follow, Find, Filter, Cmd, Add, Edit, Editor, Delete, Disable, Forget, Refresh, Quit, Confirm, Open, Back key.Binding
 }
 
 func newTUIKeys() tuiKeys {
@@ -90,7 +93,9 @@ func newTUIKeys() tuiKeys {
 		UpdateAll: b("U", "update all", "U"),
 		Sync:      b("s", "sync", "s"),
 		Follow:    b("f", "follow", "f"),
-		Find:      b("/", "find skills", "/"),
+		Find:      b("S", "find skills", "S"),
+		Filter:    b("/", "filter", "/"),
+		Cmd:       b(":", "command", ":"),
 		Add:       b("a", "add", "a"),
 		Edit:      b("e", "edit", "e"),
 		Editor:    b("E", "open gap.toml", "E"),
@@ -150,6 +155,9 @@ type tuiModel struct {
 	askChoice    int
 	note         string
 	chord        string
+	line         textinput.Model
+	filter       [3]string
+	filterWas    string
 	showHelp     bool
 	top          [3]int
 	quitting     bool
@@ -446,6 +454,9 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode == modeSearch {
 			return m, m.searchUpdate(msg)
 		}
+		if m.mode == modeFilter || m.mode == modeCmd {
+			return m, m.lineUpdate(msg)
+		}
 		if m.mode == modeForm {
 			return m, m.formUpdate(msg)
 		}
@@ -456,31 +467,27 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.formUpdate(msg)
 		case modeSearch:
 			return m, m.searchUpdate(msg)
+		case modeFilter, modeCmd:
+			return m, m.lineUpdate(msg)
 		}
 	}
 	return m, nil
 }
 
 func (m *tuiModel) count(tab int) int {
-	switch tab {
-	case tabItems:
-		return len(m.items)
-	case tabProjects:
-		return len(m.projects)
-	}
-	return 0
+	return len(m.rows(tab))
 }
 
 func (m *tuiModel) item() (itemRow, bool) {
-	if m.sel[tabItems] < len(m.items) {
-		return m.items[m.sel[tabItems]], true
+	if rows := m.rows(tabItems); m.sel[tabItems] < len(rows) {
+		return m.items[rows[m.sel[tabItems]]], true
 	}
 	return itemRow{}, false
 }
 
 func (m *tuiModel) project() (projectView, bool) {
-	if m.sel[tabProjects] < len(m.projects) {
-		return m.projects[m.sel[tabProjects]], true
+	if rows := m.rows(tabProjects); m.sel[tabProjects] < len(rows) {
+		return m.projects[rows[m.sel[tabProjects]]], true
 	}
 	return projectView{}, false
 }
@@ -614,6 +621,13 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 	case key.Matches(msg, m.keys.Quit):
 		m.quitting = true
 		return tea.Quit
+	case key.Matches(msg, m.keys.Filter):
+		return m.openFilter()
+	case key.Matches(msg, m.keys.Cmd):
+		return m.openLine(modeCmd, ":", "")
+	case key.Matches(msg, m.keys.Back) && m.tab != tabStatus && m.filter[m.tab] != "":
+		m.setFilter("")
+		m.note = "Filter cleared."
 	case key.Matches(msg, m.keys.Tab):
 		next := (m.tab + 1) % len(tabNames)
 		switch msg.String() {
@@ -645,15 +659,7 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 	case key.Matches(msg, m.keys.Sync):
 		return m.handOver("sync")
 	case m.tab == tabItems && key.Matches(msg, m.keys.UpdateAll):
-		ids := m.updateIDs()
-		if len(ids) == 0 {
-			m.note = "Nothing to update: every item is held."
-			break
-		}
-		m.confirmTitle = fmt.Sprintf("Update %s?", plural(len(ids), "item"))
-		m.confirmIDs, m.confirmTop = ids, 0
-		m.confirmNote = []string{"Runs gap update in this terminal. Items held with pin = true, here or in gap.toml, are skipped; disabled items still move. Trust prompts show as usual."}
-		m.pendingExec, m.mode = []string{"update"}, modeConfirm
+		m.confirmUpdateAll()
 	case key.Matches(msg, m.keys.Find):
 		return m.openSearch()
 	case m.tab == tabItems && key.Matches(msg, m.keys.Add):
@@ -750,6 +756,18 @@ func (m *tuiModel) itemKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.mode = modeConfirm
 	}
 	return nil
+}
+
+func (m *tuiModel) confirmUpdateAll() {
+	ids := m.updateIDs()
+	if len(ids) == 0 {
+		m.note = "Nothing to update: every item is held."
+		return
+	}
+	m.confirmTitle = fmt.Sprintf("Update %s?", plural(len(ids), "item"))
+	m.confirmIDs, m.confirmTop = ids, 0
+	m.confirmNote = []string{"Runs gap update in this terminal. Items held with pin = true, here or in gap.toml, are skipped; disabled items still move. Trust prompts show as usual."}
+	m.pendingExec, m.mode = []string{"update"}, modeConfirm
 }
 
 func (m *tuiModel) markedIDs() []string {

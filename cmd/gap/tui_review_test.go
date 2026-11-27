@@ -116,7 +116,7 @@ func TestTUISearchDropsStaleHitsAndTakesPaste(t *testing.T) {
 		queries = append(queries, q)
 		return []skillHit{{ID: "a/b/" + q, Source: "a/b", Skill: q}}, nil
 	}
-	typeKeys(m, "/")
+	typeKeys(m, "S")
 	drive(m, tea.PasteMsg{Content: "pdf"})
 	drive(m, searchTickMsg{seq: m.search.seq})
 	if !slices.Equal(queries, []string{"pdf"}) || len(m.search.hits) != 1 {
@@ -270,9 +270,9 @@ func TestEditProjectEnabledOverGlobalDisabled(t *testing.T) {
 func TestSearchReopenIgnoresOldAnswers(t *testing.T) {
 	m, handed := reviewModel(t, nil)
 	m.findSkills = func(context.Context, string, int) ([]skillHit, error) { return nil, nil }
-	typeKeys(m, "/", "a")
+	typeKeys(m, "S", "a")
 	old := m.search.seq
-	typeKeys(m, "esc", "/", "b")
+	typeKeys(m, "esc", "S", "b")
 	m.Update(searchDoneMsg{seq: old, query: "a", hits: []skillHit{{ID: "o/r/a", Source: "o/r", Skill: "a"}}})
 	typeKeys(m, "enter")
 	if len(m.search.hits) != 0 || len(*handed) != 0 {

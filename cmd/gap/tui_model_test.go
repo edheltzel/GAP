@@ -1009,3 +1009,99 @@ func TestTUIHelpWrapsNarrowGroups(t *testing.T) {
 		}
 	}
 }
+
+func TestTUIFilter(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.items = nil
+	for _, id := range []string{"alpha", "beta", "gamma", "alpine"} {
+		m.items = append(m.items, itemRow{ID: id, Scope: "global"})
+	}
+	press(m, "j", "j", "/")
+	typeKeys(m, "a", "l")
+	if m.mode != modeFilter || m.count(tabItems) != 2 || m.sel[tabItems] != 0 {
+		t.Fatalf("live filter: mode %d count %d sel %d", m.mode, m.count(tabItems), m.sel[tabItems])
+	}
+	s := screen(m)
+	if !strings.Contains(s, "alpine") || strings.Contains(s, "gamma") || !strings.Contains(s, "2 matches") {
+		t.Fatalf("filtered screen:\n%s", s)
+	}
+	press(m, "enter", "j")
+	if r, _ := m.item(); m.mode != modeBrowse || r.ID != "alpine" {
+		t.Fatalf("kept filter should move within matches, got %q mode %d", r.ID, m.mode)
+	}
+	if !strings.Contains(screen(m), "2 of 4 shown") {
+		t.Fatalf("kept filter is not shown:\n%s", screen(m))
+	}
+	press(m, "/")
+	typeKeys(m, "z")
+	if !strings.Contains(screen(m), "Nothing matches /alz") {
+		t.Fatalf("empty match:\n%s", screen(m))
+	}
+	press(m, "esc")
+	if m.filter[tabItems] != "al" || m.mode != modeBrowse {
+		t.Fatalf("esc in the line should restore the kept filter, got %q", m.filter[tabItems])
+	}
+	press(m, "esc")
+	if m.filter[tabItems] != "" || m.count(tabItems) != 4 {
+		t.Fatalf("esc in browse should clear the filter, got %q", m.filter[tabItems])
+	}
+	press(m, "2", "/")
+	if m.mode != modeBrowse || !strings.Contains(screen(m), "no list to filter") {
+		t.Fatalf("status filter: mode %d\n%s", m.mode, screen(m))
+	}
+}
+
+func TestTUICommandLine(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	press(m, ":")
+	typeKeys(m, "s", "y")
+	if s := screen(m); m.mode != modeCmd || !strings.Contains(s, ":sy") || !strings.Contains(s, "sync") {
+		t.Fatalf("command line: mode %d\n%s", m.mode, s)
+	}
+	press(m, "tab")
+	if m.line.Value() != "sync " {
+		t.Fatalf("tab completed to %q", m.line.Value())
+	}
+	press(m, "esc", ":")
+	typeKeys(m, "s")
+	press(m, "enter")
+	if !strings.Contains(m.note, "could be") {
+		t.Fatalf("ambiguous :s note %q", m.note)
+	}
+	press(m, ":")
+	typeKeys(m, "n", "o", "p", "e")
+	press(m, "enter")
+	if !strings.Contains(m.note, "Unknown command :nope") {
+		t.Fatalf("unknown command note %q", m.note)
+	}
+	press(m, ":")
+	typeKeys(m, "f", "i", "l", " ", "z", "z", "z")
+	press(m, "enter")
+	if m.filter[tabItems] != "zzz" || m.count(tabItems) != 0 {
+		t.Fatalf(":filter set %q", m.filter[tabItems])
+	}
+	press(m, ":")
+	typeKeys(m, "c", "h", "e", "c", "k", " ", "n", "o", "-", "s", "u", "c", "h")
+	press(m, "enter")
+	if m.note != "No item no-such." || m.mode != modeBrowse {
+		t.Fatalf(":check unknown id: %q mode %d", m.note, m.mode)
+	}
+	press(m, ":")
+	typeKeys(m, "u", "p")
+	press(m, "enter")
+	if m.mode != modeConfirm && !strings.Contains(m.note, "Nothing to update") {
+		t.Fatalf(":up should open the update-all confirm, mode %d note %q", m.mode, m.note)
+	}
+	press(m, "esc", ":")
+	typeKeys(m, "s", "e", "a", "r", "c", "h", " ", "r", "e", "a", "c", "t")
+	press(m, "enter")
+	if m.mode != modeSearch || m.search.input.Value() != "react" {
+		t.Fatalf(":search should open the catalog search with its query, mode %d", m.mode)
+	}
+	press(m, "esc", ":", "q", "enter")
+	if !m.quitting {
+		t.Fatalf(":q did not quit")
+	}
+}

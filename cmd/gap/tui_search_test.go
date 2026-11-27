@@ -31,7 +31,7 @@ func TestTUISearch(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 110, Height: 34})
 	m.Update(loadedMsg{items: []itemRow{{ID: "agent-reviews", Source: "distro", Scope: "global", Repo: "github.com/pbakaus/agent-reviews", Skills: [][]string{{"agent-reviews", "drift=0"}}}}})
 	write(t, filepath.Join(m.home, ".agents", "skills", "agent-reviews", "SKILL.md"), "x")
-	typeKeys(m, "/")
+	typeKeys(m, "S")
 	if m.mode != modeSearch {
 		t.Fatalf("/ did not open search, mode %v", m.mode)
 	}
@@ -56,7 +56,7 @@ func TestTUISearch(t *testing.T) {
 	if len(handed) != 1 || strings.Join(handed[0], " ") != "add https://github.com/vercel-labs/agent-skills --skill react --project" || dirs[0] != project {
 		t.Fatalf("handed %q in %q", handed, dirs)
 	}
-	typeKeys(m, "/", "x", "esc")
+	typeKeys(m, "S", "x", "esc")
 	if m.mode != modeBrowse || m.search != nil {
 		t.Fatalf("esc did not close search")
 	}

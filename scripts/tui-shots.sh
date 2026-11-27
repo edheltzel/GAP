@@ -25,7 +25,7 @@
 # that ANSI to a PNG, which is then scaled to 1400x760. vhs is installed but its
 # GIF output is blank on this machine, so it is not used.
 #
-# / search always goes through the local proxy, never straight to skills.sh. The
+# S search always goes through the local proxy, never straight to skills.sh. The
 # proxy serves the fixture from cmd/gap/tui_search_test.go, and the live catalog
 # only when SHOTS_SEARCH_LIVE=1. Go dials through Network.framework and ignores
 # HOSTALIASES and RESOLV_CONF, so that one recording sets GAP_SKILL_SEARCH_URL.
@@ -252,7 +252,7 @@ shot() {
 	url=${3:-}
 	echo "recording tui-$name"
 	tmux -L "$sock" kill-server 2>/dev/null || true
-	# GAP_SKILL_SEARCH_URL points / search at the fixture proxy for the search shot.
+	# GAP_SKILL_SEARCH_URL points S search at the fixture proxy for the search shot.
 	# Empty for every other shot, so they call skills.sh as usual.
 	# NO_COLOR='' is empty on purpose: a nonempty value makes gap tui exit before it opens.
 	tmux -L "$sock" -f /dev/null new-session -d -s shot -x "$cols" -y "$rows" -c "$home/site" \
@@ -356,7 +356,7 @@ if [ "$ready" -ne 1 ]; then
 	echo "tui-shots: the search proxy never answered" >&2
 	fail=1
 else
-	shot search "/
+	shot search "S
 r
 e
 a
