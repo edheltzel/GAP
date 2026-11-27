@@ -670,8 +670,10 @@ func registeredPins(repoRoot, home string) (distro, lockFile, error) {
 }
 
 func prepareComponentSources(home string, d distro, pins map[string]lockEntryM1) error {
-	for _, id := range sortedIDs(d.Components) {
+	ids := sortedIDs(d.Components)
+	for i, id := range ids {
 		c := d.Components[id]
+		activeProgress.item(i+1, len(ids), id)
 		dir, err := ensureStore(home, c, pins[id])
 		if err != nil {
 			return err

@@ -113,12 +113,12 @@ func syncAll(opts syncOptions) error {
 		noteProject(projectRoot)
 	}
 	maps.DeleteFunc(d.Components, func(id string, _ component) bool { return !sel[id] })
-	steps := len(d.Components) + 2
+	steps := len(d.Components) + 1
 	if sel["policy"] {
 		steps++
 	}
 	if len(d.Components) > 0 {
-		steps++
+		steps += 4
 	}
 	bar := startProgress("sync", steps)
 	defer bar.stop()
@@ -196,13 +196,18 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	skipped = skipped || len(mcpFailures) > 0
-	bar.step("skills", nil)
+	skillsOK, driftOK := true, true
 	if len(entries) > 0 {
-		out.section("skills", "install missing skills, then check drift")
+		bar.step("skills: upgrade unedited", nil)
+		out.section("skills", fmt.Sprintf("install missing skills, then check drift (%d skills)", skillCount(entries)))
+		skillsOK = upgradeUntouched(home, entries)
+		bar.step("skills: install missing", nil)
+		skillsOK = installSkills(home, entries) && skillsOK
+		bar.step("skills: check drift", nil)
+		driftOK, err = checkDrift(home, entries)
+	} else if len(d.Components) > 0 {
+		bar.add(-3)
 	}
-	skillsOK := upgradeUntouched(home, entries)
-	skillsOK = installSkills(home, entries) && skillsOK
-	driftOK, err := checkDrift(home, entries)
 	if !configured && slices.ContainsFunc(entries, projectSkillInPlace) {
 		noteProject(projectRoot)
 	}
@@ -214,11 +219,11 @@ func syncAll(opts syncOptions) error {
 			return err
 		}
 	}
+	bar.step("", nil)
+	bar.stop()
 	if len(entries) > 0 && skillsOK && driftOK {
 		out.result(true, "skill installation and drift review complete")
 	}
-	bar.step("", nil)
-	bar.stop()
 	if advice := empryoPinAdvice(home); advice != "" {
 		fmt.Println(advice)
 	}
