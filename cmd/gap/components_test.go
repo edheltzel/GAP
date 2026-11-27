@@ -222,6 +222,38 @@ func TestEnsureStore(t *testing.T) {
 	}
 }
 
+func TestStoreStateIgnoresUserLineEndingConfig(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	remote := filepath.Join(t.TempDir(), "remote")
+	gitFixture(t, remote, "todo\n")
+	write(t, filepath.Join(remote, "mixed.md"), "unix\nwindows\r\n")
+	for _, args := range [][]string{{"-c", "core.autocrlf=false", "add", "mixed.md"}, {"-c", "user.name=gap", "-c", "user.email=gap@example.com", "commit", "-qm", "mixed endings"}} {
+		if _, err := git(remote, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commit, err := git(remote, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := git(remote, "rev-parse", "HEAD^{tree}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := ensureStore(t.TempDir(), component{ID: "eol", Repo: remote, Ref: "main"}, lockEntryM1{Ref: "main", Commit: commit, Tree: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	write(t, global, "[core]\n\tautocrlf = input\n\tsafecrlf = warn\n")
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+	if got, err := storeState(dir, tree); err != nil || got != storeOK {
+		t.Fatalf("store state with core.autocrlf=input: got %q err %v, want %q", got, err, storeOK)
+	}
+}
+
 func TestStoreState(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")

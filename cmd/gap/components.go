@@ -500,7 +500,7 @@ func worktreeID(dir string) (string, error) {
 	env := append(gitEnv(), "GIT_INDEX_FILE="+filepath.Join(tmp, "index"))
 	var tree string
 	for _, args := range [][]string{{"read-tree", "HEAD"}, {"add", "-A", "--", "."}, {"write-tree"}} {
-		cmd := exec.Command("git", args...)
+		cmd := exec.Command("git", append([]string{"-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.eol=lf"}, args...)...)
 		cmd.Dir, cmd.Env = dir, env
 		if args[0] != "read-tree" {
 			cmd.Env = append(cmd.Env, "GIT_OBJECT_DIRECTORY="+objectDir)
