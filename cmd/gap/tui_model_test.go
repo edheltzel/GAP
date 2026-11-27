@@ -522,6 +522,20 @@ func TestTUIStatusReflowsWhenHiddenTabResizes(t *testing.T) {
 	if _, same := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"}); same != nil || n != 2 {
 		t.Fatalf("matching width was not reused: calls %d", n)
 	}
+	press(m, "1")
+	_, refreshed := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	for _, msg := range cmdMsgs(refreshed) {
+		m.Update(msg)
+	}
+	m.Update(tea.WindowSizeMsg{Width: 40, Height: 30})
+	_, after := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	if after == nil || strings.Contains(screen(m), "report 1") || strings.Contains(screen(m), "report 2") {
+		t.Fatalf("a refresh then a hidden resize kept the old report:\n%s", screen(m))
+	}
+	m.Update(statusOf(t, after))
+	if s := screen(m); !strings.Contains(s, "report 3 at 40") {
+		t.Fatalf("report after refresh and resize not shown:\n%s", s)
+	}
 }
 
 func TestTUIStatusSupersededResponseIgnored(t *testing.T) {

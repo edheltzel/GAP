@@ -44,6 +44,7 @@ type jobsFinishedMsg struct{}
 
 type statusTextMsg struct {
 	gen, req int
+	cols     int
 	text     string
 	err      error
 }
@@ -395,7 +396,7 @@ func statusText(g *childGroup, req context.Context, cols int) tea.Cmd {
 		if errors.As(err, &exit) {
 			err = nil
 		}
-		return statusTextMsg{text: strings.TrimRight(string(out), "\n"), err: err}
+		return statusTextMsg{cols: cols, text: strings.TrimRight(string(out), "\n"), err: err}
 	}
 }
 
