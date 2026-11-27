@@ -179,11 +179,10 @@ demo() {
 	printf '%s\n' "# Docs site" >"$home/site/README.md"
 }
 
-# HOME keeps the config and lock inside the demo. CLAUDE_CONFIG_DIR does the same
-# for formatter's global copies, since os.UserHomeDir ignores HOME on macOS.
-# The XDG dirs do the same for gap's config and the skills.sh lock, which otherwise
-# land in the real ~/.config and ~/.agents. The agent homes are redirected because
-# detection still walks the real home and would follow an inherited one.
+# HOME keeps gap's config and lock inside the demo, since userConfigDir builds them
+# from it. XDG_STATE_HOME keeps the skills.sh lock there too. The agent homes,
+# CLAUDE_CONFIG_DIR included, override inherited agent paths, which agent detection
+# honors before HOME.
 gap() {
 	(cd "$home/site" && HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
 		XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" \
@@ -243,18 +242,14 @@ PY
 shot() {
 	name=$1
 	keys=$2
+	url=${3:-}
 	echo "recording tui-$name"
 	tmux -L "$sock" kill-server 2>/dev/null || true
 	# GAP_SKILL_SEARCH_URL points / search at the fixture proxy for the search shot.
 	# Empty for every other shot, so they call skills.sh as usual.
 	# NO_COLOR='' is empty on purpose: a nonempty value makes gap tui exit before it opens.
-	# Separate arguments, so a space in the demo path is not split by the shell.
-	set --
-	if [ -n "${SEARCH_URL:-}" ]; then
-		set -- "$SEARCH_URL"
-	fi
 	tmux -L "$sock" -f /dev/null new-session -d -s shot -x "$cols" -y "$rows" -c "$home/site" \
-		env "$@" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
+		env GAP_SKILL_SEARCH_URL="$url" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
 		XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" \
 		XDG_DATA_HOME="$home/.local/share" XDG_CACHE_HOME="$home/.cache" \
 		CODEX_HOME="$home/.codex" GROK_HOME="$home/.grok" JCODE_HOME="$home/.jcode" \
@@ -281,9 +276,10 @@ shot() {
 	if [ "$name" = "search" ]; then
 		seen=0
 		n=0
-		while [ "$n" -lt 25 ]; do
-			# -p drops styling, and the install counts are styled, so match the skill name.
-			if tmux -L "$sock" capture-pane -t shot -p | grep -Eq 'react|no installable hits|search:'; then
+		while [ "$n" -lt 50 ]; do
+			# A hit row ends in its owner/repo source and install count, and the empty state
+			# has its own message. The typed query, the spinner or an error matches neither.
+			if tmux -L "$sock" capture-pane -t shot -p | grep -Eq '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+ +[0-9][0-9.]*[kKmMbB]?( |$)|no installable hits for'; then
 				seen=1
 				break
 			fi
@@ -291,7 +287,8 @@ shot() {
 			sleep 0.2
 		done
 		if [ "$seen" -ne 1 ]; then
-			echo "tui-shots: search results never appeared" >&2
+			echo "tui-shots: search results never appeared; tui-search.png left as it was" >&2
+			tmux -L "$sock" capture-pane -t shot -p | sed -n '1,8p' >&2
 			tmux -L "$sock" kill-server 2>/dev/null || true
 			return 1
 		fi
@@ -347,18 +344,15 @@ while [ "$i" -lt 50 ]; do
 done
 if [ "$ready" -ne 1 ]; then
 	echo "tui-shots: the search proxy never answered" >&2
-	kill "$proxy" 2>/dev/null || true
 	fail=1
 else
-	SEARCH_URL="GAP_SKILL_SEARCH_URL=http://127.0.0.1:$port/api/search" shot search "/
+	shot search "/
 r
 e
 a
 c
-t" || fail=1
+t" "http://127.0.0.1:$port/api/search" || fail=1
 fi
-kill "$proxy" 2>/dev/null || true
-wait "$proxy" 2>/dev/null || true
 fi
 
 echo "wrote $out/tui-items.png $out/tui-status.png $out/tui-projects.png $out/tui-update.png $out/tui-delete.png $out/tui-search.png"
