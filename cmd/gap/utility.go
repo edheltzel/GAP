@@ -396,10 +396,21 @@ func installUtility(home, repoRoot, projectRoot, id, prevStore string, inv mcpIn
 	if err != nil {
 		return err
 	}
-	skillsOK = installSkills(home, entries) && skillsOK
-	driftOK, err := checkDrift(home, entries)
-	if err != nil {
-		return err
+	activeProgress.mark(hooksOK && commandsOK && skillsOK && len(mcpFailures) == 0)
+	driftOK := true
+	if len(entries) > 0 {
+		activeProgress.step(id+": install skills", activeProgress.groupHue(c))
+		installOK := installSkills(home, entries)
+		activeProgress.mark(installOK)
+		skillsOK = installOK && skillsOK
+		activeProgress.step(id+": check drift", activeProgress.groupHue(c))
+		driftOK, err = checkDrift(home, entries)
+		if err != nil {
+			return err
+		}
+		activeProgress.mark(driftOK)
+	} else {
+		activeProgress.add(-2)
 	}
 	if skillsOK {
 		if err := recordDeclarativeInstalls(home, projectRoot, d, owned, mcpFailures); err != nil {
@@ -442,7 +453,11 @@ func updateUtilities(id string) (resultErr error) {
 		}
 		return fmt.Errorf("utility %s is not added; run gap add owner/repo", id)
 	}
-	bar := startProgress("update", 2*len(ids))
+	totalSteps := 0
+	if len(ids) > 0 {
+		totalSteps = 1 + 4*len(ids)
+	}
+	bar := startProgress("update", totalSteps)
 	defer bar.stop()
 	if id == "" {
 		if _, err := updateDistro(""); err != nil {
@@ -451,6 +466,7 @@ func updateUtilities(id string) (resultErr error) {
 	}
 	out := newReport(os.Stdout)
 	if len(ids) == 0 {
+		bar.step("", nil)
 		out.println("No utilities added; gap add owner/repo adds one.")
 		return nil
 	}
@@ -532,7 +548,8 @@ func updateUtilities(id string) (resultErr error) {
 	if err != nil {
 		return err
 	}
-	if err := prepareComponentSources(home, requested, requestedPins); err != nil {
+	bar.step("fetch sources", nil)
+	if err := prepareComponentSourcesProgress(home, requested, requestedPins); err != nil {
 		return err
 	}
 	failed := false

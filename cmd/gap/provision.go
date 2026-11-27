@@ -87,10 +87,14 @@ func initProject(root, profile string, adopt bool) error {
 }
 
 func runComponentCommand(dir, command string) error {
-	cmd := exec.Command("sh", "-c", command)
-	cmd.Dir = dir
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return cmd.Run()
+	var err error
+	activeProgress.suspended(func() {
+		cmd := exec.Command("sh", "-c", command)
+		cmd.Dir = dir
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		err = cmd.Run()
+	})
+	return err
 }
 
 func doctorAll() error {

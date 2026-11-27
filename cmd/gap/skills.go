@@ -372,15 +372,19 @@ func checkDrift(home string, entries []manifestEntry) (bool, error) {
 				ok = false
 				continue
 			}
-			for _, d := range dests {
-				if _, err := os.Stat(d.Dir); err == nil {
-					showExpectedDiff(e, name, d)
-				} else {
-					fmt.Println("Missing skill destination: " + d.Dir)
+			var choice string
+			activeProgress.suspended(func() {
+				for _, d := range dests {
+					if _, err := os.Stat(d.Dir); err == nil {
+						showExpectedDiff(e, name, d)
+					} else {
+						fmt.Println("Missing skill destination: " + d.Dir)
+					}
 				}
-			}
-			fmt.Printf("%s: [k]eep installed, [t]ake source, [s]kip? ", name)
-			switch strings.ToLower(strings.TrimSpace(stdinLine())) {
+				fmt.Printf("%s: [k]eep installed, [t]ake source, [s]kip? ", name)
+				choice = strings.ToLower(strings.TrimSpace(stdinLine()))
+			})
+			switch choice {
 			case "k":
 				ok = installed(target, e, name) && ok
 			case "t":

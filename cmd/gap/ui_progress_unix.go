@@ -8,8 +8,8 @@ import (
 	"syscall"
 )
 
-// restoreOnSignal clears the bar and its scroll region when a signal ends the run,
-// then lets that signal end the process as it would have.
+// restoreOnSignal stops the Bubble Tea progress program when a signal ends the run
+// so terminal state is restored, then lets that signal end the process as it would have.
 func restoreOnSignal(p *progressBar) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
