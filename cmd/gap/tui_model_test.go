@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -989,5 +990,22 @@ func TestTUIHelpFitsSmallTerminal(t *testing.T) {
 	press(m, "esc", "1", "enter", "?")
 	if s := screen(m); !strings.Contains(s, "esc/enter/q") || !strings.Contains(s, "pgup/pgdn") {
 		t.Fatalf("detail help lacks its back and paging keys:\n%s", s)
+	}
+}
+
+func TestTUIHelpWrapsNarrowGroups(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 34, Height: 24})
+	press(m, "?")
+	for _, l := range strings.Split(m.helpVP.GetContent(), "\n") {
+		if w := lipgloss.Width(l); w > m.helpVP.Width() {
+			t.Fatalf("help line is %d wide in a %d pane: %q", w, m.helpVP.Width(), ansi.Strip(l))
+		}
+	}
+	all := ansi.Strip(m.helpVP.GetContent())
+	for _, want := range []string{"screen", "top/mid/bottom", "next/previous"} {
+		if !strings.Contains(all, want) {
+			t.Fatalf("narrow help lost %q:\n%s", want, all)
+		}
 	}
 }

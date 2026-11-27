@@ -313,10 +313,14 @@ func (m *tuiModel) helpBody(width int) string {
 		for _, k := range g {
 			kw = max(kw, lipgloss.Width(k.Help().Key))
 		}
+		kw = min(kw, max(width/3, 1))
+		dw := max(width-kw-2, 1)
 		var rows []string
 		for _, k := range g {
 			h := k.Help()
-			rows = append(rows, m.st.accent.Render(h.Key+strings.Repeat(" ", kw-lipgloss.Width(h.Key)))+"  "+m.st.faint.Render(h.Desc))
+			keyCol := lipgloss.NewStyle().Width(kw).Render(lipgloss.Wrap(h.Key, kw, ""))
+			desc := lipgloss.NewStyle().MaxWidth(dw).Render(lipgloss.Wrap(h.Desc, dw, ""))
+			rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, m.st.accent.Render(keyCol), "  ", m.st.faint.Render(desc)))
 		}
 		blocks = append(blocks, strings.Join(rows, "\n"))
 	}
@@ -329,7 +333,11 @@ func (m *tuiModel) helpBody(width int) string {
 			lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top, row...))
 			row, used = nil, 0
 		}
-		row = append(row, lipgloss.NewStyle().PaddingRight(4).Render(blk))
+		if used+w > width {
+			row = append(row, blk)
+		} else {
+			row = append(row, lipgloss.NewStyle().PaddingRight(4).Render(blk))
+		}
 		used += w
 	}
 	if len(row) > 0 {
