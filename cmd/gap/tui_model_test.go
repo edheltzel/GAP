@@ -351,7 +351,7 @@ func TestTUIStatusScrollKeys(t *testing.T) {
 	if s := screen(m); !strings.Contains(s, "line-099") || strings.Contains(s, "line-000") {
 		t.Fatalf("G did not reach the end:\n%s", s)
 	}
-	press(m, "g", "j")
+	press(m, "g", "g", "j")
 	if s := screen(m); strings.Contains(s, "line-000") || !strings.Contains(s, "line-001") {
 		t.Fatalf("j did not scroll:\n%s", s)
 	}
@@ -681,7 +681,7 @@ func TestTUISummaryScrollsToEveryStep(t *testing.T) {
 		if s := screen(m); !strings.Contains(s, "boom-25") || !strings.Contains(s, "update u25") || !strings.Contains(s, "29 ok, 1 failed, 0 not run.") {
 			t.Fatalf("width %d summary:\n%s", w, s)
 		}
-		press(m, "g")
+		press(m, "g", "g")
 		if s := screen(m); !strings.Contains(s, "update u00") || !strings.Contains(s, "out-00") {
 			t.Fatalf("width %d first step:\n%s", w, s)
 		}
@@ -750,5 +750,67 @@ func TestTUIProjectsLoadOnlyWhenShown(t *testing.T) {
 	press(m, "1")
 	if _, cmd := m.Update(tea.KeyPressMsg{Code: '3', Text: "3"}); cmd != nil || calls != 1 {
 		t.Fatalf("projects loaded twice in one refresh: calls %d", calls)
+	}
+}
+
+func TestTUIVimMotions(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	m.items = nil
+	for i := range 40 {
+		m.items = append(m.items, itemRow{ID: fmt.Sprintf("item-%02d", i), Scope: "global"})
+	}
+	h := m.rowsFor(tabItems)
+	ctrl := func(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Mod: tea.ModCtrl} }
+	m.Update(ctrl('d'))
+	if m.sel[tabItems] != h/2 {
+		t.Fatalf("ctrl+d moved to %d, want %d", m.sel[tabItems], h/2)
+	}
+	m.Update(ctrl('f'))
+	if m.sel[tabItems] != h/2+h {
+		t.Fatalf("ctrl+f moved to %d, want %d", m.sel[tabItems], h/2+h)
+	}
+	m.Update(ctrl('u'))
+	m.Update(ctrl('b'))
+	if m.sel[tabItems] != 0 {
+		t.Fatalf("ctrl+u then ctrl+b left %d, want 0", m.sel[tabItems])
+	}
+	press(m, "G")
+	start, end := m.listWindow(tabItems)
+	press(m, "H")
+	if m.sel[tabItems] != start {
+		t.Fatalf("H moved to %d, want %d", m.sel[tabItems], start)
+	}
+	if s, e := m.listWindow(tabItems); s != start || e != end {
+		t.Fatalf("H scrolled the list to %d-%d, want %d-%d", s, e, start, end)
+	}
+	press(m, "L")
+	if m.sel[tabItems] != end-1 {
+		t.Fatalf("L moved to %d, want %d", m.sel[tabItems], end-1)
+	}
+	start, end = m.listWindow(tabItems)
+	press(m, "M")
+	if m.sel[tabItems] != (start+end-1)/2 {
+		t.Fatalf("M moved to %d, want %d", m.sel[tabItems], (start+end-1)/2)
+	}
+	press(m, "g")
+	if !strings.Contains(screen(m), "gg top") || m.sel[tabItems] == 0 {
+		t.Fatalf("g alone should wait for the next key:\n%s", screen(m))
+	}
+	press(m, "g")
+	if m.sel[tabItems] != 0 || m.chord != "" {
+		t.Fatalf("gg left %d, chord %q", m.sel[tabItems], m.chord)
+	}
+	press(m, "g", "t")
+	if m.tab != tabStatus {
+		t.Fatalf("gt went to tab %d", m.tab)
+	}
+	press(m, "g", "T", "g", "T")
+	if m.tab != tabProjects {
+		t.Fatalf("gT twice went to tab %d", m.tab)
+	}
+	press(m, "1", "g", "j")
+	if m.sel[tabItems] != 1 || m.chord != "" {
+		t.Fatalf("g then j should drop the chord and move down, got %d %q", m.sel[tabItems], m.chord)
 	}
 }

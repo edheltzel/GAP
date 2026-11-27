@@ -117,9 +117,12 @@ Captured from the real TUI in an isolated demo home with two local example utili
 | Key | What it does |
 | --- | --- |
 | `j`/`k` or arrows | Move, or scroll the Status view |
-| `g` / `G` | Top / bottom |
+| `gg` / `G` | Top / bottom. After `g`, the status line shows the keys it waits for |
+| `ctrl+d` / `ctrl+u` | Half a page down / up |
+| `ctrl+f` / `ctrl+b` | A full page down / up |
+| `H` / `M` / `L` | Top, middle, or bottom row on screen |
 | `enter` | Open the selected item or project full screen, scrollable; `esc` goes back |
-| `tab` / `shift+tab` or `1`-`3` | Switch views |
+| `tab` / `shift+tab`, `gt` / `gT`, or `1`-`3` | Switch views |
 | `space` | Mark a utility |
 | `/` | Search the skills.sh catalog as you type. Hits show install counts, a check for trusted sources (vercel-labs, anthropics, microsoft, google-labs-code), and where you already have them. `enter` asks Everywhere or This project, then runs `gap add <repo> --skill <name>` with `--global` or `--project`. Hits from non-GitHub sources are hidden because `gap add` cannot install them |
 | `a` | Add a utility: type the repo, an optional id, and whether it installs everywhere or only in this project. On the Projects view it adds to the selected project. It hands the terminal to `gap add`, so its trust prompt works |
