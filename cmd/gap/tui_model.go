@@ -79,7 +79,7 @@ func newTUIKeys() tuiKeys {
 	return tuiKeys{
 		Up:        b("k/\u2191", "up", "k", "up"),
 		Down:      b("j/\u2193", "down", "j", "down"),
-		Top:       b("g", "top", "g", "home"),
+		Top:       b("gg", "top", "home"),
 		Bottom:    b("G", "bottom", "G", "end"),
 		Tab:       b("tab/1-3", "view", "tab", "shift+tab", "1", "2", "3"),
 		Mark:      b("space", "mark", "space"),
@@ -147,6 +147,8 @@ type tuiModel struct {
 	follow       bool
 	askChoice    int
 	note         string
+	chord        string
+	top          [3]int
 	quitting     bool
 	pendingExec  []string
 	formState    *formState
@@ -476,6 +478,13 @@ func (m *tuiModel) project() (projectView, bool) {
 }
 
 func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
+	if m.mode == modeBrowse || m.mode == modeDetail || m.mode == modeSummary {
+		if mv := m.vimMotion(msg); mv != vimNone {
+			return m.applyVim(mv)
+		}
+	} else {
+		m.chord = ""
+	}
 	switch m.mode {
 	case modeConfirm:
 		_, rows, _, shown := m.confirmParts()
@@ -584,15 +593,7 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		case "shift+tab":
 			next = (m.tab + len(tabNames) - 1) % len(tabNames)
 		}
-		if m.tab == tabStatus && next != tabStatus {
-			m.stopStatus()
-		}
-		m.tab = next
-		if m.tab == tabStatus && m.statusAt != 0 && m.statusAt != max(m.width-4, 1) {
-			m.status, m.statusErr, m.statusAsked, m.statusAt = "", nil, false, 0
-		}
-		m.refreshPane()
-		return tea.Batch(m.projectsCmd(), m.statusCmd())
+		return m.switchTab(next)
 	case m.tab == tabStatus && key.Matches(msg, m.keys.Up, m.keys.Down, m.keys.Top, m.keys.Bottom):
 		m.scroll(msg)
 	case key.Matches(msg, m.keys.Up):
@@ -841,12 +842,25 @@ func (m *tuiModel) scroll(msg tea.KeyPressMsg) {
 	}
 }
 
+func (m *tuiModel) switchTab(next int) tea.Cmd {
+	if m.tab == tabStatus && next != tabStatus {
+		m.stopStatus()
+	}
+	m.tab = next
+	if m.tab == tabStatus && m.statusAt != 0 && m.statusAt != max(m.width-4, 1) {
+		m.status, m.statusErr, m.statusAsked, m.statusAt = "", nil, false, 0
+	}
+	m.refreshPane()
+	return tea.Batch(m.projectsCmd(), m.statusCmd())
+}
+
 func (m *tuiModel) move(d int) {
 	n := m.count(m.tab)
 	if n == 0 {
 		return
 	}
 	m.sel[m.tab] = min(max(m.sel[m.tab]+d, 0), n-1)
+	m.top[m.tab], _ = m.listWindow(m.tab)
 	m.refreshPane()
 }
 
