@@ -3,103 +3,533 @@ package main
 import (
 	"fmt"
 	"image/color"
-	"io"
 	"math"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
 )
 
-// progressBar pins a bar to the terminal's last row while sync or update runs.
-// A scroll region above it keeps every other line, hook output, and prompt
-// flowing normally, the way apt draws its progress line. Each finished step
-// leaves a line above the bar, and a ticker keeps the spinner and clock moving.
+// progressStep is a planned phase in a sync or update run.
+type progressStep struct {
+	Label string
+	Hue   color.Color
+}
+
+type progressState int
+
+const (
+	stepPending progressState = iota
+	stepActive
+	stepDone
+	stepWarn
+)
+
+type progressEntry struct {
+	label      string
+	hue        color.Color
+	state      progressState
+	unresolved bool
+	started    time.Time
+	took       time.Duration
+}
+
+type progressPlanMsg struct{ steps []progressStep }
+type progressStepMsg struct {
+	label string
+	hue   color.Color
+}
+type progressMarkMsg struct{ ok bool }
+type progressItemMsg struct {
+	done  int
+	total int
+	name  string
+}
+type progressDetailMsg struct{ text string }
+type progressAddMsg struct{ delta int }
+type progressSuspendMsg struct{ suspended bool }
+type progressSyncMsg struct{ ack chan struct{} }
+type progressStopMsg struct{}
+
+// progressModel is an inline Bubble Tea v2 model rendering a live step checklist,
+// active item/detail status, gradient progress bar, elapsed time, and ETA.
+type progressModel struct {
+	pal       palette
+	plain     bool
+	title     string
+	width     int
+	height    int
+	total     int
+	done      int
+	entries   []progressEntry
+	active    int
+	subDone   int
+	subTotal  int
+	itemName  string
+	detail    string
+	start     time.Time
+	doneAt    time.Time
+	stepAt    time.Time
+	subDoneAt time.Time
+	clock     func() time.Time
+	spin      spinner.Model
+	suspended bool
+	quitting  bool
+}
+
+func newProgressModel(pal palette, plain bool, title string, total, width, height int) progressModel {
+	clock := time.Now
+	now := clock()
+	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot))
+	return progressModel{
+		pal:       pal,
+		plain:     plain,
+		title:     title,
+		width:     width,
+		height:    height,
+		total:     total,
+		active:    -1,
+		start:     now,
+		doneAt:    now,
+		stepAt:    now,
+		subDoneAt: now,
+		clock:     clock,
+		spin:      sp,
+	}
+}
+
+func (m progressModel) Init() tea.Cmd {
+	return m.spin.Tick
+}
+
+func (m progressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		if msg.Width > 0 {
+			m.width = msg.Width
+		}
+		if msg.Height > 0 {
+			m.height = msg.Height
+		}
+		return m, nil
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spin, cmd = m.spin.Update(msg)
+		return m, cmd
+
+	case progressPlanMsg:
+		now := m.clock()
+		entries := make([]progressEntry, len(msg.steps))
+		for i, s := range msg.steps {
+			entries[i] = progressEntry{label: s.Label, hue: s.Hue, state: stepPending}
+		}
+		m.entries = entries
+		m.total = len(entries)
+		m.done = 0
+		m.active = -1
+		m.doneAt = now
+		m.stepAt = now
+		m.subDoneAt = now
+		m.subDone, m.subTotal, m.itemName, m.detail = 0, 0, "", ""
+		return m, nil
+
+	case progressStepMsg:
+		now := m.clock()
+		if m.active >= 0 && m.active < len(m.entries) {
+			if m.entries[m.active].unresolved {
+				m.entries[m.active].state = stepWarn
+			} else {
+				m.entries[m.active].state = stepDone
+			}
+			m.entries[m.active].took = max(now.Sub(m.entries[m.active].started), 0)
+			m.done++
+			m.doneAt = now
+			if m.total < m.done {
+				m.total = m.done
+			}
+		}
+		m.active = -1
+		m.subDone, m.subTotal, m.itemName, m.detail = 0, 0, "", ""
+		m.stepAt = now
+		m.subDoneAt = now
+		if msg.label == "" {
+			return m, nil
+		}
+		for i := range m.entries {
+			if m.entries[i].state == stepPending && m.entries[i].label == msg.label {
+				m.entries[i].state = stepActive
+				m.entries[i].started = now
+				if msg.hue != nil {
+					m.entries[i].hue = msg.hue
+				}
+				m.active = i
+				return m, nil
+			}
+		}
+		m.entries = append(m.entries, progressEntry{
+			label:   msg.label,
+			hue:     msg.hue,
+			state:   stepActive,
+			started: now,
+		})
+		m.active = len(m.entries) - 1
+		if m.total < len(m.entries) {
+			m.total = len(m.entries)
+		}
+		return m, nil
+
+	case progressMarkMsg:
+		if m.active >= 0 && m.active < len(m.entries) && !msg.ok {
+			m.entries[m.active].unresolved = true
+		}
+		return m, nil
+
+	case progressItemMsg:
+		if msg.done != m.subDone || msg.total != m.subTotal {
+			m.subDoneAt = m.clock()
+		}
+		m.subDone = msg.done
+		m.subTotal = msg.total
+		m.itemName = msg.name
+		return m, nil
+
+	case progressDetailMsg:
+		m.detail = msg.text
+		return m, nil
+
+	case progressAddMsg:
+		m.total = max(m.total+msg.delta, m.done)
+		if msg.delta < 0 {
+			for len(m.entries) > m.total && m.entries[len(m.entries)-1].state == stepPending {
+				m.entries = m.entries[:len(m.entries)-1]
+			}
+		}
+		return m, nil
+
+	case progressSuspendMsg:
+		m.suspended = msg.suspended
+		return m, nil
+
+	case progressSyncMsg:
+		if msg.ack != nil {
+			close(msg.ack)
+		}
+		return m, nil
+
+	case progressStopMsg:
+		m.quitting = true
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m progressModel) View() tea.View {
+	v := tea.NewView(m.render())
+	v.AltScreen = false
+	return v
+}
+
+func (m progressModel) render() string {
+	if m.suspended {
+		return ""
+	}
+	w := m.width
+	if w <= 0 {
+		w = 80
+	}
+	h := m.height
+	if h <= 0 {
+		h = 24
+	}
+	if m.quitting {
+		var doneLines []string
+		for _, e := range m.entries {
+			if e.state == stepDone || e.state == stepWarn {
+				doneLines = append(doneLines, ansi.Truncate(m.doneLine(e), w, "\u2026"))
+			}
+		}
+		if len(doneLines) == 0 {
+			return ""
+		}
+		return strings.Join(doneLines, "\n")
+	}
+
+	var lines []string
+	if len(m.entries) > 0 {
+		maxList := max(h-3, 1)
+		start, end := 0, len(m.entries)
+		if len(m.entries) > maxList {
+			anchor := m.active
+			if anchor < 0 {
+				anchor = len(m.entries) - 1
+			}
+			start = max(anchor-maxList/2, 0)
+			end = start + maxList
+			if end > len(m.entries) {
+				end = len(m.entries)
+				start = max(end-maxList, 0)
+			}
+		}
+		for i := start; i < end; i++ {
+			lines = append(lines, ansi.Truncate(m.entryLine(m.entries[i]), w, "\u2026"))
+		}
+	}
+	lines = append(lines, m.barLine(w))
+	return strings.Join(lines, "\n")
+}
+
+func (m progressModel) style(c color.Color) lipgloss.Style {
+	if m.plain || c == nil {
+		return lipgloss.NewStyle()
+	}
+	return lipgloss.NewStyle().Foreground(c)
+}
+
+func (m progressModel) doneLine(e progressEntry) string {
+	hue := e.hue
+	if hue == nil {
+		hue = m.pal.Text
+	}
+	mark, markColor := "\u2713", m.pal.OK
+	if e.state == stepWarn {
+		mark, markColor = "!", m.pal.Warn
+	}
+	return "  " + m.style(markColor).Render(mark) + " " + m.style(hue).Render(e.label) + "  " + m.style(m.pal.Dim).Render(e.took.Round(100*time.Millisecond).String())
+}
+
+func (m progressModel) entryLine(e progressEntry) string {
+	switch e.state {
+	case stepDone, stepWarn:
+		return m.doneLine(e)
+	case stepActive:
+		hue := e.hue
+		if hue == nil {
+			hue = m.pal.Text
+		}
+		line := "  " + m.style(m.pal.Accent).Render(m.spin.View()) + " " + m.style(hue).Bold(!m.plain).Render(e.label)
+		if item := m.itemText(); item != "" {
+			line += "  " + m.style(m.pal.Dim).Render(item)
+		}
+		if m.detail != "" {
+			line += "  " + m.style(m.pal.Dim).Render("\u00b7 "+m.detail)
+		}
+		return line
+	default:
+		return "  " + m.style(m.pal.Dim).Render("\u00b7 "+e.label)
+	}
+}
+
+func (m progressModel) itemText() string {
+	if m.subTotal > 0 {
+		if m.itemName != "" {
+			return fmt.Sprintf("%d/%d %s", m.subDone, m.subTotal, m.itemName)
+		}
+		return fmt.Sprintf("%d/%d", m.subDone, m.subTotal)
+	}
+	return m.itemName
+}
+
+func (m progressModel) remaining(now time.Time) (time.Duration, bool) {
+	if m.subTotal > 1 && m.subDone > 1 && m.subDone <= m.subTotal {
+		completedDur := max(m.subDoneAt.Sub(m.stepAt), 0)
+		if completedDur >= time.Second {
+			done := float64(m.subDone - 1)
+			avg := float64(completedDur) / done
+			inFlight := float64(max(now.Sub(m.subDoneAt), 0))
+			after := float64(m.subTotal - m.subDone)
+			return time.Duration(max(avg-inFlight, 0) + avg*after), true
+		}
+		return 0, true
+	}
+	if m.subTotal <= 1 && m.total > 0 && m.done > 0 && m.done < m.total {
+		completedDur := max(m.doneAt.Sub(m.start), 0)
+		if completedDur >= time.Second {
+			avg := float64(completedDur) / float64(m.done)
+			if m.active >= 0 {
+				inFlight := float64(max(now.Sub(m.doneAt), 0))
+				after := float64(max(m.total-m.done-1, 0))
+				return time.Duration(max(avg-inFlight, 0) + avg*after), false
+			}
+			return time.Duration(avg * float64(m.total-m.done)), false
+		}
+	}
+	return 0, false
+}
+
+func formatETA(d time.Duration, stepScope bool) string {
+	s := int(d.Round(time.Second).Seconds())
+	if s < 1 {
+		return ""
+	}
+	suffix := " left"
+	if stepScope {
+		suffix = " step left"
+	}
+	if s < 60 {
+		return fmt.Sprintf("~%ds%s", s, suffix)
+	}
+	return fmt.Sprintf("~%dm%02ds%s", s/60, s%60, suffix)
+}
+
+func (m progressModel) pct() float64 {
+	if m.total > 0 {
+		done := float64(m.done)
+		if m.subTotal > 0 && m.done < m.total {
+			done += float64(min(max(m.subDone-1, 0), m.subTotal)) / float64(m.subTotal)
+		}
+		return min(done/float64(m.total), 1.0)
+	}
+	if m.done > 0 {
+		return 1.0
+	}
+	return 0.0
+}
+
+func (m progressModel) barLine(width int) string {
+	pct := m.pct()
+	now := m.clock()
+	sinceStart := max(now.Sub(m.start), 0)
+	elapsed := sinceStart.Round(time.Second)
+	frame := m.spin.View()
+	stat := fmt.Sprintf(" %3.0f%%  %d/%d  %02d:%02d", pct*100, m.done, m.total, int(elapsed.Minutes()), int(elapsed.Seconds())%60)
+	if eta, stepScope := m.remaining(now); eta > 0 {
+		if label := formatETA(eta, stepScope); label != "" {
+			stat += "  " + label
+		}
+	}
+	stat += " "
+
+	activeLabel := ""
+	var activeHue color.Color
+	if m.active >= 0 && m.active < len(m.entries) {
+		activeLabel = m.entries[m.active].label
+		activeHue = m.entries[m.active].hue
+	}
+	item := m.itemText()
+	tail := frame + " " + m.title
+	if activeLabel != "" {
+		tail += " " + activeLabel
+	}
+	if item != "" {
+		tail += "  " + item
+	}
+	if m.detail != "" {
+		tail += "  " + m.detail
+	}
+	cells := max(min(width/2, width-ansi.StringWidth(stat)-ansi.StringWidth(tail)-2), 8)
+	filled := int(math.Round(float64(cells) * pct))
+
+	var b strings.Builder
+	b.WriteString(" ")
+	if filled > 0 {
+		hues := lipgloss.Blend1D(filled, m.pal.Deep, m.pal.Accent, m.pal.OK)
+		for i := range filled {
+			b.WriteString(m.style(hues[i]).Render("\u2501"))
+		}
+	}
+	b.WriteString(m.style(m.pal.Border).Render(strings.Repeat("\u2591", cells-filled)))
+	b.WriteString(m.style(m.pal.Dim).Render(stat))
+	b.WriteString(m.style(m.pal.Accent).Render(frame) + " ")
+	b.WriteString(m.style(m.pal.Accent).Bold(!m.plain).Render(m.title))
+	if activeLabel != "" {
+		if activeHue == nil {
+			activeHue = m.pal.Text
+		}
+		b.WriteString(" " + m.style(activeHue).Render(activeLabel))
+	}
+	if item != "" {
+		b.WriteString("  " + m.style(m.pal.Dim).Render(item))
+	}
+	if m.detail != "" {
+		b.WriteString("  " + m.style(m.pal.Dim).Render(m.detail))
+	}
+	return ansi.Truncate(b.String(), width, "\u2026")
+}
+
+// progressBar drives an inline Bubble Tea v2 progress program on stderr while sync or update runs.
+// All methods are nil-safe so non-terminal runs skip it without branching.
 type progressBar struct {
-	mu       sync.Mutex
-	w        io.Writer
-	size     func() (int, int)
-	pal      palette
-	plain    bool
-	title    string
-	total    int
-	done     int
-	label    string
-	detail   string
-	subDone  int
-	subTotal int
-	hue      color.Color
-	start    time.Time
-	stepAt   time.Time
-	clock    func() time.Time
-	stopped  bool
-	lastRows int
-	quit     chan struct{}
+	mu        sync.Mutex
+	prog      *tea.Program
+	doneCh    chan struct{}
+	quit      chan struct{}
+	pal       palette
+	plain     bool
+	stopped   bool
+	suspMu    sync.Mutex
+	suspDepth int
 }
 
 var activeProgress *progressBar
 
-var spinnerFrames = []string{"\u280b", "\u2819", "\u2839", "\u2838", "\u283c", "\u2834", "\u2826", "\u2827", "\u2807", "\u280f"}
-
-// startProgress returns nil unless stdout and stderr are both a terminal that can move the cursor.
+// startProgress returns nil unless stdout and stderr are both a terminal that supports live rendering.
 func startProgress(title string, total int) *progressBar {
 	if activeProgress != nil || !isTerminal(os.Stdout) || !isTerminal(os.Stderr) || os.Getenv("TERM") == "dumb" {
 		return nil
 	}
 	f := os.Stderr
-	p := newProgressBar(f, func() (int, int) {
-		w, h, err := term.GetSize(f.Fd())
-		if err != nil {
-			return 0, 0
-		}
-		return w, h
-	}, newReport(os.Stdout).colors(), plainEnv(), title, total)
-	if p != nil {
-		activeProgress = p
-		p.quit = make(chan struct{})
-		restoreOnSignal(p)
-		go p.tick(p.quit)
-	}
-	return p
-}
-
-func newProgressBar(w io.Writer, size func() (int, int), pal palette, plain bool, title string, total int) *progressBar {
-	p := &progressBar{w: w, size: size, pal: pal, plain: plain, title: title, total: total, clock: time.Now}
-	if _, h := size(); h < 4 {
+	w, h, err := term.GetSize(f.Fd())
+	if err != nil || h < 4 || w < 20 {
 		return nil
 	}
-	p.start = p.clock()
-	p.stepAt = p.start
-	fmt.Fprint(w, "\n\x1b[1A")
-	p.draw()
+	pal := newReport(os.Stdout).colors()
+	plain := plainEnv()
+	m := newProgressModel(pal, plain, title, total, w, h)
+	prog := tea.NewProgram(m,
+		tea.WithInput(nil),
+		tea.WithOutput(f),
+		tea.WithoutSignalHandler(),
+	)
+	p := &progressBar{
+		prog:   prog,
+		doneCh: make(chan struct{}),
+		quit:   make(chan struct{}),
+		pal:    pal,
+		plain:  plain,
+	}
+	activeProgress = p
+	restoreOnSignal(p)
+	go func() {
+		defer close(p.doneCh)
+		_, _ = prog.Run()
+	}()
 	return p
 }
 
-func (p *progressBar) tick(quit <-chan struct{}) {
-	t := time.NewTicker(100 * time.Millisecond)
-	defer t.Stop()
-	for {
-		select {
-		case <-t.C:
-			p.draw()
-		case <-quit:
-			return
-		}
+func (p *progressBar) send(msg tea.Msg) {
+	if p == nil {
+		return
 	}
+	p.mu.Lock()
+	prog, stopped := p.prog, p.stopped
+	p.mu.Unlock()
+	if prog == nil || stopped {
+		return
+	}
+	prog.Send(msg)
+}
+
+func (p *progressBar) plan(steps []progressStep) {
+	if p == nil {
+		return
+	}
+	cp := make([]progressStep, len(steps))
+	copy(cp, steps)
+	p.send(progressPlanMsg{steps: cp})
 }
 
 func (p *progressBar) add(n int) {
 	if p == nil {
 		return
 	}
-	p.mu.Lock()
-	p.total += n
-	p.mu.Unlock()
-	p.draw()
+	p.send(progressAddMsg{delta: n})
 }
 
 func (p *progressBar) groupHue(c component) color.Color {
@@ -109,50 +539,103 @@ func (p *progressBar) groupHue(c component) color.Color {
 	return p.pal.group(c.Color, c.ID)
 }
 
-// step marks the previous step done and names the one starting now.
+// step marks the previous step done and starts the named step. An empty label closes the active step.
 func (p *progressBar) step(label string, hue color.Color) {
 	if p == nil {
 		return
 	}
-	p.mu.Lock()
-	now := p.clock()
-	if p.label != "" && !p.stopped {
-		p.done = min(p.done+1, p.total)
-		io.WriteString(p.w, p.doneLine(now.Sub(p.stepAt)))
+	p.send(progressStepMsg{label: label, hue: hue})
+}
+
+// mark records whether the active step completed cleanly. A false mark renders
+// the finished step with a warning indicator instead of a checkmark.
+func (p *progressBar) mark(ok bool) {
+	if p == nil {
+		return
 	}
-	p.label, p.hue, p.detail, p.subDone, p.subTotal, p.stepAt = label, hue, "", 0, 0, now
-	p.mu.Unlock()
-	p.draw()
+	p.send(progressMarkMsg{ok: ok})
 }
 
 func (p *progressBar) item(done, total int, name string) {
 	if p == nil {
 		return
 	}
+	p.send(progressItemMsg{done: done, total: total, name: name})
+}
+
+func (p *progressBar) detail(text string) {
+	if p == nil {
+		return
+	}
+	p.send(progressDetailMsg{text: text})
+}
+
+// println prints a persistent line above the live inline progress view.
+// Returns false when no active unsuspended program handled the line.
+func (p *progressBar) println(line string) bool {
+	if p == nil {
+		return false
+	}
+	p.suspMu.Lock()
+	suspended := p.suspDepth > 0
+	p.suspMu.Unlock()
+	if suspended {
+		return false
+	}
 	p.mu.Lock()
-	p.subDone, p.subTotal = done, total
-	if total > 0 {
-		p.detail = fmt.Sprintf("%d/%d %s", done, total, name)
-	} else {
-		p.detail = name
-	}
+	prog, stopped := p.prog, p.stopped
 	p.mu.Unlock()
-	p.draw()
+	if prog == nil || stopped {
+		return false
+	}
+	prog.Println(strings.TrimRight(line, "\n"))
+	return true
 }
 
-func (p *progressBar) style(c color.Color) lipgloss.Style {
-	if p.plain || c == nil {
-		return lipgloss.NewStyle()
+// suspended temporarily releases the terminal so interactive prompts or subprocesses
+// can read stdin and write output without racing the Bubble Tea inline renderer.
+func (p *progressBar) suspended(fn func()) {
+	if p == nil {
+		fn()
+		return
 	}
-	return lipgloss.NewStyle().Foreground(c)
-}
+	p.suspMu.Lock()
+	p.mu.Lock()
+	prog, stopped, done := p.prog, p.stopped, p.doneCh
+	p.mu.Unlock()
+	if prog == nil || stopped {
+		p.suspMu.Unlock()
+		fn()
+		return
+	}
+	p.suspDepth++
+	shouldRelease := p.suspDepth == 1
+	p.suspMu.Unlock()
 
-func (p *progressBar) doneLine(took time.Duration) string {
-	hue := p.hue
-	if hue == nil {
-		hue = p.pal.Text
+	if shouldRelease {
+		prog.Send(progressSuspendMsg{suspended: true})
+		ack := make(chan struct{})
+		prog.Send(progressSyncMsg{ack: ack})
+		select {
+		case <-ack:
+		case <-done:
+		}
+		_ = prog.ReleaseTerminal()
 	}
-	return "  " + p.style(p.pal.OK).Render("\u2713") + " " + p.style(hue).Render(p.label) + "  " + p.style(p.pal.Dim).Render(took.Round(100*time.Millisecond).String()) + "\n"
+	defer func() {
+		p.suspMu.Lock()
+		p.suspDepth--
+		shouldRestore := p.suspDepth == 0
+		p.mu.Lock()
+		stillRunning := !p.stopped && p.prog != nil
+		p.mu.Unlock()
+		p.suspMu.Unlock()
+		if shouldRestore && stillRunning {
+			_ = prog.RestoreTerminal()
+			prog.Send(progressSuspendMsg{suspended: false})
+		}
+	}()
+	fn()
 }
 
 func (p *progressBar) stop() {
@@ -160,8 +643,8 @@ func (p *progressBar) stop() {
 		return
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.stopped {
+		p.mu.Unlock()
 		return
 	}
 	p.stopped = true
@@ -171,113 +654,10 @@ func (p *progressBar) stop() {
 	if activeProgress == p {
 		activeProgress = nil
 	}
-	_, h := p.size()
-	fmt.Fprintf(p.w, "\x1b7\x1b[%d;1H\x1b[2K\x1b[r\x1b8", max(h, p.lastRows))
-}
-
-func (p *progressBar) draw() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.stopped {
-		return
+	prog, done := p.prog, p.doneCh
+	p.mu.Unlock()
+	if prog != nil {
+		prog.Send(progressStopMsg{})
+		<-done
 	}
-	w, h := p.size()
-	if h < 4 || w < 20 {
-		return
-	}
-	var b strings.Builder
-	b.WriteString("\x1b7")
-	if h != p.lastRows {
-		if p.lastRows > h {
-			fmt.Fprintf(&b, "\x1b[%d;1H\x1b[2K", p.lastRows)
-		}
-		fmt.Fprintf(&b, "\x1b[1;%dr\x1b8\x1b7", h-1)
-		p.lastRows = h
-	}
-	fmt.Fprintf(&b, "\x1b[%d;1H\x1b[2K", h)
-	b.WriteString(p.line(w))
-	b.WriteString("\x1b8")
-	io.WriteString(p.w, b.String())
-}
-
-func (p *progressBar) remaining(now time.Time) time.Duration {
-	if p.subTotal > 1 && p.subDone > 1 && p.subDone <= p.subTotal {
-		stepElapsed := max(now.Sub(p.stepAt), 0)
-		if stepElapsed >= time.Second {
-			done := float64(p.subDone - 1)
-			left := float64(p.subTotal - (p.subDone - 1))
-			return time.Duration(float64(stepElapsed) * left / done)
-		}
-		return 0
-	}
-	if p.subTotal == 0 && p.total > 0 && p.done > 0 && p.done < p.total {
-		elapsed := max(now.Sub(p.start), 0)
-		if elapsed >= time.Second {
-			return time.Duration(float64(elapsed) * float64(p.total-p.done) / float64(p.done))
-		}
-	}
-	return 0
-}
-
-func formatETA(d time.Duration) string {
-	s := int(d.Round(time.Second).Seconds())
-	if s < 1 {
-		return ""
-	}
-	if s < 60 {
-		return fmt.Sprintf("~%ds left", s)
-	}
-	return fmt.Sprintf("~%dm%02ds left", s/60, s%60)
-}
-
-func (p *progressBar) line(width int) string {
-	pct := 1.0
-	if p.total > 0 {
-		done := float64(p.done)
-		if p.subTotal > 0 && p.done < p.total {
-			done += float64(min(max(p.subDone-1, 0), p.subTotal)) / float64(p.subTotal)
-		}
-		pct = min(done/float64(p.total), 1.0)
-	}
-	now := p.clock()
-	sinceStart := max(now.Sub(p.start), 0)
-	elapsed := sinceStart.Round(time.Second)
-	frame := spinnerFrames[int(sinceStart/(100*time.Millisecond))%len(spinnerFrames)]
-	stat := fmt.Sprintf(" %3.0f%%  %d/%d  %02d:%02d", pct*100, p.done, p.total, int(elapsed.Minutes()), int(elapsed.Seconds())%60)
-	if eta := formatETA(p.remaining(now)); eta != "" {
-		stat += "  " + eta
-	}
-	stat += " "
-	label := " " + frame + " " + p.title
-	if p.label != "" {
-		label += " " + p.label
-	}
-	if p.detail != "" {
-		label += "  " + p.detail
-	}
-	cells := max(min(width/2, width-ansi.StringWidth(stat)-ansi.StringWidth(label)-2), 8)
-	filled := int(math.Round(float64(cells) * pct))
-	var b strings.Builder
-	b.WriteString(" ")
-	if filled > 0 {
-		hues := lipgloss.Blend1D(filled, p.pal.Deep, p.pal.Accent, p.pal.OK)
-		for i := range filled {
-			b.WriteString(p.style(hues[i]).Render("\u2501"))
-		}
-	}
-	b.WriteString(p.style(p.pal.Border).Render(strings.Repeat("\u2591", cells-filled)))
-	b.WriteString(p.style(p.pal.Dim).Render(stat))
-	b.WriteString(p.style(p.pal.Accent).Render(frame) + " ")
-	b.WriteString(p.style(p.pal.Accent).Bold(!p.plain).Render(p.title))
-	if p.label != "" {
-		hue := p.hue
-		if hue == nil {
-			hue = p.pal.Text
-		}
-		b.WriteString(" " + p.style(hue).Render(p.label))
-	}
-	if p.detail != "" {
-		b.WriteString("  " + p.style(p.pal.Dim).Render(p.detail))
-	}
-	return ansi.Truncate(b.String(), width, "\u2026")
 }

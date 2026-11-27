@@ -670,10 +670,20 @@ func registeredPins(repoRoot, home string) (distro, lockFile, error) {
 }
 
 func prepareComponentSources(home string, d distro, pins map[string]lockEntryM1) error {
+	return prepareComponentSourcesItems(home, d, pins, false)
+}
+
+func prepareComponentSourcesProgress(home string, d distro, pins map[string]lockEntryM1) error {
+	return prepareComponentSourcesItems(home, d, pins, true)
+}
+
+func prepareComponentSourcesItems(home string, d distro, pins map[string]lockEntryM1, reportItems bool) error {
 	ids := sortedIDs(d.Components)
 	for i, id := range ids {
 		c := d.Components[id]
-		activeProgress.item(i+1, len(ids), id)
+		if reportItems {
+			activeProgress.item(i+1, len(ids), id)
+		}
 		dir, err := ensureStore(home, c, pins[id])
 		if err != nil {
 			return err
@@ -1039,6 +1049,7 @@ func componentEntries(home, projectRoot string, d distro, pins map[string]lockEn
 		if command != "" && state.Installed != pins[id].Commit {
 			if !gate.approve(c, hook, command) {
 				ok = false
+				activeProgress.mark(false)
 			} else {
 				out := newReport(os.Stdout)
 				out.section(id, "run its "+hook+" hook"+pinLabel(pins[id]))
