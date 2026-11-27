@@ -228,6 +228,9 @@ func (m *tuiModel) render() string {
 			body = m.panes(m.projectList, m.projectDetail)
 		}
 	}
+	if m.showHelp {
+		body = m.helpView()
+	}
 	note := " " + m.note
 	if err := errors.Join(m.loadErr, m.projErr); err != nil && m.note == "" {
 		note = " " + m.st.bad.Render(firstLine(err.Error()))
@@ -249,6 +252,9 @@ func firstLine(s string) string {
 
 func (m *tuiModel) helpKeys() []key.Binding {
 	k := m.keys
+	if m.showHelp {
+		return []key.Binding{key.NewBinding(key.WithKeys("?"), key.WithHelp("?/esc", "close"))}
+	}
 	switch m.mode {
 	case modeSearch:
 		return []key.Binding{key.NewBinding(key.WithKeys("up"), key.WithHelp("\u2191/\u2193", "pick")), key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "install")), key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "close"))}
@@ -263,15 +269,49 @@ func (m *tuiModel) helpKeys() []key.Binding {
 	case modeSummary:
 		return []key.Binding{k.Up, k.Down, key.NewBinding(key.WithKeys("pgup", "pgdown"), key.WithHelp("pgup/pgdn", "output")), key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "close"))}
 	case modeDetail:
-		return []key.Binding{k.Up, k.Down, k.Top, k.Bottom, k.Back}
+		return []key.Binding{k.Up, k.Down, k.Top, k.Bottom, k.Back, k.Help}
 	}
 	switch m.tab {
 	case tabItems:
-		return []key.Binding{k.Up, k.Down, k.Open, k.Find, k.Add, k.Edit, k.Editor, k.Update, k.UpdateAll, k.Sync, k.Mark, k.Delete, k.Disable, k.Check, k.CheckAll, k.Refresh, k.Tab, k.Quit}
+		return []key.Binding{k.Up, k.Down, k.Open, k.Find, k.Update, k.Sync, k.Mark, k.Tab, k.Help, k.Quit}
 	case tabProjects:
-		return []key.Binding{k.Up, k.Down, k.Open, k.Add, key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "open its gap.toml")), k.Forget, k.Sync, k.Refresh, k.Tab, k.Quit}
+		return []key.Binding{k.Up, k.Down, k.Open, k.Add, k.Sync, k.Tab, k.Help, k.Quit}
 	}
-	return []key.Binding{k.Up, k.Down, k.Top, k.Bottom, k.Sync, k.Refresh, k.Tab, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Sync, k.Refresh, k.Tab, k.Help, k.Quit}
+}
+
+func (m *tuiModel) helpGroups() [][]key.Binding {
+	k := m.keys
+	b := func(help, desc string) key.Binding {
+		return key.NewBinding(key.WithKeys(help), key.WithHelp(help, desc))
+	}
+	nav := []key.Binding{k.Up, k.Down, k.Top, k.Bottom, b("ctrl+d/u", "half page"), b("ctrl+f/b", "full page")}
+	if m.mode == modeDetail {
+		return [][]key.Binding{nav, {k.Back, k.Help}}
+	}
+	if m.tab != tabStatus {
+		nav = append(nav, b("H/M/L", "screen top/mid/bottom"))
+	}
+	views := []key.Binding{k.Tab, b("gt/gT", "next/previous view"), k.Open}
+	general := []key.Binding{k.Sync, k.Refresh, k.Help, k.Quit}
+	switch m.tab {
+	case tabItems:
+		return [][]key.Binding{nav, views, {k.Find, k.Add, k.Edit, k.Editor, k.Mark, k.Delete, k.Disable}, {k.Update, k.UpdateAll, k.Check, k.CheckAll}, general}
+	case tabProjects:
+		return [][]key.Binding{nav, views, {k.Add, b("e", "open its gap.toml"), k.Forget}, general}
+	}
+	return [][]key.Binding{nav, {k.Tab, b("gt/gT", "next/previous view")}, general}
+}
+
+func (m *tuiModel) helpView() string {
+	title := tabNames[m.tab] + " keys"
+	if m.mode == modeDetail {
+		title = "Detail keys"
+	}
+	full := m.help
+	full.SetWidth(max(m.width-4, 1))
+	body := m.st.accent.Render(title) + "\n\n" + full.FullHelpView(m.helpGroups())
+	return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(body)
 }
 
 func (m *tuiModel) window(n, sel, h int) (int, int) {

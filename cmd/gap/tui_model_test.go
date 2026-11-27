@@ -825,3 +825,40 @@ func TestTUIVimDetailHint(t *testing.T) {
 		t.Fatalf("gt switched views from detail: mode %d tab %d", m.mode, m.tab)
 	}
 }
+
+func TestTUIHelpOverlay(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+	rows := strings.Split(strings.TrimRight(screen(m), " \n"), "\n")
+	foot := rows[len(rows)-1]
+	if !strings.Contains(foot, "? all keys") || strings.Contains(foot, "check all") || strings.Contains(foot, "\u2026") {
+		t.Fatalf("browse footer should be short and point at ?:\n%s", foot)
+	}
+	press(m, "?")
+	s := screen(m)
+	for _, want := range []string{"Items keys", "half page", "H/M/L", "check all", "open gap.toml", "disable", "?/esc close"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("help overlay lacks %q:\n%s", want, s)
+		}
+	}
+	press(m, "j", "d")
+	if !m.showHelp || m.mode != modeBrowse || m.sel[tabItems] != 0 {
+		t.Fatalf("keys leaked through the overlay: help %v mode %d sel %d", m.showHelp, m.mode, m.sel[tabItems])
+	}
+	press(m, "esc")
+	if m.showHelp || strings.Contains(screen(m), "Items keys") {
+		t.Fatalf("esc did not close the overlay")
+	}
+	press(m, "3", "?")
+	if s := screen(m); !strings.Contains(s, "Projects keys") || !strings.Contains(s, "forget") {
+		t.Fatalf("projects help:\n%s", s)
+	}
+	press(m, "?", "2", "?")
+	if s := screen(m); !strings.Contains(s, "Status keys") || strings.Contains(s, "H/M/L") {
+		t.Fatalf("status help:\n%s", s)
+	}
+	press(m, "q")
+	if m.showHelp || m.quitting {
+		t.Fatalf("q should close the overlay, not quit: help %v quitting %v", m.showHelp, m.quitting)
+	}
+}
