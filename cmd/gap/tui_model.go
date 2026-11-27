@@ -241,7 +241,7 @@ func (m *tuiModel) stopStatus() {
 	if m.statusStop != nil {
 		m.statusStop()
 		m.statusStop = nil
-		m.statusAsked, m.statusLoading, m.statusCols = false, false, 0
+		m.statusAsked, m.statusLoading = false, false
 	}
 }
 
@@ -305,7 +305,7 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		var resized tea.Cmd
-		if m.tab == tabStatus && m.statusCols != 0 && m.statusCols != max(m.width-4, 1) {
+		if m.statusCols != 0 && m.statusCols != max(m.width-4, 1) {
 			m.stopStatus()
 			m.status, m.statusErr, m.statusAsked = "", nil, false
 			resized = m.statusCmd()
@@ -578,6 +578,9 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 			m.stopStatus()
 		}
 		m.tab = next
+		if m.tab == tabStatus && m.statusCols != 0 && m.statusCols != max(m.width-4, 1) {
+			m.status, m.statusErr, m.statusAsked = "", nil, false
+		}
 		m.refreshPane()
 		return tea.Batch(m.projectsCmd(), m.statusCmd())
 	case m.tab == tabStatus && key.Matches(msg, m.keys.Up, m.keys.Down, m.keys.Top, m.keys.Bottom):
