@@ -189,7 +189,7 @@ func newTUIModel(home, repoRoot, projectRoot string, p palette) *tuiModel {
 	m.loadQuick = func() loadedMsg { return quickTUIData(home, repoRoot) }
 	m.loadFull = func(stores *storeCache) loadedMsg { return loadTUIItems(home, repoRoot, projectRoot, stores) }
 	m.loadProjects = func(stores *storeCache) loadedMsg { return loadTUIProjects(home, repoRoot, stores) }
-	m.fetchStatus = func(ctx context.Context) tea.Cmd { return statusText(m.children, ctx, m.width-4) }
+	m.fetchStatus = func(ctx context.Context) tea.Cmd { return statusText(m.children, ctx, max(m.width-4, 1)) }
 	return m
 }
 
