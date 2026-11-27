@@ -6,8 +6,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -15,6 +17,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 )
 
@@ -110,6 +113,7 @@ func TestProgressLifecycleHelper(t *testing.T) {
 	bar.plan([]progressStep{
 		{Label: "fetch sources"},
 		{Label: "policy"},
+		{Label: "skills"},
 	})
 	bar.step("fetch sources", nil)
 	bar.item(1, 2, "do-skills")
@@ -119,18 +123,29 @@ func TestProgressLifecycleHelper(t *testing.T) {
 	})
 	bar.step("policy", nil)
 	bar.println("wrote policy file")
+	out := newReport(os.Stdout)
+	out.done(true, "do-skills moved from aaaaaaa to bbbbbbb @ main")
+	out.println("    bbbbbbb commit subject line")
+	out.printf("%s\n", "next heading")
+	began := time.Now()
+	var handoff time.Duration
 	bar.suspended(func() {
+		handoff = time.Since(began)
 		fmt.Println("prompt-while-suspended")
 	})
+	bar.item(1, 1, "after-resume")
+	bar.mark(false)
+	bar.step("skills", nil)
+	bar.mark(false)
 	bar.step("", nil)
 	bar.stop()
-	fmt.Println("lifecycle-complete")
+	fmt.Printf("handoff-ms=%d\n", handoff.Milliseconds())
 }
 
 func TestProgressBarLifecyclePTY(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=^TestProgressLifecycleHelper$")
 	cmd.Env = append(os.Environ(), "GAP_TEST_PROGRESS_LIFECYCLE=1", "TERM=xterm-256color", "NO_COLOR=1")
-	tty, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 100})
+	tty, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 40, Cols: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,16 +172,72 @@ func TestProgressBarLifecyclePTY(t *testing.T) {
 	_ = tty.Close()
 	<-doneRead
 	stripped := ansi.Strip(raw.String())
+	if !strings.Contains(stripped, "Fetching do-skills") {
+		t.Fatalf("PTY lifecycle output missing the spinner:\n%s", stripped)
+	}
+	emu := vt.NewEmulator(100, 40)
+	go func() { _, _ = io.Copy(io.Discard, emu) }()
+	_, _ = emu.Write(raw.Bytes())
+	lines := strings.Split(emu.String(), "\n")
+	for i := range lines {
+		lines[i] = strings.TrimSpace(lines[i])
+	}
+	screen := strings.Join(lines, "\n")
 	for _, want := range []string{
-		"Fetching do-skills",
 		"wrote policy file",
+		"\u2713 do-skills moved from aaaaaaa to bbbbbbb @ main",
+		"bbbbbbb commit subject line",
+		"next heading",
 		"prompt-while-suspended",
-		"\u2713 fetch sources",
-		"\u2713 policy",
-		"lifecycle-complete",
 	} {
-		if !strings.Contains(stripped, want) {
-			t.Fatalf("PTY lifecycle output missing %q:\n%s", want, stripped)
+		if !slices.Contains(lines, want) {
+			t.Fatalf("screen lacks the intact line %q:\n%s", want, screen)
 		}
+	}
+	for _, row := range []string{"\u2713 fetch sources", "! policy", "! skills"} {
+		if !slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, row) }) {
+			t.Fatalf("final checklist lost the %q row:\n%s", row, screen)
+		}
+	}
+	var ms int
+	if _, err := fmt.Sscanf(stripped[strings.Index(stripped, "handoff-ms="):], "handoff-ms=%d", &ms); err != nil || ms > 250 {
+		t.Fatalf("suspend handoff took %dms (%v), want under 250ms", ms, err)
+	}
+}
+
+func TestProgressNullStdoutHelper(t *testing.T) {
+	if os.Getenv("GAP_TEST_PROGRESS_NULL") != "1" {
+		t.Skip("helper process")
+	}
+	null, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		os.Exit(3)
+	}
+	os.Stdout = null
+	bar := startProgress("update", 1)
+	fmt.Fprintf(os.Stderr, "bar-started=%v\n", bar != nil)
+	newReport(os.Stdout).done(true, "stdout-only outcome")
+	bar.stop()
+}
+
+func TestProgressSkipsRedirectedStdout(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestProgressNullStdoutHelper$")
+	cmd.Env = append(os.Environ(), "GAP_TEST_PROGRESS_NULL=1", "TERM=xterm-256color", "NO_COLOR=1")
+	tty, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tty.Close()
+	var raw bytes.Buffer
+	done := make(chan struct{})
+	go func() { defer close(done); _, _ = io.Copy(&raw, tty) }()
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("helper failed: %v\n%s", err, raw.String())
+	}
+	_ = tty.Close()
+	<-done
+	out := ansi.Strip(raw.String())
+	if !strings.Contains(out, "bar-started=false") || strings.Contains(out, "stdout-only outcome") {
+		t.Fatalf("redirected stdout leaked onto the terminal:\n%s", out)
 	}
 }
