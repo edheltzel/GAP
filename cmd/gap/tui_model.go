@@ -310,7 +310,7 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		var resized tea.Cmd
 		cols := max(m.width-4, 1)
-		if (m.statusCols != 0 && m.statusCols != cols) || (m.statusAt != 0 && m.statusAt != cols) {
+		if m.tab == tabStatus && ((m.statusCols != 0 && m.statusCols != cols) || (m.statusAt != 0 && m.statusAt != cols)) {
 			m.stopStatus()
 			m.status, m.statusErr, m.statusAsked, m.statusAt = "", nil, false, 0
 			resized = m.statusCmd()
