@@ -8,13 +8,15 @@ import items from '../../../docs/images/tui-items.png';
 import status from '../../../docs/images/tui-status.png';
 import projects from '../../../docs/images/tui-projects.png';
 import update from '../../../docs/images/tui-update.png';
+import search from '../../../docs/images/tui-search.png';
 import removal from '../../../docs/images/tui-delete.png';
 
 const screens = [
   { image: items, label: 'Items', detail: 'Pins, scope, and skill drift.' },
   { image: status, label: 'Status', detail: 'The output of gap status.' },
   { image: projects, label: 'Projects', detail: 'Registered repos and their skills.' },
-  { image: update, label: 'Update', detail: 'A running step and its output.' },
+  { image: update, label: 'Update', detail: 'A live run with progress as each step finishes.' },
+  { image: search, label: 'Search', detail: 'Find skills on skills.sh and add them.' },
   { image: removal, label: 'Remove', detail: 'Confirm before files move to backups.' },
 ];
 ---
@@ -50,7 +52,7 @@ const screens = [
           <button class="cp" type="button">Copy</button>
         </div>
         <p class="hint">
-          No Go needed: without it, the script installs a checksum-verified release binary. See the <a href="/docs/#install-gap">installation requirements</a>.
+          No Go needed: without it, the script installs a checksum-verified release binary. <code>gap self-update</code> keeps the binary and checkout current. See the <a href="/docs/#install-gap">installation requirements</a>.
         </p>
         <div class="cta">
           <a class="btn" href="/docs/#install-gap">Read the docs</a>
@@ -102,7 +104,8 @@ const screens = [
             <h3>Check status</h3>
             <p>
               <code>gap status</code> reports each component's pin and any skill drift. It writes nothing and
-              exits 1 on drift. <code>gap list</code> shows configured components and utilities.
+              exits 1 on drift. <code>gap check</code> lists commits waiting on each ref. <code>gap doctor</code>
+              checks the install.
             </p>
           </article>
         </div>
@@ -141,7 +144,7 @@ const screens = [
       <section id="terminal" aria-labelledby="terminal-title">
         <div class="sec-eye">Terminal UI</div>
         <h2 id="terminal-title">Your installs. <span>In one terminal.</span></h2>
-        <p class="lead">Run <code>gap tui</code> to inspect pins, check drift, update an item, or review a removal before it runs.</p>
+        <p class="lead">Run <code>gap tui</code> to inspect pins, check drift, search and add a skill, update an item, or review a removal before it runs.</p>
         <div class="tui-gallery">
           {screens.map(({ image, label, detail }) => (
             <figure>

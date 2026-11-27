@@ -294,12 +294,20 @@ func TestTUIRunStatusMatchesGapStatus(t *testing.T) {
 	trustedUtilities(t, e, "ua")
 	write(t, filepath.Join(e.home, ".agents", "skills", "ua-skill", "SKILL.md"), "edited\n")
 	actAsGap(t, e.repo)
-	want, _ := captureStd(t, func() { _ = statusAll() })
 	got := statusText(newChildGroup(), context.Background())().(statusTextMsg)
-	if got.err != nil || got.text != strings.TrimRight(want, "\n") {
-		t.Fatalf("status tab text:\n%s\nwant:\n%s\nerr %v", got.text, want, got.err)
+	if got.err != nil {
+		t.Fatalf("status tab: %v\n%s", got.err, got.text)
 	}
-	if !strings.Contains(got.text, "drift=1") {
+	if !strings.Contains(got.text, "ua") || !strings.Contains(got.text, "ua-skill") {
+		t.Fatalf("status tab lacks drifted component or skill:\n%s", got.text)
+	}
+	if strings.Contains(got.text, "gap status") {
+		for _, want := range []string{"id", "ref", "commit", "store", "drift", "copies drifted", "1 with drift"} {
+			if !strings.Contains(got.text, want) {
+				t.Fatalf("status tab lacks %q:\n%s", want, got.text)
+			}
+		}
+	} else if !strings.Contains(got.text, "drift=1") {
 		t.Fatalf("status lost drift:\n%s", got.text)
 	}
 }

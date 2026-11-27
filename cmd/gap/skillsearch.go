@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -15,6 +16,12 @@ import (
 var githubName = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 
 var skillSearchURL = "https://skills.sh/api/search"
+
+func init() {
+	if v := os.Getenv("GAP_SKILL_SEARCH_URL"); v != "" {
+		skillSearchURL = v
+	}
+}
 
 var trustedSkillSources = []string{"vercel-labs", "anthropics", "microsoft", "google-labs-code"}
 
