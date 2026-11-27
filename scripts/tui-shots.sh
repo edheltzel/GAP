@@ -68,7 +68,9 @@ case "$home" in
 /tmp/gap-tui-demo.*|"${TMPDIR:-/tmp}"/gap-tui-demo.*) ;;
 *) echo "tui-shots: refusing to use $home" >&2; exit 1 ;;
 esac
-trap 'tmux -L "$sock" kill-server 2>/dev/null || true; if [ -n "$proxy" ]; then kill "$proxy" 2>/dev/null || true; wait "$proxy" 2>/dev/null || true; fi; rm -rf "$home"' EXIT
+# The proxy is the only background job, so $! names it even when a signal lands
+# between its launch and the proxy assignment.
+trap 'tmux -L "$sock" kill-server 2>/dev/null || true; proxy=${proxy:-${!:-}}; if [ -n "$proxy" ]; then kill "$proxy" 2>/dev/null || true; wait "$proxy" 2>/dev/null || true; fi; rm -rf "$home"' EXIT
 # dash skips the EXIT trap when a signal ends the shell, so exit and let it run.
 trap 'exit 129' HUP
 trap 'exit 130' INT
