@@ -34,11 +34,22 @@ type manifestEntry struct {
 
 // installSkills copies each missing skill out of its pinned store and hands unedited
 // skills.sh installs of the same name to their component.
+func skillCount(entries []manifestEntry) int {
+	n := 0
+	for _, e := range entries {
+		n += len(e.Skills)
+	}
+	return n
+}
+
 func installSkills(home string, entries []manifestEntry) bool {
 	ok := true
+	n, total := 0, skillCount(entries)
 	for _, e := range entries {
 		target := entryHome(home, e)
 		for _, name := range e.Skills {
+			n++
+			activeProgress.item(n, total, name)
 			exists := false
 			for _, d := range entryDests(target, e, name) {
 				if _, err := os.Lstat(d.Dir); !errors.Is(err, os.ErrNotExist) {
@@ -106,9 +117,12 @@ func adoptSkill(home string, e manifestEntry, name string) error {
 // earlier store was edited, and drift review handles it. A skills.sh install is adopted on the way.
 func upgradeUntouched(home string, entries []manifestEntry) bool {
 	ok := true
+	n, total := 0, skillCount(entries)
 	for _, e := range entries {
 		target := entryHome(home, e)
 		for _, name := range e.Skills {
+			n++
+			activeProgress.item(n, total, name)
 			if !installed(target, e, name) || entryDriftCount(e, target, name) == 0 || !matchesEarlierStore(e, target, name) {
 				continue
 			}
@@ -299,9 +313,12 @@ func checkDrift(home string, entries []manifestEntry) (bool, error) {
 	}()
 	tty := termReady()
 	ok := true
+	n, total := 0, skillCount(entries)
 	for _, e := range entries {
 		target := entryHome(home, e)
 		for _, name := range e.Skills {
+			n++
+			activeProgress.item(n, total, name)
 			if entrySkillDir(e, name) == "" {
 				fmt.Fprintf(os.Stderr, "Skill baseline unavailable for %s: %s has no %s skill\n", name, e.Path, name)
 				ok = false

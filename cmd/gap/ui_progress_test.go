@@ -48,6 +48,37 @@ func TestProgressBarPinsLastRow(t *testing.T) {
 	nilBar.stop()
 }
 
+func TestProgressBarListsStepsAndNotes(t *testing.T) {
+	var buf bytes.Buffer
+	p := newProgressBar(&buf, func() (int, int) { return 120, 24 }, darkPalette, true, "sync", 3)
+	now := p.start
+	p.clock = func() time.Time { return now }
+	p.step("fetch sources", nil)
+	now = now.Add(3 * time.Second)
+	buf.Reset()
+	p.item(4, 15, "do-skills")
+	if line := ansi.Strip(buf.String()); !strings.Contains(line, "sync fetch sources  4/15 do-skills") || !strings.Contains(line, "\u280b") || !strings.Contains(line, "~12s left") {
+		t.Fatalf("bar lacks the spinner, ETA, or item note: %q", line)
+	}
+	now = now.Add(1500 * time.Millisecond)
+	buf.Reset()
+	p.step("policy", nil)
+	got := ansi.Strip(buf.String())
+	if !strings.Contains(got, "  \u2713 fetch sources  4.5s\n") {
+		t.Fatalf("finished step not listed above the bar: %q", got)
+	}
+	if strings.Contains(got, "4/15 do-skills") {
+		t.Fatalf("note outlived its step: %q", got)
+	}
+	now = now.Add(300 * time.Millisecond)
+	buf.Reset()
+	p.draw()
+	if line := ansi.Strip(buf.String()); !strings.Contains(line, "\u2807 sync policy") || !strings.Contains(line, "00:05") || !strings.Contains(line, "~10s left") {
+		t.Fatalf("redraw did not advance the spinner, clock, and ETA: %q", line)
+	}
+	p.stop()
+}
+
 func TestProgressBarOffWhenPiped(t *testing.T) {
 	if p := startProgress("sync", 3); p != nil {
 		p.stop()
