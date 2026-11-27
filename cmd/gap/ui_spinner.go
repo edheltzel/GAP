@@ -36,8 +36,15 @@ func spinnerFrame(r *report, frame, title string, width int) string {
 }
 
 // spin runs fn while a spinner labelled title turns on a terminal's stderr, then clears its line.
+// When the inline Bubble Tea progress program is active, it delegates the title as live step detail
+// instead of spawning a competing stderr spinner.
 // With no terminal, NO_COLOR, or TERM=dumb, it only runs fn and prints nothing.
 func spin[T any](title string, fn func() (T, error)) (T, error) {
+	if activeProgress != nil {
+		activeProgress.detail(title)
+		defer activeProgress.detail("")
+		return fn()
+	}
 	w, ok := spinnerOut()
 	if !ok {
 		return fn()

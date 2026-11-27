@@ -113,19 +113,31 @@ func syncAll(opts syncOptions) error {
 		noteProject(projectRoot)
 	}
 	maps.DeleteFunc(d.Components, func(id string, _ component) bool { return !sel[id] })
-	steps := len(d.Components) + 1
+	bar := startProgress("sync", 0)
+	defer bar.stop()
+	var planSteps []progressStep
+	if len(d.Components) > 0 {
+		planSteps = append(planSteps, progressStep{Label: "fetch sources"})
+	}
 	if sel["policy"] {
-		steps++
+		planSteps = append(planSteps, progressStep{Label: "policy"})
+	}
+	for _, id := range sortedIDs(d.Components) {
+		planSteps = append(planSteps, progressStep{Label: id, Hue: bar.groupHue(d.Components[id])})
 	}
 	if len(d.Components) > 0 {
-		steps += 4
+		planSteps = append(planSteps,
+			progressStep{Label: "commands and MCP"},
+			progressStep{Label: "skills: upgrade unedited"},
+			progressStep{Label: "skills: install missing"},
+			progressStep{Label: "skills: check drift"},
+		)
 	}
-	bar := startProgress("sync", steps)
-	defer bar.stop()
+	bar.plan(planSteps)
 	if len(d.Components) > 0 {
 		bar.step("fetch sources", nil)
 	}
-	if err := prepareComponentSources(home, d, pins); err != nil {
+	if err := prepareComponentSourcesProgress(home, d, pins); err != nil {
 		return err
 	}
 	if err := checkCommandOwners(repoRoot, home, d); err != nil {
@@ -142,26 +154,31 @@ func syncAll(opts syncOptions) error {
 	if sel["policy"] {
 		bar.step("policy", nil)
 		out.section("policy", groups[0].Summary)
+		policyTotal := len(dests) + commandCount(repoRoot)
+		policyOK := true
 		codexWrote := false
-		for _, c := range dests {
+		for i, c := range dests {
+			bar.item(i+1, policyTotal, tildePath(c.dest))
 			wrote, err := publishPolicy(string(raw), c.dest, c.cursor, ledger, ledgerPath, true, home)
 			if err != nil {
 				return err
 			}
 			if !wrote {
 				skipped = true
+				policyOK = false
 			}
 			if c.dest == codexPolicy && wrote {
 				codexWrote = true
 			}
 		}
 
-		commandsOK, err := publishCommands(repoRoot, home, ledger, ledgerPath)
+		commandsOK, err := publishCommandsWithProgress(repoRoot, home, ledger, ledgerPath, len(dests), policyTotal)
 		if err != nil {
 			return err
 		}
 		if !commandsOK {
 			skipped = true
+			policyOK = false
 		}
 
 		payload := adapt(string(raw), false)
@@ -170,22 +187,27 @@ func syncAll(opts syncOptions) error {
 			if !codexWrote {
 				fmt.Fprintf(os.Stderr, "Refusing to strip unmarked Codex policy; this run did not publish the GAP policy file: %s\n", codexPolicy)
 				skipped = true
+				policyOK = false
 			} else if stripped, err := cleanupLegacyCodex(codexHome, codexPolicy, payload, ledger, home, ledgerPath); err != nil {
 				return err
 			} else if !stripped {
 				skipped = true
+				policyOK = false
 			}
 		}
 		if ok, err = afterCodexPublish(codexWrote, codexPolicy, payload, codexHome, home); err != nil {
 			return err
 		}
+		bar.mark(policyOK && ok)
 	}
 	entries, hooksOK, err := componentEntries(home, projectRoot, d, pins)
 	if err != nil {
 		return err
 	}
 	skipped = skipped || !hooksOK
-	bar.step("commands and MCP", nil)
+	if len(d.Components) > 0 {
+		bar.step("commands and MCP", nil)
+	}
 	ownedCommands, commandsOK, err := publishComponentCommands(repoRoot, home, d, ledger, ledgerPath)
 	if err != nil {
 		return err
@@ -196,15 +218,25 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	skipped = skipped || len(mcpFailures) > 0
+	if len(d.Components) > 0 {
+		bar.mark(commandsOK && len(mcpFailures) == 0)
+	}
 	skillsOK, driftOK := true, true
 	if len(entries) > 0 {
 		bar.step("skills: upgrade unedited", nil)
 		out.section("skills", fmt.Sprintf("install missing skills, then check drift (%d skills)", skillCount(entries)))
-		skillsOK = upgradeUntouched(home, entries)
+		upgradeOK := upgradeUntouched(home, entries)
+		bar.mark(upgradeOK)
+		skillsOK = upgradeOK
 		bar.step("skills: install missing", nil)
-		skillsOK = installSkills(home, entries) && skillsOK
+		installOK := installSkills(home, entries)
+		bar.mark(installOK)
+		skillsOK = installOK && skillsOK
 		bar.step("skills: check drift", nil)
 		driftOK, err = checkDrift(home, entries)
+		if err == nil {
+			bar.mark(driftOK)
+		}
 	} else if len(d.Components) > 0 {
 		bar.add(-3)
 	}
@@ -283,6 +315,10 @@ func empryoPinAdvice(home string) string {
 }
 
 func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath string) (bool, error) {
+	return publishCommandsWithProgress(repoRoot, home, ledger, ledgerPath, 0, 0)
+}
+
+func publishCommandsWithProgress(repoRoot, home string, ledger map[string]string, ledgerPath string, itemOffset, itemTotal int) (bool, error) {
 	if err := checkCommandOwners(repoRoot, home, distro{}); err != nil {
 		return false, err
 	}
@@ -290,8 +326,12 @@ func publishCommands(repoRoot, home string, ledger map[string]string, ledgerPath
 	if err != nil {
 		return false, err
 	}
+	if itemTotal == 0 {
+		itemTotal = len(names)
+	}
 	ok := true
-	for _, name := range names {
+	for i, name := range names {
+		activeProgress.item(itemOffset+i+1, itemTotal, name)
 		b, err := os.ReadFile(filepath.Join(repoRoot, "global", "commands", name))
 		if err != nil {
 			return false, err
@@ -1039,8 +1079,12 @@ func stdinLine() string {
 }
 
 func confirmReplace(dest, backup string) bool {
-	fmt.Print(replacePrompt(dest, backup))
-	return strings.ToLower(strings.TrimSpace(confirmLine())) == "y"
+	var ok bool
+	activeProgress.suspended(func() {
+		fmt.Print(replacePrompt(dest, backup))
+		ok = strings.ToLower(strings.TrimSpace(confirmLine())) == "y"
+	})
+	return ok
 }
 
 func splicePrompt(dest, backup string) string {
@@ -1048,8 +1092,12 @@ func splicePrompt(dest, backup string) string {
 }
 
 func confirmSplice(dest, backup string) bool {
-	fmt.Print(splicePrompt(dest, backup))
-	return strings.ToLower(strings.TrimSpace(confirmLine())) == "y"
+	var ok bool
+	activeProgress.suspended(func() {
+		fmt.Print(splicePrompt(dest, backup))
+		ok = strings.ToLower(strings.TrimSpace(confirmLine())) == "y"
+	})
+	return ok
 }
 
 func refuse(format string, args ...any) (bool, error) {

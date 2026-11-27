@@ -131,6 +131,18 @@ func TestTUIEntryNeedsATerminal(t *testing.T) {
 	}
 }
 
+func TestBareGapOpensBubbleTeaTUI(t *testing.T) {
+	e := tuiE2EEnv(t)
+	g := startPTY(t, e.project, gapEnv(e.repo, "HOME="+e.home))
+	for _, tab := range []string{"Items", "Status", "Projects"} {
+		g.waitFor(tab)
+	}
+	g.keys("q")
+	if code := g.exit(); code != 0 {
+		t.Fatalf("bare gap TUI exit %d\n%s", code, g.text())
+	}
+}
+
 func tuiE2EEnv(t *testing.T) *utilityEnv {
 	t.Helper()
 	e := newUtilityEnv(t, "schema = \"1\"\nname = \"util\"\nskills = [\"util-skill\"]\n")

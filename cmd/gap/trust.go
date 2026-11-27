@@ -88,13 +88,16 @@ func (g *hookGate) approve(c component, hook, command string) bool {
 		fmt.Fprintf(os.Stderr, "%s: skipped its %s hook; it is not approved. Run gap from a terminal to approve it, or add %q to [trust] repos in ~/.config/gap/gap.toml.\n", c.ID, hook, repoIdentity(c.Repo))
 		return false
 	}
-	fmt.Printf("%s (%s) wants to run its %s hook:\n  %s\n", c.ID, repoIdentity(c.Repo), hook, command)
-	fmt.Print("Run it? [y/N] ")
-	if strings.ToLower(strings.TrimSpace(confirmLine())) != "y" {
-		fmt.Fprintf(os.Stderr, "%s: %s hook not approved; skipped\n", c.ID, hook)
-		return false
-	}
-	return true
+	var approved bool
+	activeProgress.suspended(func() {
+		fmt.Printf("%s (%s) wants to run its %s hook:\n  %s\n", c.ID, repoIdentity(c.Repo), hook, command)
+		fmt.Print("Run it? [y/N] ")
+		approved = strings.ToLower(strings.TrimSpace(confirmLine())) == "y"
+		if !approved {
+			fmt.Fprintf(os.Stderr, "%s: %s hook not approved; skipped\n", c.ID, hook)
+		}
+	})
+	return approved
 }
 
 func (g *hookGate) recordInstalled(home, id, commit string) error {

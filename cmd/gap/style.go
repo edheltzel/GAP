@@ -103,12 +103,21 @@ func (r *report) footer(text string) {
 	r.println(r.tone(text, colorDim))
 }
 
+// emit writes a terminal report line above the live progress view when active,
+// or directly to r.out otherwise.
+func (r *report) emit(line string) {
+	if r.tty && r.out == os.Stdout && activeProgress != nil && activeProgress.println(line) {
+		return
+	}
+	fmt.Fprintln(r.out, line)
+}
+
 // section opens one sync phase on a terminal. Piped output gets nothing, so scripts see the same lines as before.
 func (r *report) section(title, detail string) {
 	if !r.tty {
 		return
 	}
-	r.printf("\n%s %s  %s\n", r.tone("▍", colorAccent), r.bold(title, colorAccent), r.tone(detail, colorDim))
+	r.emit(fmt.Sprintf("\n%s %s  %s", r.tone("▍", colorAccent), r.bold(title, colorAccent), r.tone(detail, colorDim)))
 }
 
 // wrote reports a written path: the bare path when piped, a checked home-relative path on a terminal.
@@ -117,7 +126,7 @@ func (r *report) wrote(path string) {
 		r.println(path)
 		return
 	}
-	r.printf("  %s %s\n", r.tone("✓", colorOK), r.tone(tildePath(path), colorDim))
+	r.emit(fmt.Sprintf("  %s %s", r.tone("✓", colorOK), r.tone(tildePath(path), colorDim)))
 }
 
 // result prints a terminal-only outcome line for a phase.
@@ -129,7 +138,7 @@ func (r *report) result(ok bool, text string) {
 	if !ok {
 		mark, hex = "✗", colorBad
 	}
-	r.printf("  %s %s\n", r.tone(mark, hex), text)
+	r.emit(fmt.Sprintf("  %s %s", r.tone(mark, hex), text))
 }
 
 // done prints an outcome line everywhere: the plain text when piped, a marked line on a terminal.
@@ -147,7 +156,7 @@ func (r *report) warn(plain, name, detail string) {
 		r.println(plain)
 		return
 	}
-	r.printf("  %s %s  %s\n", r.tone("!", colorWarn), r.tone(name, colorWarn), r.tone(detail, colorDim))
+	r.emit(fmt.Sprintf("  %s %s  %s", r.tone("!", colorWarn), r.tone(name, colorWarn), r.tone(detail, colorDim)))
 }
 
 func tildePath(p string) string {
