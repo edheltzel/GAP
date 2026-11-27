@@ -7,8 +7,8 @@
 # runs. The demo then holds two local example utilities, docs-tools at project
 # scope and formatter globally, plus one registered project.
 #
-# Every gap and tmux invocation runs with HOME set inside the demo, which holds
-# gap's config and lock. XDG_STATE_HOME holds the skills.sh lock that gap and
+# gap runs with HOME set inside the demo, both when called directly and when
+# launched inside the tmux pane, and that HOME holds gap's config and lock. XDG_STATE_HOME holds the skills.sh lock that gap and
 # npx skills write, and XDG_CONFIG_HOME plus the agent-specific homes
 # (CLAUDE_CONFIG_DIR, CODEX_HOME, and the rest) hold every agent lookup, so an
 # inherited value cannot point an install at the real home. formatter is the global
