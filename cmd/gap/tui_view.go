@@ -230,6 +230,9 @@ func (m *tuiModel) render() string {
 	if err := errors.Join(m.loadErr, m.projErr); err != nil && m.note == "" {
 		note = " " + m.st.bad.Render(firstLine(err.Error()))
 	}
+	if m.chord != "" {
+		note = " " + m.st.accent.Render(m.chord) + m.st.faint.Render("  gg top, gt/gT next or previous view")
+	}
 	return lipgloss.JoinVertical(lipgloss.Left, m.header(), fit(" "+strings.Join(tabs, "   ")), body, fit(note), fit(" "+m.help.ShortHelpView(m.helpKeys())))
 }
 
@@ -313,7 +316,7 @@ func (m *tuiModel) itemList() string {
 		head += fmt.Sprintf("%-7s  ", "scope")
 	}
 	lines := []string{m.st.faint.Render(head + "state")}
-	start, end := m.window(len(m.items), m.sel[tabItems], m.bodyHeight()-3)
+	start, end := m.listWindow(tabItems)
 	for i := start; i < end; i++ {
 		r := m.items[i]
 		mark := "  "
@@ -468,7 +471,7 @@ func (m *tuiModel) projectList() string {
 		return m.paneOf(w, []string{m.st.faint.Render("No projects yet. gap init, gap add --project, or gap sync in a repo records it.")})
 	}
 	var lines []string
-	start, end := m.window(len(m.projects), m.sel[tabProjects], m.bodyHeight()-2)
+	start, end := m.listWindow(tabProjects)
 	for i := start; i < end; i++ {
 		p := m.projects[i]
 		lines = append(lines, m.pointer(i == m.sel[tabProjects])+m.shortRoot(p.Root)+"  "+m.projectBadges(p))
