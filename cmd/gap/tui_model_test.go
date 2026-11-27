@@ -464,6 +464,35 @@ func TestTUIStatusStopsWhenLeft(t *testing.T) {
 	}
 }
 
+func TestTUIStatusReflowsWhenPaneNarrows(t *testing.T) {
+	m, _ := tuiFixture(t)
+	n := 0
+	m.fetchStatus = func(context.Context) tea.Cmd {
+		n++
+		text := fmt.Sprintf("report %d at %d", n, m.width)
+		return func() tea.Msg { return statusTextMsg{text: text} }
+	}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	_, open := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	w := statusOf(t, open)
+	m.Update(w)
+	if !strings.Contains(screen(m), "report 1 at 120") {
+		t.Fatalf("wide report not shown:\n%s", screen(m))
+	}
+	_, narrower := m.Update(tea.WindowSizeMsg{Width: 60, Height: 30})
+	if narrower == nil || m.statusCols != 56 {
+		t.Fatalf("narrowing did not restart status: cols %d cmd %v", m.statusCols, narrower != nil)
+	}
+	m.Update(w)
+	if strings.Contains(screen(m), "report 1") || !m.statusLoading {
+		t.Fatalf("the wide report survived the resize:\n%s", screen(m))
+	}
+	m.Update(statusOf(t, narrower))
+	if s := screen(m); !strings.Contains(s, "report 2 at 60") || m.statusLoading {
+		t.Fatalf("narrow report not shown:\n%s", s)
+	}
+}
+
 func TestTUIStatusSupersededResponseIgnored(t *testing.T) {
 	m, _ := tuiFixture(t)
 	var reqs []context.Context
