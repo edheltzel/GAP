@@ -155,6 +155,8 @@ type tuiModel struct {
 	askChoice    int
 	note         string
 	chord        string
+	side         bool
+	sideTop      int
 	line         textinput.Model
 	filter       [3]string
 	filterWas    string
@@ -513,6 +515,11 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 	if key.Matches(msg, m.keys.Help) && (m.mode == modeBrowse || m.mode == modeDetail) {
 		m.openHelp()
 		return nil
+	}
+	if m.mode == modeBrowse && m.tab != tabStatus {
+		if cmd, ok := m.focusKey(msg); ok {
+			return cmd
+		}
 	}
 	if m.mode == modeBrowse || m.mode == modeDetail || m.mode == modeSummary {
 		if mv := m.vimMotion(msg); mv != vimNone {
@@ -890,6 +897,7 @@ func (m *tuiModel) scroll(msg tea.KeyPressMsg) {
 }
 
 func (m *tuiModel) switchTab(next int) tea.Cmd {
+	m.side, m.sideTop = false, 0
 	if m.tab == tabStatus && next != tabStatus {
 		m.stopStatus()
 	}

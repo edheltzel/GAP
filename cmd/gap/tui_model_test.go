@@ -1105,3 +1105,70 @@ func TestTUICommandLine(t *testing.T) {
 		t.Fatalf(":q did not quit")
 	}
 }
+
+func TestTUIPaneFocus(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	m.st = newTUIStyles(gapPalette(lipgloss.LightDark(true)))
+	pill := func() string {
+		rows := strings.Split(ansi.Strip(m.render()), "\n")
+		return strings.TrimSpace(rows[len(rows)-2])
+	}
+	if !strings.HasPrefix(pill(), "NORMAL") {
+		t.Fatalf("browse pill: %q", pill())
+	}
+	top := func(p string) string { return strings.Split(p, "\n")[0] }
+	listFocused, sideIdle := top(m.itemList()), top(m.itemDetail())
+	if listFocused == top(m.paneOf(m.listWidth(), nil)) {
+		t.Fatalf("list pane should carry the focus border")
+	}
+	for i := range 60 {
+		m.items[0].Skills = append(m.items[0].Skills, []string{fmt.Sprintf("skill-%02d", i), "drift=0"})
+	}
+	press(m, "l")
+	if !m.sideOn() || !strings.HasPrefix(pill(), "DETAIL") {
+		t.Fatalf("l should focus the detail pane, pill %q", pill())
+	}
+	if top(m.itemDetail()) == sideIdle || top(m.itemList()) == listFocused {
+		t.Fatalf("the focus border should move to the detail pane")
+	}
+	sel := m.sel[tabItems]
+	press(m, "j", "j")
+	if m.sideTop != 2 || m.sel[tabItems] != sel {
+		t.Fatalf("j in the detail pane should scroll it, top %d sel %d", m.sideTop, m.sel[tabItems])
+	}
+	press(m, "G")
+	if m.sideTop != m.sideMax() || m.sideMax() == 0 {
+		t.Fatalf("G scrolled to %d of %d", m.sideTop, m.sideMax())
+	}
+	press(m, "g", "g")
+	if m.sideTop != 0 {
+		t.Fatalf("gg left the detail at %d", m.sideTop)
+	}
+	press(m, "h")
+	if m.side || !strings.HasPrefix(pill(), "NORMAL") {
+		t.Fatalf("h should return focus to the list")
+	}
+	press(m, "j")
+	if m.sel[tabItems] != sel+1 {
+		t.Fatalf("j after h should move the list, sel %d", m.sel[tabItems])
+	}
+	press(m, "l", "2")
+	if m.side {
+		t.Fatalf("switching views should drop detail focus")
+	}
+	press(m, "1", "/")
+	if !strings.HasPrefix(pill(), "FILTER") {
+		t.Fatalf("filter pill: %q", pill())
+	}
+	press(m, "esc", ":")
+	if !strings.HasPrefix(pill(), "CMD") {
+		t.Fatalf("command pill: %q", pill())
+	}
+	press(m, "esc")
+	m.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
+	press(m, "l")
+	if m.side {
+		t.Fatalf("l should do nothing when the panes are stacked")
+	}
+}

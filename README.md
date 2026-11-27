@@ -122,6 +122,7 @@ Captured from the real TUI in an isolated demo home with two local example utili
 | `ctrl+f` / `ctrl+b` | A full page down / up, outside a run summary |
 | `H` / `M` / `L` | Top, middle, or bottom row on screen, in the Items and Projects lists |
 | `enter` | Open the selected item or project full screen, scrollable; `esc` goes back |
+| `l` / `h` | Move focus to the details pane beside the list and back. The focused pane has the accent border; while details have focus, `j`/`k`, `ctrl+d`/`ctrl+u`, `gg` and `G` scroll them, and `esc` also returns to the list. The pill at the start of the status line names the mode: `NORMAL`, `DETAIL`, `FILTER`, `CMD`, `SEARCH`, `EDIT`, `CONFIRM`, `RUN`, `DONE` or `HELP` |
 | `tab` / `shift+tab`, `gt` / `gT`, or `1`-`3` | Switch views |
 | `space` | Mark a utility |
 | `?` | Show every key for the current view, grouped and wrapped to the terminal width; `j`/`k` or `ctrl+d`/`ctrl+u` scroll it on a small terminal. The footer lists only the common ones, with `?` first. `?`, `esc` or `q` closes it |
