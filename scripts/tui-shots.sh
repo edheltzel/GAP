@@ -12,6 +12,13 @@
 # whose folder comes from CLAUDE_CONFIG_DIR. That is set to a directory inside the
 # demo, so the global copies land under /tmp/gap-tui-demo and the real home is
 # never written. The config and lock still follow HOME, which every invocation sets.
+# gap also reads XDG_CONFIG_HOME and XDG_STATE_HOME (the skills.sh lock lives under
+# the latter, or under ~/.agents when it is unset), and npx skills writes the same
+# lock. Both are pointed inside the demo, along with XDG_DATA_HOME and XDG_CACHE_HOME.
+# Agent detection uses os.UserHomeDir, so it still sees the real home and would
+# install into any agent home an inherited env names. Those homes are redirected
+# into the demo. Fixture git and gap's own git get an empty GIT_CONFIG_GLOBAL, no
+# system config, and an empty template dir, and fixture commits disable hooks.
 #
 # The only gap commands used are add, update of the local formatter, and the
 # status the TUI runs itself. Never gap sync, and never an update of a distro
@@ -28,22 +35,29 @@
 # HOSTALIASES and RESOLV_CONF, so that one recording sets GAP_SKILL_SEARCH_URL.
 set -eu
 
-root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 home=$(mktemp -d "${TMPDIR:-/tmp}/gap-tui-demo.XXXXXX")
 out="$root/docs/images"
+# 150 columns by 42 rows keeps the footer on one line at the rendered width.
 cols=150
 rows=42
 # A private socket, so another demo or an earlier run cannot attach to this session.
 sock=gaptui-$$
+# Empty until the search proxy starts. Set before the trap: set -u reads it on any early exit.
+proxy=
 # Same set git rev-parse --local-env-vars prints (cmd/gap/main.go gitLocalEnv), plus the prompt.
 # An inherited GIT_DIR would make the fixture's git add and commit write the caller's index.
+# GIT_CONFIG_GLOBAL, GIT_CONFIG_NOSYSTEM and GIT_TEMPLATE_DIR keep the caller's global
+# config, system config and template hooks out of both the fixture and gap's own git.
 git_env()
 {
 	env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_CONFIG -u GIT_CONFIG_PARAMETERS \
 		-u GIT_CONFIG_COUNT -u GIT_OBJECT_DIRECTORY -u GIT_DIR -u GIT_WORK_TREE \
 		-u GIT_IMPLICIT_WORK_TREE -u GIT_GRAFT_FILE -u GIT_INDEX_FILE \
 		-u GIT_NO_REPLACE_OBJECTS -u GIT_REPLACE_REF_BASE -u GIT_PREFIX \
-		-u GIT_SHALLOW_FILE -u GIT_COMMON_DIR GIT_TERMINAL_PROMPT=0 "$@"
+		-u GIT_SHALLOW_FILE -u GIT_COMMON_DIR GIT_TERMINAL_PROMPT=0 \
+		GIT_CONFIG_GLOBAL="$home/.gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+		GIT_TEMPLATE_DIR="$home/git-template" "$@"
 }
 
 for tool in tmux freeze magick go git python3; do
@@ -53,7 +67,7 @@ case "$home" in
 /tmp/gap-tui-demo.*|"${TMPDIR:-/tmp}"/gap-tui-demo.*) ;;
 *) echo "tui-shots: refusing to use $home" >&2; exit 1 ;;
 esac
-trap 'tmux -L "$sock" kill-server 2>/dev/null || true; rm -rf "$home"' EXIT
+trap 'tmux -L "$sock" kill-server 2>/dev/null || true; if [ -n "$proxy" ]; then kill "$proxy" 2>/dev/null || true; wait "$proxy" 2>/dev/null || true; fi; rm -rf "$home"' EXIT
 
 build() {
 	echo "building gap"
@@ -102,7 +116,7 @@ description: Example skill for the gap tui screenshots.
 EOF
 	git_env git -C "$dir" init -q -b master
 	git_env git -C "$dir" add .
-	git_env git -C "$dir" -c user.name=gap -c user.email=gap@example.com commit -q -m "example"
+	git_env git -C "$dir" -c user.name=gap -c user.email=gap@example.com -c core.hooksPath=/dev/null commit -q -m "example"
 }
 
 # Second commit, so `u` has something to move. formatter's update hook pauses,
@@ -111,7 +125,7 @@ bump() {
 	dir=$home/repos/$1
 	printf '\nChecked.\n' >>"$dir/skills/$2/SKILL.md"
 	git_env git -C "$dir" add .
-	git_env git -C "$dir" -c user.name=gap -c user.email=gap@example.com commit -q -m "check"
+	git_env git -C "$dir" -c user.name=gap -c user.email=gap@example.com -c core.hooksPath=/dev/null commit -q -m "check"
 	# The hook has to arrive in the commit the update moves to. One added to the
 	# commit already pinned never runs, because gap update sees nothing to move.
 	if [ "$1" = "formatter" ]; then
@@ -127,14 +141,18 @@ EOF
 		chmod +x "$dir/slow-update.sh"
 		printf '\n[hooks]\nupdate = "./slow-update.sh"\n' >>"$dir/gap-utility.toml"
 		git_env git -C "$dir" add .
-		git_env git -C "$dir" -c user.name=gap -c user.email=gap@example.com commit -q -m "slow update"
+		git_env git -C "$dir" -c user.name=gap -c user.email=gap@example.com -c core.hooksPath=/dev/null commit -q -m "slow update"
 	fi
 }
 
 demo() {
 	# Keep the directory mktemp made. Removing it and recreating it would let
 	# another user on a shared temp parent claim the path in between.
-	mkdir -p "$home/bin" "$home/repos" "$out"
+	mkdir -p "$home/bin" "$home/repos" "$out" \
+		"$home/.config" "$home/.local/state" "$home/.local/share" "$home/.cache" \
+		"$home/git-template"
+	# Empty on purpose: fixture git and gap's own git read this instead of the caller's.
+	: >"$home/.gitconfig"
 	build
 	repo docs-tools check-links
 	repo formatter format-go
@@ -163,9 +181,20 @@ demo() {
 
 # HOME keeps the config and lock inside the demo. CLAUDE_CONFIG_DIR does the same
 # for formatter's global copies, since os.UserHomeDir ignores HOME on macOS.
+# The XDG dirs do the same for gap's config and the skills.sh lock, which otherwise
+# land in the real ~/.config and ~/.agents. The agent homes are redirected because
+# detection still walks the real home and would follow an inherited one.
 gap() {
 	(cd "$home/site" && HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
-		PATH="$home/bin:/opt/homebrew/bin:/usr/bin:/bin" TERM=xterm-256color NO_COLOR= \
+		XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" \
+		XDG_DATA_HOME="$home/.local/share" XDG_CACHE_HOME="$home/.cache" \
+		CODEX_HOME="$home/.codex" GROK_HOME="$home/.grok" JCODE_HOME="$home/.jcode" \
+		PI_CODING_AGENT_DIR="$home/.pi/agent" AUTOHAND_HOME="$home/.autohand" \
+		HERMES_HOME="$home/.hermes" VIBE_HOME="$home/.vibe" REASONIX_HOME="$home/.reasonix" \
+		SARVAM_HOME="$home/.sarvam" \
+		GIT_CONFIG_GLOBAL="$home/.gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+		GIT_TEMPLATE_DIR="$home/git-template" \
+		PATH="$home/bin:/opt/homebrew/bin:/usr/bin:/bin" TERM=xterm-256color NO_COLOR='' \
 		"$home/bin/gap" "$@")
 }
 
@@ -175,7 +204,8 @@ gap() {
 # SHOTS_SEARCH_LIVE=1. Those hits are owner/repo sources, which is all searchSkills
 # keeps, and vercel-labs and anthropics are two of the owners it marks trusted.
 search_proxy() {
-	python3 - "$1" <<'PY'
+	# exec replaces this backgrounded function, so $! is python and the EXIT trap can reap it.
+	exec python3 - "$1" <<'PY'
 import json, os, sys, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -215,15 +245,26 @@ shot() {
 	keys=$2
 	echo "recording tui-$name"
 	tmux -L "$sock" kill-server 2>/dev/null || true
-	# 150 columns keeps the footer on one line at the rendered width.
 	# GAP_SKILL_SEARCH_URL points / search at the fixture proxy for the search shot.
 	# Empty for every other shot, so they call skills.sh as usual.
-	# NO_COLOR= is empty on purpose: a nonempty value makes gap tui exit before it opens.
+	# NO_COLOR='' is empty on purpose: a nonempty value makes gap tui exit before it opens.
 	# Separate arguments, so a space in the demo path is not split by the shell.
-	tmux -L "$sock" -f /dev/null new-session -d -s shot -x 150 -y 42 -c "$home/site" \
-		env ${SEARCH_URL:-} HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
+	set --
+	if [ -n "${SEARCH_URL:-}" ]; then
+		set -- "$SEARCH_URL"
+	fi
+	tmux -L "$sock" -f /dev/null new-session -d -s shot -x "$cols" -y "$rows" -c "$home/site" \
+		env "$@" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
+		XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" \
+		XDG_DATA_HOME="$home/.local/share" XDG_CACHE_HOME="$home/.cache" \
+		CODEX_HOME="$home/.codex" GROK_HOME="$home/.grok" JCODE_HOME="$home/.jcode" \
+		PI_CODING_AGENT_DIR="$home/.pi/agent" AUTOHAND_HOME="$home/.autohand" \
+		HERMES_HOME="$home/.hermes" VIBE_HOME="$home/.vibe" REASONIX_HOME="$home/.reasonix" \
+		SARVAM_HOME="$home/.sarvam" \
+		GIT_CONFIG_GLOBAL="$home/.gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+		GIT_TEMPLATE_DIR="$home/git-template" \
 		PATH="$home/bin:/opt/homebrew/bin:/usr/bin:/bin" \
-		TERM=xterm-256color COLORTERM=truecolor NO_COLOR= "$home/bin/gap" tui
+		TERM=xterm-256color COLORTERM=truecolor NO_COLOR='' "$home/bin/gap" tui
 	sleep 4
 	printf '%s\n' "$keys" | while IFS= read -r key; do
 		[ -n "$key" ] || continue
@@ -241,7 +282,8 @@ shot() {
 		seen=0
 		n=0
 		while [ "$n" -lt 25 ]; do
-			if tmux -L "$sock" capture-pane -t shot -p | grep -Eq 'installs|No matches|no matches'; then
+			# -p drops styling, and the install counts are styled, so match the skill name.
+			if tmux -L "$sock" capture-pane -t shot -p | grep -Eq 'react|no installable hits|search:'; then
 				seen=1
 				break
 			fi
