@@ -47,6 +47,8 @@ proxy=
 # An inherited GIT_DIR would make the fixture's git add and commit write the caller's index.
 # GIT_CONFIG_GLOBAL, GIT_CONFIG_NOSYSTEM and GIT_TEMPLATE_DIR keep the caller's global
 # config, system config and template hooks out of both the fixture and gap's own git.
+# HOME and XDG_CONFIG_HOME stop git reading the caller's XDG git files, such as a
+# global ignore that would skip the fixture's skills.
 git_env()
 {
 	env -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_CONFIG -u GIT_CONFIG_PARAMETERS \
@@ -54,6 +56,7 @@ git_env()
 		-u GIT_IMPLICIT_WORK_TREE -u GIT_GRAFT_FILE -u GIT_INDEX_FILE \
 		-u GIT_NO_REPLACE_OBJECTS -u GIT_REPLACE_REF_BASE -u GIT_PREFIX \
 		-u GIT_SHALLOW_FILE -u GIT_COMMON_DIR GIT_TERMINAL_PROMPT=0 \
+		HOME="$home" XDG_CONFIG_HOME="$home/.config" \
 		GIT_CONFIG_GLOBAL="$home/.gitconfig" GIT_CONFIG_NOSYSTEM=1 \
 		GIT_TEMPLATE_DIR="$home/git-template" "$@"
 }
@@ -66,6 +69,10 @@ case "$home" in
 *) echo "tui-shots: refusing to use $home" >&2; exit 1 ;;
 esac
 trap 'tmux -L "$sock" kill-server 2>/dev/null || true; if [ -n "$proxy" ]; then kill "$proxy" 2>/dev/null || true; wait "$proxy" 2>/dev/null || true; fi; rm -rf "$home"' EXIT
+# dash skips the EXIT trap when a signal ends the shell, so exit and let it run.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 build() {
 	echo "building gap"
