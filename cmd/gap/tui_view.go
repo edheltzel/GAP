@@ -253,7 +253,7 @@ func firstLine(s string) string {
 func (m *tuiModel) helpKeys() []key.Binding {
 	k := m.keys
 	if m.showHelp {
-		return []key.Binding{key.NewBinding(key.WithKeys("?"), key.WithHelp("?/esc", "close"))}
+		return []key.Binding{key.NewBinding(key.WithKeys("?"), key.WithHelp("?/esc", "close")), key.NewBinding(key.WithKeys("j"), key.WithHelp("j/k ctrl+d/u", "scroll"))}
 	}
 	switch m.mode {
 	case modeSearch:
@@ -269,15 +269,15 @@ func (m *tuiModel) helpKeys() []key.Binding {
 	case modeSummary:
 		return []key.Binding{k.Up, k.Down, key.NewBinding(key.WithKeys("pgup", "pgdown"), key.WithHelp("pgup/pgdn", "output")), key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "close"))}
 	case modeDetail:
-		return []key.Binding{k.Up, k.Down, k.Top, k.Bottom, k.Back, k.Help}
+		return []key.Binding{k.Help, k.Up, k.Down, k.Top, k.Bottom, k.Back}
 	}
 	switch m.tab {
 	case tabItems:
-		return []key.Binding{k.Up, k.Down, k.Open, k.Find, k.Update, k.Sync, k.Mark, k.Tab, k.Help, k.Quit}
+		return []key.Binding{k.Help, k.Up, k.Down, k.Open, k.Find, k.Update, k.Sync, k.Mark, k.Tab, k.Quit}
 	case tabProjects:
-		return []key.Binding{k.Up, k.Down, k.Open, k.Add, k.Sync, k.Tab, k.Help, k.Quit}
+		return []key.Binding{k.Help, k.Up, k.Down, k.Open, k.Add, k.Sync, k.Tab, k.Quit}
 	}
-	return []key.Binding{k.Up, k.Down, k.Sync, k.Refresh, k.Tab, k.Help, k.Quit}
+	return []key.Binding{k.Help, k.Up, k.Down, k.Sync, k.Refresh, k.Tab, k.Quit}
 }
 
 func (m *tuiModel) helpGroups() [][]key.Binding {
@@ -287,20 +287,63 @@ func (m *tuiModel) helpGroups() [][]key.Binding {
 	}
 	nav := []key.Binding{k.Up, k.Down, k.Top, k.Bottom, b("ctrl+d/u", "half page"), b("ctrl+f/b", "full page")}
 	if m.mode == modeDetail {
-		return [][]key.Binding{nav, {k.Back, k.Help}}
+		return [][]key.Binding{append(nav, b("pgup/pgdn", "page")), {b("esc/enter/q", "back"), k.Help}}
 	}
 	if m.tab != tabStatus {
 		nav = append(nav, b("H/M/L", "screen top/mid/bottom"))
 	}
-	views := []key.Binding{k.Tab, b("gt/gT", "next/previous view"), k.Open}
-	general := []key.Binding{k.Sync, k.Refresh, k.Help, k.Quit}
+	views := []key.Binding{k.Tab, b("gt/gT", "next/previous view")}
+	if m.tab != tabStatus {
+		views = append(views, k.Open)
+	}
+	general := []key.Binding{k.Find, k.Editor, k.Sync, k.Refresh, k.Help, k.Quit}
 	switch m.tab {
 	case tabItems:
-		return [][]key.Binding{nav, views, {k.Find, k.Add, k.Edit, k.Editor, k.Mark, k.Delete, k.Disable}, {k.Update, k.UpdateAll, k.Check, k.CheckAll}, general}
+		return [][]key.Binding{nav, views, {k.Add, k.Edit, k.Mark, k.Delete, k.Disable}, {k.Update, k.UpdateAll, k.Check, k.CheckAll}, general}
 	case tabProjects:
 		return [][]key.Binding{nav, views, {k.Add, b("e", "open its gap.toml"), k.Forget}, general}
 	}
-	return [][]key.Binding{nav, {k.Tab, b("gt/gT", "next/previous view")}, general}
+	return [][]key.Binding{nav, views, general}
+}
+
+func (m *tuiModel) helpBody(width int) string {
+	var blocks []string
+	for _, g := range m.helpGroups() {
+		kw := 0
+		for _, k := range g {
+			kw = max(kw, lipgloss.Width(k.Help().Key))
+		}
+		var rows []string
+		for _, k := range g {
+			h := k.Help()
+			rows = append(rows, m.st.accent.Render(h.Key+strings.Repeat(" ", kw-lipgloss.Width(h.Key)))+"  "+m.st.faint.Render(h.Desc))
+		}
+		blocks = append(blocks, strings.Join(rows, "\n"))
+	}
+	var lines []string
+	var row []string
+	used := 0
+	for _, blk := range blocks {
+		w := lipgloss.Width(blk) + 4
+		if len(row) > 0 && used+w > width {
+			lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top, row...))
+			row, used = nil, 0
+		}
+		row = append(row, lipgloss.NewStyle().PaddingRight(4).Render(blk))
+		used += w
+	}
+	if len(row) > 0 {
+		lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top, row...))
+	}
+	return strings.Join(lines, "\n\n")
+}
+
+func (m *tuiModel) openHelp() {
+	m.showHelp, m.chord = true, ""
+	m.helpVP.SetWidth(max(m.width-4, 1))
+	m.helpVP.SetHeight(max(m.bodyHeight()-4, 1))
+	m.helpVP.SetContent(m.helpBody(max(m.width-4, 1)))
+	m.helpVP.GotoTop()
 }
 
 func (m *tuiModel) helpView() string {
@@ -308,10 +351,11 @@ func (m *tuiModel) helpView() string {
 	if m.mode == modeDetail {
 		title = "Detail keys"
 	}
-	full := m.help
-	full.SetWidth(max(m.width-4, 1))
-	body := m.st.accent.Render(title) + "\n\n" + full.FullHelpView(m.helpGroups())
-	return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(body)
+	title = m.st.accent.Render(title)
+	if m.helpVP.TotalLineCount() > m.helpVP.Height() {
+		title += m.st.faint.Render(fmt.Sprintf("  j/k scroll  %d%%", int(m.helpVP.ScrollPercent()*100)))
+	}
+	return m.st.pane.Width(m.width).Height(m.bodyHeight()).Render(title + "\n\n" + m.helpVP.View())
 }
 
 func (m *tuiModel) window(n, sel, h int) (int, int) {

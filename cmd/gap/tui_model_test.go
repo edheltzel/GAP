@@ -960,3 +960,34 @@ func TestTUIHelpOverlay(t *testing.T) {
 		t.Fatalf("q should close the overlay, not quit: help %v quitting %v", m.showHelp, m.quitting)
 	}
 }
+
+func TestTUIHelpFitsSmallTerminal(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	for _, tab := range []string{"1", "2", "3"} {
+		press(m, tab)
+		rows := strings.Split(strings.TrimRight(screen(m), " \n"), "\n")
+		if foot := rows[len(rows)-1]; !strings.Contains(foot, "? all keys") {
+			t.Fatalf("tab %s footer at 80 columns hides ?:\n%s", tab, foot)
+		}
+	}
+	press(m, "1", "?")
+	seen := screen(m)
+	for range 40 {
+		press(m, "j")
+		seen += screen(m)
+	}
+	for _, want := range []string{"half page", "next/previous view", "disable", "update all", "check all", "find skills", "quit", "j/k scroll"} {
+		if !strings.Contains(seen, want) {
+			t.Fatalf("80x24 help never shows %q:\n%s", want, seen)
+		}
+	}
+	press(m, "esc", "3", "?")
+	if s := screen(m); !strings.Contains(s, "find skills") || !strings.Contains(s, "forget") {
+		t.Fatalf("projects help lacks shared browse keys:\n%s", s)
+	}
+	press(m, "esc", "1", "enter", "?")
+	if s := screen(m); !strings.Contains(s, "esc/enter/q") || !strings.Contains(s, "pgup/pgdn") {
+		t.Fatalf("detail help lacks its back and paging keys:\n%s", s)
+	}
+}
