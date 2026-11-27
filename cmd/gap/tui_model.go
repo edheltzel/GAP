@@ -134,6 +134,7 @@ type tuiModel struct {
 	statusErr     error
 	statusLoading bool
 	statusCols    int
+	statusAt      int
 
 	mode         tuiMode
 	confirmTitle string
@@ -258,11 +259,14 @@ func (m *tuiModel) statusCmd() tea.Cmd {
 	}
 	m.statusReq++
 	m.statusStop, m.statusLoading = stop, true
-	gen, req := m.gen, m.statusReq
+	gen, req, cols := m.gen, m.statusReq, m.statusCols
 	return func() tea.Msg {
 		msg := fetch()
 		if s, ok := msg.(statusTextMsg); ok {
 			s.gen, s.req = gen, req
+			if s.cols == 0 {
+				s.cols = cols
+			}
 			return s
 		}
 		return msg
@@ -305,9 +309,10 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		var resized tea.Cmd
-		if m.statusCols != 0 && m.statusCols != max(m.width-4, 1) {
+		cols := max(m.width-4, 1)
+		if (m.statusCols != 0 && m.statusCols != cols) || (m.statusAt != 0 && m.statusAt != cols) {
 			m.stopStatus()
-			m.status, m.statusErr, m.statusAsked = "", nil, false
+			m.status, m.statusErr, m.statusAsked, m.statusAt = "", nil, false, 0
 			resized = m.statusCmd()
 		}
 		m.refreshPane()
@@ -366,7 +371,12 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusStop = nil
 		}
 		m.statusLoading = false
-		m.status, m.statusErr = msg.text, msg.err
+		if msg.cols != 0 && msg.cols != max(m.width-4, 1) {
+			m.status, m.statusErr, m.statusAsked, m.statusAt = "", nil, false, 0
+			m.refreshPane()
+			return m, m.statusCmd()
+		}
+		m.status, m.statusErr, m.statusAt = msg.text, msg.err, msg.cols
 		m.refreshPane()
 	case jobStartedMsg:
 		if msg.i < len(m.jobs) {
@@ -578,8 +588,8 @@ func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 			m.stopStatus()
 		}
 		m.tab = next
-		if m.tab == tabStatus && m.statusCols != 0 && m.statusCols != max(m.width-4, 1) {
-			m.status, m.statusErr, m.statusAsked = "", nil, false
+		if m.tab == tabStatus && m.statusAt != 0 && m.statusAt != max(m.width-4, 1) {
+			m.status, m.statusErr, m.statusAsked, m.statusAt = "", nil, false, 0
 		}
 		m.refreshPane()
 		return tea.Batch(m.projectsCmd(), m.statusCmd())
