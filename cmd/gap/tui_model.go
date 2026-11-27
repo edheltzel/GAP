@@ -112,6 +112,7 @@ type tuiModel struct {
 	help                                  help.Model
 	spin                                  spinner.Model
 	vp                                    viewport.Model
+	helpVP                                viewport.Model
 	width, height                         int
 
 	tab          int
@@ -179,6 +180,7 @@ func newTUIModel(home, repoRoot, projectRoot string, p palette) *tuiModel {
 		keys:       newTUIKeys(),
 		help:       help.New(),
 		vp:         viewport.New(),
+		helpVP:     viewport.New(),
 		width:      100,
 		height:     30,
 		marked:     map[string]bool{},
@@ -315,6 +317,9 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			resized = m.statusCmd()
 		}
 		m.refreshPane()
+		if m.showHelp {
+			m.openHelp()
+		}
 		m.sizeForm()
 		if m.search != nil {
 			m.search.input.SetWidth(max(m.width-8, 10))
@@ -471,13 +476,24 @@ func (m *tuiModel) project() (projectView, bool) {
 
 func (m *tuiModel) key(msg tea.KeyPressMsg) tea.Cmd {
 	if m.showHelp {
-		if key.Matches(msg, m.keys.Help, m.keys.Back, m.keys.Quit) {
+		switch {
+		case key.Matches(msg, m.keys.Help, m.keys.Back, m.keys.Quit):
 			m.showHelp = false
+		case key.Matches(msg, m.keys.Up):
+			m.helpVP.ScrollUp(1)
+		case key.Matches(msg, m.keys.Down):
+			m.helpVP.ScrollDown(1)
+		case msg.String() == "ctrl+d":
+			m.helpVP.HalfPageDown()
+		case msg.String() == "ctrl+u":
+			m.helpVP.HalfPageUp()
+		default:
+			m.helpVP, _ = m.helpVP.Update(msg)
 		}
 		return nil
 	}
 	if key.Matches(msg, m.keys.Help) && (m.mode == modeBrowse || m.mode == modeDetail) {
-		m.showHelp, m.chord = true, ""
+		m.openHelp()
 		return nil
 	}
 	if m.mode == modeBrowse || m.mode == modeDetail || m.mode == modeSummary {
