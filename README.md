@@ -124,7 +124,7 @@ Captured from the real TUI in an isolated demo home with two local example utili
 | `enter` | Open the selected item or project full screen, scrollable; `esc` goes back |
 | `tab` / `shift+tab`, `gt` / `gT`, or `1`-`3` | Switch views |
 | `space` | Mark a utility |
-| `?` | Show every key for the current view, grouped. The footer lists only the common ones. `?`, `esc` or `q` closes it |
+| `?` | Show every key for the current view, grouped and wrapped to the terminal width; `j`/`k` or `ctrl+d`/`ctrl+u` scroll it on a small terminal. The footer lists only the common ones, with `?` first. `?`, `esc` or `q` closes it |
 | `/` | Search the skills.sh catalog as you type. Hits show install counts, a check for trusted sources (vercel-labs, anthropics, microsoft, google-labs-code), and where you already have them. `enter` asks Everywhere or This project, then runs `gap add <repo> --skill <name>` with `--global` or `--project`. Hits from non-GitHub sources are hidden because `gap add` cannot install them |
 | `a` | Add a utility: type the repo, an optional id, and whether it installs everywhere or only in this project. On the Projects view it adds to the selected project. It hands the terminal to `gap add`, so its trust prompt works |
 | `e` | Edit the selected item: enabled, hold updates (`pin`), and color, saved everywhere or for this project only. For a utility it also edits the version: a new one runs `gap update` and is kept only if the pin moves. A distro component's version changes with `gap pin <id>@<ref>`. On the Projects view, `e` opens that project's `.gap/gap.toml` |
