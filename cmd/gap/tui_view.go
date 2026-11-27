@@ -191,7 +191,7 @@ func (m *tuiModel) render() string {
 		} else if m.note != "" {
 			foot = m.note + "  " + foot
 		}
-		return lipgloss.JoinVertical(lipgloss.Left, m.runHeader(), body, m.meter(m.width), fit(" "+foot))
+		return lipgloss.JoinVertical(lipgloss.Left, m.runHeader(), body, m.meter(m.width), fit(m.modePill()+" "+foot))
 	}
 	var tabs []string
 	for i, name := range tabNames {
@@ -243,7 +243,7 @@ func (m *tuiModel) render() string {
 	} else if m.note == "" && m.chord == "" && m.mode == modeBrowse && m.tab != tabStatus && m.filter[m.tab] != "" {
 		note = " " + m.st.accent.Render("/"+m.filter[m.tab]) + m.st.faint.Render(fmt.Sprintf("  %d of %d shown  / edit  esc clear", m.count(m.tab), m.total(m.tab)))
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, m.header(), fit(" "+strings.Join(tabs, "   ")), body, fit(note), fit(" "+m.help.ShortHelpView(m.helpKeys())))
+	return lipgloss.JoinVertical(lipgloss.Left, m.header(), fit(" "+strings.Join(tabs, "   ")), body, fit(m.modePill()+note), fit(" "+m.help.ShortHelpView(m.helpKeys())))
 }
 
 func (m *tuiModel) chordNote() string {
@@ -280,6 +280,9 @@ func (m *tuiModel) helpKeys() []key.Binding {
 	case modeDetail:
 		return []key.Binding{k.Help, k.Up, k.Down, k.Top, k.Bottom, k.Back}
 	}
+	if m.sideOn() {
+		return []key.Binding{k.Help, key.NewBinding(key.WithKeys("j"), key.WithHelp("j/k", "scroll")), k.Top, k.Bottom, key.NewBinding(key.WithKeys("h"), key.WithHelp("h/esc", "back to list"))}
+	}
 	switch m.tab {
 	case tabItems:
 		return []key.Binding{k.Help, k.Up, k.Down, k.Open, k.Filter, k.Cmd, k.Update, k.Sync, k.Mark, k.Quit}
@@ -303,7 +306,7 @@ func (m *tuiModel) helpGroups() [][]key.Binding {
 	}
 	views := []key.Binding{k.Tab, b("gt/gT", "next/previous view")}
 	if m.tab != tabStatus {
-		views = append(views, k.Open)
+		views = append(views, k.Open, b("l/h", "focus details/list"))
 	}
 	general := []key.Binding{k.Cmd, k.Find, k.Editor, k.Sync, k.Refresh, k.Help, k.Quit}
 	if m.tab != tabStatus {
@@ -391,11 +394,33 @@ func (m *tuiModel) pointer(on bool) string {
 }
 
 func (m *tuiModel) paneOf(w int, lines []string) string {
+	return m.paneStyled(m.st.pane, w, lines)
+}
+
+func (m *tuiModel) paneStyled(st lipgloss.Style, w int, lines []string) string {
 	h := m.bodyHeight() - 2
 	for i, l := range lines {
 		lines[i] = ansi.Truncate(l, max(w-4, 1), "\u2026")
 	}
-	return m.st.pane.Width(w).Height(m.bodyHeight()).Render(strings.Join(lines[:min(len(lines), h)], "\n"))
+	return st.Width(w).Height(m.bodyHeight()).Render(strings.Join(lines[:min(len(lines), h)], "\n"))
+}
+
+func (m *tuiModel) listPane(w int, lines []string) string {
+	st := m.st.pane
+	if m.mode == modeBrowse && !m.side && !m.stacked() {
+		st = m.st.paneOn
+	}
+	return m.paneStyled(st, w, lines)
+}
+
+func (m *tuiModel) sidePane() string {
+	w := m.width - m.listWidth()
+	if !m.sideOn() {
+		return m.paneOf(w, m.sideLines())
+	}
+	lines := m.sideLines()
+	top := min(m.sideTop, len(lines))
+	return m.paneStyled(m.st.paneOn, w, lines[top:])
 }
 
 func (m *tuiModel) loadingLine(what string) []string {
@@ -450,7 +475,7 @@ func (m *tuiModel) itemList() string {
 		line := m.pointer(i == m.sel[tabItems]) + mark + id + "  " + cols + m.badges(r)
 		lines = append(lines, line)
 	}
-	return m.paneOf(w, lines)
+	return m.listPane(w, lines)
 }
 
 func (m *tuiModel) badges(r itemRow) string {
@@ -491,7 +516,7 @@ func (m *tuiModel) detailLines() []string {
 }
 
 func (m *tuiModel) itemDetail() string {
-	return m.paneOf(m.width-m.listWidth(), m.itemDetailLines())
+	return m.sidePane()
 }
 
 func (m *tuiModel) itemDetailLines() []string {
@@ -594,11 +619,11 @@ func (m *tuiModel) projectList() string {
 		p := m.projects[rows[i]]
 		lines = append(lines, m.pointer(i == m.sel[tabProjects])+m.shortRoot(p.Root)+"  "+m.projectBadges(p))
 	}
-	return m.paneOf(w, lines)
+	return m.listPane(w, lines)
 }
 
 func (m *tuiModel) projectDetail() string {
-	return m.paneOf(m.width-m.listWidth(), m.projectDetailLines())
+	return m.sidePane()
 }
 
 func (m *tuiModel) projectDetailLines() []string {

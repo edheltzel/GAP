@@ -3,9 +3,9 @@ package main
 import "charm.land/lipgloss/v2"
 
 type tuiStyles struct {
-	accent, ok, warn, bad, faint, text, selected, title, tabOn, tabOff, pane, border lipgloss.Style
-	pal                                                                              palette
-	banner                                                                           []lipgloss.Style
+	accent, ok, warn, bad, faint, text, selected, title, tabOn, tabOff, pane, paneOn, border lipgloss.Style
+	pal                                                                                      palette
+	banner                                                                                   []lipgloss.Style
 }
 
 func newTUIStyles(p palette) tuiStyles {
@@ -23,6 +23,7 @@ func newTUIStyles(p palette) tuiStyles {
 		tabOn:    lipgloss.NewStyle().Bold(true).Foreground(p.Accent).Underline(true),
 		tabOff:   lipgloss.NewStyle().Foreground(p.Dim),
 		pane:     lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Border).Padding(0, 1),
+		paneOn:   lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(p.Accent).Padding(0, 1),
 		border:   lipgloss.NewStyle().Foreground(p.Border),
 	}
 }
