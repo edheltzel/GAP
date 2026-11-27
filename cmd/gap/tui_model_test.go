@@ -493,6 +493,37 @@ func TestTUIStatusReflowsWhenPaneNarrows(t *testing.T) {
 	}
 }
 
+func TestTUIStatusReflowsWhenHiddenTabResizes(t *testing.T) {
+	m, _ := tuiFixture(t)
+	n := 0
+	m.fetchStatus = func(context.Context) tea.Cmd {
+		n++
+		text := fmt.Sprintf("report %d at %d", n, m.width)
+		return func() tea.Msg { return statusTextMsg{text: text} }
+	}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	_, open := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	m.Update(statusOf(t, open))
+	press(m, "1")
+	if _, cmd := m.Update(tea.WindowSizeMsg{Width: 60, Height: 30}); cmd != nil || n != 1 {
+		t.Fatalf("a hidden Status tab restarted on resize: calls %d", n)
+	}
+	_, back := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	if back == nil || n != 2 || m.statusCols != 56 || strings.Contains(screen(m), "report 1") {
+		t.Fatalf("returning to Status reused the wide report: calls %d cols %d\n%s", n, m.statusCols, screen(m))
+	}
+	m.Update(statusOf(t, back))
+	if s := screen(m); !strings.Contains(s, "report 2 at 60") {
+		t.Fatalf("narrow report not shown on return:\n%s", s)
+	}
+	if _, again := m.Update(tea.KeyPressMsg{Code: '1', Text: "1"}); again != nil {
+		t.Fatal("leaving Status restarted it")
+	}
+	if _, same := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"}); same != nil || n != 2 {
+		t.Fatalf("matching width was not reused: calls %d", n)
+	}
+}
+
 func TestTUIStatusSupersededResponseIgnored(t *testing.T) {
 	m, _ := tuiFixture(t)
 	var reqs []context.Context
