@@ -238,6 +238,11 @@ func (m *tuiModel) render() string {
 	if m.chord != "" {
 		note = " " + m.chordNote()
 	}
+	if m.mode == modeFilter || m.mode == modeCmd {
+		note = " " + m.line.View() + "  " + m.st.faint.Render(m.lineHint())
+	} else if m.note == "" && m.chord == "" && m.mode == modeBrowse && m.tab != tabStatus && m.filter[m.tab] != "" {
+		note = " " + m.st.accent.Render("/"+m.filter[m.tab]) + m.st.faint.Render(fmt.Sprintf("  %d of %d shown  / edit  esc clear", m.count(m.tab), m.total(m.tab)))
+	}
 	return lipgloss.JoinVertical(lipgloss.Left, m.header(), fit(" "+strings.Join(tabs, "   ")), body, fit(note), fit(" "+m.help.ShortHelpView(m.helpKeys())))
 }
 
@@ -256,6 +261,10 @@ func (m *tuiModel) helpKeys() []key.Binding {
 		return []key.Binding{key.NewBinding(key.WithKeys("?"), key.WithHelp("?/esc", "close")), key.NewBinding(key.WithKeys("j"), key.WithHelp("j/k ctrl+d/u", "scroll"))}
 	}
 	switch m.mode {
+	case modeFilter:
+		return []key.Binding{key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "keep")), key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))}
+	case modeCmd:
+		return []key.Binding{key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "complete")), key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "run")), key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))}
 	case modeSearch:
 		return []key.Binding{key.NewBinding(key.WithKeys("up"), key.WithHelp("\u2191/\u2193", "pick")), key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "install")), key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "close"))}
 	case modeForm:
@@ -273,11 +282,11 @@ func (m *tuiModel) helpKeys() []key.Binding {
 	}
 	switch m.tab {
 	case tabItems:
-		return []key.Binding{k.Help, k.Up, k.Down, k.Open, k.Find, k.Update, k.Sync, k.Mark, k.Tab, k.Quit}
+		return []key.Binding{k.Help, k.Up, k.Down, k.Open, k.Filter, k.Cmd, k.Update, k.Sync, k.Mark, k.Quit}
 	case tabProjects:
-		return []key.Binding{k.Help, k.Up, k.Down, k.Open, k.Add, k.Sync, k.Tab, k.Quit}
+		return []key.Binding{k.Help, k.Up, k.Down, k.Open, k.Filter, k.Cmd, k.Add, k.Sync, k.Tab, k.Quit}
 	}
-	return []key.Binding{k.Help, k.Up, k.Down, k.Sync, k.Refresh, k.Tab, k.Quit}
+	return []key.Binding{k.Help, k.Up, k.Down, k.Cmd, k.Sync, k.Refresh, k.Tab, k.Quit}
 }
 
 func (m *tuiModel) helpGroups() [][]key.Binding {
@@ -296,7 +305,10 @@ func (m *tuiModel) helpGroups() [][]key.Binding {
 	if m.tab != tabStatus {
 		views = append(views, k.Open)
 	}
-	general := []key.Binding{k.Find, k.Editor, k.Sync, k.Refresh, k.Help, k.Quit}
+	general := []key.Binding{k.Cmd, k.Find, k.Editor, k.Sync, k.Refresh, k.Help, k.Quit}
+	if m.tab != tabStatus {
+		views = append(views, k.Filter, b("esc", "clear filter"))
+	}
 	switch m.tab {
 	case tabItems:
 		return [][]key.Binding{nav, views, {k.Add, k.Edit, k.Mark, k.Delete, k.Disable}, {k.Update, k.UpdateAll, k.Check, k.CheckAll}, general}
@@ -398,6 +410,10 @@ func (m *tuiModel) itemList() string {
 	if len(m.items) == 0 {
 		return m.paneOf(w, []string{m.st.faint.Render("Nothing installed. gap add owner/repo adds a utility.")})
 	}
+	rows := m.rows(tabItems)
+	if len(rows) == 0 {
+		return m.paneOf(w, []string{m.st.faint.Render("Nothing matches /" + m.filter[tabItems] + ". esc clears the filter.")})
+	}
 	idW := 4
 	for _, r := range m.items {
 		idW = max(idW, len(r.ID))
@@ -416,7 +432,7 @@ func (m *tuiModel) itemList() string {
 	lines := []string{m.st.faint.Render(head + "state")}
 	start, end := m.listWindow(tabItems)
 	for i := start; i < end; i++ {
-		r := m.items[i]
+		r := m.items[rows[i]]
 		mark := "  "
 		if m.marked[r.ID] {
 			mark = m.st.warn.Render("\u25cf ")
@@ -568,10 +584,14 @@ func (m *tuiModel) projectList() string {
 	if len(m.projects) == 0 {
 		return m.paneOf(w, []string{m.st.faint.Render("No projects yet. gap init, gap add --project, or gap sync in a repo records it.")})
 	}
+	rows := m.rows(tabProjects)
+	if len(rows) == 0 {
+		return m.paneOf(w, []string{m.st.faint.Render("Nothing matches /" + m.filter[tabProjects] + ". esc clears the filter.")})
+	}
 	var lines []string
 	start, end := m.listWindow(tabProjects)
 	for i := start; i < end; i++ {
-		p := m.projects[i]
+		p := m.projects[rows[i]]
 		lines = append(lines, m.pointer(i == m.sel[tabProjects])+m.shortRoot(p.Root)+"  "+m.projectBadges(p))
 	}
 	return m.paneOf(w, lines)
