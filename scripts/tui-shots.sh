@@ -7,18 +7,14 @@
 # runs. The demo then holds two local example utilities, docs-tools at project
 # scope and formatter globally, plus one registered project.
 #
-# os.UserHomeDir ignores HOME on macOS, so a plain global add would write into
-# the real home. formatter is the global utility, and its one agent is claude-code,
-# whose folder comes from CLAUDE_CONFIG_DIR. That is set to a directory inside the
-# demo, so the global copies land under /tmp/gap-tui-demo and the real home is
-# never written. The config and lock still follow HOME, which every invocation sets.
-# gap also reads XDG_CONFIG_HOME and XDG_STATE_HOME (the skills.sh lock lives under
-# the latter, or under ~/.agents when it is unset), and npx skills writes the same
-# lock. Both are pointed inside the demo, along with XDG_DATA_HOME and XDG_CACHE_HOME.
-# Agent detection uses os.UserHomeDir, so it still sees the real home and would
-# install into any agent home an inherited env names. Those homes are redirected
-# into the demo. Fixture git and gap's own git get an empty GIT_CONFIG_GLOBAL, no
-# system config, and an empty template dir, and fixture commits disable hooks.
+# Every gap and tmux invocation runs with HOME set inside the demo, which holds
+# gap's config and lock. XDG_STATE_HOME holds the skills.sh lock that gap and
+# npx skills write, and XDG_CONFIG_HOME plus the agent-specific homes
+# (CLAUDE_CONFIG_DIR, CODEX_HOME, and the rest) hold every agent lookup, so an
+# inherited value cannot point an install at the real home. formatter is the global
+# utility, and its global copies land under CLAUDE_CONFIG_DIR inside the demo.
+# Fixture git and gap's own git get an empty GIT_CONFIG_GLOBAL, no system config,
+# and an empty template dir, and fixture commits disable hooks.
 #
 # The only gap commands used are add, update of the local formatter, and the
 # status the TUI runs itself. Never gap sync, and never an update of a distro
@@ -43,6 +39,8 @@ cols=150
 rows=42
 # A private socket, so another demo or an earlier run cannot attach to this session.
 sock=gaptui-$$
+# Screenshots that rendered, listed at the end.
+wrote=
 # Empty until the search proxy starts. Set before the trap: set -u reads it on any early exit.
 proxy=
 # Same set git rev-parse --local-env-vars prints (cmd/gap/main.go gitLocalEnv), plus the prompt.
@@ -277,9 +275,10 @@ shot() {
 		seen=0
 		n=0
 		while [ "$n" -lt 50 ]; do
-			# A hit row ends in its owner/repo source and install count, and the empty state
-			# has its own message. The typed query, the spinner or an error matches neither.
-			if tmux -L "$sock" capture-pane -t shot -p | grep -Eq '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+ +[0-9][0-9.]*[kKmMbB]?( |$)|no installable hits for'; then
+			# The selected hit row starts with the pointer and ends in its install count, even
+			# when the source is truncated, and the empty state has its own message. The typed
+			# query, the spinner or an error matches neither.
+			if tmux -L "$sock" capture-pane -t shot -p | LC_ALL=C grep -Eq '▌ +(✓ +)?[^ ]+ +[^ ]+ +[0-9][0-9.]*[kKmMbB]?( |│|$)|no installable hits for'; then
 				seen=1
 				break
 			fi
@@ -302,7 +301,9 @@ shot() {
 		|| { echo "tui-shots: freeze failed for $name" >&2; return 1; }
 	[ -s "$out/tui-$name.png" ] || { echo "tui-shots: $name produced no still" >&2; return 1; }
 	# freeze sizes to the text, so scale down to the gallery's 1400x760.
-	magick "$out/tui-$name.png" -resize 1400x760 -background '#1e1e2e' -gravity center -extent 1400x760 "$out/tui-$name.png"
+	magick "$out/tui-$name.png" -resize 1400x760 -background '#1e1e2e' -gravity center -extent 1400x760 "$out/tui-$name.png" \
+		|| { echo "tui-shots: magick failed for $name" >&2; return 1; }
+	wrote="$wrote $out/tui-$name.png"
 }
 
 # Always rebuild from this checkout. Reusing a binary left under /tmp would
@@ -355,5 +356,5 @@ t" "http://127.0.0.1:$port/api/search" || fail=1
 fi
 fi
 
-echo "wrote $out/tui-items.png $out/tui-status.png $out/tui-projects.png $out/tui-update.png $out/tui-delete.png $out/tui-search.png"
+[ -z "$wrote" ] || echo "wrote$wrote"
 exit "$fail"
