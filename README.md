@@ -117,10 +117,10 @@ Captured from the real TUI in an isolated demo home with two local example utili
 | Key | What it does |
 | --- | --- |
 | `j`/`k` or arrows | Move, or scroll the Status view |
-| `gg` / `G` | Top / bottom. After `g`, the status line shows the keys it waits for |
-| `ctrl+d` / `ctrl+u` | Half a page down / up |
-| `ctrl+f` / `ctrl+b` | A full page down / up |
-| `H` / `M` / `L` | Top, middle, or bottom row on screen |
+| `gg` / `G` | Top / bottom. In a finished run's summary, `gg` opens the first step. After `g`, the status line shows the keys it waits for |
+| `ctrl+d` / `ctrl+u` | Half a page down / up. In a run summary they scroll the step's output |
+| `ctrl+f` / `ctrl+b` | A full page down / up, outside a run summary |
+| `H` / `M` / `L` | Top, middle, or bottom row on screen, in the Items and Projects lists |
 | `enter` | Open the selected item or project full screen, scrollable; `esc` goes back |
 | `tab` / `shift+tab`, `gt` / `gT`, or `1`-`3` | Switch views |
 | `space` | Mark a utility |

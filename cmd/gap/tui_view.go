@@ -186,7 +186,9 @@ func (m *tuiModel) render() string {
 			body = m.askView()
 		}
 		foot := m.help.ShortHelpView(m.helpKeys())
-		if m.note != "" {
+		if m.chord != "" {
+			foot = m.chordNote() + "  " + foot
+		} else if m.note != "" {
 			foot = m.note + "  " + foot
 		}
 		return lipgloss.JoinVertical(lipgloss.Left, m.runHeader(), body, m.meter(m.width), fit(" "+foot))
@@ -231,9 +233,13 @@ func (m *tuiModel) render() string {
 		note = " " + m.st.bad.Render(firstLine(err.Error()))
 	}
 	if m.chord != "" {
-		note = " " + m.st.accent.Render(m.chord) + m.st.faint.Render("  gg top, gt/gT next or previous view")
+		note = " " + m.chordNote()
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, m.header(), fit(" "+strings.Join(tabs, "   ")), body, fit(note), fit(" "+m.help.ShortHelpView(m.helpKeys())))
+}
+
+func (m *tuiModel) chordNote() string {
+	return m.st.accent.Render(m.chord) + m.st.faint.Render("  "+m.chordHint())
 }
 
 func firstLine(s string) string {

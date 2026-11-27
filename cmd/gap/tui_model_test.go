@@ -721,9 +721,13 @@ func TestTUIVimMotions(t *testing.T) {
 	if m.sel[tabItems] != h/2 {
 		t.Fatalf("ctrl+d moved to %d, want %d", m.sel[tabItems], h/2)
 	}
+	before, _ := m.listWindow(tabItems)
 	m.Update(ctrl('f'))
 	if m.sel[tabItems] != h/2+h {
 		t.Fatalf("ctrl+f moved to %d, want %d", m.sel[tabItems], h/2+h)
+	}
+	if after, _ := m.listWindow(tabItems); after != before+h {
+		t.Fatalf("ctrl+f scrolled the list from %d to %d, want a full page to %d", before, after, before+h)
 	}
 	m.Update(ctrl('u'))
 	m.Update(ctrl('b'))
@@ -767,5 +771,57 @@ func TestTUIVimMotions(t *testing.T) {
 	press(m, "1", "g", "j")
 	if m.sel[tabItems] != 1 || m.chord != "" {
 		t.Fatalf("g then j should drop the chord and move down, got %d %q", m.sel[tabItems], m.chord)
+	}
+}
+
+func TestTUIVimSummaryKeepsOutputKeys(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 24})
+	var jobs []tuiJob
+	for i := range 3 {
+		jobs = append(jobs, tuiJob{label: fmt.Sprintf("update u%d", i), args: []string{"update", "--", fmt.Sprintf("u%d", i)}})
+	}
+	m.run(jobs)
+	for i := range jobs {
+		m.Update(jobStartedMsg{i: i})
+		for l := range 80 {
+			m.Update(jobOutputMsg{i: i, line: fmt.Sprintf("j%d-line-%02d", i, l)})
+		}
+		m.Update(jobDoneMsg{i: i})
+	}
+	m.Update(jobsFinishedMsg{})
+	sel := m.jobSel
+	off := m.vp.YOffset()
+	m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+	if m.jobSel != sel || m.vp.YOffset() >= off {
+		t.Fatalf("ctrl+u should scroll the output up, got job %d offset %d (was %d, %d)", m.jobSel, m.vp.YOffset(), sel, off)
+	}
+	press(m, "H")
+	if m.jobSel != sel {
+		t.Fatalf("H moved the summary selection to %d", m.jobSel)
+	}
+	press(m, "g")
+	if !strings.Contains(screen(m), "gg first step") || strings.Contains(screen(m), "gt/gT") {
+		t.Fatalf("summary chord hint:\n%s", screen(m))
+	}
+	press(m, "g")
+	if s := screen(m); m.jobSel != 0 || !strings.Contains(s, "j0-line-79") {
+		t.Fatalf("gg should open the first step at its final lines, job %d:\n%s", m.jobSel, s)
+	}
+}
+
+func TestTUIVimDetailHint(t *testing.T) {
+	m, _ := tuiFixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	press(m, "enter", "g")
+	if m.mode != modeDetail {
+		t.Fatalf("enter did not open detail, mode %d", m.mode)
+	}
+	if s := screen(m); !strings.Contains(s, "gg top") || strings.Contains(s, "gt/gT") {
+		t.Fatalf("detail chord hint:\n%s", s)
+	}
+	press(m, "t")
+	if m.mode != modeDetail || m.tab != tabItems {
+		t.Fatalf("gt switched views from detail: mode %d tab %d", m.mode, m.tab)
 	}
 }
