@@ -75,7 +75,7 @@ build() {
 	printf 'policy\n' >"$home/.gap/checkout/global/AGENTS.md"
 	cp "$home/src/cmd/gap/main.go" "$home/.gap/checkout/cmd/gap/main.go"
 	git_env git -C "$home/.gap/checkout" init -q -b master
-	(cd "$home/src" && go build -ldflags "-X main.sourceRootFor=$home/.gap/checkout" -o "$home/bin/gap" ./cmd/gap)
+	(cd "$home/src" && go build -ldflags "-X main.sourceRootFor=${home}/.gap/checkout" -o "$home/bin/gap" ./cmd/gap)
 }
 
 
@@ -132,7 +132,8 @@ EOF
 }
 
 demo() {
-	rm -rf "$home"
+	# Keep the directory mktemp made. Removing it and recreating it would let
+	# another user on a shared temp parent claim the path in between.
 	mkdir -p "$home/bin" "$home/repos" "$out"
 	build
 	repo docs-tools check-links
@@ -218,8 +219,11 @@ shot() {
 	# GAP_SKILL_SEARCH_URL points / search at the fixture proxy for the search shot.
 	# Empty for every other shot, so they call skills.sh as usual.
 	# NO_COLOR= is empty on purpose: a nonempty value makes gap tui exit before it opens.
-	tmux -L "$sock" -f /dev/null new-session -d -s shot -x 150 -y 42 \
-		"cd $home/site && exec env HOME=$home CLAUDE_CONFIG_DIR=$home/.claude ${SEARCH_URL:-} PATH=$home/bin:/opt/homebrew/bin:/usr/bin:/bin TERM=xterm-256color COLORTERM=truecolor NO_COLOR= $home/bin/gap tui"
+	# Separate arguments, so a space in the demo path is not split by the shell.
+	tmux -L "$sock" -f /dev/null new-session -d -s shot -x 150 -y 42 -c "$home/site" \
+		env ${SEARCH_URL:-} HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" \
+		PATH="$home/bin:/opt/homebrew/bin:/usr/bin:/bin" \
+		TERM=xterm-256color COLORTERM=truecolor NO_COLOR= "$home/bin/gap" tui
 	sleep 4
 	printf '%s\n' "$keys" | while IFS= read -r key; do
 		[ -n "$key" ] || continue
@@ -237,7 +241,7 @@ shot() {
 		seen=0
 		n=0
 		while [ "$n" -lt 25 ]; do
-			if tmux -L "$sock" capture-pane -t shot -p | grep -q 'vercel-labs/agent-skills'; then
+			if tmux -L "$sock" capture-pane -t shot -p | grep -Eq 'installs|No matches|no matches'; then
 				seen=1
 				break
 			fi

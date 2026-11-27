@@ -133,6 +133,7 @@ type tuiModel struct {
 	status        string
 	statusErr     error
 	statusLoading bool
+	statusCols    int
 
 	mode         tuiMode
 	confirmTitle string
@@ -232,7 +233,7 @@ func (m *tuiModel) reload() tea.Cmd {
 	m.loading = true
 	m.projAsked, m.projDone = false, false
 	m.stopStatus()
-	m.statusAsked = false
+	m.statusAsked, m.statusCols = false, 0
 	return tea.Batch(m.loadCmd(m.loadQuick, true), m.statusCmd())
 }
 
@@ -240,7 +241,7 @@ func (m *tuiModel) stopStatus() {
 	if m.statusStop != nil {
 		m.statusStop()
 		m.statusStop = nil
-		m.statusAsked, m.statusLoading = false, false
+		m.statusAsked, m.statusLoading, m.statusCols = false, false, 0
 	}
 }
 
@@ -248,7 +249,7 @@ func (m *tuiModel) statusCmd() tea.Cmd {
 	if m.tab != tabStatus || m.statusAsked {
 		return nil
 	}
-	m.statusAsked = true
+	m.statusAsked, m.statusCols = true, max(m.width-4, 1)
 	ctx, stop := context.WithCancel(context.Background())
 	fetch := m.fetchStatus(ctx)
 	if fetch == nil {
@@ -303,11 +304,18 @@ func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		var resized tea.Cmd
+		if m.tab == tabStatus && m.statusCols != 0 && m.statusCols != max(m.width-4, 1) {
+			m.stopStatus()
+			m.status, m.statusErr, m.statusAsked = "", nil, false
+			resized = m.statusCmd()
+		}
 		m.refreshPane()
 		m.sizeForm()
 		if m.search != nil {
 			m.search.input.SetWidth(max(m.width-8, 10))
 		}
+		return m, resized
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spin, cmd = m.spin.Update(msg)
