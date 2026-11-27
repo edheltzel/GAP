@@ -15,11 +15,12 @@ import (
 // is a terminal, so piped output stays plain text. plain keeps the terminal layout
 // without color for NO_COLOR and TERM=dumb; light picks the light-background palette.
 type report struct {
-	out   io.Writer
-	tty   bool
-	plain bool
-	light bool
-	width int
+	out     io.Writer
+	tty     bool
+	plain   bool
+	light   bool
+	width   int
+	partial string
 }
 
 func newReport(w io.Writer) *report {
@@ -38,9 +39,29 @@ func isTerminal(f *os.File) bool {
 	return err == nil && fi.Mode()&os.ModeCharDevice != 0
 }
 
-func (r *report) println(a ...any) { fmt.Fprintln(r.out, a...) }
+func (r *report) println(a ...any) { r.write(fmt.Sprintln(a...)) }
 
-func (r *report) printf(format string, a ...any) { fmt.Fprintf(r.out, format, a...) }
+func (r *report) printf(format string, a ...any) { r.write(fmt.Sprintf(format, a...)) }
+
+func (r *report) write(s string) {
+	if !r.tty || r.out != os.Stdout || activeProgress == nil {
+		fmt.Fprint(r.out, r.partial+s)
+		r.partial = ""
+		return
+	}
+	r.partial += s
+	for {
+		i := strings.IndexByte(r.partial, '\n')
+		if i < 0 {
+			return
+		}
+		line := r.partial[:i]
+		r.partial = r.partial[i+1:]
+		if !activeProgress.println(line) {
+			fmt.Fprintln(r.out, line)
+		}
+	}
+}
 
 const (
 	colorAccent = "#7D56F4"
@@ -106,10 +127,7 @@ func (r *report) footer(text string) {
 // emit writes a terminal report line above the live progress view when active,
 // or directly to r.out otherwise.
 func (r *report) emit(line string) {
-	if r.tty && r.out == os.Stdout && activeProgress != nil && activeProgress.println(line) {
-		return
-	}
-	fmt.Fprintln(r.out, line)
+	r.write(line + "\n")
 }
 
 // section opens one sync phase on a terminal. Piped output gets nothing, so scripts see the same lines as before.

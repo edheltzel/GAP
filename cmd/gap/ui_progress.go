@@ -54,7 +54,6 @@ type progressItemMsg struct {
 type progressDetailMsg struct{ text string }
 type progressAddMsg struct{ delta int }
 type progressSuspendMsg struct{ suspended bool }
-type progressSyncMsg struct{ ack chan struct{} }
 type progressStopMsg struct{}
 
 // progressModel is an inline Bubble Tea v2 model rendering a live step checklist,
@@ -215,11 +214,8 @@ func (m progressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case progressSuspendMsg:
 		m.suspended = msg.suspended
-		return m, nil
-
-	case progressSyncMsg:
-		if msg.ack != nil {
-			close(msg.ack)
+		if m.suspended {
+			return m, tea.Quit
 		}
 		return m, nil
 
@@ -258,7 +254,7 @@ func (m progressModel) render() string {
 		if len(doneLines) == 0 {
 			return ""
 		}
-		return strings.Join(doneLines, "\n")
+		return strings.Join(doneLines, "\n") + "\n"
 	}
 
 	var lines []string
@@ -463,6 +459,9 @@ type progressBar struct {
 	pal       palette
 	plain     bool
 	stopped   bool
+	paused    bool
+	pending   []tea.Msg
+	model     progressModel
 	suspMu    sync.Mutex
 	suspDepth int
 }
@@ -471,36 +470,43 @@ var activeProgress *progressBar
 
 // startProgress returns nil unless stdout and stderr are both a terminal that supports live rendering.
 func startProgress(title string, total int) *progressBar {
-	if activeProgress != nil || !isTerminal(os.Stdout) || !isTerminal(os.Stderr) || os.Getenv("TERM") == "dumb" {
+	if activeProgress != nil || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stderr.Fd()) || os.Getenv("TERM") == "dumb" {
 		return nil
 	}
-	f := os.Stderr
-	w, h, err := term.GetSize(f.Fd())
+	w, h, err := term.GetSize(os.Stderr.Fd())
 	if err != nil || h < 4 || w < 20 {
 		return nil
 	}
 	pal := newReport(os.Stdout).colors()
 	plain := plainEnv()
-	m := newProgressModel(pal, plain, title, total, w, h)
-	prog := tea.NewProgram(m,
-		tea.WithInput(nil),
-		tea.WithOutput(f),
-		tea.WithoutSignalHandler(),
-	)
 	p := &progressBar{
-		prog:   prog,
-		doneCh: make(chan struct{}),
-		quit:   make(chan struct{}),
-		pal:    pal,
-		plain:  plain,
+		quit:  make(chan struct{}),
+		pal:   pal,
+		plain: plain,
 	}
+	p.run(newProgressModel(pal, plain, title, total, w, h))
 	activeProgress = p
 	restoreOnSignal(p)
-	go func() {
-		defer close(p.doneCh)
-		_, _ = prog.Run()
-	}()
 	return p
+}
+
+func (p *progressBar) run(m progressModel) {
+	prog := tea.NewProgram(m,
+		tea.WithInput(nil),
+		tea.WithOutput(os.Stderr),
+		tea.WithoutSignalHandler(),
+	)
+	done := make(chan struct{})
+	p.prog, p.doneCh = prog, done
+	go func() {
+		defer close(done)
+		final, _ := prog.Run()
+		if fm, ok := final.(progressModel); ok {
+			p.mu.Lock()
+			p.model = fm
+			p.mu.Unlock()
+		}
+	}()
 }
 
 func (p *progressBar) send(msg tea.Msg) {
@@ -508,6 +514,11 @@ func (p *progressBar) send(msg tea.Msg) {
 		return
 	}
 	p.mu.Lock()
+	if p.paused && !p.stopped {
+		p.pending = append(p.pending, msg)
+		p.mu.Unlock()
+		return
+	}
 	prog, stopped := p.prog, p.stopped
 	p.mu.Unlock()
 	if prog == nil || stopped {
@@ -609,33 +620,42 @@ func (p *progressBar) suspended(fn func()) {
 		return
 	}
 	p.suspDepth++
-	shouldRelease := p.suspDepth == 1
-	p.suspMu.Unlock()
-
-	if shouldRelease {
-		prog.Send(progressSuspendMsg{suspended: true})
-		ack := make(chan struct{})
-		prog.Send(progressSyncMsg{ack: ack})
-		select {
-		case <-ack:
-		case <-done:
-		}
-		_ = prog.ReleaseTerminal()
-	}
-	defer func() {
-		p.suspMu.Lock()
-		p.suspDepth--
-		shouldRestore := p.suspDepth == 0
+	if p.suspDepth == 1 {
 		p.mu.Lock()
-		stillRunning := !p.stopped && p.prog != nil
+		p.paused = true
 		p.mu.Unlock()
-		p.suspMu.Unlock()
-		if shouldRestore && stillRunning {
-			_ = prog.RestoreTerminal()
-			prog.Send(progressSuspendMsg{suspended: false})
+		prog.Send(progressSuspendMsg{suspended: true})
+		<-done
+	}
+	p.suspMu.Unlock()
+	defer p.resume()
+	fn()
+}
+
+func (p *progressBar) resume() {
+	p.suspMu.Lock()
+	defer p.suspMu.Unlock()
+	p.suspDepth--
+	if p.suspDepth > 0 {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.paused = false
+	pending := p.pending
+	p.pending = nil
+	if p.stopped {
+		return
+	}
+	m := p.model
+	m.suspended = false
+	p.run(m)
+	next := p.prog
+	go func() {
+		for _, msg := range pending {
+			next.Send(msg)
 		}
 	}()
-	fn()
 }
 
 func (p *progressBar) stop() {
