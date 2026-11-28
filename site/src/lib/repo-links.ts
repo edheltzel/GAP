@@ -1,17 +1,16 @@
 import { markdownToMdast } from "satteri";
 import type { MdastNode, MdastPluginDefinition } from "satteri";
+import pages from "../repo-pages.json";
 
 /**
  * The public docs are the repo's own Markdown, read in place from the GAP
  * checkout (this site lives in `site/`, so `..` is the repo root). Nothing is
  * copied into the site. Add a file here to publish it; everything else in the
  * repo (AGENTS.md, docs/plans/, docs/solutions/, handoffs) stays unpublished.
+ * The map is `src/repo-pages.json` (scripts/indexnow.mjs reads it at each commit).
  * Keys are repo paths, values the page ids (`docs/concepts` is /docs/concepts/).
  */
-export const repoPages: Record<string, string> = {
-  "README.md": "docs",
-  "CONCEPTS.md": "docs/concepts",
-};
+export const repoPages: Record<string, string> = pages;
 
 const repo = "https://repo.invalid/";
 

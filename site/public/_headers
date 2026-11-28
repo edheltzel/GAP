@@ -2,3 +2,19 @@
 # asking again. Hosts that don't read _headers ignore this file.
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable
+
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+
+/deploy.txt
+  X-Robots-Tag: noindex
+  Cache-Control: no-store
+
+/1e30001d72ed397f6441ebcb68982404.txt
+  X-Robots-Tag: noindex
+
+# The pages.dev copy of the site stays out of search; gap.edheltzel.codes is the indexed one.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex

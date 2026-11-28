@@ -13,7 +13,7 @@ import {
   stripBase,
 } from "@cloudflare/nimbus-docs/runtime";
 import { components } from "../components";
-import { ogImage } from "../site.js";
+import { ogImage, siteName } from "../site.js";
 
 export const getStaticPaths = getDocsStaticPaths;
 
@@ -48,6 +48,24 @@ const tocConfig = entry.data.tableOfContents;
 const toc = tocOn && tocConfig !== false ? getTOC(headings, tocConfig) : false;
 // Every page shares the GAP card in public/og.png; no per-page cards are drawn.
 const socialImage = entry.data.socialImage ?? ogImage.path;
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const article = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  headline: entry.data.title,
+  description: entry.data.description,
+  url: canonical,
+  mainEntityOfPage: canonical,
+  inLanguage: "en",
+  image: new URL(ogImage.path, Astro.site).href,
+  ...(lastUpdated ? { dateModified: new Date(lastUpdated).toISOString() } : {}),
+  author: { "@type": "Person", name: "Ed Heltzel", url: "https://github.com/edheltzel" },
+  isPartOf: { "@type": "WebSite", name: siteName, url: new URL("/", Astro.site).href },
+});
+const head = [
+  ...(entry.data.head ?? []),
+  { tag: "script" as const, attrs: { type: "application/ld+json" }, content: article.replaceAll("<", "\\u003c") },
+];
 ---
 
 <DocsLayout
@@ -59,7 +77,7 @@ const socialImage = entry.data.socialImage ?? ogImage.path;
   prevNext={prevNext}
   mode={entry.data.mode}
   banner={entry.data.banner}
-  head={entry.data.head}
+  head={head}
   searchable={entry.data.searchable}
   noindex={entry.data.noindex}
   markdownUrl={markdownUrl}
