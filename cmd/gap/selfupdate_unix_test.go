@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 )
@@ -31,5 +32,21 @@ func TestWriteManualPublishesReadablePage(t *testing.T) {
 	}
 	if left, _ := filepath.Glob(filepath.Join(dir, "gap.1.*")); len(left) != 0 {
 		t.Fatalf("staging files left behind: %v", left)
+	}
+}
+
+func TestSelfUpdateReleaseUsesInstalledVersion(t *testing.T) {
+	e := newSelfUpdateEnv(t)
+	version = "1.0.0"
+	e.advanceOrigin(t)
+	releaseServer(t, "v1.1.0", []byte("release 1.1.0"), false)
+	installed := "#!/bin/sh\necho gap version v1.2.0\n"
+	write(t, e.exe, installed)
+	if err := os.Chmod(e.exe, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	code, out := selfUpdateRun(t)
+	if code != 0 || readString(t, e.exe) != installed || !strings.Contains(out, "v1.2.0 is newer than the latest release v1.1.0") {
+		t.Fatalf("a queued update must compare against the installed binary, not its own build (exit %d):\n%s", code, out)
 	}
 }
