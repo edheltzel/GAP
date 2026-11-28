@@ -9,19 +9,34 @@ const keyFile = readdirSync(new URL("../public/", import.meta.url)).find((name) 
 if (!keyFile) throw new Error("no IndexNow key file in public/");
 const key = keyFile.slice(0, -4);
 
-async function text(path) {
-  const res = await fetch(new URL(path, site), { cache: "no-store" });
+async function text(path, timeoutMs = 15_000) {
+  const res = await fetch(new URL(path, site), { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
   return res.ok ? (await res.text()).trim() : undefined;
 }
 
+async function liveSha() {
+  try {
+    return await text("/deploy.txt", Math.max(1_000, Math.min(15_000, deadline - Date.now())));
+  } catch (error) {
+    lastError = error;
+    return undefined;
+  }
+}
+
+const deadline = Date.now() + waitMs;
+let lastError;
+
 if (sha) {
-  const deadline = Date.now() + waitMs;
-  let live = await text("/deploy.txt");
+  let live = await liveSha();
   while (live !== sha && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 20_000));
-    live = await text("/deploy.txt");
+    await new Promise((resolve) => setTimeout(resolve, Math.min(20_000, Math.max(0, deadline - Date.now()))));
+    live = await liveSha();
   }
   if (live !== sha) {
+    if (live === undefined && lastError) {
+      console.error(`${site.host} unreachable: ${lastError.message}`);
+      process.exit(1);
+    }
     console.log(`${site.host} still serves ${live ?? "no deploy.txt"}, not ${sha}; no ping.`);
     process.exit(0);
   }

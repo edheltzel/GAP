@@ -46,20 +46,46 @@ export function repoPagesLoader(): Loader {
   return {
     name: "gap-repo-pages",
     load: (context: LoaderContext) => {
+      const dates = new Map<string, Date | undefined>();
+      const meta = (id: string, filePath: string | undefined) => {
+        const file = filePath ? new URL(filePath, context.config.root) : undefined;
+        if (file && !dates.has(file.href)) dates.set(file.href, commitDate(file));
+        const description = pageDescriptions[id as keyof typeof pageDescriptions];
+        return { description, lastUpdated: file && dates.get(file.href) };
+      };
+      const stamp = (id: string, filePath: string | undefined) => {
+        const { description, lastUpdated } = meta(id, filePath);
+        return `|${description ?? ""}|${lastUpdated?.toISOString() ?? ""}`;
+      };
       // The stored body feeds the Markdown versions; its links must work off GitHub.
+      // The glob loader reuses an entry whose Markdown is unchanged, so the stored
+      // digest also carries the description and date: a change to either reloads it.
       const store = new Proxy(context.store, {
         get(target, key) {
           const value = Reflect.get(target, key, target);
+          if (key === "get") {
+            return (id: string) => {
+              const entry = target.get(id);
+              if (!entry?.digest) return entry;
+              const tail = stamp(id, entry.filePath);
+              const digest = String(entry.digest);
+              return { ...entry, digest: digest.endsWith(tail) ? digest.slice(0, -tail.length) : undefined };
+            };
+          }
           if (key !== "set") return typeof value === "function" ? value.bind(target) : value;
           return (entry: Parameters<DataStore["set"]>[0]) =>
-            target.set(entry.body ? { ...entry, body: absoluteLinks(entry.body) } : entry);
+            target.set({
+              ...entry,
+              ...(entry.body ? { body: absoluteLinks(entry.body) } : {}),
+              ...(entry.digest ? { digest: `${entry.digest}${stamp(entry.id, entry.filePath)}` } : {}),
+            });
         },
       });
       // README.md and CONCEPTS.md carry no frontmatter; their H1 is the title, site.js holds the description, git gives the date.
       const parseData: LoaderContext["parseData"] = (props) => {
         const file = props.filePath ? new URL(props.filePath, context.config.root) : undefined;
         const title = file ? firstHeading(markdownToMdast(readFileSync(file, "utf8"))) : undefined;
-        return context.parseData({ ...props, data: { title: title ?? props.id, description: pageDescriptions[props.id as keyof typeof pageDescriptions], lastUpdated: file && commitDate(file), ...props.data } });
+        return context.parseData({ ...props, data: { title: title ?? props.id, ...meta(props.id, props.filePath), ...props.data } });
       };
       return inner.load(
         new Proxy(context, {
