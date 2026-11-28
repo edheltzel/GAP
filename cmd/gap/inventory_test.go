@@ -250,8 +250,16 @@ func TestTUILoadVerifiesEachStoreOnce(t *testing.T) {
 	stores := newStoreCache()
 	var items, projects loadedMsg
 	var wg sync.WaitGroup
-	wg.Go(func() { items = loadTUIItems(e.home, e.repo, e.project, stores) })
-	<-started
+	itemsDone := make(chan struct{})
+	wg.Go(func() {
+		defer close(itemsDone)
+		items = loadTUIItems(e.home, e.repo, e.project, stores)
+	})
+	select {
+	case <-started:
+	case <-itemsDone:
+		t.Fatalf("Items finished without checking a store: %v", items.err)
+	}
 	wg.Go(func() { projects = loadTUIProjects(e.home, e.repo, stores) })
 	waiting := false
 	for deadline := time.Now().Add(5 * time.Second); !waiting && time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
