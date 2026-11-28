@@ -119,20 +119,25 @@ if (sha) {
 
 let keyFile = keyFileAt(live);
 let key = keyFile.slice(0, -4);
+let keyError;
 const servesKey = async () => {
+  keyError = undefined;
   try {
-    return (await text(`/${keyFile}`)) === key;
+    const served = await text(`/${keyFile}`, sha ? Math.max(1_000, Math.min(15_000, deadline - Date.now())) : 15_000);
+    if (served === key) return true;
+    keyError = new Error(served === undefined ? "HTTP 404" : "wrong key");
   } catch (error) {
-    lastError = error;
-    return false;
+    keyError = error;
   }
+  return false;
 };
 while (!(await servesKey())) {
   if (!sha || Date.now() >= deadline) {
-    throw new Error(`${site.host}/${keyFile} does not serve the key${lastError ? `: ${lastError.message}` : ""}`);
+    throw new Error(`${site.host}/${keyFile} does not serve the key: ${keyError?.message}`);
   }
   await new Promise((resolve) => setTimeout(resolve, Math.min(20_000, Math.max(0, deadline - Date.now()))));
   const next = await liveSha();
+  if (Date.now() >= deadline) throw new Error(`${site.host}/${keyFile} does not serve the key: ${keyError?.message}`);
   if (includesOurs(next)) live = next;
   keyFile = keyFileAt(live);
   key = keyFile.slice(0, -4);
