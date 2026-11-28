@@ -14,7 +14,7 @@ import (
 
 // spinnerOut is where spin draws. Tests replace it.
 var spinnerOut = func() (io.Writer, bool) {
-	return os.Stderr, isTerminal(os.Stderr) && !plainEnv()
+	return os.Stderr, term.IsTerminal(os.Stderr.Fd()) && !plainEnv()
 }
 
 // spinnerWidth is the column count of the terminal spin draws on, or 0 when unknown. Tests replace it.

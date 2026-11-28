@@ -43,7 +43,7 @@ func newStoreCache() *storeCache {
 
 func (c *storeCache) state(dir, tree string) (string, error) {
 	if c == nil {
-		return storeState(dir, tree)
+		return checkStore(dir, tree)
 	}
 	key := dir + "\x00" + tree
 	c.mu.Lock()
@@ -60,12 +60,17 @@ func (c *storeCache) state(dir, tree string) (string, error) {
 		<-r.done
 		return r.state, r.err
 	}
-	storeCheckSlots <- struct{}{}
-	r.state, r.err = verifyStore(dir, tree)
-	<-storeCheckSlots
+	r.state, r.err = checkStore(dir, tree)
 	close(r.done)
 	return r.state, r.err
 }
+
+func checkStore(dir, tree string) (string, error) {
+	storeCheckSlots <- struct{}{}
+	defer func() { <-storeCheckSlots }()
+	return verifyStore(dir, tree)
+}
+
 func registeredRows(home, repoRoot string) ([]itemRow, error) {
 	rows, _, err := registeredRowsLock(home, repoRoot)
 	return rows, err
