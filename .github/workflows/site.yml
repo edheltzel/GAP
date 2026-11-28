@@ -60,9 +60,13 @@ jobs:
         working-directory: site
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The pinged URLs come from the diff since the previous push.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version-file: site/.nvmrc
       - run: npm run indexnow
         env:
           DEPLOY_SHA: ${{ github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
