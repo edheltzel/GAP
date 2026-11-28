@@ -3,7 +3,7 @@
 Source: GAPUX tab audit of the installed `gap` (built from source, fd87eac6), 2026-11-28, plus the sync-feedback fix from the "gap sync feedback" tab.
 
 ## Outcome
-A newcomer can read `gap --help` in one screen, copy a working example for every command, get the same named-argument error from every command, see what each flag takes, read `gap status` at a glance, open `man gap` or `tldr gap`, and paste a useful `gap -v` into a bug report. Piped output and scripts see no change.
+A newcomer sees the key commands on the first screen of `gap --help`, can copy a working example for every command, get the same named-argument error from every command, see what each flag takes, read `gap status` at a glance, open `man gap` (and the tldr page, by path until tldr-pages accepts it), and paste a useful `gap -v` into a bug report. Piped output and scripts see no change.
 
 ## Constraints
 - Pipe output stays byte for byte: `gap status | cat`, `gap sync` off a terminal, every `--json` path. `inventory_test.go:43` and scripts depend on it.
@@ -14,10 +14,9 @@ A newcomer can read `gap --help` in one screen, copy a working example for every
 ## Implementation Units
 
 ### U0. Land the sync-feedback fix
-- Files: `cmd/gap/components.go`, `inventory.go`, `main.go`, `tui_run.go`, `ui_progress.go`, `cmd/gap/AGENTS.md` (uncommitted, held by the sync-feedback tab).
-- Change: commit as is. Store check seeds a scratch index from the store index (`read-tree -m`, `write-tree --missing-ok`), stores checked in parallel, `startWorking` spinner before the picker, `handoff.Run` prints `gap sync` at once.
-- Verify: pty run from `~`: first output under 0.25 s (was 13.7-16.3 s), picker by about 2.5 s; `go test ./...`.
-- Gates: U3 (components.go part) and U7.
+- Files: `cmd/gap/inventory.go`, `components.go` (loadLocalManifests), `main.go`, `tui_run.go`, `ui_progress.go`, `cmd/gap/AGENTS.md`.
+- Change: stores checked in parallel; `startWorking` spinner from the first line until the picker; `handoff.Run` prints the command the moment the TUI closes. The store check keeps a fresh index from `HEAD`; reusing the store's own index was dropped after review (its stat cache, flags, and line-ending history can hide edits, and `gap status` must write nothing).
+- Verify: pty run from `~`: first output under 0.25 s (was 13.7-16.3 s); `go test ./...`.
 
 ### U1. Grouped, short root help
 - Files: `cmd/gap/cli.go` (rootCmd, AddGroup, GroupID per command).
@@ -64,6 +63,6 @@ Update `cmd/gap/AGENTS.md` for U3 (error shape) and U5 (terminal vs pipe contrac
 U1-U7 landed in #188 (squash 680cc030). U0 ships in its own PR from branch gap-sync-feedback. Open follow-up: submit docs/tldr/gap.md to tldr-pages so `tldr gap` resolves by name; until then the page renders only by path.
 
 ## todo.txt
-- (A) U0: Commit the gap sync feedback fix (spinner, handoff line, parallel seeded store check) +gap id:gap-sync-feedback
+- (A) U0: Ship the gap sync feedback fix (spinner, handoff line, parallel store check) in its own PR +gap id:gap-sync-feedback
 - x U1-U7: done in https://github.com/edheltzel/GAP/pull/188
 - (C) Submit docs/tldr/gap.md to tldr-pages so tldr gap resolves by name +gap id:gap-tldr-upstream

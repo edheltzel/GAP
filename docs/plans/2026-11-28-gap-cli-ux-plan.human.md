@@ -16,7 +16,7 @@ flowchart LR
 
 | Unit | What you get | Size |
 | --- | --- | --- |
-| U0 | `gap sync` answers in 0.2 s, picker in 2.5 s (was 14-16 s blank) | own PR |
+| U0 | `gap sync` shows a spinner in 0.2 s (was 14-16 s blank), stores checked in parallel | own PR |
 | U1 | `gap --help` first screen shows the key commands, all grouped | S |
 | U2 | Copy-paste example on every command | S |
 | U3 | Same clear "missing <id>" error everywhere | S |
