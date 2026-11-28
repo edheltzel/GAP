@@ -120,8 +120,7 @@ func selfUpdate(out *report) error {
 		if err != nil {
 			return err
 		}
-		current := installedVersion(exe)
-		switch cmp := semver.Compare(canonicalVersion(current), canonicalVersion(tag)); {
+		switch cmp := semver.Compare(canonicalVersion(version), canonicalVersion(tag)); {
 		case cmp == 0:
 			if err := advance(); err != nil {
 				return err
@@ -132,7 +131,7 @@ func selfUpdate(out *report) error {
 			if err := advance(); err != nil {
 				return err
 			}
-			out.done(true, fmt.Sprintf("%s %s is newer than the latest release %s; kept", tildePath(exe), current, tag))
+			out.done(true, fmt.Sprintf("%s %s is newer than the latest release %s; kept", tildePath(exe), version, tag))
 		default:
 			if err := replaceExe(exe, func(tmp string) error {
 				if err := downloadRelease(tag, tmp); err != nil {
@@ -142,22 +141,12 @@ func selfUpdate(out *report) error {
 			}); err != nil {
 				return err
 			}
-			out.done(true, fmt.Sprintf("%s %s -> %s", tildePath(exe), current, tag))
+			out.done(true, fmt.Sprintf("%s %s -> %s", tildePath(exe), version, tag))
 			refreshManual(out, exe)
 		}
 	}
 	out.next("gap sync    publish the updated policy and install the pinned components")
 	return nil
-}
-
-func installedVersion(exe string) string {
-	out, err := exec.Command(exe, "--version").Output()
-	if fields := strings.Fields(string(out)); err == nil && len(fields) > 0 {
-		if v := fields[len(fields)-1]; semver.IsValid(canonicalVersion(v)) {
-			return v
-		}
-	}
-	return version
 }
 
 func refreshManual(out *report, exe string) {
