@@ -74,3 +74,37 @@ func spin[T any](title string, fn func() (T, error)) (T, error) {
 	wg.Wait()
 	return v, err
 }
+
+// startWorking turns a spinner labelled title on a terminal's stderr until the returned stop runs.
+// It follows spin: nothing off a terminal, with NO_COLOR or TERM=dumb, or while a progress bar is active.
+func startWorking(title string) func() {
+	w, ok := spinnerOut()
+	if activeProgress != nil || !ok {
+		return func() {}
+	}
+	r := &report{out: w, tty: true, plain: plainEnv()}
+	frames := spinner.MiniDot.Frames
+	width := spinnerWidth()
+	stop, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		tick := time.NewTicker(spinner.MiniDot.FPS)
+		defer tick.Stop()
+		for i := 0; ; i++ {
+			fmt.Fprint(w, "\r"+ansi.EraseEntireLine+spinnerFrame(r, frames[i%len(frames)], title, width))
+			select {
+			case <-stop:
+				fmt.Fprint(w, "\r"+ansi.EraseEntireLine)
+				return
+			case <-tick.C:
+			}
+		}
+	}()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			close(stop)
+			<-done
+		})
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -234,8 +235,11 @@ func TestTUILoadVerifiesEachStoreOnce(t *testing.T) {
 		}
 	}
 	stores := newStoreCache()
-	items := loadTUIItems(e.home, e.repo, e.project, stores)
-	projects := loadTUIProjects(e.home, e.repo, stores)
+	var items, projects loadedMsg
+	var wg sync.WaitGroup
+	wg.Go(func() { items = loadTUIItems(e.home, e.repo, e.project, stores) })
+	wg.Go(func() { projects = loadTUIProjects(e.home, e.repo, stores) })
+	wg.Wait()
 	if items.err != nil || projects.err != nil || len(projects.projects) != 4 {
 		t.Fatalf("items %v projects %+v", items.err, projects)
 	}
