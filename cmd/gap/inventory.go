@@ -39,14 +39,20 @@ func (c *storeCache) state(dir, tree string) (string, error) {
 	if c == nil {
 		return storeState(dir, tree)
 	}
+	key := dir + "\x00" + tree
+	c.mu.Lock()
+	r, ok := c.states[key]
+	c.mu.Unlock()
+	if ok {
+		return r.state, r.err
+	}
+	state, err := storeState(dir, tree)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	key := dir + "\x00" + tree
 	if r, ok := c.states[key]; ok {
 		return r.state, r.err
 	}
 	c.misses++
-	state, err := storeState(dir, tree)
 	c.states[key] = storeResult{state, err}
 	return state, err
 }

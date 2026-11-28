@@ -91,6 +91,9 @@ func (h *handoff) SetStderr(w io.Writer) { h.err = w }
 func (h *handoff) Run() error {
 	h.ran = true
 	h.cmd.Stdin, h.cmd.Stdout, h.cmd.Stderr = h.in, h.out, h.err
+	if len(h.cmd.Args) > 1 {
+		fmt.Fprintf(h.out, "gap %s\n\n", h.cmd.Args[1])
+	}
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt)
 	runErr := h.cmd.Run()

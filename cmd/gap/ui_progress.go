@@ -468,6 +468,36 @@ type progressBar struct {
 
 var activeProgress *progressBar
 
+// startWorking draws a one-line spinner on stderr until the returned stop runs; it draws nothing off a terminal.
+func startWorking(label string) func() {
+	if activeProgress != nil || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stderr.Fd()) || os.Getenv("TERM") == "dumb" {
+		return func() {}
+	}
+	frames := spinner.MiniDot.Frames
+	quit, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		tick := time.NewTicker(spinner.MiniDot.FPS)
+		defer tick.Stop()
+		for i := 0; ; i++ {
+			fmt.Fprintf(os.Stderr, "\r%s %s", frames[i%len(frames)], label)
+			select {
+			case <-quit:
+				fmt.Fprint(os.Stderr, "\r\x1b[K")
+				return
+			case <-tick.C:
+			}
+		}
+	}()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			close(quit)
+			<-done
+		})
+	}
+}
+
 // startProgress returns nil unless stdout and stderr are both a terminal that supports live rendering.
 func startProgress(title string, total int) *progressBar {
 	if activeProgress != nil || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stderr.Fd()) || os.Getenv("TERM") == "dumb" {

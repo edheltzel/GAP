@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -626,16 +627,27 @@ func effectivePinsWith(repoRoot, home, projectRoot, profile string, stores *stor
 }
 
 func loadLocalManifests(home string, d distro, lk lockFile, stores *storeCache) error {
-	for id, c := range d.Components {
+	ids := sortedIDs(d.Components)
+	states := make([]string, len(ids))
+	var wg sync.WaitGroup
+	for i, id := range ids {
 		pin, pinned := lk.Components[id]
 		if !pinned {
 			continue
 		}
-		dir := storePath(home, id, pin.Commit)
-		if state, err := stores.state(dir, pin.Tree); err != nil || state != storeOK {
+		wg.Go(func() {
+			if state, err := stores.state(storePath(home, id, pin.Commit), pin.Tree); err == nil {
+				states[i] = state
+			}
+		})
+	}
+	wg.Wait()
+	for i, id := range ids {
+		if states[i] != storeOK {
 			continue
 		}
-		resolved, err := applyManifest(c, dir)
+		dir := storePath(home, id, lk.Components[id].Commit)
+		resolved, err := applyManifest(d.Components[id], dir)
 		if err != nil {
 			return err
 		}
