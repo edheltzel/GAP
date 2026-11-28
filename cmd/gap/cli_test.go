@@ -65,6 +65,13 @@ func TestHelpConceptsExplainsTerms(t *testing.T) {
 	}
 }
 
+func TestManRendersShortFlags(t *testing.T) {
+	out, err := runGap(t, "man")
+	if err != nil || !strings.Contains(out, `\fB-y --yes\fP`) || strings.Contains(out, `\fB--y `) {
+		t.Fatalf("man must print short flags with one dash: %v\n%s", err, out)
+	}
+}
+
 func TestUnknownCommandFails(t *testing.T) {
 	cmd := rootCmd()
 	cmd.SetOut(new(bytes.Buffer))

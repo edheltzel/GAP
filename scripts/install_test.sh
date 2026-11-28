@@ -113,6 +113,11 @@ export FAKE_MAN_FAIL=1
 if run_install && grep -q "No manual installed" "$work/out" && [ ! -e "$work/home/.local/share/man/man1/gap.1" ] && [ ! -e "$work/home/.local/share/man/man1/gap.1.tmp" ]; then pass "man failure keeps the install"; else fail "man failure keeps the install"; cat "$work/out"; fi
 unset FAKE_MAN_FAIL
 
+rm -rf "$work/home" "$work/real"
+mkdir -p "$work/home/.local" "$work/real/bin"
+ln -s "$work/real/bin" "$work/home/.local/bin"
+if run_install && [ "$(cat "$work/real/share/man/man1/gap.1" 2>/dev/null)" = ".TH GAP 1" ] && grep -q 'export PATH=' "$work/out"; then pass "symlinked bin installs the manual"; else fail "symlinked bin installs the manual"; cat "$work/out"; fi
+
 if [ "$fails" -ne 0 ]; then
 	echo "$fails failed"
 	exit 1

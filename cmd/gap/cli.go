@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime/debug"
 	"slices"
 	"strconv"
@@ -16,6 +17,8 @@ import (
 	"time"
 
 	"charm.land/fang/v2"
+	mcobra "github.com/muesli/mango-cobra"
+	"github.com/muesli/roff"
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +38,7 @@ func main() {
 func fangOptions(root *cobra.Command) []fang.Option {
 	opts := []fang.Option{
 		fang.WithoutCompletions(),
+		fang.WithoutManpage(),
 		fang.WithColorSchemeFunc(gapColorScheme),
 		fang.WithErrorHandler(func(w io.Writer, _ fang.Styles, err error) {
 			var missing argError
@@ -51,6 +55,35 @@ func fangOptions(root *cobra.Command) []fang.Option {
 		opts = append(opts, fang.WithVersion(v))
 	}
 	return opts
+}
+
+var manShortFlag = regexp.MustCompile(`\\fB--([[:alnum:]]) `)
+
+func manCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:                   "man",
+		Short:                 "Print the gap manual page",
+		Hidden:                true,
+		SilenceUsage:          true,
+		DisableFlagsInUseLine: true,
+		Args:                  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			page, err := manPage(cmd.Root())
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprint(cmd.OutOrStdout(), page)
+			return err
+		},
+	}
+}
+
+func manPage(root *cobra.Command) (string, error) {
+	page, err := mcobra.NewManPage(1, root)
+	if err != nil {
+		return "", err
+	}
+	return manShortFlag.ReplaceAllString(page.Build(roff.NewDocument()), `\fB-$1 `), nil
 }
 
 func displayVersion() string {
@@ -149,6 +182,7 @@ New here? Run gap sync, then gap status. Plain gap opens the TUI. Terms: gap hel
 	}
 	root.AddCommand(tuiCmd(), syncCmd(), statusCmd(), sourceCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd(), selfUpdateCmd(), completionCmd(), conceptsCmd())
 	root.SetHelpCommandGroupID("inspect")
+	root.AddCommand(manCmd())
 	root.InitDefaultHelpCmd()
 	if help, _, err := root.Find([]string{"help"}); err == nil && help != root {
 		help.Example = "  gap help sync\n  gap help concepts"

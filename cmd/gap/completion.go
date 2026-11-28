@@ -129,16 +129,27 @@ func completeSyncGroups(cmd *cobra.Command, _ []string, toComplete string) ([]co
 		prefix = toComplete[:i+1]
 	}
 	chosen := strings.Split(prefix, ",")
-	groups := []cobra.Completion{cobra.CompletionWithDesc(prefix+"policy", "global/AGENTS.md and global/commands")}
-	if d, err := completionDistro(cmd); err == nil {
-		for _, id := range sortedIDs(d.Components) {
-			if !slices.Contains(chosen, id) {
-				groups = append(groups, cobra.CompletionWithDesc(prefix+id, d.Components[id].Repo))
-			}
-		}
+	profile, _ := cmd.Flags().GetString("profile")
+	d, err := completionDistro(cmd)
+	if profile == "crew" || err == nil && d.Profile == "crew" {
+		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	if slices.Contains(chosen, "policy") {
-		groups = groups[1:]
+	var groups []cobra.Completion
+	add := func(name, desc string) {
+		if slices.Contains(chosen, name) {
+			return
+		}
+		if prefix != "" {
+			groups = append(groups, prefix+name)
+			return
+		}
+		groups = append(groups, cobra.CompletionWithDesc(name, desc))
+	}
+	add("policy", "global/AGENTS.md and global/commands")
+	if err == nil {
+		for _, id := range sortedIDs(d.Components) {
+			add(id, d.Components[id].Repo)
+		}
 	}
 	return groups, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
 }

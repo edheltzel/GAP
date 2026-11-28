@@ -109,6 +109,7 @@ func selfUpdate(out *report) error {
 			return err
 		}
 		out.done(true, fmt.Sprintf("rebuilt %s from %s", tildePath(exe), short(target)))
+		refreshManual(out, exe)
 	} else {
 		tag, err := latestRelease()
 		if err != nil {
@@ -135,10 +136,30 @@ func selfUpdate(out *report) error {
 				return err
 			}
 			out.done(true, fmt.Sprintf("%s %s -> %s", tildePath(exe), version, tag))
+			refreshManual(out, exe)
 		}
 	}
 	out.next("gap sync    publish the updated policy and install the pinned components")
 	return nil
+}
+
+func refreshManual(out *report, exe string) {
+	page := filepath.Join(filepath.Dir(exe), "..", "share", "man", "man1", "gap.1")
+	if _, err := os.Stat(page); err != nil {
+		return
+	}
+	text, err := exec.Command(exe, "man").Output()
+	if err == nil {
+		tmp := page + ".tmp"
+		if err = os.WriteFile(tmp, text, 0o644); err == nil {
+			if err = os.Rename(tmp, page); err != nil {
+				os.Remove(tmp)
+			}
+		}
+	}
+	if err != nil {
+		out.done(false, fmt.Sprintf("manual %s not refreshed: %v", tildePath(page), err))
+	}
 }
 
 func fetchPrimary(root string) (before, target, tracked string, err error) {
