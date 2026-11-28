@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { glob } from "astro/loaders";
 import type { DataStore, Loader, LoaderContext } from "astro/loaders";
@@ -23,14 +23,20 @@ function firstHeading(node: MdastNode): string | undefined {
   return undefined;
 }
 
-/** The last commit date of a file, for the sitemap lastmod and "Last updated". */
+/**
+ * The last commit date of a file, for the sitemap lastmod and "Last updated".
+ * In a shallow clone the boundary commit seems to add every file, so a match
+ * there is no date at all.
+ */
 function commitDate(file: URL): Date | undefined {
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: fileURLToPath(new URL(".", file)), encoding: "utf8" }).trim();
   try {
-    const iso = execFileSync("git", ["log", "-1", "--format=%cI", "--", fileURLToPath(file)], {
-      cwd: fileURLToPath(new URL(".", file)),
-      encoding: "utf8",
-    }).trim();
-    return iso ? new Date(iso) : undefined;
+    const [hash, iso] = git("log", "-1", "--format=%H %cI", "--", fileURLToPath(file)).split(" ");
+    if (!hash || !iso) return undefined;
+    const shallow = git("rev-parse", "--path-format=absolute", "--git-path", "shallow");
+    if (existsSync(shallow) && readFileSync(shallow, "utf8").split("\n").includes(hash)) return undefined;
+    return new Date(iso);
   } catch {
     return undefined;
   }
