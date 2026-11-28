@@ -1,9 +1,12 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { glob } from "astro/loaders";
 import type { DataStore, Loader, LoaderContext } from "astro/loaders";
 import { markdownToMdast } from "satteri";
 import type { MdastNode } from "satteri";
 import { absoluteLinks, repoPages } from "./repo-links";
+import { pageDescriptions } from "../site.js";
 
 /** The text of the first `# Heading`: the page title GitHub shows. */
 function firstHeading(node: MdastNode): string | undefined {
@@ -18,6 +21,19 @@ function firstHeading(node: MdastNode): string | undefined {
     if (found) return found;
   }
   return undefined;
+}
+
+/** The last commit date of a file, for the sitemap lastmod and "Last updated". */
+function commitDate(file: URL): Date | undefined {
+  try {
+    const iso = execFileSync("git", ["log", "-1", "--format=%cI", "--", fileURLToPath(file)], {
+      cwd: fileURLToPath(new URL(".", file)),
+      encoding: "utf8",
+    }).trim();
+    return iso ? new Date(iso) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The pages in `repoPages`, globbed from the repo root (`..` from site/). */
@@ -39,11 +55,11 @@ export function repoPagesLoader(): Loader {
             target.set(entry.body ? { ...entry, body: absoluteLinks(entry.body) } : entry);
         },
       });
-      // README.md and CONCEPTS.md carry no frontmatter; their H1 is the title.
+      // README.md and CONCEPTS.md carry no frontmatter; their H1 is the title, site.js holds the description, git gives the date.
       const parseData: LoaderContext["parseData"] = (props) => {
         const file = props.filePath ? new URL(props.filePath, context.config.root) : undefined;
         const title = file ? firstHeading(markdownToMdast(readFileSync(file, "utf8"))) : undefined;
-        return context.parseData({ ...props, data: { title: title ?? props.id, ...props.data } });
+        return context.parseData({ ...props, data: { title: title ?? props.id, description: pageDescriptions[props.id as keyof typeof pageDescriptions], lastUpdated: file && commitDate(file), ...props.data } });
       };
       return inner.load(
         new Proxy(context, {

@@ -50,3 +50,22 @@ jobs:
       - run: npm run hero-start
       - run: npm run hero-spin
       - run: npm run logo-round
+  indexnow:
+    if: github.event_name == 'push'
+    needs: check
+    concurrency:
+      group: indexnow
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: site/.nvmrc
+      - run: npm run indexnow
+        env:
+          DEPLOY_SHA: ${{ github.sha }}

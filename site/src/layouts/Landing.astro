@@ -12,6 +12,32 @@ interface Props {
 const { title = siteName, description = siteDescription } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const ogImageUrl = new URL(ogImage.path, Astro.site).href;
+const home = new URL('/', Astro.site).href;
+const structuredData = JSON.stringify([
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: siteName,
+    alternateName: 'GAP',
+    url: home,
+    description: siteDescription,
+    inLanguage: 'en',
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'gap',
+    alternateName: siteName,
+    description: siteDescription,
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'macOS, Linux',
+    url: home,
+    downloadUrl: 'https://github.com/edheltzel/GAP/releases',
+    codeRepository: 'https://github.com/edheltzel/GAP',
+    image: ogImageUrl,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  },
+]);
 ---
 
 <!doctype html>
@@ -34,11 +60,14 @@ const ogImageUrl = new URL(ogImage.path, Astro.site).href;
     <meta property="og:image:height" content={String(ogImage.height)} />
     <meta property="og:image:alt" content={ogImage.alt} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
     <meta name="twitter:image:alt" content={ogImage.alt} />
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <script type="application/ld+json" set:html={structuredData.replaceAll('<', '\\u003c')} />
     <slot name="head" />
   </head>
   <body>

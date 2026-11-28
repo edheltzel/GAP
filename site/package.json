@@ -20,7 +20,8 @@
     "hero-spin": "node scripts/hero-spin.mjs",
     "links": "node scripts/links.mjs",
     "logo-round": "node scripts/logo-round.mjs",
-    "og-image": "node scripts/og-image.mjs"
+    "og-image": "node scripts/og-image.mjs",
+    "indexnow": "node scripts/indexnow.mjs"
   },
   "dependencies": {
     "@cloudflare/nimbus-docs": "0.19.4",
