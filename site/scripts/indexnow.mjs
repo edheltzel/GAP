@@ -16,7 +16,9 @@ async function text(path, timeoutMs = 15_000) {
 
 async function liveSha() {
   try {
-    return await text("/deploy.txt", Math.max(1_000, Math.min(15_000, deadline - Date.now())));
+    const live = await text("/deploy.txt", Math.max(1_000, Math.min(15_000, deadline - Date.now())));
+    lastError = undefined;
+    return live;
   } catch (error) {
     lastError = error;
     return undefined;
