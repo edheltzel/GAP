@@ -7,11 +7,18 @@ const before = process.env.BEFORE_SHA;
 const waitMs = Number(process.env.DEPLOY_WAIT_MS || 20 * 60 * 1000);
 const dryRun = process.argv.includes("--dry-run");
 
-const keyFile = readdirSync(new URL("../public/", import.meta.url)).find((name) => /^[0-9a-f]{32}\.txt$/.test(name));
-if (!keyFile) throw new Error("no IndexNow key file in public/");
-const key = keyFile.slice(0, -4);
-
 const git = (...args) => execFileSync("git", args, { cwd: new URL("../..", import.meta.url), encoding: "utf8" });
+const isKeyFile = (name) => /^[0-9a-f]{32}\.txt$/.test(name);
+
+/** The IndexNow key file in site/public/, on disk or at a commit. */
+function keyFileAt(commit) {
+  const names = commit
+    ? git("ls-tree", "-z", "--name-only", `${commit}:site/public/`).split("\0")
+    : readdirSync(new URL("../public/", import.meta.url));
+  const name = names.find(isKeyFile);
+  if (!name) throw new Error(`no IndexNow key file in site/public/${commit ? ` at ${commit}` : ""}`);
+  return name;
+}
 
 /** repoPages from site/src/lib/repo-links.ts at a commit: repo file -> page URL. */
 function pagesAt(commit) {
@@ -36,7 +43,7 @@ function changedUrls() {
   const urls = new Set();
   let all = false;
   for (const [file, url] of then) if (now.get(file) !== url) urls.add(url);
-  for (const file of git("diff", "--name-only", "--no-renames", before, sha).split("\n").filter(Boolean)) {
+  for (const file of git("diff", "-z", "--name-only", "--no-renames", before, sha).split("\0").filter(Boolean)) {
     if (now.has(file)) urls.add(now.get(file));
     else if (then.has(file)) urls.add(then.get(file));
     else if (builtFrom(file)) all = true;
@@ -93,8 +100,9 @@ if (!changed.all && !changed.urls.length) {
   process.exit(0);
 }
 
+let live;
 if (sha) {
-  let live = await liveSha();
+  live = await liveSha();
   while (!includesOurs(live) && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, Math.min(20_000, Math.max(0, deadline - Date.now()))));
     live = await liveSha();
@@ -104,11 +112,13 @@ if (sha) {
       console.error(`${site.host} never served deploy.txt: ${lastError?.message}`);
       process.exit(1);
     }
-    console.log(`${site.host} still serves ${live ?? "no deploy.txt"}, not ${sha}; no ping.`);
-    process.exit(0);
+    console.error(`${site.host} still serves ${live ?? "no deploy.txt"}, which does not contain ${sha}; no ping. Rerun this job once it does.`);
+    process.exit(1);
   }
 }
 
+const keyFile = keyFileAt(live);
+const key = keyFile.slice(0, -4);
 if ((await text(`/${keyFile}`)) !== key) throw new Error(`${site.host}/${keyFile} does not serve the key`);
 
 const urls = new Set(changed.urls);
