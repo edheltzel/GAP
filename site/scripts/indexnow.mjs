@@ -160,13 +160,31 @@ for (;;) {
     keyFile = keyFileAt(live);
     key = keyFile.slice(0, -4);
     if (await servesKey()) {
-      urlList = await sitemapUrls();
-      if (!sha) break;
-      const still = await liveSha();
-      if (still === live || includesOurs(still)) break;
-      live = still;
-      failure = `${site.host} moved to ${still ?? "no deploy.txt"} while checking the key; no ping. Rerun this job once it contains ${sha}.`;
-    } else {
+      let sitemapError;
+      try {
+        urlList = await sitemapUrls();
+      } catch (error) {
+        sitemapError = error;
+      }
+      lastError = undefined;
+      const still = sha ? await liveSha() : live;
+      if (still === live) {
+        if (!sitemapError && (!sha || Date.now() < deadline)) break;
+        failure = sitemapError
+          ? `${site.host} sitemap: ${sitemapError.message}`
+          : `${site.host} confirmed ${sha} only after the wait deadline; no ping. Rerun this job.`;
+        if (!sha) {
+          console.error(failure);
+          process.exit(1);
+        }
+      } else if (still === undefined && lastError) {
+        failure = `${site.host} deploy.txt failed while confirming ${sha}: ${lastError.message}`;
+        if (Date.now() < deadline) continue;
+      } else {
+        failure = `${site.host} moved to ${still ?? "no deploy.txt"} while checking the key; no ping. Rerun this job once it contains ${sha}.`;
+        if (Date.now() < deadline) continue;
+      }
+    } else if (!(failure && keyError?.message === "wait deadline passed")) {
       failure = `${site.host}/${keyFile} does not serve the key: ${keyError?.message}`;
     }
   }
