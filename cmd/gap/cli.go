@@ -73,7 +73,7 @@ Commands, hooks, and MCP servers are always machine-wide.`,
 			return cmd.Help()
 		},
 	}
-	root.AddCommand(tuiCmd(), syncCmd(), statusCmd(), sourceCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd(), selfUpdateCmd())
+	root.AddCommand(tuiCmd(), syncCmd(), statusCmd(), sourceCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd(), selfUpdateCmd(), completionCmd())
 	return root
 }
 
@@ -205,9 +205,10 @@ func sourceCmd() *cobra.Command {
 
 func restoreCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "restore [id]",
-		Short: "Reinstall drifted component skills from the lock. No network when the store exists",
-		Args:  cobra.MaximumNArgs(1),
+		Use:               "restore [id]",
+		Short:             "Reinstall drifted component skills from the lock. No network when the store exists",
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeIDs(false, ""),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := ""
 			if len(args) == 1 {
@@ -220,10 +221,11 @@ func restoreCmd() *cobra.Command {
 
 func pinCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "pin <id>@<ref>",
-		Short: "Record id's commit and tree in gap.lock",
-		Args:  cobra.ExactArgs(1),
-		RunE:  func(cmd *cobra.Command, args []string) error { return pinComponent(args[0]) },
+		Use:               "pin <id>@<ref>",
+		Short:             "Record id's commit and tree in gap.lock",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeIDs(false, "@"),
+		RunE:              func(cmd *cobra.Command, args []string) error { return pinComponent(args[0]) },
 	}
 }
 
@@ -297,7 +299,8 @@ func checkCmd() *cobra.Command {
 		Long: `check fetches each component's ref into ~/.gap/cache and lists the commits after its pin.
 It changes no pin and installs nothing; gap status shows the counts from the last check.
 A component with pin = true is skipped unless it is named.`,
-		Args: cobra.MaximumNArgs(1),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeIDs(false, ""),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := ""
 			if len(args) == 1 {
@@ -317,7 +320,8 @@ A distro component's new pin is written to gap.lock in the GAP checkout with the
 brings in; commit and merge gap.lock, then gap sync installs it. A utility added with gap add
 moves its pin in ~/.config/gap/gap.lock and installs right away. A component with pin = true
 is skipped unless it is named.`,
-		Args: cobra.MaximumNArgs(1),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeIDs(false, ""),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := ""
 			if len(args) == 1 {
@@ -330,10 +334,11 @@ is skipped unless it is named.`,
 
 func removeCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "remove <id>",
-		Short: "Run a utility's uninstall hook, move its files to ~/.gap/backups, and drop it",
-		Args:  cobra.ExactArgs(1),
-		RunE:  func(cmd *cobra.Command, args []string) error { return finish(removeUtility(args[0])) },
+		Use:               "remove <id>",
+		Short:             "Run a utility's uninstall hook, move its files to ~/.gap/backups, and drop it",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeIDs(true, ""),
+		RunE:              func(cmd *cobra.Command, args []string) error { return finish(removeUtility(args[0])) },
 	}
 }
 

@@ -42,6 +42,7 @@ func TestInstallerRetainsSourcesAndHonorsLocalInvocation(t *testing.T) {
 	binDir := filepath.Join(home, "bin")
 	env := append(os.Environ(),
 		"HOME="+home, "GOBIN="+binDir, "GOENV=off", "GOFLAGS=", "GOWORK=off",
+		"SHELL=/bin/fish", "XDG_CONFIG_HOME=", "XDG_DATA_HOME=",
 		"GOCACHE="+caches["GOCACHE"], "GOMODCACHE="+caches["GOMODCACHE"],
 		"GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=url."+remoteURL+".insteadOf",
 		"GIT_CONFIG_VALUE_0=https://github.com/edheltzel/GAP.git",
@@ -60,6 +61,9 @@ func TestInstallerRetainsSourcesAndHonorsLocalInvocation(t *testing.T) {
 			cmd.Dir, cmd.Env = elsewhere, env
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("installer: %v\n%s", err, out)
+			}
+			if got := readString(t, filepath.Join(home, ".config", "fish", "completions", "gap.fish")); !strings.Contains(got, "complete -c gap") {
+				t.Fatalf("installer did not install fish completions for $SHELL:\n%s", got)
 			}
 			status := exec.Command(filepath.Join(binDir, "gap"), "status")
 			status.Dir, status.Env = elsewhere, env

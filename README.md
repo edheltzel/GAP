@@ -31,6 +31,16 @@ curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/instal
 
 The script checks whether your shell can find the binary's folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it. Installation writes the binary and source checkout; `gap sync` publishes the policy and installs the selected components and skills.
 
+The script also installs tab completion for the shell in `$SHELL` with `gap completion --install`. It supports bash, zsh, and fish, and skips any other shell without failing the install. Completion covers commands, flags, and item ids for `update`, `check`, `restore`, `remove`, and `pin`. Where each shell's file goes:
+
+| Shell | File | Loaded by |
+| --- | --- | --- |
+| bash | `$XDG_DATA_HOME/bash-completion/completions/gap` | bash-completion 2. On macOS, `brew install bash-completion@2` |
+| zsh | `$XDG_DATA_HOME/zsh/site-functions/_gap` | `compinit`, once that folder is in `fpath`. Add `fpath=(~/.local/share/zsh/site-functions $fpath)` to `~/.zshrc` before `compinit` |
+| fish | `$XDG_CONFIG_HOME/fish/completions/gap.fish` | fish, automatically |
+
+`$XDG_DATA_HOME` defaults to `~/.local/share` and `$XDG_CONFIG_HOME` to `~/.config`. Run `gap completion --install zsh` (or `bash`, `fish`) to add another shell, or `gap completion zsh` to print the script instead of installing it.
+
 Already have the repo checked out? With Go available, `sh scripts/install.sh` from its root builds that copy instead of cloning, including when stdin is redirected. Keep that checkout too.
 
 Then publish:
@@ -76,6 +86,7 @@ It leaves `~/.gap/backups/`, `~/.gap/recovery/`, `~/.gap/checkout/`, `~/.gap/che
 | `gap tui` | Open the terminal UI to update, check, remove, and disable items and see status and projects. Plain `gap` on a terminal opens it too. See [Terminal UI](#terminal-ui) |
 | `gap init [--adopt] [dir]` | Create project configuration and a policy pointer; `--adopt` reports and preserves existing project files |
 | `gap self-update` | Update the `gap` binary and its source checkout to the latest `master` (source builds) or release (release builds). Leaves your user lock and installed components alone, but a fast-forward can bring in a newer distro `gap.lock` that the next `gap sync` installs. See [Install `gap`](#install-gap) |
+| `gap completion [bash\|zsh\|fish] [--install]` | Print the shell's completion script, or with `--install` write it where that shell loads it. The shell defaults to `$SHELL`. See [Install `gap`](#install-gap) |
 | `gap --version` | Show the CLI version; release binaries report the tagged release version |
 | `go test ./...` | Run the self-test against throwaway folders |
 

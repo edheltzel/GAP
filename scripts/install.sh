@@ -23,6 +23,12 @@ path_hint() {
 	esac
 }
 
+install_completions() {
+	if ! "$1" completion --install 2>/dev/null; then
+		echo "No shell completions for ${SHELL:-this shell}. Run gap completion --install bash, zsh, or fish to add them."
+	fi
+}
+
 sha256() {
 	if command -v shasum >/dev/null 2>&1; then
 		shasum -a 256 "$1" | awk '{print $1}'
@@ -105,6 +111,7 @@ install_release() {
 
 	echo "Installed $bin/gap"
 	echo "Keep the checkout at $checkout; gap reads it when it runs."
+	install_completions "$bin/gap"
 	path_hint "$bin"
 }
 
@@ -140,4 +147,5 @@ fi
 
 echo "Installed $bin/gap"
 echo "Keep the source checkout at $PWD; gap reads it when it runs."
+install_completions "$bin/gap"
 path_hint "$bin"
