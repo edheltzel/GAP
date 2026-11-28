@@ -8,3 +8,4 @@ x 2026-11-28 2026-11-28 U4: Flag value names and completion for ids and profiles
 x 2026-11-28 2026-11-28 U5: Terminal summary view for gap status, pipe output unchanged +gap id:gap-status-view note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md pr:https://github.com/edheltzel/GAP/pull/188
 x 2026-11-28 2026-11-28 U6: Ship man page and tldr page for gap +gap id:gap-man note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md pr:https://github.com/edheltzel/GAP/pull/188
 x 2026-11-28 2026-11-28 U7: Show vcs revision in gap -v for source builds +gap id:gap-version note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md pr:https://github.com/edheltzel/GAP/pull/188
+(C) 2026-11-28 Submit docs/tldr/gap.md to tldr-pages so tldr gap resolves by name id:gap-tldr-upstream note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md +gap

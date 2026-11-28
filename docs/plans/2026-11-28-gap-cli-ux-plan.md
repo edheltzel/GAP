@@ -46,7 +46,7 @@ A newcomer can read `gap --help` in one screen, copy a working example for every
 
 ### U6. Man page and tldr page
 - Files: `cmd/gap/cli.go` (drop `fang.WithoutManpage()`, keep `man` hidden), `scripts/install.sh`, `scripts/install_test.sh`, `docs/tldr/gap.md` (new).
-- Change: installer writes `gap man` output to `<bin dir>/../share/man/man1/gap.1` (macOS man searches `../share/man` beside each PATH entry); when `man -w gap` still fails, print a MANPATH hint like `path_hint`. tldr page in upstream format.
+- Change: installer writes `gap man` output to `<bin dir>/../share/man/man1/gap.1` (macOS man searches `../share/man` beside each PATH entry); when `man -w gap` still fails, print a MANPATH hint like `path_hint`. tldr page in upstream format, kept in this repo; `tldr gap` by name needs the page accepted upstream (follow-up task).
 - Verify: `gap man > "$TMPDIR/gap.1" && man "$TMPDIR/gap.1"` renders (BSD man has no `-l`; `mandoc -a` also works); after install, `man -w gap` in a fresh shell finds the page with no MANPATH change; install_test asserts the page path and the hint branch; render `docs/tldr/gap.md` with the installed client's render flag and check it against the tldr style guide (one `#` title, `>` summary with a `More information` link, 8 examples or fewer, `{{placeholders}}`). Update README install section and the site docs page it feeds.
 
 ### U7. Useful version from source builds
@@ -60,11 +60,10 @@ No unit edits a U0 file, so U3 and U7 no longer wait on U0. U1 -> U2 -> U4 run i
 ## Docs
 Update `cmd/gap/AGENTS.md` for U3 (error shape) and U5 (terminal vs pipe contract); README and site for U1, U6.
 
+## Status
+U1-U7 landed in #188 (squash 680cc030). U0 ships in its own PR from branch gap-sync-feedback. Open follow-up: submit docs/tldr/gap.md to tldr-pages so `tldr gap` resolves by name; until then the page renders only by path.
+
 ## todo.txt
-- (A) U0: Commit the gap sync feedback fix (spinner, handoff line, parallel seeded store check) +gap id:gap-sync-feedback note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md
-- (B) U1-U2: Group gap --help and add examples to every command +gap id:gap-cli-help note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md
-- (B) U3: One named-argument error for pin, remove, add +gap id:gap-cli-errors dep:gap-sync-feedback note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md
-- (B) U4: Flag value names and completion for ids and profiles +gap id:gap-cli-flags note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md
-- (C) U5: Terminal summary view for gap status, pipe output unchanged +gap id:gap-status-view note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md
-- (C) U6: Ship man page and tldr page for gap +gap id:gap-man note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md
-- (C) U7: Show vcs revision in gap -v for source builds +gap id:gap-version dep:gap-sync-feedback note:/Users/ed/Developer/Atlas/GAP/docs/plans/2026-11-28-gap-cli-ux-plan.md
+- (A) U0: Commit the gap sync feedback fix (spinner, handoff line, parallel seeded store check) +gap id:gap-sync-feedback
+- x U1-U7: done in https://github.com/edheltzel/GAP/pull/188
+- (C) Submit docs/tldr/gap.md to tldr-pages so tldr gap resolves by name +gap id:gap-tldr-upstream
