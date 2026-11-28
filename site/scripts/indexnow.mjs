@@ -17,7 +17,7 @@ async function text(path, timeoutMs = 15_000) {
 async function liveSha() {
   try {
     const live = await text("/deploy.txt", Math.max(1_000, Math.min(15_000, deadline - Date.now())));
-    lastError = undefined;
+    responded = true;
     return live;
   } catch (error) {
     lastError = error;
@@ -27,6 +27,7 @@ async function liveSha() {
 
 const deadline = Date.now() + waitMs;
 let lastError;
+let responded = false;
 
 if (sha) {
   let live = await liveSha();
@@ -35,7 +36,7 @@ if (sha) {
     live = await liveSha();
   }
   if (live !== sha) {
-    if (live === undefined && lastError) {
+    if (!responded) {
       console.error(`${site.host} unreachable: ${lastError.message}`);
       process.exit(1);
     }
