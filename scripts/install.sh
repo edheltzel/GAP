@@ -29,22 +29,23 @@ install_completions() {
 	fi
 }
 
-install_man() {
+install_man() (
 	man1="${1%/*}/../share/man/man1"
-	tmp=""
-	if mkdir -p "$man1" && tmp="$(mktemp "$man1/gap.1.XXXXXX")" && "$1" man > "$tmp" 2>/dev/null && chmod 644 "$tmp" && mv -f "$tmp" "$man1/gap.1"; then
-		mandir="$(cd -P "$man1/.." 2>/dev/null && pwd -P)" || mandir=""
+	page=""
+	if mkdir -p "$man1" && page="$(mktemp "$man1/gap.1.XXXXXX")" && "$1" man > "$page" 2>/dev/null && chmod 644 "$page" && mv -f "$page" "$man1/gap.1"; then
 		echo "Installed the manual: man gap"
+		pages="$(cd -P "$man1" 2>/dev/null && pwd -P)" || exit 0
+		mandir="$(cd -P "${1%/*}/../share/man" 2>/dev/null && pwd -P)" || exit 0
 		found="$(PATH="${1%/*}:$PATH" man -w gap 2>/dev/null || true)"
-		if [ -n "$mandir" ] && command -v man >/dev/null 2>&1 && [ "$(cd -P "${found%/*}" 2>/dev/null && pwd -P)/${found##*/}" != "$mandir/man1/gap.1" ]; then
+		if command -v man >/dev/null 2>&1 && [ "$(cd -P "${found%/*}" 2>/dev/null && pwd -P)/${found##*/}" != "$pages/gap.1" ]; then
 			echo "man cannot find it yet. Add this line to your shell config, then open a new terminal:"
 			echo "  export MANPATH=\"$mandir:\$MANPATH\""
 		fi
 	else
-		[ -n "$tmp" ] && rm -f "$tmp"
+		[ -z "$page" ] || rm -f "$page"
 		echo "No manual installed. Run gap --help or gap <command> --help instead."
 	fi
-}
+)
 
 sha256() {
 	if command -v shasum >/dev/null 2>&1; then

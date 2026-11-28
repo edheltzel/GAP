@@ -121,6 +121,7 @@ func selfUpdate(out *report) error {
 				return err
 			}
 			out.done(true, fmt.Sprintf("%s already at %s", tildePath(exe), tag))
+			refreshManual(out, exe)
 		case cmp > 0:
 			if err := advance(); err != nil {
 				return err
@@ -148,18 +149,34 @@ func refreshManual(out *report, exe string) {
 	if _, err := os.Stat(page); err != nil {
 		return
 	}
-	text, err := exec.Command(exe, "man").Output()
-	if err == nil {
-		tmp := page + ".tmp"
-		if err = os.WriteFile(tmp, text, 0o644); err == nil {
-			if err = os.Rename(tmp, page); err != nil {
-				os.Remove(tmp)
-			}
-		}
-	}
+	err := writeManual(exe, page)
 	if err != nil {
 		out.done(false, fmt.Sprintf("manual %s not refreshed: %v", tildePath(page), err))
 	}
+}
+
+func writeManual(exe, page string) error {
+	text, err := exec.Command(exe, "man").Output()
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(page), "gap.1.")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(text); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Chmod(0o644); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), page)
 }
 
 func fetchPrimary(root string) (before, target, tracked string, err error) {
