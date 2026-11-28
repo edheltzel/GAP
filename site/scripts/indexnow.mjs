@@ -117,9 +117,16 @@ if (sha) {
   }
 }
 
-const keyFile = keyFileAt(live);
-const key = keyFile.slice(0, -4);
-if ((await text(`/${keyFile}`)) !== key) throw new Error(`${site.host}/${keyFile} does not serve the key`);
+let keyFile = keyFileAt(live);
+let key = keyFile.slice(0, -4);
+while ((await text(`/${keyFile}`)) !== key) {
+  if (!sha || Date.now() >= deadline) throw new Error(`${site.host}/${keyFile} does not serve the key`);
+  await new Promise((resolve) => setTimeout(resolve, Math.min(20_000, Math.max(0, deadline - Date.now()))));
+  const next = await liveSha();
+  if (includesOurs(next)) live = next;
+  keyFile = keyFileAt(live);
+  key = keyFile.slice(0, -4);
+}
 
 const urls = new Set(changed.urls);
 if (changed.all) {
