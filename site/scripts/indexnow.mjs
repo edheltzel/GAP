@@ -9,16 +9,17 @@ const keyFile = readdirSync(new URL("../public/", import.meta.url)).find((name) 
 if (!keyFile) throw new Error("no IndexNow key file in public/");
 const key = keyFile.slice(0, -4);
 
-async function text(path, timeoutMs = 15_000) {
+async function text(path, timeoutMs = 15_000, onResponse = () => {}) {
   const res = await fetch(new URL(path, site), { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+  onResponse();
   return res.ok ? (await res.text()).trim() : undefined;
 }
 
 async function liveSha() {
   try {
-    const live = await text("/deploy.txt", Math.max(1_000, Math.min(15_000, deadline - Date.now())));
-    responded = true;
-    return live;
+    return await text("/deploy.txt", Math.max(1_000, Math.min(15_000, deadline - Date.now())), () => {
+      responded = true;
+    });
   } catch (error) {
     lastError = error;
     return undefined;
