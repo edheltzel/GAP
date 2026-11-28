@@ -42,7 +42,7 @@ install_man() (
 			echo "  export MANPATH=\"$mandir:\$MANPATH\""
 		fi
 	else
-		[ -z "$page" ] || rm -f "$page"
+		[ -z "$page" ] || rm -f "$page" 2>/dev/null || :
 		echo "No manual installed. Run gap --help or gap <command> --help instead."
 	fi
 )
