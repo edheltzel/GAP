@@ -32,6 +32,8 @@ type storeCache struct {
 	misses int
 }
 
+var verifyStore = storeState
+
 func newStoreCache() *storeCache {
 	return &storeCache{states: map[string]*storeResult{}}
 }
@@ -53,7 +55,7 @@ func (c *storeCache) state(dir, tree string) (string, error) {
 		<-r.done
 		return r.state, r.err
 	}
-	r.state, r.err = storeState(dir, tree)
+	r.state, r.err = verifyStore(dir, tree)
 	close(r.done)
 	return r.state, r.err
 }

@@ -626,21 +626,20 @@ func effectivePinsWith(repoRoot, home, projectRoot, profile string, stores *stor
 	return d, lk, nil
 }
 
-const storeCheckLimit = 8
+var storeCheckSlots = make(chan struct{}, 8)
 
 func loadLocalManifests(home string, d distro, lk lockFile, stores *storeCache) error {
 	ids := sortedIDs(d.Components)
 	states := make([]string, len(ids))
 	var wg sync.WaitGroup
-	slots := make(chan struct{}, storeCheckLimit)
 	for i, id := range ids {
 		pin, pinned := lk.Components[id]
 		if !pinned {
 			continue
 		}
 		wg.Go(func() {
-			slots <- struct{}{}
-			defer func() { <-slots }()
+			storeCheckSlots <- struct{}{}
+			defer func() { <-storeCheckSlots }()
 			if state, err := stores.state(storePath(home, id, pin.Commit), pin.Tree); err == nil {
 				states[i] = state
 			}

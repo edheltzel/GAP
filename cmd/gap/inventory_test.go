@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -234,17 +236,31 @@ func TestTUILoadVerifiesEachStoreOnce(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	var calls atomic.Int32
+	started, release := make(chan struct{}), make(chan struct{})
+	verify := verifyStore
+	verifyStore = func(dir, tree string) (string, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+			<-release
+		}
+		return verify(dir, tree)
+	}
+	t.Cleanup(func() { verifyStore = verify })
 	stores := newStoreCache()
 	var items, projects loadedMsg
 	var wg sync.WaitGroup
 	wg.Go(func() { items = loadTUIItems(e.home, e.repo, e.project, stores) })
+	<-started
 	wg.Go(func() { projects = loadTUIProjects(e.home, e.repo, stores) })
+	time.Sleep(100 * time.Millisecond)
+	close(release)
 	wg.Wait()
 	if items.err != nil || projects.err != nil || len(projects.projects) != 4 {
 		t.Fatalf("items %v projects %+v", items.err, projects)
 	}
-	if stores.misses != 1 {
-		t.Fatalf("verified %d stores for one pin, want 1", stores.misses)
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("verified one pin %d times while loads overlapped, want 1", n)
 	}
 }
 
