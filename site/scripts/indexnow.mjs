@@ -40,7 +40,7 @@ function pagesAt(commit) {
 
 const builtFrom = (file) =>
   /^site\/(src|public)\//.test(file) ||
-  /^site\/(astro\.config\.[cm]?[jt]s|package(-lock)?\.json)$/.test(file) ||
+  /^site\/(astro\.config\.[cm]?[jt]s|package(-lock)?\.json|tsconfig\.json)$/.test(file) ||
   file.startsWith("docs/images/");
 
 /**
@@ -137,31 +137,50 @@ const servesKey = async () => {
   return false;
 };
 
+async function sitemapUrls() {
+  const urls = new Set(changed.urls);
+  if (changed.all) {
+    const sitemap = (await text("/sitemap-0.xml")) ?? "";
+    const listed = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    if (!listed.length) throw new Error("live sitemap lists no URLs");
+    for (const url of listed) urls.add(url);
+  }
+  return [...urls];
+}
+
+let urlList;
+let failure;
 for (;;) {
   if (sha) live = await liveSha();
   const ours = !sha || includesOurs(live);
+  if (!ours) failure = reached
+    ? `${site.host} still serves ${live ?? "no deploy.txt"}, which does not contain ${sha}; no ping. Rerun this job once it does.`
+    : `${site.host} never served deploy.txt: ${lastError?.message}`;
   if (ours) {
     keyFile = keyFileAt(live);
     key = keyFile.slice(0, -4);
-    if (await servesKey()) break;
+    if (await servesKey()) {
+      urlList = await sitemapUrls();
+      if (!sha) break;
+      const still = await liveSha();
+      if (still === live || includesOurs(still)) break;
+      live = still;
+      failure = `${site.host} moved to ${still ?? "no deploy.txt"} while checking the key; no ping. Rerun this job once it contains ${sha}.`;
+    } else {
+      failure = `${site.host}/${keyFile} does not serve the key: ${keyError?.message}`;
+    }
   }
-  if (!sha || Date.now() >= deadline) {
-    if (sha && !reached) console.error(`${site.host} never served deploy.txt: ${lastError?.message}`);
-    else if (!ours) console.error(`${site.host} still serves ${live ?? "no deploy.txt"}, which does not contain ${sha}; no ping. Rerun this job once it does.`);
-    else console.error(`${site.host}/${keyFile} does not serve the key: ${keyError?.message}`);
+  const left = sha ? deadline - Date.now() : 0;
+  if (left <= 0) {
+    console.error(failure);
     process.exit(1);
   }
-  await new Promise((resolve) => setTimeout(resolve, Math.min(20_000, Math.max(0, deadline - Date.now()))));
+  await new Promise((resolve) => setTimeout(resolve, Math.min(20_000, left)));
+  if (Date.now() >= deadline) {
+    console.error(failure);
+    process.exit(1);
+  }
 }
-
-const urls = new Set(changed.urls);
-if (changed.all) {
-  const sitemap = (await text("/sitemap-0.xml")) ?? "";
-  const live = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-  if (!live.length) throw new Error("live sitemap lists no URLs");
-  for (const url of live) urls.add(url);
-}
-const urlList = [...urls];
 
 const body = { host: site.host, key, keyLocation: new URL(`/${keyFile}`, site).href, urlList };
 if (dryRun) {
