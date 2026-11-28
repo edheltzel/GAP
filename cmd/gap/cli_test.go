@@ -43,7 +43,7 @@ func TestCommandsHaveGroupAndExample(t *testing.T) {
 		if c.GroupID == "" {
 			t.Errorf("%s has no help group", c.Name())
 		}
-		if c.Runnable() && c.Name() != "help" && c.Example == "" {
+		if c.Runnable() && c.Example == "" {
 			t.Errorf("%s has no example", c.Name())
 		}
 	}

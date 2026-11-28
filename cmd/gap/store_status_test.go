@@ -38,7 +38,7 @@ func TestStatusTerminalRestoreHint(t *testing.T) {
 	var buf bytes.Buffer
 	ttyReport(&buf).statusSummary(rows)
 	plain := ansi.Strip(buf.String())
-	if !strings.Contains(plain, "  gap restore do-skills   put these skills back to the pinned store\n") || strings.Contains(plain, "gap restore echo") {
+	if !strings.Contains(plain, "  gap restore do-skills   replace drifted copies from the pinned store\n") || strings.Contains(plain, "gap restore echo") {
 		t.Fatalf("terminal status must name gap restore for drifted components only:\n%s", plain)
 	}
 	if !strings.HasSuffix(plain, "2 components, 1 with drift, 0 store problems\n") {

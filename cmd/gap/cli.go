@@ -149,6 +149,10 @@ New here? Run gap sync, then gap status. Plain gap opens the TUI. Terms: gap hel
 	}
 	root.AddCommand(tuiCmd(), syncCmd(), statusCmd(), sourceCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd(), selfUpdateCmd(), completionCmd(), conceptsCmd())
 	root.SetHelpCommandGroupID("inspect")
+	root.InitDefaultHelpCmd()
+	if help, _, err := root.Find([]string{"help"}); err == nil && help != root {
+		help.Example = "  gap help sync\n  gap help concepts"
+	}
 	for _, c := range root.Commands() {
 		for _, g := range commandGroups {
 			if slices.Contains(g.cmds, c.Name()) {
@@ -179,7 +183,8 @@ A component is a repo listed in gap.toml. Its pin is the exact commit recorded i
 The store (~/.gap/store/<id>/<commit>) holds each pinned commit; skills install from it
 without Node. A harness is a coding agent (Claude, Codex, Cursor, Pi, ...) whose files gap writes.
 
-sync never moves pins. pin is the only command that writes the distro's gap.lock.
+sync never moves pins; it applies the ones recorded in gap.lock. pin records a ref you name,
+and update moves a component to the newest commit of its configured ref.
 add, update, and remove manage utilities you add yourself: any git repo or local folder
 of skills, recorded in ~/.config/gap/gap.toml and pinned in ~/.config/gap/gap.lock.
 
@@ -413,13 +418,13 @@ removes the utility everywhere, including every project copy.`,
 	flags.BoolP("yes", "y", false, "install without prompts")
 	flags.BoolP("list", "l", false, "list the source's skills and exit")
 	flags.Bool("all", false, "every skill to every agent, without prompts")
-	flags.StringSliceP("agent", "a", nil, "agents to install to, comma-separated (e.g. claude-code,codex); '*' for all")
-	flags.StringSliceP("skill", "s", nil, "skill names to install, comma-separated; '*' for all")
+	flags.StringSliceP("agent", "a", nil, "agents to install to, space-separated or repeated (e.g. -a claude-code codex); '*' for all")
+	flags.StringSliceP("skill", "s", nil, "skill names to install, space-separated or repeated; '*' for all")
 	flags.String("metadata", "", "accepted for compatibility; unused")
 	flags.Bool("full-depth", false, "search the whole repo for skills")
 	flags.Bool("json", false, "print the results as JSON (needs -y or --all)")
 	flags.Bool("copy", false, "copy into each agent folder instead of linking")
-	flags.StringSlice("subagent", nil, "Eve subagents to install to, comma-separated")
+	flags.StringSlice("subagent", nil, "Eve subagents to install to, space-separated or repeated")
 	flags.String("rename", "", "install the one selected skill under this new name")
 	flags.String("id", "", "utility id to record (default: the repo name, lowercased)")
 	return cmd

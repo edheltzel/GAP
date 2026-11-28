@@ -31,15 +31,17 @@ install_completions() {
 
 install_man() {
 	man1="${1%/*}/../share/man/man1"
-	if mkdir -p "$man1" && "$1" man > "$man1/gap.1.tmp" 2>/dev/null && mv -f "$man1/gap.1.tmp" "$man1/gap.1"; then
+	tmp=""
+	if mkdir -p "$man1" && tmp="$(mktemp "$man1/gap.1.XXXXXX")" && "$1" man > "$tmp" 2>/dev/null && chmod 644 "$tmp" && mv -f "$tmp" "$man1/gap.1"; then
 		mandir="$(cd "$man1/.." && pwd)"
 		echo "Installed the manual: man gap"
-		if command -v man >/dev/null 2>&1 && ! PATH="${1%/*}:$PATH" man -w gap >/dev/null 2>&1; then
+		found="$(PATH="${1%/*}:$PATH" man -w gap 2>/dev/null || true)"
+		if command -v man >/dev/null 2>&1 && [ "$(cd "${found%/*}" 2>/dev/null && pwd)/${found##*/}" != "$mandir/man1/gap.1" ]; then
 			echo "man cannot find it yet. Add this line to your shell config, then open a new terminal:"
 			echo "  export MANPATH=\"$mandir:\$MANPATH\""
 		fi
 	else
-		rm -f "$man1/gap.1.tmp"
+		[ -n "$tmp" ] && rm -f "$tmp"
 		echo "No manual installed. Run gap --help or gap <command> --help instead."
 	fi
 }

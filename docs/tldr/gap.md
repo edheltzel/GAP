@@ -11,7 +11,7 @@
 
 `gap sync`
 
-- Sync only some groups without prompting:
+- Sync only some groups, skipping the group picker:
 
 `gap sync --only {{policy,component_id}} --yes`
 

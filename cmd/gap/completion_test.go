@@ -105,8 +105,8 @@ func TestCompletionOffersItemIDs(t *testing.T) {
 		t.Fatalf("update takes one id, but a second was offered:\n%s", out)
 	}
 	out, err := runGap(t, "__complete", "sync", "--only", "")
-	if err != nil || !strings.Contains(out, "policy\t") || strings.Contains(out, "util\t") {
-		t.Fatalf("sync --only must offer policy and distro groups, not utilities: %v\n%s", err, out)
+	if err != nil || !strings.Contains(out, "policy\t") || !strings.Contains(out, "util\t") {
+		t.Fatalf("sync --only must offer policy and every enabled group, utilities included: %v\n%s", err, out)
 	}
 	out, _ = runGap(t, "__complete", "sync", "--skip", "policy,")
 	if strings.Contains(out, "policy,policy") {
