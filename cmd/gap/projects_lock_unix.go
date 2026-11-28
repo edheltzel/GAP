@@ -9,10 +9,7 @@ import (
 )
 
 func lockProjects(home string) (func(), error) {
-	return lockPath(projectsPath(home) + ".lock")
-}
-
-func lockPath(path string) (func(), error) {
+	path := projectsPath(home) + ".lock"
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}

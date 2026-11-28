@@ -75,11 +75,6 @@ func selfUpdate(out *report) error {
 	if exe, err = filepath.EvalSymlinks(exe); err != nil {
 		return err
 	}
-	unlock, err := lockPath(filepath.Join(filepath.Dir(exe), ".gap-self-update.lock"))
-	if err != nil {
-		return err
-	}
-	defer unlock()
 	root, err := sourceRoot()
 	if err != nil {
 		return err
