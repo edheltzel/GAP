@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -497,11 +498,25 @@ func worktreeID(dir string) (string, error) {
 	if err := os.Mkdir(objectDir, 0o700); err != nil {
 		return "", fmt.Errorf("creating store objects: %w", err)
 	}
-	env := append(gitEnv(), "GIT_INDEX_FILE="+filepath.Join(tmp, "index"))
+	index := filepath.Join(tmp, "index")
+	if path, err := git(dir, "rev-parse", "--path-format=absolute", "--git-path", "index"); err == nil && copyIndex(path, index) == nil {
+		if tree, err := hashWorktree(dir, index, objectDir, true); err == nil {
+			return tree, nil
+		}
+		os.Remove(index)
+	}
+	return hashWorktree(dir, index, objectDir, false)
+}
+
+func hashWorktree(dir, index, objectDir string, seeded bool) (string, error) {
+	steps := [][]string{{"read-tree", "HEAD"}, {"add", "-A", "--", "."}, {"write-tree"}}
+	if seeded {
+		steps = [][]string{{"read-tree", "-m", "HEAD"}, {"add", "-A", "--", "."}, {"write-tree", "--missing-ok"}}
+	}
 	var tree string
-	for _, args := range [][]string{{"read-tree", "HEAD"}, {"add", "-A", "--", "."}, {"write-tree"}} {
+	for _, args := range steps {
 		cmd := exec.Command("git", append([]string{"-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.eol=lf"}, args...)...)
-		cmd.Dir, cmd.Env = dir, env
+		cmd.Dir, cmd.Env = dir, append(gitEnv(), "GIT_INDEX_FILE="+index)
 		if args[0] != "read-tree" {
 			cmd.Env = append(cmd.Env, "GIT_OBJECT_DIRECTORY="+objectDir)
 		}
@@ -512,6 +527,17 @@ func worktreeID(dir string) (string, error) {
 		tree = strings.TrimSpace(string(out))
 	}
 	return tree, nil
+}
+
+func copyIndex(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if err := copyFile(src, dst); err != nil {
+		return err
+	}
+	return os.Chtimes(dst, info.ModTime(), info.ModTime())
 }
 
 const (
@@ -626,16 +652,27 @@ func effectivePinsWith(repoRoot, home, projectRoot, profile string, stores *stor
 }
 
 func loadLocalManifests(home string, d distro, lk lockFile, stores *storeCache) error {
-	for id, c := range d.Components {
+	ids := sortedIDs(d.Components)
+	states := make([]string, len(ids))
+	var wg sync.WaitGroup
+	for i, id := range ids {
 		pin, pinned := lk.Components[id]
 		if !pinned {
 			continue
 		}
-		dir := storePath(home, id, pin.Commit)
-		if state, err := stores.state(dir, pin.Tree); err != nil || state != storeOK {
+		wg.Go(func() {
+			if state, err := stores.state(storePath(home, id, pin.Commit), pin.Tree); err == nil {
+				states[i] = state
+			}
+		})
+	}
+	wg.Wait()
+	for i, id := range ids {
+		if states[i] != storeOK {
 			continue
 		}
-		resolved, err := applyManifest(c, dir)
+		dir := storePath(home, id, lk.Components[id].Commit)
+		resolved, err := applyManifest(d.Components[id], dir)
 		if err != nil {
 			return err
 		}

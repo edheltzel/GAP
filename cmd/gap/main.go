@@ -63,11 +63,14 @@ func syncAll(opts syncOptions) error {
 	if err != nil {
 		return err
 	}
+	stopWorking := startWorking("Checking components and stores")
+	defer stopWorking()
 	d, lk, err := effectivePins(repoRoot, home, projectRoot, opts.Profile)
 	if err != nil {
 		return err
 	}
 	if d.Profile == "crew" {
+		stopWorking()
 		if opts.RemoveLegacy {
 			return errors.New("crew sync cannot remove home-directory Codex policy")
 		}
@@ -102,6 +105,7 @@ func syncAll(opts syncOptions) error {
 		return err
 	}
 	groups := syncGroups(d, pins, projectRoot, len(dests), commandCount(repoRoot))
+	stopWorking()
 	sel, err := chooseGroups(groups, opts.Only, opts.Skip, opts.Yes)
 	if err != nil {
 		return err
