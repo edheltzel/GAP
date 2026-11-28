@@ -119,8 +119,18 @@ if (sha) {
 
 let keyFile = keyFileAt(live);
 let key = keyFile.slice(0, -4);
-while ((await text(`/${keyFile}`)) !== key) {
-  if (!sha || Date.now() >= deadline) throw new Error(`${site.host}/${keyFile} does not serve the key`);
+const servesKey = async () => {
+  try {
+    return (await text(`/${keyFile}`)) === key;
+  } catch (error) {
+    lastError = error;
+    return false;
+  }
+};
+while (!(await servesKey())) {
+  if (!sha || Date.now() >= deadline) {
+    throw new Error(`${site.host}/${keyFile} does not serve the key${lastError ? `: ${lastError.message}` : ""}`);
+  }
   await new Promise((resolve) => setTimeout(resolve, Math.min(20_000, Math.max(0, deadline - Date.now()))));
   const next = await liveSha();
   if (includesOurs(next)) live = next;
