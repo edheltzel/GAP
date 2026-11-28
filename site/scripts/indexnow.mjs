@@ -7,7 +7,8 @@ const before = process.env.BEFORE_SHA;
 const waitMs = Number(process.env.DEPLOY_WAIT_MS || 20 * 60 * 1000);
 const dryRun = process.argv.includes("--dry-run");
 
-const git = (...args) => execFileSync("git", args, { cwd: new URL("../..", import.meta.url), encoding: "utf8" });
+const git = (...args) =>
+  execFileSync("git", args, { cwd: new URL("../..", import.meta.url), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 const isKeyFile = (name) => /^[0-9a-f]{32}\.txt$/.test(name);
 
 /** The IndexNow key file in site/public/, on disk or at a commit. */
@@ -20,16 +21,27 @@ function keyFileAt(commit) {
   return name;
 }
 
-/** repoPages from site/src/lib/repo-links.ts at a commit: repo file -> page URL. */
+/**
+ * The published pages at a commit (site/src/repo-pages.json): repo file -> page
+ * URL. Commits before that file existed kept the map in repo-links.ts.
+ */
 function pagesAt(commit) {
-  const source = git("show", `${commit}:site/src/lib/repo-links.ts`);
-  const block = source.match(/repoPages[^{]*\{([^}]*)\}/)?.[1] ?? "";
-  return new Map([...block.matchAll(/"([^"]+)":\s*"([^"]+)"/g)].map(([, file, id]) => [file, new URL(`/${id}/`, site).href]));
+  let pages;
+  try {
+    pages = JSON.parse(git("show", `${commit}:site/src/repo-pages.json`));
+  } catch {
+    const source = git("show", `${commit}:site/src/lib/repo-links.ts`);
+    const block = source.match(/repoPages[^{]*\{([^}]*)\}/)?.[1] ?? "";
+    pages = Object.fromEntries([...block.matchAll(/["']([^"']+)["']:\s*["']([^"']+)["']/g)].map(([, file, id]) => [file, id]));
+  }
+  if (!Object.keys(pages).length) throw new Error(`no published pages found at ${commit}`);
+  return new Map(Object.entries(pages).map(([file, id]) => [file, new URL(`/${id}/`, site).href]));
 }
 
-const notBuilt = new Set(["site/AGENTS.md", "site/README.md"]);
 const builtFrom = (file) =>
-  (file.startsWith("site/") && !file.startsWith("site/scripts/") && !notBuilt.has(file)) || file.startsWith("docs/images/");
+  /^site\/(src|public)\//.test(file) ||
+  /^site\/(astro\.config\.[cm]?[jt]s|package(-lock)?\.json)$/.test(file) ||
+  file.startsWith("docs/images/");
 
 /**
  * The URLs a deploy changed. A root page maps to its own URL; a page dropped
@@ -101,31 +113,15 @@ if (!changed.all && !changed.urls.length) {
 }
 
 let live;
-if (sha) {
-  live = await liveSha();
-  while (!includesOurs(live) && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, Math.min(20_000, Math.max(0, deadline - Date.now()))));
-    live = await liveSha();
-  }
-  if (!includesOurs(live)) {
-    if (!reached) {
-      console.error(`${site.host} never served deploy.txt: ${lastError?.message}`);
-      process.exit(1);
-    }
-    console.error(`${site.host} still serves ${live ?? "no deploy.txt"}, which does not contain ${sha}; no ping. Rerun this job once it does.`);
-    process.exit(1);
-  }
-}
-
-let keyFile = keyFileAt(live);
-let key = keyFile.slice(0, -4);
+let keyFile;
+let key;
 let keyError;
 const servesKey = async () => {
   keyError = undefined;
   try {
     const left = sha ? deadline - Date.now() : 15_000;
     if (left <= 0) {
-      keyError ??= new Error("wait deadline passed");
+      keyError = new Error("wait deadline passed");
       return false;
     }
     const served = await text(`/${keyFile}`, Math.min(15_000, left));
@@ -140,16 +136,22 @@ const servesKey = async () => {
   }
   return false;
 };
-while (!(await servesKey())) {
+
+for (;;) {
+  if (sha) live = await liveSha();
+  const ours = !sha || includesOurs(live);
+  if (ours) {
+    keyFile = keyFileAt(live);
+    key = keyFile.slice(0, -4);
+    if (await servesKey()) break;
+  }
   if (!sha || Date.now() >= deadline) {
-    throw new Error(`${site.host}/${keyFile} does not serve the key: ${keyError?.message}`);
+    if (sha && !reached) console.error(`${site.host} never served deploy.txt: ${lastError?.message}`);
+    else if (!ours) console.error(`${site.host} still serves ${live ?? "no deploy.txt"}, which does not contain ${sha}; no ping. Rerun this job once it does.`);
+    else console.error(`${site.host}/${keyFile} does not serve the key: ${keyError?.message}`);
+    process.exit(1);
   }
   await new Promise((resolve) => setTimeout(resolve, Math.min(20_000, Math.max(0, deadline - Date.now()))));
-  const next = await liveSha();
-  if (Date.now() >= deadline) throw new Error(`${site.host}/${keyFile} does not serve the key: ${keyError?.message}`);
-  if (includesOurs(next)) live = next;
-  keyFile = keyFileAt(live);
-  key = keyFile.slice(0, -4);
 }
 
 const urls = new Set(changed.urls);
