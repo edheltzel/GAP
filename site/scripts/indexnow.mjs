@@ -129,7 +129,11 @@ const servesKey = async () => {
       return false;
     }
     const served = await text(`/${keyFile}`, Math.min(15_000, left));
-    if (served === key && (!sha || Date.now() < deadline)) return true;
+    if (served === key) {
+      if (!sha || Date.now() < deadline) return true;
+      keyError = new Error("key arrived after the wait deadline");
+      return false;
+    }
     keyError = new Error(served === undefined ? "HTTP 404" : "wrong key");
   } catch (error) {
     keyError = error;
