@@ -5,7 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -233,14 +236,47 @@ func TestTUILoadVerifiesEachStoreOnce(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	var calls atomic.Int32
+	started, release := make(chan struct{}), make(chan struct{})
+	verify := verifyStore
+	verifyStore = func(dir, tree string) (string, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+			<-release
+		}
+		return verify(dir, tree)
+	}
+	t.Cleanup(func() { verifyStore = verify })
 	stores := newStoreCache()
-	items := loadTUIItems(e.home, e.repo, e.project, stores)
-	projects := loadTUIProjects(e.home, e.repo, stores)
+	var items, projects loadedMsg
+	var wg sync.WaitGroup
+	itemsDone := make(chan struct{})
+	wg.Go(func() {
+		defer close(itemsDone)
+		items = loadTUIItems(e.home, e.repo, e.project, stores)
+	})
+	select {
+	case <-started:
+	case <-itemsDone:
+		t.Fatalf("Items finished without checking a store: %v", items.err)
+	}
+	wg.Go(func() { projects = loadTUIProjects(e.home, e.repo, stores) })
+	waiting := false
+	for deadline := time.Now().Add(5 * time.Second); !waiting && time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		stores.mu.Lock()
+		waiting = stores.waits > 0
+		stores.mu.Unlock()
+	}
+	close(release)
+	wg.Wait()
+	if !waiting {
+		t.Fatal("Projects never asked for the pin Items is verifying")
+	}
 	if items.err != nil || projects.err != nil || len(projects.projects) != 4 {
 		t.Fatalf("items %v projects %+v", items.err, projects)
 	}
-	if stores.misses != 1 {
-		t.Fatalf("verified %d stores for one pin, want 1", stores.misses)
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("verified one pin %d times while loads overlapped, want 1", n)
 	}
 }
 

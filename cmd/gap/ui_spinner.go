@@ -14,7 +14,7 @@ import (
 
 // spinnerOut is where spin draws. Tests replace it.
 var spinnerOut = func() (io.Writer, bool) {
-	return os.Stderr, isTerminal(os.Stderr) && !plainEnv()
+	return os.Stderr, term.IsTerminal(os.Stderr.Fd()) && !plainEnv()
 }
 
 // spinnerWidth is the column count of the terminal spin draws on, or 0 when unknown. Tests replace it.
@@ -73,4 +73,38 @@ func spin[T any](title string, fn func() (T, error)) (T, error) {
 	close(stop)
 	wg.Wait()
 	return v, err
+}
+
+// startWorking turns a spinner labelled title on a terminal's stderr until the returned stop runs.
+// It follows spin: nothing off a terminal, with NO_COLOR or TERM=dumb, or while a progress bar is active.
+func startWorking(title string) func() {
+	w, ok := spinnerOut()
+	if activeProgress != nil || !ok || !term.IsTerminal(os.Stdout.Fd()) {
+		return func() {}
+	}
+	r := &report{out: w, tty: true, plain: plainEnv()}
+	frames := spinner.MiniDot.Frames
+	width := spinnerWidth()
+	stop, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		tick := time.NewTicker(spinner.MiniDot.FPS)
+		defer tick.Stop()
+		for i := 0; ; i++ {
+			fmt.Fprint(w, "\r"+ansi.EraseEntireLine+spinnerFrame(r, frames[i%len(frames)], title, width))
+			select {
+			case <-stop:
+				fmt.Fprint(w, "\r"+ansi.EraseEntireLine)
+				return
+			case <-tick.C:
+			}
+		}
+	}()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			close(stop)
+			<-done
+		})
+	}
 }

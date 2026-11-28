@@ -23,38 +23,52 @@ func (r itemRow) user() bool { return r.Source == "user" }
 type storeResult struct {
 	state string
 	err   error
+	done  chan struct{}
 }
 
 type storeCache struct {
 	mu     sync.Mutex
-	states map[string]storeResult
+	states map[string]*storeResult
 	misses int
+	waits  int
 }
 
+var verifyStore = storeState
+
+var storeCheckSlots = make(chan struct{}, 8)
+
 func newStoreCache() *storeCache {
-	return &storeCache{states: map[string]storeResult{}}
+	return &storeCache{states: map[string]*storeResult{}}
 }
 
 func (c *storeCache) state(dir, tree string) (string, error) {
 	if c == nil {
-		return storeState(dir, tree)
+		return checkStore(dir, tree)
 	}
 	key := dir + "\x00" + tree
 	c.mu.Lock()
 	r, ok := c.states[key]
+	if !ok {
+		r = &storeResult{done: make(chan struct{})}
+		c.states[key] = r
+		c.misses++
+	} else {
+		c.waits++
+	}
 	c.mu.Unlock()
 	if ok {
+		<-r.done
 		return r.state, r.err
 	}
-	state, err := storeState(dir, tree)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if r, ok := c.states[key]; ok {
-		return r.state, r.err
-	}
-	c.misses++
-	c.states[key] = storeResult{state, err}
-	return state, err
+	r.state, r.err = checkStore(dir, tree)
+	close(r.done)
+	return r.state, r.err
+}
+
+func checkStore(dir, tree string) (string, error) {
+	storeCheckSlots <- struct{}{}
+	defer func() { <-storeCheckSlots }()
+	return verifyStore(dir, tree)
 }
 
 func registeredRows(home, repoRoot string) ([]itemRow, error) {
