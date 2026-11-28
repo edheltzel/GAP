@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -120,6 +121,41 @@ func installCompletion(root *cobra.Command, shell string, out *report) error {
 	}
 	out.println("  Open a new terminal to use them.")
 	return nil
+}
+
+func completeSyncGroups(_ *cobra.Command, _ []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	prefix := ""
+	if i := strings.LastIndex(toComplete, ","); i >= 0 {
+		prefix = toComplete[:i+1]
+	}
+	chosen := strings.Split(prefix, ",")
+	groups := []cobra.Completion{cobra.CompletionWithDesc(prefix+"policy", "global/AGENTS.md and global/commands")}
+	if home, repoRoot, err := gapHomes(); err == nil {
+		if items, err := registeredRows(home, repoRoot); err == nil {
+			for _, r := range items {
+				if !r.user() && !slices.Contains(chosen, r.ID) {
+					groups = append(groups, cobra.CompletionWithDesc(prefix+r.ID, r.Repo))
+				}
+			}
+		}
+	}
+	if slices.Contains(chosen, "policy") {
+		groups = groups[1:]
+	}
+	return groups, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
+}
+
+func completeProfiles(_ *cobra.Command, _ []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	_, repoRoot, err := gapHomes()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	files, _ := filepath.Glob(filepath.Join(repoRoot, "profiles", "*.toml"))
+	var names []cobra.Completion
+	for _, f := range files {
+		names = append(names, strings.TrimSuffix(filepath.Base(f), ".toml"))
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
 }
 
 func completeIDs(userOnly bool, suffix string) cobra.CompletionFunc {

@@ -43,8 +43,9 @@ const maxReleaseBytes = 256 << 20
 
 func selfUpdateCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "self-update",
-		Short: "Update the gap binary and its source checkout to the latest master or release",
+		Use:     "self-update",
+		Short:   "Update the gap binary and its source checkout to the latest master or release",
+		Example: "  gap self-update",
 		Long: `self-update brings gap itself up to date. It leaves your user lock and installed
 components alone; moving component pins is gap update. Fast-forwarding the checkout can
 bring in a newer distro gap.lock, which the next gap sync installs.

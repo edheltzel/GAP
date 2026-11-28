@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/edheltzel/GAP/master/scripts/instal
 
 The script checks whether your shell can find the binary's folder. If not, it prints the exact `export PATH=...` line to add to your shell config. Open a new terminal after adding it. Installation writes the binary and source checkout; `gap sync` publishes the policy and installs the selected components and skills.
 
-The script also installs tab completion for the shell in `$SHELL` with `gap completion --install`. It supports bash, zsh, and fish, and skips any other shell without failing the install. Completion covers commands, flags, and item ids for `update`, `check`, `restore`, `remove`, and `pin`. Where each shell's file goes:
+The script also installs tab completion for the shell in `$SHELL` with `gap completion --install`. It supports bash, zsh, and fish, and skips any other shell without failing the install. Completion covers commands, flags, item ids for `update`, `check`, `restore`, `remove`, and `pin`, the groups for `sync --only` and `--skip`, and `sync --profile` names. Where each shell's file goes:
 
 | Shell | File | Loaded by |
 | --- | --- | --- |
@@ -40,6 +40,8 @@ The script also installs tab completion for the shell in `$SHELL` with `gap comp
 | fish | `$XDG_CONFIG_HOME/fish/completions/gap.fish` | fish, automatically |
 
 `$XDG_DATA_HOME` defaults to `~/.local/share` and `$XDG_CONFIG_HOME` to `~/.config`. Run `gap completion --install zsh` (or `bash`, `fish`) to add another shell, or `gap completion zsh` to print the script instead of installing it.
+
+The script also installs the manual to `share/man/man1/gap.1` next to the binary's folder, so `man gap` works. If `man` cannot find it, the script prints the `export MANPATH=...` line to add. `gap help concepts` explains the terms gap uses, and `gap <command> --help` shows each command's flags and examples. [docs/tldr/gap.md](docs/tldr/gap.md) is the tldr page.
 
 Already have the repo checked out? With Go available, `sh scripts/install.sh` from its root builds that copy instead of cloning, including when stdin is redirected. Keep that checkout too.
 

@@ -223,8 +223,26 @@ func (r *report) next(steps ...string) {
 		return
 	}
 	r.heading("Next")
-	for _, step := range steps {
-		r.printf("  %s\n", step)
+	if !r.tty {
+		for _, step := range steps {
+			r.printf("  %s\n", step)
+		}
+		return
+	}
+	cmds := make([]string, len(steps))
+	whys := make([]string, len(steps))
+	width := 0
+	for i, step := range steps {
+		cmd, why, _ := strings.Cut(step, "    ")
+		cmds[i], whys[i] = strings.TrimSpace(cmd), strings.TrimSpace(why)
+		width = max(width, lipgloss.Width(cmds[i]))
+	}
+	for i := range steps {
+		line := "  " + r.bold(cmds[i], colorAccent)
+		if whys[i] != "" {
+			line += strings.Repeat(" ", width-lipgloss.Width(cmds[i])+3) + r.tone(whys[i], colorDim)
+		}
+		r.println(line)
 	}
 }
 

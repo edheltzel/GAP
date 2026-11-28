@@ -75,6 +75,9 @@ func (r *report) statusSummary(rows []statusRow) {
 		}
 		r.printf("\n%s  %s\n", r.bold(row.id, colorAccent), r.tone("skills that differ from the pinned store", colorDim))
 		r.framed([]string{"skill", "copies drifted"}, skills)
+		if row.store == storeOK {
+			r.printf("  %s   %s\n", r.bold("gap restore "+row.id, colorAccent), r.tone("put these skills back to the pinned store", colorDim))
+		}
 	}
 	r.footer(fmt.Sprintf("%s, %d with drift, %s", plural(len(rows), "component"), drifted, plural(broken, "store problem")))
 }
