@@ -626,8 +626,6 @@ func effectivePinsWith(repoRoot, home, projectRoot, profile string, stores *stor
 	return d, lk, nil
 }
 
-var storeCheckSlots = make(chan struct{}, 8)
-
 func loadLocalManifests(home string, d distro, lk lockFile, stores *storeCache) error {
 	ids := sortedIDs(d.Components)
 	states := make([]string, len(ids))
@@ -638,8 +636,6 @@ func loadLocalManifests(home string, d distro, lk lockFile, stores *storeCache) 
 			continue
 		}
 		wg.Go(func() {
-			storeCheckSlots <- struct{}{}
-			defer func() { <-storeCheckSlots }()
 			if state, err := stores.state(storePath(home, id, pin.Commit), pin.Tree); err == nil {
 				states[i] = state
 			}

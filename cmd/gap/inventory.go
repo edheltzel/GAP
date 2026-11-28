@@ -30,9 +30,12 @@ type storeCache struct {
 	mu     sync.Mutex
 	states map[string]*storeResult
 	misses int
+	waits  int
 }
 
 var verifyStore = storeState
+
+var storeCheckSlots = make(chan struct{}, 8)
 
 func newStoreCache() *storeCache {
 	return &storeCache{states: map[string]*storeResult{}}
@@ -49,13 +52,17 @@ func (c *storeCache) state(dir, tree string) (string, error) {
 		r = &storeResult{done: make(chan struct{})}
 		c.states[key] = r
 		c.misses++
+	} else {
+		c.waits++
 	}
 	c.mu.Unlock()
 	if ok {
 		<-r.done
 		return r.state, r.err
 	}
+	storeCheckSlots <- struct{}{}
 	r.state, r.err = verifyStore(dir, tree)
+	<-storeCheckSlots
 	close(r.done)
 	return r.state, r.err
 }

@@ -253,7 +253,17 @@ func TestTUILoadVerifiesEachStoreOnce(t *testing.T) {
 	wg.Go(func() { items = loadTUIItems(e.home, e.repo, e.project, stores) })
 	<-started
 	wg.Go(func() { projects = loadTUIProjects(e.home, e.repo, stores) })
-	time.Sleep(100 * time.Millisecond)
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(5 * time.Millisecond) {
+		stores.mu.Lock()
+		waiting := stores.waits > 0
+		stores.mu.Unlock()
+		if waiting {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Projects never asked for the pin Items is verifying")
+		}
+	}
 	close(release)
 	wg.Wait()
 	if items.err != nil || projects.err != nil || len(projects.projects) != 4 {

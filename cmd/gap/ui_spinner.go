@@ -79,7 +79,7 @@ func spin[T any](title string, fn func() (T, error)) (T, error) {
 // It follows spin: nothing off a terminal, with NO_COLOR or TERM=dumb, or while a progress bar is active.
 func startWorking(title string) func() {
 	w, ok := spinnerOut()
-	if activeProgress != nil || !ok || !isTerminal(os.Stdout) {
+	if activeProgress != nil || !ok || !term.IsTerminal(os.Stdout.Fd()) {
 		return func() {}
 	}
 	r := &report{out: w, tty: true, plain: plainEnv()}
