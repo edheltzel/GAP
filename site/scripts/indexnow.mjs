@@ -96,6 +96,7 @@ let lastError;
 let reached = false;
 
 async function liveSha() {
+  lastError = undefined;
   try {
     return await text("/deploy.txt", Math.max(1_000, Math.min(15_000, deadline - Date.now())), () => {
       reached = true;
@@ -153,9 +154,11 @@ let failure;
 for (;;) {
   if (sha) live = await liveSha();
   const ours = !sha || includesOurs(live);
-  if (!ours) failure = reached
-    ? `${site.host} still serves ${live ?? "no deploy.txt"}, which does not contain ${sha}; no ping. Rerun this job once it does.`
-    : `${site.host} never served deploy.txt: ${lastError?.message}`;
+  if (!ours) {
+    if (!reached) failure = `${site.host} never served deploy.txt: ${lastError?.message}`;
+    else if (lastError) failure = `${site.host} deploy.txt failed: ${lastError.message}`;
+    else failure = `${site.host} still serves ${live ?? "no deploy.txt"}, which does not contain ${sha}; no ping. Rerun this job once it does.`;
+  }
   if (ours) {
     keyFile = keyFileAt(live);
     key = keyFile.slice(0, -4);
@@ -166,7 +169,6 @@ for (;;) {
       } catch (error) {
         sitemapError = error;
       }
-      lastError = undefined;
       const still = sha ? await liveSha() : live;
       if (still === live) {
         if (!sitemapError && (!sha || Date.now() < deadline)) break;
@@ -179,7 +181,6 @@ for (;;) {
         }
       } else if (still === undefined && lastError) {
         failure = `${site.host} deploy.txt failed while confirming ${sha}: ${lastError.message}`;
-        if (Date.now() < deadline) continue;
       } else {
         failure = `${site.host} moved to ${still ?? "no deploy.txt"} while checking the key; no ping. Rerun this job once it contains ${sha}.`;
         if (Date.now() < deadline) continue;
