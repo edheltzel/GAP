@@ -43,8 +43,9 @@ const maxReleaseBytes = 256 << 20
 
 func selfUpdateCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "self-update",
-		Short: "Update the gap binary and its source checkout to the latest master or release",
+		Use:     "self-update",
+		Short:   "Update the gap binary and its source checkout to the latest master or release",
+		Example: "  gap self-update",
 		Long: `self-update brings gap itself up to date. It leaves your user lock and installed
 components alone; moving component pins is gap update. Fast-forwarding the checkout can
 bring in a newer distro gap.lock, which the next gap sync installs.
@@ -108,6 +109,7 @@ func selfUpdate(out *report) error {
 			return err
 		}
 		out.done(true, fmt.Sprintf("rebuilt %s from %s", tildePath(exe), short(target)))
+		refreshManual(out, exe)
 	} else {
 		tag, err := latestRelease()
 		if err != nil {
@@ -119,6 +121,7 @@ func selfUpdate(out *report) error {
 				return err
 			}
 			out.done(true, fmt.Sprintf("%s already at %s", tildePath(exe), tag))
+			refreshManual(out, exe)
 		case cmp > 0:
 			if err := advance(); err != nil {
 				return err
@@ -134,10 +137,46 @@ func selfUpdate(out *report) error {
 				return err
 			}
 			out.done(true, fmt.Sprintf("%s %s -> %s", tildePath(exe), version, tag))
+			refreshManual(out, exe)
 		}
 	}
 	out.next("gap sync    publish the updated policy and install the pinned components")
 	return nil
+}
+
+func refreshManual(out *report, exe string) {
+	page := filepath.Join(filepath.Dir(exe), "..", "share", "man", "man1", "gap.1")
+	if _, err := os.Stat(page); err != nil {
+		return
+	}
+	err := writeManual(exe, page)
+	if err != nil {
+		out.done(false, fmt.Sprintf("manual %s not refreshed: %v", tildePath(page), err))
+	}
+}
+
+func writeManual(exe, page string) error {
+	text, err := exec.Command(exe, "man").Output()
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(page), "gap.1.")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(text); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Chmod(0o644); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), page)
 }
 
 func fetchPrimary(root string) (before, target, tracked string, err error) {

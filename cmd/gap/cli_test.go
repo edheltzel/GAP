@@ -2,10 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"charm.land/fang/v2"
 )
 
 func TestHelpListsCommands(t *testing.T) {
@@ -30,6 +33,45 @@ func TestHelpListsCommands(t *testing.T) {
 	}
 }
 
+func TestCommandsHaveGroupAndExample(t *testing.T) {
+	root := rootCmd()
+	root.InitDefaultHelpCmd()
+	for _, c := range root.Commands() {
+		if c.Hidden {
+			continue
+		}
+		if c.GroupID == "" {
+			t.Errorf("%s has no help group", c.Name())
+		}
+		if c.Runnable() && c.Example == "" {
+			t.Errorf("%s has no example", c.Name())
+		}
+	}
+}
+
+func TestHelpConceptsExplainsTerms(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cmd := rootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"help", "concepts"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, term := range []string{"distro", "gap.lock", "~/.gap/store", "Global vs project"} {
+		if !strings.Contains(buf.String(), term) {
+			t.Fatalf("gap help concepts is missing %q:\n%s", term, buf.String())
+		}
+	}
+}
+
+func TestManRendersShortFlags(t *testing.T) {
+	out, err := runGap(t, "man")
+	if err != nil || !strings.Contains(out, `\fB-y --yes\fP`) || strings.Contains(out, `\fB--y `) {
+		t.Fatalf("man must print short flags with one dash: %v\n%s", err, out)
+	}
+}
+
 func TestUnknownCommandFails(t *testing.T) {
 	cmd := rootCmd()
 	cmd.SetOut(new(bytes.Buffer))
@@ -37,6 +79,50 @@ func TestUnknownCommandFails(t *testing.T) {
 	cmd.SetArgs([]string{"nope"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("unknown command exited clean")
+	}
+}
+
+func TestMissingArgumentErrors(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"pin"}, "Missing required argument: <id>@<ref>"},
+		{[]string{"remove"}, "Missing required argument: <id>"},
+		{[]string{"pin", "foo"}, `Invalid argument "foo": want <id>@<ref>`},
+		{[]string{"pin", "foo@"}, `Invalid argument "foo@"`},
+		{[]string{"pin", "@master"}, `Invalid argument "@master"`},
+	} {
+		args := tc.args
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			buf := new(bytes.Buffer)
+			root := rootCmd()
+			root.SetOut(buf)
+			root.SetErr(buf)
+			root.SetArgs(args)
+			if err := fang.Execute(context.Background(), root, fangOptions(root)...); err == nil {
+				t.Fatal("missing argument exited clean")
+			}
+			got := buf.String()
+			for _, want := range []string{tc.want, "Usage", "Example", "gap " + args[0]} {
+				if !strings.Contains(got, want) {
+					t.Fatalf("output is missing %q:\n%s", want, got)
+				}
+			}
+		})
+	}
+}
+
+func TestExtraArgsKeepCountError(t *testing.T) {
+	for _, args := range [][]string{{"remove", "one", "two"}, {"pin", "foo", "extra"}} {
+		root := rootCmd()
+		root.SetOut(new(bytes.Buffer))
+		root.SetErr(new(bytes.Buffer))
+		root.SetArgs(args)
+		err := root.Execute()
+		if err == nil || !strings.Contains(err.Error(), "accepts 1 arg(s), received 2") {
+			t.Fatalf("%v: %v", args, err)
+		}
 	}
 }
 

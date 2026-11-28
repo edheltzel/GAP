@@ -29,6 +29,24 @@ install_completions() {
 	fi
 }
 
+install_man() (
+	man1="${1%/*}/../share/man/man1"
+	page=""
+	if mkdir -p "$man1" && page="$(mktemp "$man1/gap.1.XXXXXX")" && "$1" man > "$page" 2>/dev/null && chmod 644 "$page" && mv -f "$page" "$man1/gap.1"; then
+		echo "Installed the manual: man gap"
+		pages="$(cd -P "$man1" 2>/dev/null && pwd -P)" || exit 0
+		mandir="$(cd -P "${1%/*}/../share/man" 2>/dev/null && pwd -P)" || exit 0
+		found="$(PATH="${1%/*}:$PATH" man -w gap 2>/dev/null || true)"
+		if command -v man >/dev/null 2>&1 && [ "$(cd -P "${found%/*}" 2>/dev/null && pwd -P)/${found##*/}" != "$pages/gap.1" ]; then
+			echo "man cannot find it yet. Add this line to your shell config, then open a new terminal:"
+			echo "  export MANPATH=\"$mandir:\$MANPATH\""
+		fi
+	else
+		[ -z "$page" ] || rm -f "$page" 2>/dev/null || :
+		echo "No manual installed. Run gap --help or gap <command> --help instead."
+	fi
+)
+
 sha256() {
 	if command -v shasum >/dev/null 2>&1; then
 		shasum -a 256 "$1" | awk '{print $1}'
@@ -112,6 +130,7 @@ install_release() {
 	echo "Installed $bin/gap"
 	echo "Keep the checkout at $checkout; gap reads it when it runs."
 	install_completions "$bin/gap"
+	install_man "$bin/gap"
 	path_hint "$bin"
 }
 
@@ -148,4 +167,5 @@ fi
 echo "Installed $bin/gap"
 echo "Keep the source checkout at $PWD; gap reads it when it runs."
 install_completions "$bin/gap"
+install_man "$bin/gap"
 path_hint "$bin"

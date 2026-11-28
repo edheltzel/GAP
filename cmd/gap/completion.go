@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -120,6 +121,69 @@ func installCompletion(root *cobra.Command, shell string, out *report) error {
 	}
 	out.println("  Open a new terminal to use them.")
 	return nil
+}
+
+func completeSyncGroups(cmd *cobra.Command, _ []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	prefix := ""
+	if i := strings.LastIndex(toComplete, ","); i >= 0 {
+		prefix = toComplete[:i+1]
+	}
+	chosen := strings.Split(prefix, ",")
+	profile, _ := cmd.Flags().GetString("profile")
+	d, err := completionDistro(cmd)
+	if profile == "crew" || err == nil && d.Profile == "crew" {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	var groups []cobra.Completion
+	add := func(name, desc string) {
+		if slices.Contains(chosen, name) {
+			return
+		}
+		if prefix != "" {
+			groups = append(groups, prefix+name)
+			return
+		}
+		groups = append(groups, cobra.CompletionWithDesc(name, desc))
+	}
+	add("policy", "global/AGENTS.md and global/commands")
+	if err == nil {
+		for _, id := range sortedIDs(d.Components) {
+			add(id, d.Components[id].Repo)
+		}
+	}
+	return groups, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
+}
+
+func completeProfiles(_ *cobra.Command, _ []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	_, repoRoot, err := gapHomes()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	entries, _ := os.ReadDir(filepath.Join(repoRoot, "profiles"))
+	var names []cobra.Completion
+	for _, e := range entries {
+		if name, ok := strings.CutSuffix(e.Name(), ".toml"); ok && !e.IsDir() {
+			names = append(names, name)
+		}
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
+}
+
+func completionDistro(cmd *cobra.Command) (distro, error) {
+	home, repoRoot, err := gapHomes()
+	if err != nil {
+		return distro{}, err
+	}
+	projectRoot, err := invokingProjectRoot()
+	if err != nil {
+		return distro{}, err
+	}
+	profile, _ := cmd.Flags().GetString("profile")
+	d, _, err := readPins(repoRoot)
+	if err != nil {
+		return distro{}, err
+	}
+	return applyOverrides(d, home, repoRoot, projectRoot, profile)
 }
 
 func completeIDs(userOnly bool, suffix string) cobra.CompletionFunc {

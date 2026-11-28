@@ -368,15 +368,7 @@ func promptConfirm(title string, initial bool) (bool, error) {
 }
 
 func printMissingSource(out *report) {
-	out.println()
-	out.println(out.tone(" ERROR ", colorBad) + " " + out.tone("Missing required argument: source", colorBad))
-	out.println()
-	out.println(out.tone("  Usage:", colorDim))
-	out.println("    " + out.tone("gap add", colorAccent) + " <source> " + out.tone("[options]", colorDim))
-	out.println()
-	out.println(out.tone("  Example:", colorDim))
-	out.println("    " + out.tone("gap add", colorAccent) + " vercel-labs/agent-skills")
-	out.println()
+	printArgError(out, argError{cmd: "gap add", arg: "source", usage: "<source>", flags: "[options]", example: "vercel-labs/agent-skills"})
 }
 
 type localSource struct{ root, sub, ref, commit string }

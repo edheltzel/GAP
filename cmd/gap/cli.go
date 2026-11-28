@@ -9,10 +9,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime/debug"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"charm.land/fang/v2"
+	mcobra "github.com/muesli/mango-cobra"
+	"github.com/muesli/roff"
 	"github.com/spf13/cobra"
 )
 
@@ -20,18 +26,8 @@ import (
 var version string
 
 func main() {
-	opts := []fang.Option{
-		fang.WithoutManpage(),
-		fang.WithoutCompletions(),
-		fang.WithColorSchemeFunc(gapColorScheme),
-		fang.WithErrorHandler(func(w io.Writer, _ fang.Styles, err error) {
-			fmt.Fprintln(w, err)
-		}),
-	}
-	if version != "" {
-		opts = append(opts, fang.WithVersion(version))
-	}
-	if err := fang.Execute(context.Background(), rootCmd(), opts...); err != nil {
+	root := rootCmd()
+	if err := fang.Execute(context.Background(), root, fangOptions(root)...); err != nil {
 		os.Exit(1)
 	}
 	if exitCode != 0 {
@@ -39,17 +35,190 @@ func main() {
 	}
 }
 
+func fangOptions(root *cobra.Command) []fang.Option {
+	opts := []fang.Option{
+		fang.WithoutCompletions(),
+		fang.WithoutManpage(),
+		fang.WithColorSchemeFunc(gapColorScheme),
+		fang.WithErrorHandler(func(w io.Writer, _ fang.Styles, err error) {
+			var missing argError
+			if errors.As(err, &missing) {
+				out := newReport(root.ErrOrStderr())
+				out.out = w
+				printArgError(out, missing)
+				return
+			}
+			fmt.Fprintln(w, err)
+		}),
+	}
+	if v := displayVersion(); v != "" {
+		opts = append(opts, fang.WithVersion(v))
+	}
+	return opts
+}
+
+var manShortFlag = regexp.MustCompile(`\\fB--([[:alnum:]]) `)
+
+func manCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:                   "man",
+		Short:                 "Print the gap manual page",
+		Hidden:                true,
+		SilenceUsage:          true,
+		DisableFlagsInUseLine: true,
+		Args:                  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			page, err := manPage(cmd.Root())
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprint(cmd.OutOrStdout(), page)
+			return err
+		},
+	}
+}
+
+func manPage(root *cobra.Command) (string, error) {
+	page, err := mcobra.NewManPage(1, root)
+	if err != nil {
+		return "", err
+	}
+	return manShortFlag.ReplaceAllString(page.Build(roff.NewDocument()), `\fB-$1 `), nil
+}
+
+func displayVersion() string {
+	if version != "" {
+		return version
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	revision, dirty := "", false
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			revision = s.Value
+		case "vcs.modified":
+			dirty = s.Value == "true"
+		}
+	}
+	if revision == "" {
+		return ""
+	}
+	v := "devel+" + revision[:min(7, len(revision))]
+	if dirty {
+		v += "-dirty"
+	}
+	return v
+}
+
+type argError struct {
+	cmd, arg, usage, flags, example, got string
+}
+
+func (e argError) Error() string {
+	if e.got != "" {
+		return "Invalid argument " + strconv.Quote(e.got) + ": want " + e.arg
+	}
+	return "Missing required argument: " + e.arg
+}
+
+func requireArg(e argError, valid func(string) bool) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return e
+		}
+		if err := cobra.ExactArgs(1)(cmd, args); err != nil {
+			return err
+		}
+		if valid != nil && !valid(args[0]) {
+			e.got = args[0]
+			return e
+		}
+		return nil
+	}
+}
+
+func validPinSpec(spec string) bool {
+	id, ref, ok := strings.Cut(spec, "@")
+	return ok && id != "" && ref != "" && !strings.Contains(ref, "@")
+}
+
+func printArgError(out *report, e argError) {
+	out.println()
+	out.println(out.tone(" ERROR ", colorBad) + " " + out.tone(e.Error(), colorBad))
+	out.println()
+	out.println(out.tone("  Usage:", colorDim))
+	usage := "    " + out.tone(e.cmd, colorAccent) + " " + e.usage
+	if e.flags != "" {
+		usage += " " + out.tone(e.flags, colorDim)
+	}
+	out.println(usage)
+	out.println()
+	out.println(out.tone("  Example:", colorDim))
+	out.println("    " + out.tone(e.cmd, colorAccent) + " " + e.example)
+	out.println()
+}
+
 func rootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "gap",
 		Short: "Publish one set of agent rules to every harness",
-		Long: `gap publishes global/AGENTS.md and each global/commands/*.md into the files
-those harnesses already read and installs each component pinned in gap.toml from gap.lock.
+		Long: `gap publishes one set of agent rules, commands, and skills to every coding agent.
+New here? Run gap sync, then gap status. Plain gap opens the TUI. Terms: gap help concepts`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if tuiReady() {
+				return runTUI()
+			}
+			exitCode = 2
+			return cmd.Help()
+		},
+	}
+	for _, g := range commandGroups {
+		root.AddGroup(&cobra.Group{ID: g.id, Title: g.title})
+	}
+	root.AddCommand(tuiCmd(), syncCmd(), statusCmd(), sourceCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd(), selfUpdateCmd(), completionCmd(), conceptsCmd())
+	root.SetHelpCommandGroupID("inspect")
+	root.AddCommand(manCmd())
+	root.InitDefaultHelpCmd()
+	if help, _, err := root.Find([]string{"help"}); err == nil && help != root {
+		help.Example = "  gap help sync\n  gap help concepts"
+	}
+	for _, c := range root.Commands() {
+		for _, g := range commandGroups {
+			if slices.Contains(g.cmds, c.Name()) {
+				c.GroupID = g.id
+			}
+		}
+	}
+	return root
+}
 
-Installation, source checkout requirements, and updates:
-https://gap.edheltzel.codes/docs/#install-gap
-Selected skills install directly from the pinned store without Node.
-sync never moves pins. pin is the only command that writes the distro's gap.lock.
+var commandGroups = []struct {
+	id, title string
+	cmds      []string
+}{
+	{"start", "get started", []string{"sync", "status", "tui", "add"}},
+	{"manage", "manage", []string{"update", "remove", "check", "pin", "restore"}},
+	{"inspect", "inspect", []string{"list", "source", "doctor", "search"}},
+	{"setup", "setup", []string{"init", "completion", "self-update", "uninstall"}},
+}
+
+func conceptsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:    "concepts",
+		Hidden: true,
+		Short:  "Explain the distro, components, pins, the lock, the store, and scopes",
+		Long: `The distro is this GAP checkout: global/AGENTS.md, global/commands/*.md, and gap.toml.
+A component is a repo listed in gap.toml. Its pin is the exact commit recorded in gap.lock.
+The store (~/.gap/store/<id>/<commit>) holds each pinned commit; skills install from it
+without Node. A harness is a coding agent (Claude, Codex, Cursor, Pi, ...) whose files gap writes.
+
+sync never moves pins; it applies the ones recorded in gap.lock. pin records a ref you name,
+and update moves a component to the newest commit of its configured ref.
 add, update, and remove manage utilities you add yourself: any git repo or local folder
 of skills, recorded in ~/.config/gap/gap.toml and pinned in ~/.config/gap/gap.lock.
 
@@ -62,19 +231,11 @@ Global vs project:
            project folder. A distro skill with load = "project" installs into
            <repo>/.agents/skills and <repo>/.claude/skills when the repo matches its
            when.files. enabled = false leaves a component out.
-Commands, hooks, and MCP servers are always machine-wide.`,
-		SilenceUsage:  true,
-		SilenceErrors: true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			if tuiReady() {
-				return runTUI()
-			}
-			exitCode = 2
-			return cmd.Help()
-		},
+Commands, hooks, and MCP servers are always machine-wide.
+
+More: https://gap.edheltzel.codes/docs/concepts/
+Install and update: https://gap.edheltzel.codes/docs/#install-gap`,
 	}
-	root.AddCommand(tuiCmd(), syncCmd(), statusCmd(), sourceCmd(), restoreCmd(), pinCmd(), doctorCmd(), initCommand(), addCmd(), checkCmd(), updateCmd(), removeCmd(), listCmd(), uninstallCmd(), searchCmd(), selfUpdateCmd(), completionCmd())
-	return root
 }
 
 var exitCode int
@@ -100,8 +261,9 @@ func finish(err error) error {
 
 func tuiCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "tui",
-		Short: "Open the terminal UI: update, check, remove, and disable items; see status and projects",
+		Use:     "tui",
+		Example: "  gap tui",
+		Short:   "Open the terminal UI: update, check, remove, and disable items; see status and projects",
 		Long: `tui lists every component and utility with its pin, store, drift, and new commits.
 u updates the selected item, c checks it, C checks all. space marks utilities and d removes
 the marked ones (or the selected one) after one confirmation; files move to ~/.gap/backups.
@@ -124,8 +286,9 @@ Plain gap opens it too when stdin and stdout are a terminal and NO_COLOR and TER
 func syncCmd() *cobra.Command {
 	var opts syncOptions
 	cmd := &cobra.Command{
-		Use:   "sync",
-		Short: "Preview, then publish the policy and commands, install component skills, check skills for drift",
+		Use:     "sync",
+		Example: "  gap sync\n  gap sync --only policy\n  gap sync --skip recall,echo --yes\n  gap sync --profile crew",
+		Short:   "Preview, then publish the policy and commands, install component skills, check skills for drift",
 		Long: `sync prints what it will touch, grouped as policy and each component in gap.toml.
 On a terminal it opens a picker with every group
 checked: space toggles a group, enter syncs, ctrl+c quits before anything is written.
@@ -137,9 +300,12 @@ a flag leaves it out.`,
 		},
 	}
 	cmd.Flags().BoolVar(&opts.RemoveLegacy, "remove-codex-legacy", false, "strip the old GAP text from Codex AGENTS.md once both hooks are trusted")
-	cmd.Flags().StringVar(&opts.Profile, "profile", "", "apply profiles/<name>.toml over the distro for this run")
-	cmd.Flags().StringSliceVar(&opts.Only, "only", nil, "sync only these groups (policy or a component id)")
-	cmd.Flags().StringSliceVar(&opts.Skip, "skip", nil, "leave these groups out of this run")
+	cmd.Flags().StringVar(&opts.Profile, "profile", "", "apply profiles/NAME.toml over the distro for this run (e.g. crew)")
+	cmd.Flags().StringSliceVar(&opts.Only, "only", nil, "sync only these groups: policy or component ids, comma-separated (e.g. policy,echo)")
+	cmd.Flags().StringSliceVar(&opts.Skip, "skip", nil, "leave these groups out of this run, comma-separated (e.g. recall,echo)")
+	_ = cmd.RegisterFlagCompletionFunc("only", completeSyncGroups)
+	_ = cmd.RegisterFlagCompletionFunc("skip", completeSyncGroups)
+	_ = cmd.RegisterFlagCompletionFunc("profile", completeProfiles)
 	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "sync every selected group without asking")
 	cmd.MarkFlagsMutuallyExclusive("only", "skip")
 	return cmd
@@ -147,9 +313,10 @@ a flag leaves it out.`,
 
 func statusCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "status",
-		Short: "Show each component pin, store, and skill drift. Writes nothing",
-		Args:  cobra.NoArgs,
+		Use:     "status",
+		Example: "  gap status",
+		Short:   "Show each component pin, store, and skill drift. Writes nothing",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			err := statusAll()
 			if errors.Is(err, errCrew) {
@@ -189,9 +356,10 @@ func printRecallCandidates() {
 
 func sourceCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "source",
-		Short: "Print the GAP checkout that sync publishes from. Writes nothing",
-		Args:  cobra.NoArgs,
+		Use:     "source",
+		Example: "  gap source\n  cd \"$(gap source)\"",
+		Short:   "Print the GAP checkout that sync publishes from. Writes nothing",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, err := sourceRoot()
 			if err != nil {
@@ -206,6 +374,7 @@ func sourceCmd() *cobra.Command {
 func restoreCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:               "restore [id]",
+		Example:           "  gap restore\n  gap restore do-skills",
 		Short:             "Reinstall drifted component skills from the lock. No network when the store exists",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeIDs(false, ""),
@@ -222,8 +391,9 @@ func restoreCmd() *cobra.Command {
 func pinCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:               "pin <id>@<ref>",
+		Example:           "  gap pin do-skills@master\n  gap pin echo@v0.14.0",
 		Short:             "Record id's commit and tree in gap.lock",
-		Args:              cobra.ExactArgs(1),
+		Args:              requireArg(argError{cmd: "gap pin", arg: "<id>@<ref>", usage: "<id>@<ref>", example: "do-skills@master"}, validPinSpec),
 		ValidArgsFunction: completeIDs(false, "@"),
 		RunE:              func(cmd *cobra.Command, args []string) error { return pinComponent(args[0]) },
 	}
@@ -231,16 +401,18 @@ func pinCmd() *cobra.Command {
 
 func doctorCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "doctor",
-		Short: "Run each component's doctor and report which harnesses are present",
-		Args:  cobra.NoArgs,
-		RunE:  func(cmd *cobra.Command, _ []string) error { return finish(doctorAll()) },
+		Use:     "doctor",
+		Example: "  gap doctor",
+		Short:   "Run each component's doctor and report which harnesses are present",
+		Args:    cobra.NoArgs,
+		RunE:    func(cmd *cobra.Command, _ []string) error { return finish(doctorAll()) },
 	}
 }
 
 func addCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "add <source>",
+		Example: "  gap add owner/repo\n  gap add -g owner/repo\n  gap add owner/repo --list\n  gap add owner/repo --skill review -y",
 		Aliases: []string{"install", "i", "a"},
 		Short:   "Add skills from any git repo or local folder and install them for your agents",
 		Long: `add installs skills from any git repository or local folder, with the same flags as
@@ -280,22 +452,23 @@ removes the utility everywhere, including every project copy.`,
 	flags.BoolP("yes", "y", false, "install without prompts")
 	flags.BoolP("list", "l", false, "list the source's skills and exit")
 	flags.Bool("all", false, "every skill to every agent, without prompts")
-	flags.StringSliceP("agent", "a", nil, "agents to install to; '*' for all")
-	flags.StringSliceP("skill", "s", nil, "skills to install; '*' for all")
+	flags.StringSliceP("agent", "a", nil, "agents to install to, space-separated or repeated (e.g. -a claude-code codex); '*' for all")
+	flags.StringSliceP("skill", "s", nil, "skill names to install, space-separated or repeated; '*' for all")
 	flags.String("metadata", "", "accepted for compatibility; unused")
 	flags.Bool("full-depth", false, "search the whole repo for skills")
 	flags.Bool("json", false, "print the results as JSON (needs -y or --all)")
 	flags.Bool("copy", false, "copy into each agent folder instead of linking")
-	flags.StringSlice("subagent", nil, "Eve subagents to install to")
-	flags.String("rename", "", "install the one selected skill under a new name")
-	flags.String("id", "", "utility id (default: the repo name, lowercased)")
+	flags.StringSlice("subagent", nil, "Eve subagents to install to, space-separated or repeated")
+	flags.String("rename", "", "install the one selected skill under this new name")
+	flags.String("id", "", "utility id to record (default: the repo name, lowercased)")
 	return cmd
 }
 
 func checkCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "check [id]",
-		Short: "List the commits waiting on each component's ref. Changes no pin",
+		Use:     "check [id]",
+		Example: "  gap check\n  gap check do-skills",
+		Short:   "List the commits waiting on each component's ref. Changes no pin",
 		Long: `check fetches each component's ref into ~/.gap/cache and lists the commits after its pin.
 It changes no pin and installs nothing; gap status shows the counts from the last check.
 A component with pin = true is skipped unless it is named.`,
@@ -313,8 +486,9 @@ A component with pin = true is skipped unless it is named.`,
 
 func updateCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "update [id]",
-		Short: "Move pins to the newest commit on each ref; install utilities, lock distro components for a PR",
+		Use:     "update [id]",
+		Example: "  gap update\n  gap update do-skills",
+		Short:   "Move pins to the newest commit on each ref; install utilities, lock distro components for a PR",
 		Long: `update resolves the newest commit on each component's ref, like lazy.nvim's :Lazy update.
 A distro component's new pin is written to gap.lock in the GAP checkout with the commits it
 brings in; commit and merge gap.lock, then gap sync installs it. A utility added with gap add
@@ -335,8 +509,9 @@ is skipped unless it is named.`,
 func removeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:               "remove <id>",
+		Example:           "  gap remove my-skills",
 		Short:             "Run a utility's uninstall hook, move its files to ~/.gap/backups, and drop it",
-		Args:              cobra.ExactArgs(1),
+		Args:              requireArg(argError{cmd: "gap remove", arg: "<id>", usage: "<id>", example: "my-skills"}, nil),
 		ValidArgsFunction: completeIDs(true, ""),
 		RunE:              func(cmd *cobra.Command, args []string) error { return finish(removeUtility(args[0])) },
 	}
@@ -345,8 +520,9 @@ func removeCmd() *cobra.Command {
 func uninstallCmd() *cobra.Command {
 	var opts uninstallOptions
 	cmd := &cobra.Command{
-		Use:   "uninstall",
-		Short: "Remove everything gap sync and gap add put on this machine, from GAP's records",
+		Use:     "uninstall",
+		Example: "  gap uninstall --dry-run\n  gap uninstall",
+		Short:   "Remove everything gap sync and gap add put on this machine, from GAP's records",
 		Long: `uninstall removes every utility the way gap remove does, then the MCP servers and
 commands recorded for distro components, the GAP block from each policy file (a file
 with no markers is deleted only when it matches ~/.gap/published.json), the GAP Codex
@@ -365,27 +541,30 @@ every step succeeds; a failure exits 1 and keeps them so the command can run aga
 
 func searchCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "search [query]",
-		Short: "Search the utility catalog",
-		Args:  cobra.MaximumNArgs(1),
-		RunE:  func(cmd *cobra.Command, args []string) error { exitCode = runSearch(args); return nil },
+		Use:     "search [query]",
+		Example: "  gap search\n  gap search review",
+		Short:   "Search the utility catalog",
+		Args:    cobra.MaximumNArgs(1),
+		RunE:    func(cmd *cobra.Command, args []string) error { exitCode = runSearch(args); return nil },
 	}
 }
 
 func listCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List every component and utility with its source, pin, and hook trust",
-		Args:  cobra.NoArgs,
-		RunE:  func(cmd *cobra.Command, _ []string) error { return finish(listUtilities()) },
+		Use:     "list",
+		Example: "  gap list",
+		Short:   "List every component and utility with its source, pin, and hook trust",
+		Args:    cobra.NoArgs,
+		RunE:    func(cmd *cobra.Command, _ []string) error { return finish(listUtilities()) },
 	}
 }
 
 func initCommand() *cobra.Command {
 	var adopt bool
 	cmd := &cobra.Command{
-		Use:   "init [dir]",
-		Short: "Write .gap/gap.toml and a policy pointer",
+		Use:     "init [dir]",
+		Example: "  gap init\n  gap init ../my-app\n  gap init --adopt",
+		Short:   "Write .gap/gap.toml and a policy pointer",
 		Long: `init creates <dir>/.gap/gap.toml, the project layer read after ~/.config/gap/gap.toml.
 It can set a component's enabled and ref, and a distro skill's load and when.files.
 A skill with load = "project" installs into <repo>/.agents/skills and

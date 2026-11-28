@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,7 +9,62 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 )
+
+func TestStatusPipedMissingStoreUnchanged(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	repo, commit := echoFixture(t, home, "#!/bin/sh\nexit 0\n")
+	sourceRootFor = repo
+	t.Cleanup(func() { sourceRootFor = "" })
+	if err := os.RemoveAll(storePath(home, "echo", commit)); err != nil {
+		t.Fatal(err)
+	}
+	var code int
+	out, stderr := captureStd(t, func() { code = run([]string{"status"}) })
+	want := fmt.Sprintf("echo ref=master commit=%s store=missing\nNext\n  gap sync    fetch each missing source checkout and install it\n", commit[:7])
+	if code != 1 || out != want || stderr != "" {
+		t.Fatalf("piped status: exit=%d\ngot  %q\nwant %q\nstderr %q", code, out, want, stderr)
+	}
+}
+
+func TestStatusTerminalRestoreHint(t *testing.T) {
+	rows := []statusRow{
+		{id: "do-skills", ref: "master", commit: "bb80228", store: storeOK, drifted: 1, skills: [][]string{{"do-todo", "drift=2"}}},
+		{id: "echo", ref: "v0.13.0", commit: "f800126", store: storeOK, skills: [][]string{{"echo-voice", "drift=0"}}},
+	}
+	var buf bytes.Buffer
+	ttyReport(&buf).statusSummary(rows)
+	plain := ansi.Strip(buf.String())
+	if !strings.Contains(plain, "  gap restore do-skills   replace drifted copies from the pinned store\n") || strings.Contains(plain, "gap restore echo") {
+		t.Fatalf("terminal status must name gap restore for drifted components only:\n%s", plain)
+	}
+	if !strings.HasSuffix(plain, "2 components, 1 with drift, 0 store problems\n") {
+		t.Fatalf("terminal status lost its summary line:\n%s", plain)
+	}
+}
+
+func TestStatusNextAlignsOnTerminal(t *testing.T) {
+	steps := []string{
+		"gap pin echo@master    create the missing lock entry",
+		"gap sync    fetch each missing source checkout and install it",
+	}
+	var buf bytes.Buffer
+	ttyReport(&buf).next(steps...)
+	want := "Next\n" +
+		"  gap pin echo@master   create the missing lock entry\n" +
+		"  gap sync              fetch each missing source checkout and install it\n"
+	if got := ansi.Strip(buf.String()); got != want {
+		t.Fatalf("terminal next steps not aligned:\ngot  %q\nwant %q", got, want)
+	}
+	buf.Reset()
+	newReport(&buf).next(steps...)
+	if want := "Next\n  " + steps[0] + "\n  " + steps[1] + "\n"; buf.String() != want {
+		t.Fatalf("piped next steps changed:\ngot  %q\nwant %q", buf.String(), want)
+	}
+}
 
 func TestStatusPreservesSourceAndStore(t *testing.T) {
 	for _, packed := range []bool{false, true} {

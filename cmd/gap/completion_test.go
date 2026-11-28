@@ -104,4 +104,16 @@ func TestCompletionOffersItemIDs(t *testing.T) {
 	if strings.Contains(out, "util\t") {
 		t.Fatalf("update takes one id, but a second was offered:\n%s", out)
 	}
+	out, err := runGap(t, "__complete", "sync", "--only", "")
+	if err != nil || !strings.Contains(out, "policy\t") || !strings.Contains(out, "util\t") {
+		t.Fatalf("sync --only must offer policy and every enabled group, utilities included: %v\n%s", err, out)
+	}
+	out, _ = runGap(t, "__complete", "sync", "--skip", "policy,")
+	if strings.Contains(out, "policy,policy") || !strings.Contains(out, "policy,util\n") {
+		t.Fatalf("sync --skip after a comma must offer the rest without descriptions, which Bash 3 cannot match:\n%s", out)
+	}
+	out, _ = runGap(t, "__complete", "sync", "--profile", "crew", "--only", "")
+	if strings.Contains(out, "policy") || strings.Contains(out, "util") {
+		t.Fatalf("crew sync never selects groups, so none may be offered:\n%s", out)
+	}
 }

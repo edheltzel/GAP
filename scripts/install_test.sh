@@ -36,6 +36,11 @@ if [ "$1" = completion ]; then
 	[ -z "${FAKE_COMPLETION_FAIL:-}" ]
 	exit
 fi
+if [ "$1" = man ]; then
+	[ -z "${FAKE_MAN_FAIL:-}" ] || exit 1
+	echo '.TH GAP 1'
+	exit
+fi
 echo fake-gap
 GAP
 chmod 755 "$rel/stage/gap"
@@ -67,8 +72,9 @@ esac
 CURL
 chmod 755 "$tools/curl"
 
+mkdir -p "$work/tmp"
 run_install() {
-	env HOME="$work/home" RELEASE_FIXTURE="$rel" \
+	env HOME="$work/home" RELEASE_FIXTURE="$rel" TMPDIR="$work/tmp" \
 		GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.$src.insteadOf" \
 		GIT_CONFIG_VALUE_0="$release_repo" PATH="$tools" \
 		sh "$installer" > "$work/out" 2>&1
@@ -90,6 +96,8 @@ echo "$sum  $archive" > "$rel/checksums.txt"
 if run_install; then pass "good checksum installs"; else fail "good checksum installs"; cat "$work/out"; fi
 if [ -x "$work/home/.local/bin/gap" ] && [ "$("$work/home/.local/bin/gap")" = fake-gap ]; then pass "binary installed"; else fail "binary installed"; fi
 if [ "$(cat "$work/home/completion.log" 2>/dev/null)" = "completion --install" ]; then pass "completions installed"; else fail "completions installed"; cat "$work/out"; fi
+if [ "$(cat "$work/home/.local/share/man/man1/gap.1" 2>/dev/null)" = ".TH GAP 1" ]; then pass "man page installed"; else fail "man page installed"; cat "$work/out"; fi
+if [ -z "$(ls -A "$work/tmp")" ]; then pass "release download removed"; else fail "release download removed"; ls -A "$work/tmp"; fi
 if [ -f "$work/home/.gap/checkout/global/AGENTS.md" ] && [ "$(git -C "$work/home/.gap/checkout" symbolic-ref --short HEAD)" = master ]; then pass "checkout cloned on master"; else fail "checkout cloned on master"; fi
 if git -C "$work/home/.gap/checkout" rev-parse --verify --quiet refs/remotes/origin/HEAD >/dev/null; then pass "origin/HEAD set"; else fail "origin/HEAD set"; fi
 if grep -q 'export PATH=' "$work/out"; then pass "PATH hint printed"; else fail "PATH hint printed"; cat "$work/out"; fi
@@ -101,6 +109,28 @@ if run_install && [ "$(cat "$work/home/.gap/checkout/global/AGENTS.md")" = two ]
 export FAKE_COMPLETION_FAIL=1
 if run_install && grep -q "No shell completions" "$work/out" && [ -x "$work/home/.local/bin/gap" ]; then pass "completion failure keeps the install"; else fail "completion failure keeps the install"; cat "$work/out"; fi
 unset FAKE_COMPLETION_FAIL
+
+rm -f "$work/home/.local/share/man/man1/gap.1"
+export FAKE_MAN_FAIL=1
+if run_install && grep -q "No manual installed" "$work/out" && [ ! -e "$work/home/.local/share/man/man1/gap.1" ] && [ ! -e "$work/home/.local/share/man/man1/gap.1.tmp" ]; then pass "man failure keeps the install"; else fail "man failure keeps the install"; cat "$work/out"; fi
+unset FAKE_MAN_FAIL
+
+rm -rf "$work/home" "$work/real"
+mkdir -p "$work/home/.local" "$work/real/bin"
+ln -s "$work/real/bin" "$work/home/.local/bin"
+if run_install && [ "$(cat "$work/real/share/man/man1/gap.1" 2>/dev/null)" = ".TH GAP 1" ] && grep -q 'export PATH=' "$work/out"; then pass "symlinked bin installs the manual"; else fail "symlinked bin installs the manual"; cat "$work/out"; fi
+
+rm -rf "$work/home" "$work/pages"
+mkdir -p "$work/home/.local/share/man" "$work/pages"
+ln -s "$work/pages" "$work/home/.local/share/man/man1"
+printf '#!/bin/sh\necho "$MAN_FOUND"\n' > "$tools/man"
+chmod 755 "$tools/man"
+export MAN_FOUND="$work/pages/gap.1"
+if run_install && [ -f "$work/pages/gap.1" ] && ! grep -q MANPATH "$work/out"; then pass "man finding the page prints no hint"; else fail "man finding the page prints no hint"; cat "$work/out"; fi
+export MAN_FOUND="/usr/share/man/man1/other.1"
+if run_install && grep -q "export MANPATH=\"$(cd -P "$work/home/.local/share/man" && pwd -P):" "$work/out"; then pass "man missing the page prints the hint"; else fail "man missing the page prints the hint"; cat "$work/out"; fi
+unset MAN_FOUND
+rm -f "$tools/man"
 
 if [ "$fails" -ne 0 ]; then
 	echo "$fails failed"
