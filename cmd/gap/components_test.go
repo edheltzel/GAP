@@ -321,6 +321,37 @@ func TestStoreState(t *testing.T) {
 	}
 	write(t, filepath.Join(dir, "extra.txt"), "extra\n")
 	assertState(storeChanged)
+	if err := os.Remove(filepath.Join(dir, "extra.txt")); err != nil {
+		t.Fatal(err)
+	}
+	assertState(storeOK)
+	if _, err := git(dir, "update-index", "--assume-unchanged", "skills/global/core/do-todo/SKILL.md"); err != nil {
+		t.Fatal(err)
+	}
+	index = readString(t, filepath.Join(dir, ".git", "index"))
+	write(t, source, "hidden\n")
+	assertState(storeChanged)
+	write(t, source, "todo\n")
+	if _, err := git(dir, "update-index", "--no-assume-unchanged", "skills/global/core/do-todo/SKILL.md"); err != nil {
+		t.Fatal(err)
+	}
+	index = readString(t, filepath.Join(dir, ".git", "index"))
+	if _, err := git(dir, "config", "core.trustctime", "false"); err != nil {
+		t.Fatal(err)
+	}
+	stamp, err := os.Stat(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, source, "TODO\n")
+	if err := os.Chtimes(source, stamp.ModTime(), stamp.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	assertState(storeChanged)
+	write(t, source, "todo\n")
+	if _, err := git(dir, "config", "--unset", "core.trustctime"); err != nil {
+		t.Fatal(err)
+	}
 	if readString(t, filepath.Join(dir, ".git", "index")) != index {
 		t.Fatal("store check changed the real index")
 	}

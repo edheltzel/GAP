@@ -499,7 +499,7 @@ func worktreeID(dir string) (string, error) {
 		return "", fmt.Errorf("creating store objects: %w", err)
 	}
 	index := filepath.Join(tmp, "index")
-	if path, err := git(dir, "rev-parse", "--path-format=absolute", "--git-path", "index"); err == nil && copyIndex(path, index) == nil {
+	if path, err := git(dir, "rev-parse", "--path-format=absolute", "--git-path", "index"); err == nil && seedable(dir) && copyIndex(path, index) == nil {
 		if tree, err := hashWorktree(dir, index, objectDir, true); err == nil {
 			return tree, nil
 		}
@@ -515,7 +515,7 @@ func hashWorktree(dir, index, objectDir string, seeded bool) (string, error) {
 	}
 	var tree string
 	for _, args := range steps {
-		cmd := exec.Command("git", append([]string{"-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.eol=lf"}, args...)...)
+		cmd := exec.Command("git", append([]string{"-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.eol=lf", "-c", "core.trustctime=true", "-c", "core.checkStat=default"}, args...)...)
 		cmd.Dir, cmd.Env = dir, append(gitEnv(), "GIT_INDEX_FILE="+index)
 		if args[0] != "read-tree" {
 			cmd.Env = append(cmd.Env, "GIT_OBJECT_DIRECTORY="+objectDir)
@@ -527,6 +527,30 @@ func hashWorktree(dir, index, objectDir string, seeded bool) (string, error) {
 		tree = strings.TrimSpace(string(out))
 	}
 	return tree, nil
+}
+
+func seedable(dir string) bool {
+	if v, _ := git(dir, "config", "--get", "core.autocrlf"); v != "" && v != "false" {
+		return false
+	}
+	if attrs, err := git(dir, "ls-files", "--", ":(glob)**/.gitattributes"); err != nil || attrs != "" {
+		return false
+	}
+	if info, _ := git(dir, "rev-parse", "--path-format=absolute", "--git-path", "info/attributes"); info != "" {
+		if _, err := os.Stat(info); err == nil {
+			return false
+		}
+	}
+	tags, err := git(dir, "ls-files", "-v")
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(tags, "\n") {
+		if line != "" && (line[0] == 'S' || line[0] >= 'a' && line[0] <= 'z') {
+			return false
+		}
+	}
+	return true
 }
 
 func copyIndex(src, dst string) error {
